@@ -7,7 +7,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -127,4 +127,67 @@
   html {
     @apply font-sans;
   }
+}
+
+.font-serif-display {
+  font-family: var(--font-instrument-serif), "Instrument Serif", serif;
+}
+
+.font-body {
+  font-family: var(--font-inter), "Inter", sans-serif;
+}
+
+@keyframes fade-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-rise {
+  opacity: 0;
+  animation: fade-rise 0.8s ease-out forwards;
+}
+
+.animate-fade-rise-delay {
+  opacity: 0;
+  animation: fade-rise 0.8s ease-out 0.2s forwards;
+}
+
+.animate-fade-rise-delay-2 {
+  opacity: 0;
+  animation: fade-rise 0.8s ease-out 0.4s forwards;
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 40s linear infinite;
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.4);
+  }
+}
+
+.animate-pulse-dot {
+  animation: pulse-dot 1.6s ease-in-out infinite;
 }
