@@ -65,12 +65,7 @@ export function Hero() {
               backgroundColor: "#000000",
             }}
           />
-          <span
-            className="relative z-10 inline-flex items-center gap-2 transition-colors duration-500 group-hover:text-white"
-            style={{
-              color: "#000000",
-            }}
-          >
+          <span className="relative z-10 inline-flex items-center gap-2 text-black transition-colors duration-500 group-hover:text-white">
             View Live Dashboard
             <span className="inline-block transition-transform duration-500 group-hover:translate-x-1">
               →
