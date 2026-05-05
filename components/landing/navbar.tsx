@@ -71,24 +71,28 @@ export function Navbar() {
       <div
         className={`mx-auto flex items-center justify-between gap-6 transition-all duration-500 ease-out ${scrolled ? "max-w-5xl rounded-full border border-black/5 bg-white/80 px-5 py-2.5 shadow-lg shadow-black/5 backdrop-blur-xl" : "max-w-7xl bg-transparent px-8 py-6"}`}
       >
-        <a href="#" className="flex shrink-0 flex-col leading-none">
-          <span
-            className={`font-serif-display tracking-tight transition-all duration-500 ${scrolled ? "text-2xl" : "text-3xl"}`}
-            style={{ color: "#000000" }}
-          >
-            EZAC
-          </span>
-          <span
-            className="mt-1 overflow-hidden text-[10px] uppercase tracking-[0.18em] transition-all duration-500"
-            style={{
-              color: "#6F6F6F",
-              maxHeight: scrolled ? "0px" : "20px",
-              opacity: scrolled ? 0 : 1,
-              marginTop: scrolled ? "0px" : "4px",
-            }}
-          >
-            Ethiopian Zakat &amp; Awqaf Commission
-          </span>
+        <a
+          href="#"
+          className={`shrink-0 leading-none transition-all duration-500 ease-out ${scrolled ? "inline-flex w-auto items-center whitespace-nowrap" : "flex min-w-0 max-w-[268px] flex-col"}`}
+        >
+          {scrolled ? (
+            <span
+              className="font-serif-display text-2xl tracking-tight"
+              style={{ color: "#000000" }}
+            >
+              EZAC
+            </span>
+          ) : (
+            <span
+              className="text-[10px] uppercase tracking-[0.18em]"
+              style={{
+                color: "#6F6F6F",
+                lineHeight: 1.5,
+              }}
+            >
+              Ethiopian Zakat &amp; Awqaf Commission
+            </span>
+          )}
         </a>
 
         <ul className="hidden items-center gap-7 lg:flex">

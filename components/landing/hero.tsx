@@ -52,20 +52,21 @@ export function Hero() {
         </button>
 
         <button
-          className="group relative overflow-hidden rounded-full border px-8 py-5 text-base"
+          className="group relative isolate overflow-hidden rounded-full border px-8 py-5 text-base"
           style={{
             borderColor: "#000000",
           }}
+          type="button"
         >
           <span
             aria-hidden="true"
-            className="absolute inset-0 -translate-x-full transition-transform duration-500 ease-out group-hover:translate-x-0"
+            className="pointer-events-none absolute inset-0 z-0 -translate-x-full transition-transform duration-500 ease-out group-hover:translate-x-0"
             style={{
               backgroundColor: "#000000",
             }}
           />
           <span
-            className="relative inline-flex items-center gap-2 transition-colors duration-500 group-hover:text-white"
+            className="relative z-10 inline-flex items-center gap-2 transition-colors duration-500 group-hover:text-white"
             style={{
               color: "#000000",
             }}
