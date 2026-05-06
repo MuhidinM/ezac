@@ -1,11 +1,10 @@
 const IMPACT_DOTS = [
-  { id: "addis", top: "52%", left: "52%", label: "Addis Ababa" },
-  { id: "bahirdar", top: "28%", left: "40%", label: "Bahir Dar" },
-  { id: "mekelle", top: "14%", left: "56%", label: "Mekelle" },
-  { id: "jigjiga", top: "34%", left: "76%", label: "Jigjiga" },
-  { id: "adama", top: "56%", left: "61%", label: "Adama" },
-  { id: "hawassa", top: "70%", left: "56%", label: "Hawassa" },
-  { id: "jimma", top: "62%", left: "39%", label: "Jimma" },
+  { id: "mekelle", top: "23%", left: "52%", label: "Mekelle" },
+  { id: "bahirdar", top: "37%", left: "42%", label: "Bahir Dar" },
+  { id: "addis", top: "52%", left: "50%", label: "Addis Ababa" },
+  { id: "adama", top: "55%", left: "54%", label: "Adama" },
+  { id: "jimma", top: "58%", left: "43%", label: "Jimma" },
+  { id: "hawassa", top: "64%", left: "52%", label: "Hawassa" },
 ];
 
 export function ImpactMapTeaser() {
@@ -37,42 +36,35 @@ export function ImpactMapTeaser() {
 
         <div className="relative mx-auto mt-12 w-full max-w-5xl rounded-3xl border border-black/5 bg-white p-2 shadow-xl shadow-black/5">
           <div
-            className="relative overflow-hidden rounded-2xl border border-black/5 p-8 sm:p-10"
+            className="relative overflow-hidden rounded-2xl border border-black/5 p-0"
             style={{ backgroundColor: "rgba(0,0,0,0.02)" }}
           >
-            <div className="mx-auto aspect-5/3 w-full max-w-4xl">
-              <svg
-                viewBox="0 0 640 380"
+            <div className="relative aspect-5/3 w-full overflow-hidden rounded-2xl border border-black/10">
+              <iframe
+                title="Google Map of Ethiopia"
+                src="https://www.google.com/maps?q=Ethiopia&z=6&output=embed"
                 className="h-full w-full"
-                role="img"
-                aria-label="Stylized map of Ethiopia with distributed fund points"
-              >
-                <path
-                  d="M292 25l54 29 45 8 43 38-5 37 32 41-25 59-48 12-21 42-38 19-48-8-32 11-44-16-13-31-46-21-8-50 33-40-10-43 25-39 44-16 34-33z"
-                  fill="rgba(0,0,0,0.06)"
-                  stroke="rgba(0,0,0,0.2)"
-                  strokeWidth="2"
-                />
-              </svg>
-            </div>
-
-            {IMPACT_DOTS.map((dot) => (
-              <div
-                key={dot.id}
-                className="group absolute -translate-x-1/2 -translate-y-1/2"
-                style={{ top: dot.top, left: dot.left }}
-              >
-                <div className="relative h-3 w-3 rounded-full bg-black">
-                  <span className="absolute inset-0 rounded-full bg-black/50 animate-ping" />
-                </div>
-                <span
-                  className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 whitespace-nowrap rounded-full border border-black/10 bg-white px-2 py-1 text-[10px] opacity-0 transition-opacity group-hover:opacity-100"
-                  style={{ color: "#6F6F6F" }}
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+              {IMPACT_DOTS.map((dot) => (
+                <div
+                  key={dot.id}
+                  className="group absolute -translate-x-1/2 -translate-y-1/2"
+                  style={{ top: dot.top, left: dot.left }}
                 >
-                  {dot.label}
-                </span>
-              </div>
-            ))}
+                  <div className="relative h-3 w-3 rounded-full bg-black">
+                    <span className="absolute inset-0 rounded-full bg-black/50 animate-ping" />
+                  </div>
+                  <span
+                    className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 whitespace-nowrap rounded-full border border-black/10 bg-white px-2 py-1 text-[10px] opacity-0 transition-opacity group-hover:opacity-100"
+                    style={{ color: "#6F6F6F" }}
+                  >
+                    {dot.label}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
