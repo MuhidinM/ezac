@@ -23,8 +23,8 @@ const SOCIALS = [
 
 export function SiteFooter() {
   return (
-    <footer className="relative z-10 w-full border-t border-black/5 bg-white">
-      <div className="mx-auto max-w-7xl px-8 py-16">
+    <footer className="relative z-10 w-full bg-white">
+      <div className="mx-auto max-w-7xl px-8 pt-0 pb-16">
         <div className="rounded-3xl border border-black/5 bg-white p-2 shadow-xl shadow-black/5">
           <div className="rounded-2xl border border-black/5 px-6 py-8 sm:px-8 sm:py-10">
             <div className="flex flex-col gap-8">

@@ -18,7 +18,7 @@ const PARTNERS: Partner[] = [
 export function PartnersSponsors() {
   return (
     <section className="relative z-10 w-full border-t border-black/5 bg-white">
-      <div className="mx-auto max-w-7xl px-8 py-20">
+      <div className="mx-auto max-w-7xl px-8 pt-20 pb-0">
         <div className="mx-auto max-w-3xl text-center">
           <p
             className="text-[10px] uppercase tracking-[0.18em]"
@@ -42,8 +42,8 @@ export function PartnersSponsors() {
           </h2>
         </div>
 
-        <div className="relative mx-auto mt-12 w-full max-w-6xl overflow-hidden rounded-3xl bg-white p-2">
-          <div className="relative overflow-hidden rounded-2xl bg-linear-to-b from-white to-black/3 px-4 py-6">
+        <div className="relative mx-auto mt-12 w-full max-w-6xl overflow-hidden rounded-3xl bg-white p-0">
+          <div className="relative min-h-[300px] overflow-hidden rounded-2xl bg-linear-to-b from-white to-black/3 px-6 py-16">
             <Sparkles
               className="pointer-events-none absolute inset-0"
               color="#000000"
