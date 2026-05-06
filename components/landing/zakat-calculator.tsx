@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowRightIcon,
@@ -13,7 +13,6 @@ import {
   LandmarkIcon,
   LeafIcon,
   ScaleIcon,
-  ShieldCheckIcon,
 } from "lucide-react";
 
 type TabKey =
@@ -82,6 +81,24 @@ const SILVER_NISAB_GRAMS = 595;
 const AGRI_NISAB_KG = 653;
 const SILVER_PRICE_PER_GRAM_ETB = 412;
 const GOLD_PRICE_PER_GRAM_ETB = 7200;
+const KARATS = [24, 22, 21, 20, 18, 16, 14, 10] as const;
+
+type MetalType = "gold" | "silver";
+type Karat = (typeof KARATS)[number];
+type RatesByKarat = Record<Karat, number>;
+type MetalPricing = {
+  usdToEtb: number;
+  etbPerGram: Record<MetalType, RatesByKarat>;
+  fetchedAt: string;
+  expiresAt: string;
+  sourceStatus: "live" | "cache";
+};
+type MetalLineItem = {
+  id: string;
+  metal: MetalType;
+  grams: string;
+  karat: Karat;
+};
 
 type LivestockMode = "sheepGoat" | "cattle" | "camels";
 type IrrigationMode = "natural" | "mixed" | "artificial";
@@ -91,10 +108,7 @@ type CalculatorState = {
   bankAndMobile: string;
   goodDebtReceivables: string;
   doubtfulDebtCollectedThisYear: string;
-  bullionGoldGrams: string;
-  jewelryGoldGrams: string;
-  silverGrams: string;
-  includeJewelry: boolean;
+  metalItems: MetalLineItem[];
   businessCash: string;
   inventoryValue: string;
   businessReceivables: string;
@@ -124,10 +138,7 @@ const INITIAL_STATE: CalculatorState = {
   bankAndMobile: "",
   goodDebtReceivables: "",
   doubtfulDebtCollectedThisYear: "",
-  bullionGoldGrams: "",
-  jewelryGoldGrams: "",
-  silverGrams: "",
-  includeJewelry: true,
+  metalItems: [{ id: "metal-1", metal: "gold", grams: "", karat: 24 }],
   businessCash: "",
   inventoryValue: "",
   businessReceivables: "",
@@ -154,6 +165,42 @@ const INITIAL_STATE: CalculatorState = {
 
 function parseAmount(value: string) {
   return parseFloat(value.replace(/,/g, "")) || 0;
+}
+
+function createMetalItem(): MetalLineItem {
+  return {
+    id: `metal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    metal: "gold",
+    grams: "",
+    karat: 24,
+  };
+}
+
+/** Fine (pure) metal content in grams for jewelry/alloys: gross × (karat / 24). */
+function fineMetalGrams(grossGrams: number, karat: Karat) {
+  return grossGrams * (karat / 24);
+}
+
+function etbPerGramForKarat(
+  metal: MetalType,
+  karat: Karat,
+  pricing: MetalPricing | null,
+): number {
+  const pure24FallbackConst =
+    metal === "gold" ? GOLD_PRICE_PER_GRAM_ETB : SILVER_PRICE_PER_GRAM_ETB;
+  if (!pricing) {
+    return pure24FallbackConst * (karat / 24);
+  }
+  const rates = pricing.etbPerGram[metal];
+  const direct = rates[karat];
+  if (typeof direct === "number" && direct > 0) {
+    return direct;
+  }
+  const pure24 = rates[24];
+  if (typeof pure24 === "number" && pure24 > 0) {
+    return pure24 * (karat / 24);
+  }
+  return pure24FallbackConst * (karat / 24);
 }
 
 function irrigationRate(mode: IrrigationMode) {
@@ -239,6 +286,13 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
+function formatGrams(value: number) {
+  return new Intl.NumberFormat("en-ET", {
+    maximumFractionDigits: 3,
+    minimumFractionDigits: 0,
+  }).format(value);
+}
+
 function livestockTypeLabel(mode: LivestockMode) {
   switch (mode) {
     case "sheepGoat":
@@ -255,6 +309,63 @@ function livestockTypeLabel(mode: LivestockMode) {
 export function ZakatCalculator() {
   const [activeKey, setActiveKey] = useState<TabKey>("cash");
   const [form, setForm] = useState<CalculatorState>(INITIAL_STATE);
+  const [metalPricing, setMetalPricing] = useState<MetalPricing | null>(null);
+  const [pricingLoading, setPricingLoading] = useState(true);
+  const [pricingError, setPricingError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadPricing() {
+      try {
+        setPricingLoading(true);
+        setPricingError(null);
+        const response = await fetch("/api/metal-pricing", {
+          method: "GET",
+          cache: "no-store",
+        });
+        const json = (await response.json()) as unknown;
+        if (!response.ok || !json || typeof json !== "object") {
+          const err =
+            json &&
+            typeof json === "object" &&
+            "error" in json &&
+            typeof (json as { error: unknown }).error === "string"
+              ? (json as { error: string }).error
+              : `Pricing unavailable (${response.status}).`;
+          throw new Error(err);
+        }
+        const pricing = json as MetalPricing;
+        if (
+          typeof pricing.usdToEtb !== "number" ||
+          !pricing.etbPerGram?.gold ||
+          !pricing.etbPerGram?.silver
+        ) {
+          throw new Error("Invalid pricing response from server.");
+        }
+        if (isMounted) {
+          setMetalPricing(pricing);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setPricingError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load live metal market values.",
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setPricingLoading(false);
+        }
+      }
+    }
+
+    loadPricing();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Cash Tab Base
   const cashBase =
@@ -263,12 +374,26 @@ export function ZakatCalculator() {
     parseAmount(form.goodDebtReceivables) +
     parseAmount(form.doubtfulDebtCollectedThisYear);
 
-  // Precious Metals Base
-  const preciousMetalsValue =
-    (parseAmount(form.bullionGoldGrams) +
-      (form.includeJewelry ? parseAmount(form.jewelryGoldGrams) : 0)) *
-      GOLD_PRICE_PER_GRAM_ETB +
-    parseAmount(form.silverGrams) * SILVER_PRICE_PER_GRAM_ETB;
+  // Precious Metals Base (karat affects ETB/g; Nisab uses fine gold/silver grams)
+  const goldGrossGrams = form.metalItems
+    .filter((item) => item.metal === "gold")
+    .reduce((sum, item) => sum + parseAmount(item.grams), 0);
+  const silverGrossGrams = form.metalItems
+    .filter((item) => item.metal === "silver")
+    .reduce((sum, item) => sum + parseAmount(item.grams), 0);
+  const goldFineGrams = form.metalItems
+    .filter((item) => item.metal === "gold")
+    .reduce((sum, item) => sum + fineMetalGrams(parseAmount(item.grams), item.karat), 0);
+  const silverFineGrams = form.metalItems
+    .filter((item) => item.metal === "silver")
+    .reduce((sum, item) => sum + fineMetalGrams(parseAmount(item.grams), item.karat), 0);
+  const preciousMetalsValue = form.metalItems.reduce((sum, item) => {
+    const grams = parseAmount(item.grams);
+    const etbPerGram = etbPerGramForKarat(item.metal, item.karat, metalPricing);
+    return sum + grams * etbPerGram;
+  }, 0);
+  const meetsPreciousMetalsNisab =
+    goldFineGrams >= GOLD_NISAB_GRAMS || silverFineGrams >= SILVER_NISAB_GRAMS;
 
   // Business Base
   const businessBase =
@@ -293,7 +418,10 @@ export function ZakatCalculator() {
       : 0;
 
   // Thresholds & Minerals/Rikaz
-  const nisabETB = SILVER_NISAB_GRAMS * SILVER_PRICE_PER_GRAM_ETB;
+  const silver24kEtb =
+    metalPricing?.etbPerGram.silver[24] ?? SILVER_PRICE_PER_GRAM_ETB;
+  const gold24kEtb = metalPricing?.etbPerGram.gold[24] ?? GOLD_PRICE_PER_GRAM_ETB;
+  const nisabETB = SILVER_NISAB_GRAMS * silver24kEtb;
   const mineralsBase = parseAmount(form.mineralsValue);
   const mineralsDue = mineralsBase >= nisabETB ? mineralsBase * ZAKAT_RATE : 0;
   const rikazDue = parseAmount(form.rikazValue) * RIKAZ_RATE; // No Nisab
@@ -333,7 +461,9 @@ export function ZakatCalculator() {
       ? Math.max(0, cashBase - deductibleLiabilities) * ZAKAT_RATE
       : 0;
   const goldDue =
-    form.hawlCompleted && meetsNisab ? preciousMetalsValue * ZAKAT_RATE : 0;
+    form.hawlCompleted && meetsPreciousMetalsNisab
+      ? preciousMetalsValue * ZAKAT_RATE
+      : 0;
   const businessDue =
     form.hawlCompleted && meetsNisab
       ? Math.max(0, businessBase) * ZAKAT_RATE
@@ -398,6 +528,36 @@ export function ZakatCalculator() {
       }));
     };
 
+  const updateMetalItem = (
+    id: string,
+    key: keyof Omit<MetalLineItem, "id">,
+    value: string | MetalType | Karat,
+  ) => {
+    setForm((prev) => ({
+      ...prev,
+      metalItems: prev.metalItems.map((item) =>
+        item.id === id ? { ...item, [key]: value } : item,
+      ),
+    }));
+  };
+
+  const addMetalItem = () => {
+    setForm((prev) => ({
+      ...prev,
+      metalItems: [...prev.metalItems, createMetalItem()],
+    }));
+  };
+
+  const removeMetalItem = (id: string) => {
+    setForm((prev) => ({
+      ...prev,
+      metalItems:
+        prev.metalItems.length > 1
+          ? prev.metalItems.filter((item) => item.id !== id)
+          : prev.metalItems,
+    }));
+  };
+
   const renderAmountInput = (
     label: string,
     value: string,
@@ -456,42 +616,105 @@ export function ZakatCalculator() {
       case "gold":
         return (
           <div className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              {renderAmountInput(
-                "Gold bullion owned (grams)",
-                form.bullionGoldGrams,
-                updateAmount("bullionGoldGrams"),
-                "Nisab reference: 85g gold.",
-              )}
-              {renderAmountInput(
-                "Gold jewelry (grams)",
-                form.jewelryGoldGrams,
-                updateAmount("jewelryGoldGrams"),
-                "Included by default (safer view).",
-              )}
-              {renderAmountInput(
-                "Silver owned (grams)",
-                form.silverGrams,
-                updateAmount("silverGrams"),
-                "Nisab reference: 595g silver.",
-              )}
-            </div>
-            <label
-              className="inline-flex items-center gap-2 rounded-full border border-black/10 px-3 py-1.5 text-xs"
+            <div
+              className="rounded-2xl border border-black/10 p-4 text-xs"
               style={{ color: "#6F6F6F" }}
             >
-              <input
-                type="checkbox"
-                checked={form.includeJewelry}
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    includeJewelry: e.target.checked,
-                  }))
-                }
-              />
-              Include jewelry in calculation (safer default).
-            </label>
+              <p>
+                Live rates: GoldAPI (USD per gram by karat) × Cooperative Bank of
+                Oromia USD→ETB. Nisab uses{" "}
+                <strong style={{ color: "#000" }}>fine metal</strong> (gross
+                grams × karat ÷ 24): gold ≥ {GOLD_NISAB_GRAMS}g fine, silver ≥{" "}
+                {SILVER_NISAB_GRAMS}g fine.
+              </p>
+              <p className="mt-1">
+                {pricingLoading
+                  ? "Loading live market values..."
+                  : pricingError
+                    ? `${pricingError} Using purity-adjusted offline estimates until live pricing loads.`
+                    : `USD/ETB ${metalPricing?.usdToEtb.toFixed(3)} · Updated ${new Date(metalPricing?.fetchedAt ?? "").toLocaleString()} (${metalPricing?.sourceStatus === "cache" ? "cached" : "live"})`}
+              </p>
+            </div>
+            <div className="space-y-3">
+              {form.metalItems.map((item, index) => (
+                <div key={item.id} className="grid gap-3 md:grid-cols-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs" style={{ color: "#6F6F6F" }}>
+                      Metal #{index + 1}
+                    </label>
+                    <select
+                      value={item.metal}
+                      onChange={(e) =>
+                        updateMetalItem(item.id, "metal", e.target.value as MetalType)
+                      }
+                      className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-black/40"
+                      style={{ color: "#000000" }}
+                    >
+                      <option value="gold">Gold</option>
+                      <option value="silver">Silver</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs" style={{ color: "#6F6F6F" }}>
+                      Grams
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={item.grams}
+                      onChange={(e) =>
+                        updateMetalItem(
+                          item.id,
+                          "grams",
+                          e.target.value.replace(/[^0-9.,]/g, ""),
+                        )
+                      }
+                      className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-black/40"
+                      placeholder="0"
+                      style={{ color: "#000000" }}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs" style={{ color: "#6F6F6F" }}>
+                      Karat
+                    </label>
+                    <select
+                      value={item.karat}
+                      onChange={(e) =>
+                        updateMetalItem(item.id, "karat", Number(e.target.value) as Karat)
+                      }
+                      className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-black/40"
+                      style={{ color: "#000000" }}
+                    >
+                      {KARATS.map((karat) => (
+                        <option key={karat} value={karat}>
+                          {karat}k
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={() => removeMetalItem(item.id)}
+                      disabled={form.metalItems.length === 1}
+                      className="w-full rounded-xl border border-black/10 px-3 py-2.5 text-sm transition-colors disabled:cursor-not-allowed"
+                      style={{ color: "#6F6F6F" }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={addMetalItem}
+              className="rounded-full border border-black/10 px-4 py-2 text-xs"
+              style={{ color: "#000000" }}
+            >
+              Add Metal Item
+            </button>
           </div>
         );
       case "business":
@@ -781,9 +1004,6 @@ export function ZakatCalculator() {
     }
 
     if (activeKey === "gold") {
-      const countedGoldGrams =
-        parseAmount(form.bullionGoldGrams) +
-        (form.includeJewelry ? parseAmount(form.jewelryGoldGrams) : 0);
       return (
         <div
           className="mt-6 rounded-2xl p-5"
@@ -803,21 +1023,29 @@ export function ZakatCalculator() {
           </p>
           <div className="mt-3 space-y-2 text-xs" style={{ color: "#6F6F6F" }}>
             <p className="flex items-center justify-between">
-              <span>Counted gold (g)</span>
+              <span>Gold — gross (g) / fine (g)</span>
               <span style={{ color: "#000000" }}>
-                {formatCurrency(countedGoldGrams)}
+                {formatGrams(goldGrossGrams)} / {formatGrams(goldFineGrams)}
               </span>
             </p>
             <p className="flex items-center justify-between">
-              <span>Silver (g)</span>
+              <span>Silver — gross (g) / fine (g)</span>
               <span style={{ color: "#000000" }}>
-                {formatCurrency(parseAmount(form.silverGrams))}
+                {formatGrams(silverGrossGrams)} /{" "}
+                {formatGrams(silverFineGrams)}
               </span>
             </p>
             <p className="flex items-center justify-between">
-              <span>Jewelry mode</span>
+              <span>Nisab (fine grams)</span>
               <span style={{ color: "#000000" }}>
-                {form.includeJewelry ? "Included" : "Excluded"}
+                Gold {goldFineGrams >= GOLD_NISAB_GRAMS ? "met" : "below"} · Silver{" "}
+                {silverFineGrams >= SILVER_NISAB_GRAMS ? "met" : "below"}
+              </span>
+            </p>
+            <p className="flex items-center justify-between">
+              <span>Gold/Silver base</span>
+              <span style={{ color: "#000000" }}>
+                ETB {formatCurrency(preciousMetalsValue)}
               </span>
             </p>
           </div>
@@ -1100,12 +1328,16 @@ export function ZakatCalculator() {
           >
             <InfoIcon className="h-3.5 w-3.5" />
             <span>
-              Live Nisab snapshot{" "}
+              Market snapshot{" "}
               <span style={{ color: "#000000", fontWeight: 500 }}>
-                ETB {formatCurrency(nisabETB)}
+                Gold 24k {formatCurrency(gold24kEtb)} ETB/g
               </span>
               {" · "}
-              Silver {SILVER_PRICE_PER_GRAM_ETB} ETB/g
+              <span style={{ color: "#000000", fontWeight: 500 }}>
+                Silver 24k {formatCurrency(silver24kEtb)} ETB/g
+              </span>
+              {" · "}
+              Nisab ETB {formatCurrency(nisabETB)}
             </span>
           </div>
         </div>
@@ -1138,47 +1370,6 @@ export function ZakatCalculator() {
             </div>
 
             <div className="p-6 pt-7">
-              <div
-                className="mb-5 grid gap-3 border-b pb-4 text-xs sm:grid-cols-3"
-                style={{ borderColor: "rgba(0,0,0,0.06)" }}
-              >
-                <span style={{ color: "#6F6F6F" }}>
-                  Nisab threshold{" "}
-                  <span style={{ color: "#000000", fontWeight: 500 }}>
-                    ETB {formatCurrency(nisabETB)}
-                  </span>
-                </span>
-                <span
-                  className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1"
-                  style={{
-                    backgroundColor: meetsNisab
-                      ? "rgba(16,185,129,0.08)"
-                      : "rgba(0,0,0,0.04)",
-                    color: meetsNisab ? "#0A7C5A" : "#000000",
-                  }}
-                >
-                  <span
-                    className="h-1.5 w-1.5 rounded-full"
-                    style={{
-                      backgroundColor: meetsNisab ? "#10B981" : "#6F6F6F",
-                    }}
-                  />
-                  {meetsNisab ? "Nisab met" : "Below Nisab"}
-                </span>
-                <span
-                  className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1"
-                  style={{
-                    backgroundColor: form.hawlCompleted
-                      ? "rgba(16,185,129,0.08)"
-                      : "rgba(0,0,0,0.04)",
-                    color: form.hawlCompleted ? "#0A7C5A" : "#6F6F6F",
-                  }}
-                >
-                  <ShieldCheckIcon className="h-3.5 w-3.5" />
-                  {form.hawlCompleted ? "Hawl completed" : "Hawl not completed"}
-                </span>
-              </div>
-
               <p
                 className="mb-4 text-xs uppercase tracking-[0.16em]"
                 style={{ color: "#6F6F6F" }}
@@ -1378,11 +1569,7 @@ export function ZakatCalculator() {
                   className="mt-4 flex items-center justify-center gap-2 text-[10px] uppercase tracking-[0.2em]"
                   style={{ color: "#6F6F6F" }}
                 >
-                  <span>Telebirr</span>
-                  <span style={{ color: "#D4D4D4" }}>·</span>
-                  <span>CBE Birr</span>
-                  <span style={{ color: "#D4D4D4" }}>·</span>
-                  <span>Visa / Mastercard</span>
+                  <span>Cooperative Bank of Oromia</span>
                 </div>
               )}
             </div>
