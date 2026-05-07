@@ -1,3 +1,10 @@
+import { redirect } from "next/navigation";
+
+async function temporaryLogin() {
+  "use server";
+  redirect("/dashboard");
+}
+
 export default function LoginPage() {
   return (
     <main className="relative min-h-screen overflow-hidden bg-white px-6 py-24 sm:px-8 md:py-0 md:flex md:items-center">
@@ -50,7 +57,7 @@ export default function LoginPage() {
               Enter your details to continue.
             </p>
 
-            <form className="mt-8 space-y-4">
+            <form action={temporaryLogin} className="mt-8 space-y-4">
               <label className="block">
                 <span className="mb-2 block text-xs uppercase tracking-[0.12em] text-black/60">
                   Email address
