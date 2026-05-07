@@ -207,7 +207,7 @@ export function Navbar() {
           </div>
 
           <a
-            href="#"
+            href="/login"
             className="hidden text-sm transition-colors hover:text-black md:inline"
             style={{ color: "#6F6F6F" }}
           >

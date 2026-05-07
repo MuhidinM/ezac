@@ -1,13 +1,76 @@
-const IMPACT_DOTS = [
-  { id: "mekelle", top: "23%", left: "52%", label: "Mekelle" },
-  { id: "bahirdar", top: "37%", left: "42%", label: "Bahir Dar" },
-  { id: "addis", top: "52%", left: "50%", label: "Addis Ababa" },
-  { id: "adama", top: "55%", left: "54%", label: "Adama" },
-  { id: "jimma", top: "58%", left: "43%", label: "Jimma" },
-  { id: "hawassa", top: "64%", left: "52%", label: "Hawassa" },
+ "use client";
+
+import { useEffect, useRef } from "react";
+
+const IMPACT_POINTS = [
+  { label: "Mekelle", lat: 13.4967, lng: 39.4753 },
+  { label: "Bahir Dar", lat: 11.5742, lng: 37.3614 },
+  { label: "Addis Ababa", lat: 8.9806, lng: 38.7578 },
+  { label: "Adama", lat: 8.54, lng: 39.27 },
+  { label: "Jimma", lat: 7.6736, lng: 36.8344 },
+  { label: "Hawassa", lat: 7.0621, lng: 38.4764 },
 ];
 
+declare global {
+  interface Window {
+    google?: any;
+  }
+}
+
 export function ImpactMapTeaser() {
+  const mapRef = useRef<HTMLDivElement | null>(null);
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+
+  useEffect(() => {
+    if (!apiKey || !mapRef.current) return;
+
+    const initializeMap = () => {
+      if (!window.google?.maps || !mapRef.current) return;
+
+      const map = new window.google.maps.Map(mapRef.current, {
+        center: { lat: 9.145, lng: 40.4897 },
+        zoom: 6,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+      });
+
+      IMPACT_POINTS.forEach((point) => {
+        new window.google.maps.Marker({
+          position: { lat: point.lat, lng: point.lng },
+          map,
+          title: point.label,
+        });
+      });
+    };
+
+    if (window.google?.maps) {
+      initializeMap();
+      return;
+    }
+
+    const existingScript = document.querySelector<HTMLScriptElement>(
+      'script[data-google-maps="impact-map"]',
+    );
+
+    if (existingScript) {
+      existingScript.addEventListener("load", initializeMap);
+      return () => existingScript.removeEventListener("load", initializeMap);
+    }
+
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
+    script.async = true;
+    script.defer = true;
+    script.dataset.googleMaps = "impact-map";
+    script.addEventListener("load", initializeMap);
+    document.head.appendChild(script);
+
+    return () => {
+      script.removeEventListener("load", initializeMap);
+    };
+  }, [apiKey]);
+
   return (
     <section className="relative z-10 w-full border-t border-black/5 bg-white">
       <div className="mx-auto max-w-7xl px-8 py-24">
@@ -40,30 +103,17 @@ export function ImpactMapTeaser() {
             style={{ backgroundColor: "rgba(0,0,0,0.02)" }}
           >
             <div className="relative aspect-5/3 w-full overflow-hidden rounded-2xl border border-black/10">
-              <iframe
-                title="Google Map of Ethiopia"
-                src="https://www.google.com/maps?q=Ethiopia&z=6&output=embed"
-                className="h-full w-full"
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-              />
-              {IMPACT_DOTS.map((dot) => (
+              {apiKey ? (
+                <div ref={mapRef} className="h-full w-full" />
+              ) : (
                 <div
-                  key={dot.id}
-                  className="group absolute -translate-x-1/2 -translate-y-1/2"
-                  style={{ top: dot.top, left: dot.left }}
+                  className="flex h-full w-full items-center justify-center px-6 text-center text-sm"
+                  style={{ color: "#6F6F6F" }}
                 >
-                  <div className="relative h-3 w-3 rounded-full bg-black">
-                    <span className="absolute inset-0 rounded-full bg-black/50 animate-ping" />
-                  </div>
-                  <span
-                    className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 whitespace-nowrap rounded-full border border-black/10 bg-white px-2 py-1 text-[10px] opacity-0 transition-opacity group-hover:opacity-100"
-                    style={{ color: "#6F6F6F" }}
-                  >
-                    {dot.label}
-                  </span>
+                  Set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to enable interactive map
+                  markers.
                 </div>
-              ))}
+              )}
             </div>
           </div>
         </div>
