@@ -1,0 +1,45 @@
+import type { StaffRole } from "@/lib/api/types";
+import { STAFF_ROLES } from "@/lib/auth/constants";
+
+type JwtPayload = {
+  preferred_username?: string;
+  username?: string;
+  sub?: string;
+  exp?: number;
+  realm_access?: { roles?: string[] };
+  resource_access?: Record<string, { roles?: string[] }>;
+};
+
+export function decodeJwtPayload(token: string): JwtPayload | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
+    const json = Buffer.from(padded, "base64").toString("utf8");
+    return JSON.parse(json) as JwtPayload;
+  } catch {
+    return null;
+  }
+}
+
+export function getRolesFromPayload(payload: JwtPayload): StaffRole[] {
+  const realmRoles = payload.realm_access?.roles ?? [];
+  const resourceRoles =
+    payload.resource_access?.["gateway-client"]?.roles ??
+    payload.resource_access?.["gateway_client"]?.roles ??
+    [];
+
+  const allRoles = [...realmRoles, ...resourceRoles];
+  return STAFF_ROLES.filter((role) => allRoles.includes(role));
+}
+
+export function getUsernameFromPayload(payload: JwtPayload): string {
+  return payload.preferred_username ?? payload.username ?? payload.sub ?? "Staff user";
+}
+
+export function isTokenExpired(payload: JwtPayload): boolean {
+  if (!payload.exp) return false;
+  return payload.exp * 1000 <= Date.now();
+}

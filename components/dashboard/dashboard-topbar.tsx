@@ -2,7 +2,11 @@
 
 import Link from "next/link";
 import { ChevronRight, CircleUserRound } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+
+import { apiClient } from "@/lib/api/client";
+import type { SessionInfo } from "@/lib/api/types";
 
 function formatSegment(segment: string) {
   return segment
@@ -13,8 +17,23 @@ function formatSegment(segment: string) {
 
 export function DashboardTopbar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [session, setSession] = useState<SessionInfo | null>(null);
+
   const segments = pathname.split("/").filter(Boolean);
   const crumbs = ["Dashboard", ...segments.slice(1).map(formatSegment)];
+
+  useEffect(() => {
+    void apiClient<SessionInfo>("/api/auth/session")
+      .then(setSession)
+      .catch(() => setSession(null));
+  }, [pathname]);
+
+  async function onLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  }
 
   return (
     <header className="sticky top-0 z-20 border-b border-black/5 bg-white/80 backdrop-blur-xl">
@@ -36,21 +55,29 @@ export function DashboardTopbar() {
         <details className="group relative">
           <summary className="flex cursor-pointer list-none items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1.5 text-sm text-black/70 transition hover:border-black/20 hover:text-black">
             <CircleUserRound className="h-4 w-4" />
-            <span className="hidden sm:inline">Admin User</span>
+            <span className="hidden sm:inline">
+              {session?.username ?? "Staff user"}
+            </span>
           </summary>
-          <div className="absolute right-0 mt-2 w-44 overflow-hidden rounded-xl border border-black/8 bg-white shadow-lg shadow-black/5">
+          <div className="absolute right-0 mt-2 w-48 overflow-hidden rounded-xl border border-black/8 bg-white shadow-lg shadow-black/5">
+            {session ? (
+              <p className="border-b border-black/5 px-4 py-2.5 text-xs text-black/50">
+                {session.isAdmin ? "Administrator" : "Field officer"}
+              </p>
+            ) : null}
             <Link
               href="/dashboard/profile"
               className="block px-4 py-2.5 text-sm text-black/70 transition hover:bg-black/3 hover:text-black"
             >
               Profile
             </Link>
-            <Link
-              href="/login"
-              className="block px-4 py-2.5 text-sm text-black/70 transition hover:bg-black/3 hover:text-black"
+            <button
+              type="button"
+              onClick={() => void onLogout()}
+              className="block w-full px-4 py-2.5 text-left text-sm text-black/70 transition hover:bg-black/3 hover:text-black"
             >
               Log out
-            </Link>
+            </button>
           </div>
         </details>
       </div>
