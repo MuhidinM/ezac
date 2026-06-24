@@ -36,6 +36,7 @@ import {
   formatBeneficiaryCategory,
   formatDateTime,
 } from "@/lib/beneficiary/format";
+import { consumeRegistrationSuccessFlag } from "@/lib/registration/session";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 20;
@@ -60,6 +61,13 @@ export default function BeneficiaryPage() {
   const [draftSearch, setDraftSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (consumeRegistrationSuccessFlag()) {
+      setSuccessMessage("Beneficiary registered successfully.");
+    }
+  }, []);
 
   const loadBeneficiaries = useCallback(async () => {
     setIsLoading(true);
@@ -130,9 +138,14 @@ export default function BeneficiaryPage() {
           </p>
         </div>
 
-        <Button variant="outline" onClick={() => void loadBeneficiaries()} disabled={isLoading}>
-          Refresh
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild>
+            <Link href="/dashboard/register">Register beneficiary</Link>
+          </Button>
+          <Button variant="outline" onClick={() => void loadBeneficiaries()} disabled={isLoading}>
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <div className="rounded-2xl border border-black/5 bg-white p-4 shadow-sm shadow-black/5">
@@ -195,6 +208,12 @@ export default function BeneficiaryPage() {
       </div>
 
       <div className="rounded-2xl border border-black/5 bg-white p-3 shadow-sm shadow-black/5">
+        {successMessage ? (
+          <p className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            {successMessage}
+          </p>
+        ) : null}
+
         {error ? (
           <p
             role="alert"

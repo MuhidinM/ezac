@@ -3,6 +3,7 @@ import Link from "next/link";
 const MENU_ITEMS = [
   { href: "/dashboard", label: "Overview" },
   { href: "/dashboard/beneficiary", label: "Beneficiary" },
+  { href: "/dashboard/register", label: "Register beneficiary" },
   { href: "/dashboard/donations", label: "Donations" },
   { href: "/dashboard/reports", label: "Reports" },
   { href: "/dashboard/profile", label: "Profile" },
