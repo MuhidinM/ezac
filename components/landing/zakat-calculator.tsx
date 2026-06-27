@@ -1289,19 +1289,19 @@ export function ZakatCalculator() {
   };
 
   return (
-    <section className="relative z-10 w-full bg-[#ececec]">
+    <section className="relative z-10 w-full bg-[#007050]">
       <div className="mx-auto max-w-7xl px-8 py-24">
         <div className="mx-auto max-w-3xl text-center">
           <p
             className="text-[10px] uppercase tracking-[0.18em]"
-            style={{ color: "#6F6F6F" }}
+            style={{ color: "rgba(255,255,255,0.75)" }}
           >
             Quick Calculator
           </p>
           <h2
             className="font-serif-display mt-3 text-4xl sm:text-5xl md:text-6xl"
             style={{
-              color: "#001539",
+              color: "#FFFFFF",
               lineHeight: 1,
               letterSpacing: "-1.8px",
             }}
@@ -1314,7 +1314,7 @@ export function ZakatCalculator() {
           </h2>
           <p
             className="mx-auto mt-6 max-w-2xl text-base leading-relaxed sm:text-lg"
-            style={{ color: "#6F6F6F" }}
+            style={{ color: "rgba(255,255,255,0.82)" }}
           >
             Complete your annual Zakat across money, business, agriculture,
             livestock, and modern assets in one place. Each tab follows the
@@ -1324,16 +1324,16 @@ export function ZakatCalculator() {
 
           <div
             className="mt-8 inline-flex items-center gap-2 text-xs"
-            style={{ color: "#6F6F6F" }}
+            style={{ color: "rgba(255,255,255,0.7)" }}
           >
             <InfoIcon className="h-3.5 w-3.5" />
             <span>
               Market snapshot{" "}
-              <span style={{ color: "#001539", fontWeight: 500 }}>
+              <span style={{ color: "#FFFFFF", fontWeight: 500 }}>
                 Gold 24k {formatCurrency(gold24kEtb)} ETB/g
               </span>
               {" · "}
-              <span style={{ color: "#001539", fontWeight: 500 }}>
+              <span style={{ color: "#FFFFFF", fontWeight: 500 }}>
                 Silver 24k {formatCurrency(silver24kEtb)} ETB/g
               </span>
               {" · "}

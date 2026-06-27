@@ -30,19 +30,19 @@ const TRUST_STEPS: TrustStep[] = [
 
 export function HowItWorksTrust() {
   return (
-    <section className="relative z-10 w-full border-t border-black/5 bg-[#ececec]">
+    <section className="relative z-10 w-full border-t border-black/5 bg-[#007050]">
       <div className="mx-auto max-w-7xl px-8 py-24">
         <div className="mx-auto max-w-3xl text-center">
           <p
             className="text-[10px] uppercase tracking-[0.18em]"
-            style={{ color: "#6F6F6F" }}
+            style={{ color: "rgba(255,255,255,0.75)" }}
           >
             How It Works
           </p>
           <h2
             className="font-serif-display mt-3 text-4xl sm:text-5xl md:text-6xl"
             style={{
-              color: "#001539",
+              color: "#FFFFFF",
               lineHeight: 1,
               letterSpacing: "-1.8px",
             }}
