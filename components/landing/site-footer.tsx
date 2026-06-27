@@ -95,6 +95,10 @@ export function SiteFooter() {
 
               <div className="h-px w-full bg-black/10" />
 
+              <p className="text-xs" style={{ color: "#6F6F6F" }}>
+                This system is developed and sponsored by DX Valley.
+              </p>
+
               <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
                 <div className="flex items-center gap-3">
                   {/* eslint-disable-next-line @next/next/no-img-element -- brand mark served as a static asset */}
