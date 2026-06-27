@@ -118,8 +118,8 @@ export function SiteFooter() {
                   href="https://dxvalley.com/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs transition-colors hover:text-[#001539]"
-                  style={{ color: "#6F6F6F" }}
+                  className="text-xs transition-colors hover:text-[#007050]"
+                  style={{ color: "#e18f35" }}
                 >
                   Developed and sponsored by DX Valley.
                 </a>

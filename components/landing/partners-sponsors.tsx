@@ -5,15 +5,64 @@ import { Sparkles } from "@/components/ui/sparkles";
 type Partner = {
   name: string;
   short: string;
+  logoSrc?: string;
+  href?: string;
+  logoClassName?: string;
 };
 
 const PARTNERS: Partner[] = [
   { name: "Supreme Council of Islamic Affairs (Majlis)", short: "Majlis" },
-  { name: "Coopbank Alhuda", short: "Alhuda" },
-  { name: "DX Valley", short: "DX Valley" },
+  {
+    name: "Coopbank Alhuda",
+    short: "Alhuda",
+    logoSrc: "/Coopbank-Alhuda-Logo.png",
+    href: "https://coopbankoromia.com.et/coopbank-alhuda/",
+    logoClassName: "h-8 w-auto sm:h-9",
+  },
+  {
+    name: "DX Valley",
+    short: "DX Valley",
+    logoSrc: "/dxvalley-logo.png",
+    href: "https://dxvalley.com/",
+    logoClassName: "h-7 w-auto sm:h-8",
+  },
   { name: "Fayda", short: "Fayda" },
   { name: "EthSwitch", short: "EthSwitch" },
 ];
+
+function PartnerMark({ partner }: { partner: Partner }) {
+  if (partner.logoSrc) {
+    const logo = (
+      /* eslint-disable-next-line @next/next/no-img-element -- partner logo served as a static asset */
+      <img
+        src={partner.logoSrc}
+        alt={partner.name}
+        className={`object-contain ${partner.logoClassName ?? "h-8 w-auto"}`}
+      />
+    );
+
+    if (partner.href) {
+      return (
+        <a
+          href={partner.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="shrink-0 transition-opacity hover:opacity-80"
+        >
+          {logo}
+        </a>
+      );
+    }
+
+    return <div className="shrink-0">{logo}</div>;
+  }
+
+  return (
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-black/10 bg-black/3 text-[11px] font-semibold uppercase tracking-[0.08em]">
+      {partner.short.slice(0, 2)}
+    </div>
+  );
+}
 
 export function PartnersSponsors() {
   return (
@@ -61,13 +110,19 @@ export function PartnersSponsors() {
                 {[...PARTNERS, ...PARTNERS].map((partner, idx) => (
                   <div
                     key={`${partner.name}-${idx}`}
-                    className="flex min-w-[240px] items-center gap-3 rounded-xl border border-black/10 bg-white/80 px-4 py-3 backdrop-blur-[1px]"
-                    style={{ color: "#666666", filter: "grayscale(100%)" }}
+                    className={`flex items-center rounded-xl border border-black/10 bg-white/80 px-4 py-3 backdrop-blur-[1px] ${
+                      partner.logoSrc ? "justify-center" : "min-w-[240px] gap-3"
+                    }`}
+                    style={
+                      partner.logoSrc
+                        ? { color: "#666666" }
+                        : { color: "#666666", filter: "grayscale(100%)" }
+                    }
                   >
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-black/10 bg-black/3 text-[11px] font-semibold uppercase tracking-[0.08em]">
-                      {partner.short.slice(0, 2)}
-                    </div>
-                    <span className="text-sm font-medium">{partner.name}</span>
+                    <PartnerMark partner={partner} />
+                    {!partner.logoSrc ? (
+                      <span className="text-sm font-medium">{partner.name}</span>
+                    ) : null}
                   </div>
                 ))}
               </div>
