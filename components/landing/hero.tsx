@@ -82,18 +82,32 @@ export function Hero() {
           In collaboration with
         </p>
         <div className="mt-5 flex flex-wrap items-center justify-center gap-8 sm:gap-12">
-          {/* eslint-disable-next-line @next/next/no-img-element -- partner logo served as a static asset */}
-          <img
-            src="/Coopbank-Alhuda-Logo.png"
-            alt="Coopbank Alhuda"
-            className="h-9 w-auto object-contain sm:h-10"
-          />
-          {/* eslint-disable-next-line @next/next/no-img-element -- partner logo served as a static asset */}
-          <img
-            src="/dxvalley-logo.png"
-            alt="DX Valley"
-            className="h-8 w-auto object-contain sm:h-9"
-          />
+          <a
+            href="https://coopbankoromia.com.et/coopbank-alhuda/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition-opacity hover:opacity-80"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- partner logo served as a static asset */}
+            <img
+              src="/Coopbank-Alhuda-Logo.png"
+              alt="Coopbank Alhuda"
+              className="h-9 w-auto object-contain sm:h-10"
+            />
+          </a>
+          <a
+            href="https://dxvalley.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition-opacity hover:opacity-80"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- partner logo served as a static asset */}
+            <img
+              src="/dxvalley-logo.png"
+              alt="DX Valley"
+              className="h-8 w-auto object-contain sm:h-9"
+            />
+          </a>
         </div>
       </div>
     </section>
