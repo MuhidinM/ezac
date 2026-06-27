@@ -1289,8 +1289,15 @@ export function ZakatCalculator() {
   };
 
   return (
-    <section className="relative z-10 w-full bg-[#007050]">
-      <div className="mx-auto max-w-7xl px-8 py-24">
+    <section className="relative z-10 w-full overflow-hidden bg-[#007050]">
+      {/* eslint-disable-next-line @next/next/no-img-element -- decorative brand graphic served as a static asset */}
+      <img
+        src="/bg.png"
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none absolute top-1/2 right-[-6%] z-0 h-[150%] w-auto max-w-none -translate-y-1/2 select-none opacity-60"
+      />
+      <div className="relative z-10 mx-auto max-w-7xl px-8 py-24">
         <div className="mx-auto max-w-3xl text-center">
           <p
             className="text-[10px] uppercase tracking-[0.18em]"
