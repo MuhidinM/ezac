@@ -7,6 +7,7 @@ type MenuItem = {
   label: string;
   children?: {
     label: string;
+    href: string;
     note?: string;
   }[];
 };
@@ -15,31 +16,35 @@ const MENU_ITEMS: MenuItem[] = [
   {
     label: "Zakat",
     children: [
-      { label: "Zakat Calculator" },
-      { label: "Pay Zakat Now" },
-      { label: "Corporate Zakat" },
+      { label: "Zakat Calculator", href: "/zakat/calculator" },
+      { label: "Pay Zakat Now", href: "/zakat/pay" },
+      { label: "Corporate Zakat", href: "/zakat/corporate" },
     ],
   },
   {
     label: "Waqf",
     children: [
-      { label: "Crowdfunding Projects" },
-      { label: "Waqf Investments" },
-      { label: "Register a Waqf Asset" },
+      { label: "Crowdfunding Projects", href: "/waqf/crowdfunding" },
+      { label: "Waqf Investments", href: "/waqf/investments" },
+      { label: "Register a Waqf Asset", href: "/waqf/register-asset" },
     ],
   },
   {
     label: "Transparency & Impact",
     children: [
-      { label: "Live Dashboard", note: "Crucial for Phase 1" },
-      { label: "Impact Reports" },
+      {
+        label: "Live Dashboard",
+        href: "/transparency/dashboard",
+        note: "Crucial for Phase 1",
+      },
+      { label: "Impact Reports", href: "/transparency/reports" },
     ],
   },
   {
     label: "About Us",
     children: [
-      { label: "Governance & Majlis" },
-      { label: "Shari'ah Advisory Board" },
+      { label: "Governance & Majlis", href: "/about/governance" },
+      { label: "Shari'ah Advisory Board", href: "/about/shariah-board" },
     ],
   },
 ];
@@ -72,7 +77,7 @@ export function Navbar() {
         className={`mx-auto flex items-center justify-between gap-6 transition-all duration-500 ease-out ${scrolled ? "max-w-5xl rounded-full border border-black/5 bg-white/80 px-5 py-2.5 shadow-lg shadow-black/5 backdrop-blur-xl" : "max-w-7xl bg-transparent px-8 py-6"}`}
       >
         <a
-          href="#"
+          href="/"
           className="flex shrink-0 items-center gap-3 leading-none transition-all duration-500 ease-out"
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- brand mark served as a static asset */}
@@ -143,7 +148,7 @@ export function Navbar() {
                       {item.children.map((child) => (
                         <a
                           key={child.label}
-                          href="#"
+                          href={child.href}
                           className="flex flex-col px-4 py-2.5 text-sm transition-colors hover:bg-black/[0.03]"
                           style={{ color: "#001539" }}
                         >
@@ -228,7 +233,8 @@ export function Navbar() {
             Log In / Register
           </a>
 
-          <button
+          <a
+            href="/donate"
             className="rounded-full px-6 py-2.5 text-sm transition-transform duration-300 hover:scale-[1.03]"
             style={{
               backgroundColor: "#007050",
@@ -236,7 +242,7 @@ export function Navbar() {
             }}
           >
             Donate Now
-          </button>
+          </a>
         </div>
       </div>
     </nav>

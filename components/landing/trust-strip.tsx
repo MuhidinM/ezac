@@ -64,7 +64,7 @@ export function TrustStrip() {
             </h2>
           </div>
           <a
-            href="#"
+            href="/about/shariah-board"
             className="hidden text-sm transition-colors hover:text-[#001539] md:inline"
             style={{ color: "#6F6F6F" }}
           >

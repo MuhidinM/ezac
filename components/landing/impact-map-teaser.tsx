@@ -126,13 +126,13 @@ export function ImpactMapTeaser() {
         </div>
 
         <div className="mt-8 flex justify-center">
-          <button
-            type="button"
+          <a
+            href="/transparency/dashboard"
             className="inline-flex items-center justify-center rounded-full px-6 py-3.5 text-sm transition-all duration-300 hover:scale-[1.01]"
             style={{ backgroundColor: "#007050", color: "#FFFFFF" }}
           >
             View Full Transparency Dashboard
-          </button>
+          </a>
         </div>
       </div>
     </section>

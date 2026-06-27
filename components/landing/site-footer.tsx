@@ -8,10 +8,10 @@ import {
 } from "lucide-react";
 
 const FOOTER_LINKS = [
-  "Privacy Policy",
-  "FAQ",
-  "Fatwas / Islamic Rulings on Zakat",
-  "Contact Support",
+  { label: "Privacy Policy", href: "/privacy" },
+  { label: "FAQ", href: "/faq" },
+  { label: "Fatwas / Islamic Rulings on Zakat", href: "/fatwas" },
+  { label: "Contact Support", href: "/contact" },
 ];
 
 const SOCIALS = [
@@ -100,12 +100,12 @@ export function SiteFooter() {
               <nav className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-x-8 md:flex md:flex-wrap md:gap-x-6">
                 {FOOTER_LINKS.map((link) => (
                   <a
-                    key={link}
-                    href="#"
+                    key={link.href}
+                    href={link.href}
                     className="text-sm transition-colors hover:text-[#001539]"
                     style={{ color: "#6F6F6F" }}
                   >
-                    {link}
+                    {link.label}
                   </a>
                 ))}
               </nav>

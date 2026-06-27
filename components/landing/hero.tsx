@@ -40,7 +40,8 @@ export function Hero() {
       </p>
 
       <div className="animate-fade-rise-delay-2 mt-12 flex flex-col items-center gap-4 sm:flex-row">
-        <button
+        <a
+          href="/zakat/calculator"
           className="inline-flex items-center gap-2 rounded-full px-10 py-5 text-base transition-transform duration-300 hover:scale-[1.03]"
           style={{
             backgroundColor: "#007050",
@@ -49,7 +50,7 @@ export function Hero() {
         >
           Calculate Your Zakat
           <ArrowRightIcon className="h-4 w-4" />
-        </button>
+        </a>
 
         <a
           href="/dashboard/register"

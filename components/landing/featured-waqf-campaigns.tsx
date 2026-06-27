@@ -135,8 +135,8 @@ export function FeaturedWaqfCampaigns() {
                     >
                       {campaign.description}
                     </p>
-                    <button
-                      type="button"
+                    <a
+                      href="/waqf/crowdfunding"
                       className="mt-1 inline-flex w-full items-center justify-center rounded-full py-3.5 text-sm transition-all duration-300 hover:scale-[1.01]"
                       style={{
                         backgroundColor: "#007050",
@@ -144,7 +144,7 @@ export function FeaturedWaqfCampaigns() {
                       }}
                     >
                       Fund This Project
-                    </button>
+                    </a>
                   </div>
                 </div>
               </article>
