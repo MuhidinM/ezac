@@ -130,7 +130,7 @@ export default function BeneficiaryPage() {
     <section className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-serif-display text-4xl tracking-tight text-black">
+          <h1 className="font-serif-display text-4xl tracking-tight text-[#001539]">
             Beneficiary
           </h1>
           <p className="mt-1 text-sm text-black/60">

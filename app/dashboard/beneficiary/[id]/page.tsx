@@ -133,7 +133,7 @@ export default function BeneficiaryDetailPage() {
       <section className="space-y-4">
         <Link
           href="/dashboard/beneficiary"
-          className="inline-flex items-center gap-2 text-sm text-black/60 hover:text-black"
+          className="inline-flex items-center gap-2 text-sm text-black/60 hover:text-[#001539]"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to list
@@ -156,12 +156,12 @@ export default function BeneficiaryDetailPage() {
         <div>
           <Link
             href="/dashboard/beneficiary"
-            className="inline-flex items-center gap-2 text-sm text-black/60 hover:text-black"
+            className="inline-flex items-center gap-2 text-sm text-black/60 hover:text-[#001539]"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to list
           </Link>
-          <h1 className="mt-3 font-serif-display text-4xl tracking-tight text-black">
+          <h1 className="mt-3 font-serif-display text-4xl tracking-tight text-[#001539]">
             {beneficiary.fullName ?? "Unnamed beneficiary"}
           </h1>
           <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -331,7 +331,7 @@ function DetailRow({
   return (
     <div className="grid gap-1 sm:grid-cols-[140px_1fr]">
       <dt className="text-sm text-black/50">{label}</dt>
-      <dd className="text-sm text-black">{value?.trim() ? value : "—"}</dd>
+      <dd className="text-sm text-[#001539]">{value?.trim() ? value : "—"}</dd>
     </div>
   );
 }

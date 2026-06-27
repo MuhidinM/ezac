@@ -75,7 +75,7 @@ export function LoginForm() {
           onChange={(event) => setUsername(event.target.value)}
           placeholder="platform.admin"
           required
-          className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-black placeholder:text-black/35 outline-none transition focus:border-black/25 focus:ring-2 focus:ring-black/10"
+          className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-[#001539] placeholder:text-black/35 outline-none transition focus:border-[#007050] focus:ring-2 focus:ring-[#007050]/20"
         />
       </label>
 
@@ -91,7 +91,7 @@ export function LoginForm() {
           onChange={(event) => setPassword(event.target.value)}
           placeholder="Enter your password"
           required
-          className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-black placeholder:text-black/35 outline-none transition focus:border-black/25 focus:ring-2 focus:ring-black/10"
+          className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-[#001539] placeholder:text-black/35 outline-none transition focus:border-[#007050] focus:ring-2 focus:ring-[#007050]/20"
         />
       </label>
 
@@ -100,7 +100,7 @@ export function LoginForm() {
         disabled={isSubmitting}
         className="mt-3 w-full rounded-full px-6 py-3 text-sm font-medium transition-transform duration-300 hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
         style={{
-          backgroundColor: "#000000",
+          backgroundColor: "#007050",
           color: "#FFFFFF",
         }}
       >

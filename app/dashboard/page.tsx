@@ -1,7 +1,7 @@
 export default function DashboardHomePage() {
   return (
     <section className="space-y-4">
-      <h1 className="font-serif-display text-4xl tracking-tight text-black">Overview</h1>
+      <h1 className="font-serif-display text-4xl tracking-tight text-[#001539]">Overview</h1>
       <p className="max-w-2xl text-black/65">
         Welcome to your dashboard. This area is now routed with a shared layout,
         so the top navigation and sidebar remain fixed while only page content changes.
@@ -13,7 +13,7 @@ export default function DashboardHomePage() {
             className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm shadow-black/5"
           >
             <p className="text-xs uppercase tracking-[0.14em] text-black/45">{label}</p>
-            <p className="mt-3 text-2xl font-medium text-black">--</p>
+            <p className="mt-3 text-2xl font-medium text-[#001539]">--</p>
           </article>
         ))}
       </div>

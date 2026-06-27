@@ -36,7 +36,7 @@ export function WelcomeStep() {
           )}
         >
           <UserRound className="h-5 w-5 text-black/70" />
-          <p className="mt-3 font-medium text-black">Manual registration</p>
+          <p className="mt-3 font-medium text-[#001539]">Manual registration</p>
           <p className="mt-1 text-sm text-black/60">
             Register an individual beneficiary with identity details.
           </p>
@@ -50,7 +50,7 @@ export function WelcomeStep() {
           )}
         >
           <Building2 className="h-5 w-5 text-black/70" />
-          <p className="mt-3 font-medium text-black">Institution</p>
+          <p className="mt-3 font-medium text-[#001539]">Institution</p>
           <p className="mt-1 text-sm text-black/60">
             Register an organization and upload required KYC documents.
           </p>

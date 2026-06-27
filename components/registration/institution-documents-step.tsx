@@ -182,7 +182,7 @@ function DocumentCard({
     <div className="rounded-xl border border-black/10 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-medium text-black">{document.label}</p>
+          <p className="font-medium text-[#001539]">{document.label}</p>
           <p className="mt-1 text-xs text-black/55">
             {document.required ? "Required" : "Optional"}
             {document.uploaded ? " · Uploaded" : ""}

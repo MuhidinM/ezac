@@ -45,7 +45,7 @@ export function DashboardTopbar() {
               return (
                 <li key={`${crumb}-${index}`} className="flex items-center gap-1.5">
                   {index > 0 && <ChevronRight className="h-3.5 w-3.5 text-black/35" />}
-                  <span className={isLast ? "font-medium text-black" : ""}>{crumb}</span>
+                  <span className={isLast ? "font-medium text-[#001539]" : ""}>{crumb}</span>
                 </li>
               );
             })}
@@ -53,7 +53,7 @@ export function DashboardTopbar() {
         </nav>
 
         <details className="group relative">
-          <summary className="flex cursor-pointer list-none items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1.5 text-sm text-black/70 transition hover:border-black/20 hover:text-black">
+          <summary className="flex cursor-pointer list-none items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1.5 text-sm text-black/70 transition hover:border-black/20 hover:text-[#001539]">
             <CircleUserRound className="h-4 w-4" />
             <span className="hidden sm:inline">
               {session?.username ?? "Staff user"}
@@ -67,14 +67,14 @@ export function DashboardTopbar() {
             ) : null}
             <Link
               href="/dashboard/profile"
-              className="block px-4 py-2.5 text-sm text-black/70 transition hover:bg-black/3 hover:text-black"
+              className="block px-4 py-2.5 text-sm text-black/70 transition hover:bg-black/3 hover:text-[#001539]"
             >
               Profile
             </Link>
             <button
               type="button"
               onClick={() => void onLogout()}
-              className="block w-full px-4 py-2.5 text-left text-sm text-black/70 transition hover:bg-black/3 hover:text-black"
+              className="block w-full px-4 py-2.5 text-left text-sm text-black/70 transition hover:bg-black/3 hover:text-[#001539]"
             >
               Log out
             </button>

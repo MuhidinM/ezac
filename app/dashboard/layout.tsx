@@ -6,7 +6,7 @@ export default function DashboardLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
   return (
-    <div className="min-h-screen bg-[#FCFCFC]">
+    <div className="min-h-screen bg-[#ececec]">
       <DashboardTopbar />
       <div className="flex h-[calc(100vh-4rem)] w-full overflow-hidden">
         <DashboardSidebar />

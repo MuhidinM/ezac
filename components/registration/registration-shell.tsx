@@ -29,11 +29,11 @@ export function RegistrationShell({
       <div>
         <Link
           href="/dashboard/beneficiary"
-          className="text-xs uppercase tracking-[0.12em] text-black/45 transition hover:text-black"
+          className="text-xs uppercase tracking-[0.12em] text-black/45 transition hover:text-[#001539]"
         >
           Back to beneficiaries
         </Link>
-        <h1 className="mt-3 font-serif-display text-3xl tracking-tight text-black">
+        <h1 className="mt-3 font-serif-display text-3xl tracking-tight text-[#001539]">
           {title}
         </h1>
         {description ? (
@@ -49,7 +49,7 @@ export function RegistrationShell({
               className={cn(
                 "rounded-full px-3 py-1 text-xs font-medium",
                 index === currentStep
-                  ? "bg-black text-white"
+                  ? "bg-[#007050] text-white"
                   : index < currentStep
                     ? "bg-black/10 text-black/70"
                     : "bg-black/[0.04] text-black/40",
