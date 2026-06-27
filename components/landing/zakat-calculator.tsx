@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowRightIcon,
@@ -101,6 +101,9 @@ const AGRI_NISAB_KG = 653;
 const SILVER_PRICE_PER_GRAM_ETB = 412;
 const GOLD_PRICE_PER_GRAM_ETB = 7200;
 const KARATS = [24, 22, 21, 20, 18, 16, 14, 10] as const;
+
+const FOCUS_RING =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007050] focus-visible:ring-offset-2";
 
 type MetalType = "gold" | "silver";
 type Karat = (typeof KARATS)[number];
@@ -325,32 +328,35 @@ function livestockTypeLabel(mode: LivestockMode) {
   }
 }
 
-/** Small (i) affordance that reveals a category's fiqh ruling on hover/tap. */
-function InfoTip({ text }: { text: string }) {
+/** Small (i) affordance that reveals a category's fiqh ruling on hover, tap or keyboard focus. */
+function InfoTip({ text, label }: { text: string; label: string }) {
   const [open, setOpen] = useState(false);
+  const tipId = useId();
   return (
-    <span className="relative inline-flex">
+    <span className="group relative inline-flex">
       <button
         type="button"
-        aria-label="Why is this due?"
+        aria-label={`Why is ${label} due?`}
+        aria-expanded={open}
+        aria-describedby={tipId}
         onClick={() => setOpen((v) => !v)}
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
+        onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
-        className="inline-flex h-5 w-5 items-center justify-center rounded-full transition-colors"
-        style={{ color: open ? "#007050" : "#9a9a9a" }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") setOpen(false);
+        }}
+        className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[#6F6F6F] transition-colors hover:text-[#007050] ${FOCUS_RING}`}
       >
         <InfoIcon className="h-3.5 w-3.5" />
       </button>
-      {open && (
-        <span
-          role="tooltip"
-          className="absolute bottom-full left-1/2 z-30 mb-2 w-60 max-w-[70vw] -translate-x-1/2 rounded-xl p-3 text-left text-[11px] leading-relaxed shadow-lg"
-          style={{ backgroundColor: "#001539", color: "rgba(255,255,255,0.92)" }}
-        >
-          {text}
-        </span>
-      )}
+      <span
+        id={tipId}
+        role="tooltip"
+        className={`pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 w-60 max-w-[70vw] -translate-x-1/2 rounded-xl p-3 text-left text-[11px] leading-relaxed shadow-lg transition-opacity duration-150 group-hover:opacity-100 ${open ? "opacity-100" : "opacity-0"}`}
+        style={{ backgroundColor: "#001539", color: "rgba(255,255,255,0.92)" }}
+      >
+        {text}
+      </span>
     </span>
   );
 }
@@ -454,9 +460,6 @@ export function ZakatCalculator() {
     const etbPerGram = etbPerGramForKarat(item.metal, item.karat, metalPricing);
     return sum + grams * etbPerGram;
   }, 0);
-  const meetsPreciousMetalsNisab =
-    goldFineGrams >= GOLD_NISAB_GRAMS || silverFineGrams >= SILVER_NISAB_GRAMS;
-
   // Business base
   const businessBase =
     parseAmount(form.businessCash) +
@@ -590,17 +593,20 @@ export function ZakatCalculator() {
     value: string,
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => void,
     helper?: string,
-  ) => (
+  ) => {
+    const inputId = `f-${label.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}`;
+    return (
     <div className="space-y-1.5">
-      <label className="text-xs" style={{ color: "#6F6F6F" }}>
+      <label htmlFor={inputId} className="text-xs" style={{ color: "#6F6F6F" }}>
         {label}
       </label>
       <input
+        id={inputId}
         type="text"
         inputMode="decimal"
         value={value}
         onChange={onChange}
-        className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-[#007050]"
+        className={`w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-[#007050] focus-visible:ring-2 focus-visible:ring-[#007050] ${FOCUS_RING}`}
         placeholder="0"
         style={{ color: "#001539" }}
       />
@@ -610,7 +616,8 @@ export function ZakatCalculator() {
         </p>
       )}
     </div>
-  );
+    );
+  };
 
   const renderPanel = (key: CategoryKey) => {
     switch (key) {
@@ -666,10 +673,15 @@ export function ZakatCalculator() {
               {form.metalItems.map((item, index) => (
                 <div key={item.id} className="grid gap-3 md:grid-cols-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs" style={{ color: "#6F6F6F" }}>
+                    <label
+                      htmlFor={`metal-${item.id}`}
+                      className="text-xs"
+                      style={{ color: "#6F6F6F" }}
+                    >
                       Metal #{index + 1}
                     </label>
                     <select
+                      id={`metal-${item.id}`}
                       value={item.metal}
                       onChange={(e) =>
                         updateMetalItem(
@@ -678,7 +690,7 @@ export function ZakatCalculator() {
                           e.target.value as MetalType,
                         )
                       }
-                      className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-[#007050]"
+                      className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-[#007050] focus-visible:ring-2 focus-visible:ring-[#007050]"
                       style={{ color: "#001539" }}
                     >
                       <option value="gold">Gold</option>
@@ -686,10 +698,15 @@ export function ZakatCalculator() {
                     </select>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs" style={{ color: "#6F6F6F" }}>
+                    <label
+                      htmlFor={`grams-${item.id}`}
+                      className="text-xs"
+                      style={{ color: "#6F6F6F" }}
+                    >
                       Grams
                     </label>
                     <input
+                      id={`grams-${item.id}`}
                       type="text"
                       inputMode="decimal"
                       value={item.grams}
@@ -700,16 +717,21 @@ export function ZakatCalculator() {
                           e.target.value.replace(/[^0-9.,]/g, ""),
                         )
                       }
-                      className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-[#007050]"
+                      className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-[#007050] focus-visible:ring-2 focus-visible:ring-[#007050]"
                       placeholder="0"
                       style={{ color: "#001539" }}
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs" style={{ color: "#6F6F6F" }}>
+                    <label
+                      htmlFor={`karat-${item.id}`}
+                      className="text-xs"
+                      style={{ color: "#6F6F6F" }}
+                    >
                       Karat
                     </label>
                     <select
+                      id={`karat-${item.id}`}
                       value={item.karat}
                       onChange={(e) =>
                         updateMetalItem(
@@ -718,7 +740,7 @@ export function ZakatCalculator() {
                           Number(e.target.value) as Karat,
                         )
                       }
-                      className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-[#007050]"
+                      className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-[#007050] focus-visible:ring-2 focus-visible:ring-[#007050]"
                       style={{ color: "#001539" }}
                     >
                       {KARATS.map((karat) => (
@@ -733,7 +755,8 @@ export function ZakatCalculator() {
                       type="button"
                       onClick={() => removeMetalItem(item.id)}
                       disabled={form.metalItems.length === 1}
-                      className="w-full rounded-xl border border-black/10 px-3 py-2.5 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label={`Remove metal item ${index + 1}`}
+                      className={`w-full rounded-xl border border-black/10 px-3 py-2.5 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS_RING}`}
                       style={{ color: "#6F6F6F" }}
                     >
                       Remove
@@ -746,7 +769,7 @@ export function ZakatCalculator() {
               <button
                 type="button"
                 onClick={addMetalItem}
-                className="rounded-full border border-black/10 px-4 py-2 text-xs transition-colors hover:border-[#007050]"
+                className={`rounded-full border border-black/10 px-4 py-2 text-xs transition-colors hover:border-[#007050] ${FOCUS_RING}`}
                 style={{ color: "#001539" }}
               >
                 Add Metal Item
@@ -756,8 +779,7 @@ export function ZakatCalculator() {
                 {formatGrams(goldFineGrams)}g) · Silver{" "}
                 {formatGrams(silverGrossGrams)}g (fine{" "}
                 {formatGrams(silverFineGrams)}g) · value ETB{" "}
-                {formatCurrency(preciousMetalsValue)} · Nisab{" "}
-                {meetsPreciousMetalsNisab ? "met" : "below"}
+                {formatCurrency(preciousMetalsValue)}
               </p>
             </div>
           </div>
@@ -850,7 +872,7 @@ export function ZakatCalculator() {
                           irrigationMode: item.key as IrrigationMode,
                         }))
                       }
-                      className="rounded-full border px-3 py-1.5 text-xs transition-colors"
+                      className="rounded-full border px-3 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007050] focus-visible:ring-offset-2"
                       style={{
                         borderColor: isActive ? "#007050" : "rgba(0,0,0,0.12)",
                         color: isActive ? "#007050" : "#6F6F6F",
@@ -1116,13 +1138,13 @@ export function ZakatCalculator() {
                         >
                           {cat.label}
                         </h3>
-                        <InfoTip text={cat.ruling} />
+                        <InfoTip text={cat.ruling} label={cat.label} />
                       </div>
                       <button
                         type="button"
                         onClick={() => removeCategory(cat.key)}
                         aria-label={`Remove ${cat.label}`}
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-black/10 transition-colors hover:border-[#e18f35] hover:text-[#e18f35]"
+                        className={`inline-flex h-7 w-7 items-center justify-center rounded-full border border-black/10 transition-colors hover:border-[#e18f35] hover:text-[#9a5a14] ${FOCUS_RING}`}
                         style={{ color: "#6F6F6F" }}
                       >
                         <XIcon className="h-3.5 w-3.5" />
@@ -1160,7 +1182,7 @@ export function ZakatCalculator() {
                         key={cat.key}
                         type="button"
                         onClick={() => addCategory(cat.key)}
-                        className="inline-flex items-center gap-2 rounded-full border border-dashed border-black/20 px-3.5 py-2 text-xs transition-colors hover:border-[#007050] hover:text-[#007050]"
+                        className={`inline-flex items-center gap-2 rounded-full border border-dashed border-black/20 px-3.5 py-2 text-xs transition-colors hover:border-[#007050] hover:text-[#007050] ${FOCUS_RING}`}
                         style={{ color: "#001539" }}
                       >
                         <PlusIcon className="h-3.5 w-3.5" />
@@ -1181,14 +1203,14 @@ export function ZakatCalculator() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <p
                   className="text-xs uppercase tracking-[0.16em]"
-                  style={{ color: "#6F6F6F" }}
+                  style={{ color: "#595959" }}
                 >
                   Your total Zakat
                 </p>
                 {hasMonetaryCategory && (
                   <label
                     className="inline-flex cursor-pointer items-center gap-2 text-xs"
-                    style={{ color: "#6F6F6F" }}
+                    style={{ color: "#595959" }}
                   >
                     <input
                       type="checkbox"
@@ -1206,7 +1228,7 @@ export function ZakatCalculator() {
               </div>
 
               <p
-                className="font-serif-display mt-2 text-4xl sm:text-5xl"
+                className="font-serif-display mt-2 text-3xl break-words tabular-nums sm:text-4xl md:text-5xl"
                 style={{ color: "#001539", letterSpacing: "-1px" }}
               >
                 ETB {formatCurrency(totalEtbDue)}
@@ -1243,7 +1265,7 @@ export function ZakatCalculator() {
               {breakdownRows.length > 0 && (
                 <div
                   className="mt-4 space-y-2 text-xs"
-                  style={{ color: "#6F6F6F" }}
+                  style={{ color: "#595959" }}
                 >
                   {breakdownRows.map((row) => (
                     <p
@@ -1252,7 +1274,7 @@ export function ZakatCalculator() {
                     >
                       <span>{row.label}</span>
                       <span
-                        style={{ color: row.deduction ? "#e18f35" : "#001539" }}
+                        style={{ color: row.deduction ? "#9a5a14" : "#001539" }}
                       >
                         {row.value}
                       </span>
@@ -1264,7 +1286,7 @@ export function ZakatCalculator() {
               {hasMonetaryCategory && (
                 <div
                   className="mt-4 space-y-2 border-t border-black/10 pt-3 text-xs"
-                  style={{ color: "#6F6F6F" }}
+                  style={{ color: "#595959" }}
                 >
                   <p className="flex items-center justify-between">
                     <span>Net zakatable base</span>
@@ -1280,13 +1302,13 @@ export function ZakatCalculator() {
                     </span>
                   </p>
                   {!form.hawlCompleted && (
-                    <p style={{ color: "#e18f35" }}>
+                    <p style={{ color: "#9a5a14" }}>
                       Wealth has not completed a full lunar year — no wealth
                       Zakat is due yet.
                     </p>
                   )}
                   {form.hawlCompleted && !meetsNisab && (
-                    <p style={{ color: "#e18f35" }}>
+                    <p style={{ color: "#9a5a14" }}>
                       Your net wealth is below Nisab — no wealth Zakat is due
                       yet.
                     </p>
@@ -1297,7 +1319,7 @@ export function ZakatCalculator() {
               <button
                 type="button"
                 disabled={!readyToPay}
-                className="group mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full py-4 text-sm transition-all duration-300 hover:scale-[1.01] disabled:hover:scale-100"
+                className={`group mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full py-4 text-sm transition-all duration-300 hover:scale-[1.01] disabled:hover:scale-100 ${FOCUS_RING}`}
                 style={{
                   backgroundColor: readyToPay ? "#007050" : "rgba(0,0,0,0.1)",
                   color: readyToPay ? "#FFFFFF" : "#6F6F6F",
@@ -1310,7 +1332,7 @@ export function ZakatCalculator() {
 
               <div
                 className="mt-4 flex items-center justify-center gap-2 text-[10px] uppercase tracking-[0.2em]"
-                style={{ color: "#6F6F6F" }}
+                style={{ color: "#595959" }}
               >
                 <span>Cooperative Bank of Oromia</span>
               </div>
