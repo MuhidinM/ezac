@@ -30,7 +30,7 @@ const TRUST_STEPS: TrustStep[] = [
 
 export function HowItWorksTrust() {
   return (
-    <section className="relative z-10 w-full border-t border-black/5 bg-white">
+    <section className="relative z-10 w-full border-t border-black/5 bg-[#ececec]">
       <div className="mx-auto max-w-7xl px-8 py-24">
         <div className="mx-auto max-w-3xl text-center">
           <p
@@ -42,7 +42,7 @@ export function HowItWorksTrust() {
           <h2
             className="font-serif-display mt-3 text-4xl sm:text-5xl md:text-6xl"
             style={{
-              color: "#000000",
+              color: "#001539",
               lineHeight: 1,
               letterSpacing: "-1.8px",
             }}
@@ -67,12 +67,12 @@ export function HowItWorksTrust() {
                       Step {idx + 1}
                     </span>
                     <span className="rounded-full border border-black/10 p-2">
-                      <Icon className="h-4 w-4" style={{ color: "#000000" }} />
+                      <Icon className="h-4 w-4" style={{ color: "#001539" }} />
                     </span>
                   </div>
                   <h3
                     className="font-serif-display text-2xl leading-tight"
-                    style={{ color: "#000000", letterSpacing: "-0.5px" }}
+                    style={{ color: "#001539", letterSpacing: "-0.5px" }}
                   >
                     {title}
                   </h3>

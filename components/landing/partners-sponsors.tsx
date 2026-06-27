@@ -29,13 +29,13 @@ export function PartnersSponsors() {
           <h2
             className="font-serif-display mt-3 text-4xl sm:text-5xl md:text-6xl"
             style={{
-              color: "#000000",
+              color: "#001539",
               lineHeight: 1,
               letterSpacing: "-1.8px",
             }}
           >
             Partners{" "}
-            <span className="italic" style={{ color: "#6F6F6F" }}>
+            <span className="italic" style={{ color: "#e18f35" }}>
               & sponsors
             </span>
             .
@@ -46,7 +46,7 @@ export function PartnersSponsors() {
           <div className="relative min-h-[300px] overflow-hidden rounded-2xl bg-linear-to-b from-white to-black/3 px-6 py-16">
             <Sparkles
               className="pointer-events-none absolute inset-0"
-              color="#000000"
+              color="#007050"
               opacity={0.18}
               size={1.6}
               speed={0.45}

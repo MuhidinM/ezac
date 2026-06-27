@@ -575,7 +575,7 @@ export function ZakatCalculator() {
         onChange={onChange}
         className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-black/40"
         placeholder="0"
-        style={{ color: "#000000" }}
+        style={{ color: "#001539" }}
       />
       {helper && (
         <p className="text-[11px]" style={{ color: "#6F6F6F" }}>
@@ -623,7 +623,7 @@ export function ZakatCalculator() {
               <p>
                 Live rates: GoldAPI (USD per gram by karat) × Cooperative Bank of
                 Oromia USD→ETB. Nisab uses{" "}
-                <strong style={{ color: "#000" }}>fine metal</strong> (gross
+                <strong style={{ color: "#001539" }}>fine metal</strong> (gross
                 grams × karat ÷ 24): gold ≥ {GOLD_NISAB_GRAMS}g fine, silver ≥{" "}
                 {SILVER_NISAB_GRAMS}g fine.
               </p>
@@ -648,7 +648,7 @@ export function ZakatCalculator() {
                         updateMetalItem(item.id, "metal", e.target.value as MetalType)
                       }
                       className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-black/40"
-                      style={{ color: "#000000" }}
+                      style={{ color: "#001539" }}
                     >
                       <option value="gold">Gold</option>
                       <option value="silver">Silver</option>
@@ -671,7 +671,7 @@ export function ZakatCalculator() {
                       }
                       className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-black/40"
                       placeholder="0"
-                      style={{ color: "#000000" }}
+                      style={{ color: "#001539" }}
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -684,7 +684,7 @@ export function ZakatCalculator() {
                         updateMetalItem(item.id, "karat", Number(e.target.value) as Karat)
                       }
                       className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-black/40"
-                      style={{ color: "#000000" }}
+                      style={{ color: "#001539" }}
                     >
                       {KARATS.map((karat) => (
                         <option key={karat} value={karat}>
@@ -711,7 +711,7 @@ export function ZakatCalculator() {
               type="button"
               onClick={addMetalItem}
               className="rounded-full border border-black/10 px-4 py-2 text-xs"
-              style={{ color: "#000000" }}
+              style={{ color: "#001539" }}
             >
               Add Metal Item
             </button>
@@ -807,8 +807,8 @@ export function ZakatCalculator() {
                       }
                       className="rounded-full border px-3 py-1.5 text-xs transition-colors"
                       style={{
-                        borderColor: isActive ? "#000000" : "rgba(0,0,0,0.12)",
-                        color: isActive ? "#000000" : "#6F6F6F",
+                        borderColor: isActive ? "#007050" : "rgba(0,0,0,0.12)",
+                        color: isActive ? "#007050" : "#6F6F6F",
                       }}
                     >
                       {item.label}
@@ -841,8 +841,8 @@ export function ZakatCalculator() {
                     }
                     className="rounded-full border px-3 py-1.5 text-xs transition-colors"
                     style={{
-                      borderColor: isActive ? "#000000" : "rgba(0,0,0,0.12)",
-                      color: isActive ? "#000000" : "#6F6F6F",
+                      borderColor: isActive ? "#007050" : "rgba(0,0,0,0.12)",
+                      color: isActive ? "#007050" : "#6F6F6F",
                     }}
                   >
                     {item.label}
@@ -965,7 +965,7 @@ export function ZakatCalculator() {
       return (
         <div
           className="mt-6 rounded-2xl p-5"
-          style={{ backgroundColor: "rgba(0,0,0,0.03)" }}
+          style={{ backgroundColor: "#ececec" }}
         >
           <p
             className="text-xs uppercase tracking-[0.15em]"
@@ -975,26 +975,26 @@ export function ZakatCalculator() {
           </p>
           <p
             className="font-serif-display mt-1 text-3xl"
-            style={{ color: "#000000", letterSpacing: "-0.5px" }}
+            style={{ color: "#001539", letterSpacing: "-0.5px" }}
           >
             ETB {formatCurrency(cashDue)}
           </p>
           <div className="mt-3 space-y-2 text-xs" style={{ color: "#6F6F6F" }}>
             <p className="flex items-center justify-between">
               <span>Cash base</span>
-              <span style={{ color: "#000000" }}>
+              <span style={{ color: "#001539" }}>
                 ETB {formatCurrency(cashBase)}
               </span>
             </p>
             <p className="flex items-center justify-between">
               <span>Nisab status</span>
-              <span style={{ color: "#000000" }}>
+              <span style={{ color: "#001539" }}>
                 {meetsNisab ? "Met" : "Below Nisab"}
               </span>
             </p>
             <p className="flex items-center justify-between">
               <span>Hawl status</span>
-              <span style={{ color: "#000000" }}>
+              <span style={{ color: "#001539" }}>
                 {form.hawlCompleted ? "Completed" : "Not completed"}
               </span>
             </p>
@@ -1007,7 +1007,7 @@ export function ZakatCalculator() {
       return (
         <div
           className="mt-6 rounded-2xl p-5"
-          style={{ backgroundColor: "rgba(0,0,0,0.03)" }}
+          style={{ backgroundColor: "#ececec" }}
         >
           <p
             className="text-xs uppercase tracking-[0.15em]"
@@ -1017,34 +1017,34 @@ export function ZakatCalculator() {
           </p>
           <p
             className="font-serif-display mt-1 text-3xl"
-            style={{ color: "#000000", letterSpacing: "-0.5px" }}
+            style={{ color: "#001539", letterSpacing: "-0.5px" }}
           >
             ETB {formatCurrency(goldDue)}
           </p>
           <div className="mt-3 space-y-2 text-xs" style={{ color: "#6F6F6F" }}>
             <p className="flex items-center justify-between">
               <span>Gold — gross (g) / fine (g)</span>
-              <span style={{ color: "#000000" }}>
+              <span style={{ color: "#001539" }}>
                 {formatGrams(goldGrossGrams)} / {formatGrams(goldFineGrams)}
               </span>
             </p>
             <p className="flex items-center justify-between">
               <span>Silver — gross (g) / fine (g)</span>
-              <span style={{ color: "#000000" }}>
+              <span style={{ color: "#001539" }}>
                 {formatGrams(silverGrossGrams)} /{" "}
                 {formatGrams(silverFineGrams)}
               </span>
             </p>
             <p className="flex items-center justify-between">
               <span>Nisab (fine grams)</span>
-              <span style={{ color: "#000000" }}>
+              <span style={{ color: "#001539" }}>
                 Gold {goldFineGrams >= GOLD_NISAB_GRAMS ? "met" : "below"} · Silver{" "}
                 {silverFineGrams >= SILVER_NISAB_GRAMS ? "met" : "below"}
               </span>
             </p>
             <p className="flex items-center justify-between">
               <span>Gold/Silver base</span>
-              <span style={{ color: "#000000" }}>
+              <span style={{ color: "#001539" }}>
                 ETB {formatCurrency(preciousMetalsValue)}
               </span>
             </p>
@@ -1057,7 +1057,7 @@ export function ZakatCalculator() {
       return (
         <div
           className="mt-6 rounded-2xl p-5"
-          style={{ backgroundColor: "rgba(0,0,0,0.03)" }}
+          style={{ backgroundColor: "#ececec" }}
         >
           <p
             className="text-xs uppercase tracking-[0.15em]"
@@ -1067,20 +1067,20 @@ export function ZakatCalculator() {
           </p>
           <p
             className="font-serif-display mt-1 text-3xl"
-            style={{ color: "#000000", letterSpacing: "-0.5px" }}
+            style={{ color: "#001539", letterSpacing: "-0.5px" }}
           >
             ETB {formatCurrency(businessDue)}
           </p>
           <div className="mt-3 space-y-2 text-xs" style={{ color: "#6F6F6F" }}>
             <p className="flex items-center justify-between">
               <span>Business base</span>
-              <span style={{ color: "#000000" }}>
+              <span style={{ color: "#001539" }}>
                 ETB {formatCurrency(Math.max(0, businessBase))}
               </span>
             </p>
             <p className="flex items-center justify-between">
               <span>Formula</span>
-              <span style={{ color: "#000000" }}>
+              <span style={{ color: "#001539" }}>
                 Cash + Inventory + Receivables - Short-term payables
               </span>
             </p>
@@ -1093,7 +1093,7 @@ export function ZakatCalculator() {
       return (
         <div
           className="mt-6 rounded-2xl p-5"
-          style={{ backgroundColor: "rgba(0,0,0,0.03)" }}
+          style={{ backgroundColor: "#ececec" }}
         >
           <p
             className="text-xs uppercase tracking-[0.15em]"
@@ -1103,20 +1103,20 @@ export function ZakatCalculator() {
           </p>
           <p
             className="font-serif-display mt-1 text-3xl"
-            style={{ color: "#000000", letterSpacing: "-0.5px" }}
+            style={{ color: "#001539", letterSpacing: "-0.5px" }}
           >
             ETB {formatCurrency(propertyStocksDue)}
           </p>
           <div className="mt-3 space-y-2 text-xs" style={{ color: "#6F6F6F" }}>
             <p className="flex items-center justify-between">
               <span>Tab base</span>
-              <span style={{ color: "#000000" }}>
+              <span style={{ color: "#001539" }}>
                 ETB {formatCurrency(propertyStocksBase)}
               </span>
             </p>
             <p className="flex items-center justify-between">
               <span>Note</span>
-              <span style={{ color: "#000000" }}>
+              <span style={{ color: "#001539" }}>
                 Rental property value itself is exempt
               </span>
             </p>
@@ -1129,7 +1129,7 @@ export function ZakatCalculator() {
       return (
         <div
           className="mt-6 rounded-2xl p-5"
-          style={{ backgroundColor: "rgba(0,0,0,0.03)" }}
+          style={{ backgroundColor: "#ececec" }}
         >
           <p
             className="text-xs uppercase tracking-[0.15em]"
@@ -1139,26 +1139,26 @@ export function ZakatCalculator() {
           </p>
           <p
             className="font-serif-display mt-1 text-3xl"
-            style={{ color: "#000000", letterSpacing: "-0.5px" }}
+            style={{ color: "#001539", letterSpacing: "-0.5px" }}
           >
             {formatCurrency(agricultureDue)} kg due
           </p>
           <div className="mt-3 space-y-2 text-xs" style={{ color: "#6F6F6F" }}>
             <p className="flex items-center justify-between">
               <span>Harvest entered</span>
-              <span style={{ color: "#000000" }}>
+              <span style={{ color: "#001539" }}>
                 {formatCurrency(agricultureHarvestKg)} kg
               </span>
             </p>
             <p className="flex items-center justify-between">
               <span>Rate applied</span>
-              <span style={{ color: "#000000" }}>
+              <span style={{ color: "#001539" }}>
                 {irrigationRate(form.irrigationMode) * 100}%
               </span>
             </p>
             <p className="flex items-center justify-between">
               <span>Hawl Status</span>
-              <span style={{ color: "#000000" }}>
+              <span style={{ color: "#001539" }}>
                 Not required (Due on harvest)
               </span>
             </p>
@@ -1171,7 +1171,7 @@ export function ZakatCalculator() {
       return (
         <div
           className="mt-6 rounded-2xl p-5"
-          style={{ backgroundColor: "rgba(0,0,0,0.03)" }}
+          style={{ backgroundColor: "#ececec" }}
         >
           <p
             className="text-xs uppercase tracking-[0.15em]"
@@ -1181,26 +1181,26 @@ export function ZakatCalculator() {
           </p>
           <p
             className="font-serif-display mt-1 text-3xl"
-            style={{ color: "#000000", letterSpacing: "-0.5px" }}
+            style={{ color: "#001539", letterSpacing: "-0.5px" }}
           >
             {livestockUnits}
           </p>
           <div className="mt-3 space-y-2 text-xs" style={{ color: "#6F6F6F" }}>
             <p className="flex items-center justify-between">
               <span>Type</span>
-              <span style={{ color: "#000000" }}>
+              <span style={{ color: "#001539" }}>
                 {livestockTypeLabel(form.livestockMode)}
               </span>
             </p>
             <p className="flex items-center justify-between">
               <span>Count entered</span>
-              <span style={{ color: "#000000" }}>
+              <span style={{ color: "#001539" }}>
                 {formatCurrency(livestockCount)}
               </span>
             </p>
             <p className="flex items-center justify-between">
               <span>Eligible conditions</span>
-              <span style={{ color: "#000000" }}>
+              <span style={{ color: "#001539" }}>
                 {livestockEligible
                   ? "Freely grazing + non-working"
                   : "Conditions not met"}
@@ -1215,7 +1215,7 @@ export function ZakatCalculator() {
       return (
         <div
           className="mt-6 rounded-2xl p-5"
-          style={{ backgroundColor: "rgba(0,0,0,0.03)" }}
+          style={{ backgroundColor: "#ececec" }}
         >
           <p
             className="text-xs uppercase tracking-[0.15em]"
@@ -1225,20 +1225,20 @@ export function ZakatCalculator() {
           </p>
           <p
             className="font-serif-display mt-1 text-3xl"
-            style={{ color: "#000000", letterSpacing: "-0.5px" }}
+            style={{ color: "#001539", letterSpacing: "-0.5px" }}
           >
             ETB {formatCurrency(rikazDue + mineralsDue)}
           </p>
           <div className="mt-3 space-y-2 text-xs" style={{ color: "#6F6F6F" }}>
             <p className="flex items-center justify-between">
               <span>Rikaz due now (20%)</span>
-              <span style={{ color: "#000000" }}>
+              <span style={{ color: "#001539" }}>
                 ETB {formatCurrency(rikazDue)}
               </span>
             </p>
             <p className="flex items-center justify-between">
               <span>Minerals due (2.5%)</span>
-              <span style={{ color: "#000000" }}>
+              <span style={{ color: "#001539" }}>
                 ETB {formatCurrency(mineralsDue)}
               </span>
             </p>
@@ -1250,7 +1250,7 @@ export function ZakatCalculator() {
     return (
       <div
         className="mt-6 rounded-2xl p-5"
-        style={{ backgroundColor: "rgba(0,0,0,0.03)" }}
+        style={{ backgroundColor: "#ececec" }}
       >
         <p
           className="text-xs uppercase tracking-[0.15em]"
@@ -1260,26 +1260,26 @@ export function ZakatCalculator() {
         </p>
         <p
           className="font-serif-display mt-1 text-3xl"
-          style={{ color: "#000000", letterSpacing: "-0.5px" }}
+          style={{ color: "#001539", letterSpacing: "-0.5px" }}
         >
           ETB {formatCurrency(zakatDue)}
         </p>
         <div className="mt-3 space-y-2 text-xs" style={{ color: "#6F6F6F" }}>
           <p className="flex items-center justify-between">
             <span>Annual base</span>
-            <span style={{ color: "#000000" }}>
+            <span style={{ color: "#001539" }}>
               ETB {formatCurrency(annualZakatableBase)}
             </span>
           </p>
           <p className="flex items-center justify-between">
             <span>Deducted liabilities</span>
-            <span style={{ color: "#000000" }}>
+            <span style={{ color: "#001539" }}>
               ETB {formatCurrency(deductibleLiabilities)}
             </span>
           </p>
           <p className="flex items-center justify-between">
             <span>Total pooled due (2.5%)</span>
-            <span style={{ color: "#000000" }}>
+            <span style={{ color: "#001539" }}>
               ETB {formatCurrency(annualDue)}
             </span>
           </p>
@@ -1289,7 +1289,7 @@ export function ZakatCalculator() {
   };
 
   return (
-    <section className="relative z-10 w-full bg-white">
+    <section className="relative z-10 w-full bg-[#ececec]">
       <div className="mx-auto max-w-7xl px-8 py-24">
         <div className="mx-auto max-w-3xl text-center">
           <p
@@ -1301,13 +1301,13 @@ export function ZakatCalculator() {
           <h2
             className="font-serif-display mt-3 text-4xl sm:text-5xl md:text-6xl"
             style={{
-              color: "#000000",
+              color: "#001539",
               lineHeight: 1,
               letterSpacing: "-1.8px",
             }}
           >
             Know your{" "}
-            <span className="italic" style={{ color: "#6F6F6F" }}>
+            <span className="italic" style={{ color: "#e18f35" }}>
               Zakat
             </span>{" "}
             in seconds.
@@ -1329,11 +1329,11 @@ export function ZakatCalculator() {
             <InfoIcon className="h-3.5 w-3.5" />
             <span>
               Market snapshot{" "}
-              <span style={{ color: "#000000", fontWeight: 500 }}>
+              <span style={{ color: "#001539", fontWeight: 500 }}>
                 Gold 24k {formatCurrency(gold24kEtb)} ETB/g
               </span>
               {" · "}
-              <span style={{ color: "#000000", fontWeight: 500 }}>
+              <span style={{ color: "#001539", fontWeight: 500 }}>
                 Silver 24k {formatCurrency(silver24kEtb)} ETB/g
               </span>
               {" · "}
@@ -1357,7 +1357,7 @@ export function ZakatCalculator() {
                     className="flex items-center justify-center gap-2 rounded-xl px-2 py-3 text-xs transition-all duration-300 sm:text-sm"
                     style={{
                       backgroundColor: active ? "#FFFFFF" : "transparent",
-                      color: active ? "#000000" : "#6F6F6F",
+                      color: active ? "#007050" : "#6F6F6F",
                       boxShadow: active ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
                       fontWeight: active ? 500 : 400,
                     }}
@@ -1384,13 +1384,13 @@ export function ZakatCalculator() {
                   style={{ color: "#6F6F6F" }}
                 >
                   <p>
-                    <strong style={{ color: "#000" }}>Ruling:</strong> Zakat is
+                    <strong style={{ color: "#001539" }}>Ruling:</strong> Zakat is
                     an absolute obligation (Fard) on wealth meeting the Nisab
                     threshold and held for a full lunar year (Hawl). The
                     calculation rate is 2.5% (or 1/40th) of the total amount.
                   </p>
                   <p>
-                    <strong style={{ color: "#000" }}>Reason:</strong> The word
+                    <strong style={{ color: "#001539" }}>Reason:</strong> The word
                     &quot;Zakat&quot; means purification. It purifies wealth
                     from greed and ensures social justice. The cash Nisab is
                     pegged to Silver ({SILVER_NISAB_GRAMS}g) rather than gold
@@ -1405,13 +1405,13 @@ export function ZakatCalculator() {
                   style={{ color: "#6F6F6F" }}
                 >
                   <p>
-                    <strong style={{ color: "#000" }}>Ruling:</strong> Zakat is
+                    <strong style={{ color: "#001539" }}>Ruling:</strong> Zakat is
                     2.5% on gold and silver if the combined monetary value meets
                     the Nisab and Hawl. The majority of scholars mandate Zakat
                     on gold/silver jewelry whether worn or kept in a safe.
                   </p>
                   <p>
-                    <strong style={{ color: "#000" }}>Hadith:</strong> Prophet
+                    <strong style={{ color: "#001539" }}>Hadith:</strong> Prophet
                     Muhammad (ﷺ) said: &quot;No Zakat is due on gold until it
                     reaches twenty dinars [approx. 85g]... And there is no Zakat
                     on silver until it reaches two hundred dirhams [approx.
@@ -1425,13 +1425,13 @@ export function ZakatCalculator() {
                   style={{ color: "#6F6F6F" }}
                 >
                   <p>
-                    <strong style={{ color: "#000" }}>Ruling:</strong> Trading
+                    <strong style={{ color: "#001539" }}>Ruling:</strong> Trading
                     assets (Urood al-Tijarah) bought with the explicit intention
                     to resell owe 2.5%. Fixed assets (machinery, vehicles,
                     buildings) are exempt.
                   </p>
                   <p>
-                    <strong style={{ color: "#000" }}>Hadith:</strong> Samurah
+                    <strong style={{ color: "#001539" }}>Hadith:</strong> Samurah
                     bin Jundub (RA) reported: &quot;The Messenger of Allah (ﷺ)
                     used to command us to pay Zakat from what we prepared for
                     sale.&quot; (Sunan Abu Dawud).
@@ -1444,13 +1444,13 @@ export function ZakatCalculator() {
                   style={{ color: "#6F6F6F" }}
                 >
                   <p>
-                    <strong style={{ color: "#000" }}>Ruling:</strong> No Zakat
+                    <strong style={{ color: "#001539" }}>Ruling:</strong> No Zakat
                     is due on the personal home you live in or the total value
                     of rental properties. Zakat is only due on the{" "}
                     <span className="italic">saved rental income</span>.
                   </p>
                   <p>
-                    <strong style={{ color: "#000" }}>Stocks:</strong> Trading
+                    <strong style={{ color: "#001539" }}>Stocks:</strong> Trading
                     shares owe 2.5% on their market value. Long-term shares held
                     for dividends owe 2.5% on the company&apos;s zakatable
                     assets. This is analogized from traditional fiqh based on
@@ -1465,7 +1465,7 @@ export function ZakatCalculator() {
                   style={{ color: "#6F6F6F" }}
                 >
                   <p>
-                    <strong style={{ color: "#000" }}>Ruling:</strong>{" "}
+                    <strong style={{ color: "#001539" }}>Ruling:</strong>{" "}
                     Agricultural Zakat (Ushr) is due{" "}
                     <span className="italic">
                       immediately on the day of harvest
@@ -1473,7 +1473,7 @@ export function ZakatCalculator() {
                     . No lunar year (Hawl) is required.
                   </p>
                   <p>
-                    <strong style={{ color: "#000" }}>Reason & Hadith:</strong>{" "}
+                    <strong style={{ color: "#001539" }}>Reason & Hadith:</strong>{" "}
                     The rate changes based on the farmer&apos;s hardship. The
                     Prophet (ﷺ) said: &quot;On that which is irrigated by the
                     heavens (rain), rivers, and springs, a tenth (10%) is due;
@@ -1489,14 +1489,14 @@ export function ZakatCalculator() {
                   style={{ color: "#6F6F6F" }}
                 >
                   <p>
-                    <strong style={{ color: "#000" }}>Ruling:</strong> Zakat is
+                    <strong style={{ color: "#001539" }}>Ruling:</strong> Zakat is
                     obligatory on livestock kept for milk or breeding, provided
                     they are <span className="italic">Sa&apos;imah</span>{" "}
                     (freely grazing on public land for more than half the year)
                     and are NOT used as working animals.
                   </p>
                   <p>
-                    <strong style={{ color: "#000" }}>Reason:</strong> The
+                    <strong style={{ color: "#001539" }}>Reason:</strong> The
                     intricate minimum thresholds (Nisab) and required animal
                     outputs are specifically dictated by the written
                     instructions given by Abu Bakr (RA) to Anas bin Malik, which
@@ -1511,14 +1511,14 @@ export function ZakatCalculator() {
                   style={{ color: "#6F6F6F" }}
                 >
                   <p>
-                    <strong style={{ color: "#000" }}>Ruling:</strong> Rikaz
+                    <strong style={{ color: "#001539" }}>Ruling:</strong> Rikaz
                     (buried treasure from pre-Islamic times) owes a 20% (Khums)
                     tax immediately upon discovery without Nisab or Hawl. Mined
                     minerals owe 2.5% once they reach the Nisab equivalent of
                     gold/silver.
                   </p>
                   <p>
-                    <strong style={{ color: "#000" }}>Hadith:</strong> Abu
+                    <strong style={{ color: "#001539" }}>Hadith:</strong> Abu
                     Huraira reported that the Prophet (ﷺ) said: &quot;In buried
                     treasure (Rikaz), a fifth (20%) is due.&quot; (Sahih
                     Al-Bukhari & Muslim).
@@ -1531,14 +1531,14 @@ export function ZakatCalculator() {
                   style={{ color: "#6F6F6F" }}
                 >
                   <p>
-                    <strong style={{ color: "#000" }}>Ruling:</strong> You may
+                    <strong style={{ color: "#001539" }}>Ruling:</strong> You may
                     deduct immediate, short-term debts (due within the lunar
                     year) from your zakatable wealth. Long-term debts (like
                     30-year mortgages or student loans) should NOT be fully
                     deducted, only the next 12 months&apos; scheduled payments.
                   </p>
                   <p>
-                    <strong style={{ color: "#000" }}>Reason:</strong> Deducting
+                    <strong style={{ color: "#001539" }}>Reason:</strong> Deducting
                     full long-term debt would often put a person perpetually
                     below Nisab, meaning they never pay Zakat. Zakat is a trust
                     to the poor and must be balanced with personal liability.
@@ -1554,7 +1554,7 @@ export function ZakatCalculator() {
                 className="group mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full py-4 text-sm transition-all duration-300 hover:scale-[1.01] disabled:hover:scale-100"
                 style={{
                   backgroundColor: tabReadyToPay
-                    ? "#000000"
+                    ? "#007050"
                     : "rgba(0,0,0,0.1)",
                   color: tabReadyToPay ? "#FFFFFF" : "#6F6F6F",
                   cursor: tabReadyToPay ? "pointer" : "not-allowed",

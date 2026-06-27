@@ -41,7 +41,7 @@ export function TransparencyTicker() {
   return (
     <section
       className="relative z-10 w-full overflow-hidden"
-      style={{ backgroundColor: "#000000" }}
+      style={{ backgroundColor: "#001539" }}
       aria-label="Live impact ticker"
     >
       <div className="flex items-stretch">
@@ -52,11 +52,11 @@ export function TransparencyTicker() {
           <span className="relative flex h-2 w-2">
             <span
               className="animate-pulse-dot absolute inset-0 rounded-full"
-              style={{ backgroundColor: "#10B981" }}
+              style={{ backgroundColor: "#007050" }}
             />
             <span
               className="relative h-2 w-2 rounded-full"
-              style={{ backgroundColor: "#10B981" }}
+              style={{ backgroundColor: "#007050" }}
             />
           </span>
           <span
@@ -93,14 +93,14 @@ export function TransparencyTicker() {
             className="pointer-events-none absolute inset-y-0 left-0 w-24"
             style={{
               background:
-                "linear-gradient(to right, #000000 0%, transparent 100%)",
+                "linear-gradient(to right, #001539 0%, transparent 100%)",
             }}
           />
           <div
             className="pointer-events-none absolute inset-y-0 right-0 w-24"
             style={{
               background:
-                "linear-gradient(to left, #000000 0%, transparent 100%)",
+                "linear-gradient(to left, #001539 0%, transparent 100%)",
             }}
           />
         </div>

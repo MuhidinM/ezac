@@ -84,13 +84,13 @@ export function ImpactMapTeaser() {
           <h2
             className="font-serif-display mt-3 text-4xl sm:text-5xl md:text-6xl"
             style={{
-              color: "#000000",
+              color: "#001539",
               lineHeight: 1,
               letterSpacing: "-1.8px",
             }}
           >
             The impact{" "}
-            <span className="italic" style={{ color: "#6F6F6F" }}>
+            <span className="italic" style={{ color: "#e18f35" }}>
               map
             </span>{" "}
             teaser.
@@ -122,7 +122,7 @@ export function ImpactMapTeaser() {
           <button
             type="button"
             className="inline-flex items-center justify-center rounded-full px-6 py-3.5 text-sm transition-all duration-300 hover:scale-[1.01]"
-            style={{ backgroundColor: "#000000", color: "#FFFFFF" }}
+            style={{ backgroundColor: "#007050", color: "#FFFFFF" }}
           >
             View Full Transparency Dashboard
           </button>

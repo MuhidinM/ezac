@@ -38,7 +38,7 @@ export function SiteFooter() {
                   </p>
                   <h3
                     className="font-serif-display mt-2 text-3xl sm:text-4xl"
-                    style={{ color: "#000000", letterSpacing: "-1px" }}
+                    style={{ color: "#001539", letterSpacing: "-1px" }}
                   >
                     Get the citizen app
                   </h3>
@@ -47,7 +47,7 @@ export function SiteFooter() {
                   <button
                     type="button"
                     className="inline-flex items-center gap-2 rounded-full border border-black/10 px-4 py-2.5 text-sm transition-colors hover:bg-black/2"
-                    style={{ color: "#000000" }}
+                    style={{ color: "#001539" }}
                   >
                     <SmartphoneIcon className="h-4 w-4" />
                     App Store
@@ -55,7 +55,7 @@ export function SiteFooter() {
                   <button
                     type="button"
                     className="inline-flex items-center gap-2 rounded-full border border-black/10 px-4 py-2.5 text-sm transition-colors hover:bg-black/2"
-                    style={{ color: "#000000" }}
+                    style={{ color: "#001539" }}
                   >
                     <PlayCircleIcon className="h-4 w-4" />
                     Google Play
@@ -71,7 +71,7 @@ export function SiteFooter() {
                     <a
                       key={link}
                       href="#"
-                      className="text-sm transition-colors hover:text-black"
+                      className="text-sm transition-colors hover:text-[#001539]"
                       style={{ color: "#6F6F6F" }}
                     >
                       {link}
@@ -91,6 +91,32 @@ export function SiteFooter() {
                     </a>
                   ))}
                 </div>
+              </div>
+
+              <div className="h-px w-full bg-black/10" />
+
+              <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+                <div className="flex items-center gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- brand mark served as a static asset */}
+                  <img src="/logo.svg" alt="EZAC" className="h-9 w-auto" />
+                  <span className="flex flex-col leading-tight">
+                    <span
+                      className="font-serif-display text-lg tracking-tight"
+                      style={{ color: "#001539" }}
+                    >
+                      EZAC
+                    </span>
+                    <span
+                      className="text-[10px] uppercase tracking-[0.16em]"
+                      style={{ color: "#6F6F6F" }}
+                    >
+                      Ethiopian Zakat &amp; Awqaf Commission
+                    </span>
+                  </span>
+                </div>
+                <p className="text-xs" style={{ color: "#6F6F6F" }}>
+                  &copy; {new Date().getFullYear()} EZAC. All rights reserved.
+                </p>
               </div>
             </div>
           </div>

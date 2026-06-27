@@ -73,24 +73,38 @@ export function Navbar() {
       >
         <a
           href="#"
-          className={`shrink-0 leading-none transition-all duration-500 ease-out ${scrolled ? "inline-flex w-auto items-center whitespace-nowrap" : "flex min-w-0 max-w-[268px] flex-col"}`}
+          className="flex shrink-0 items-center gap-3 leading-none transition-all duration-500 ease-out"
         >
+          {/* eslint-disable-next-line @next/next/no-img-element -- brand mark served as a static asset */}
+          <img
+            src="/logo.svg"
+            alt="EZAC"
+            className={`w-auto transition-all duration-500 ease-out ${scrolled ? "h-8" : "h-11"}`}
+          />
           {scrolled ? (
             <span
               className="font-serif-display text-2xl tracking-tight"
-              style={{ color: "#000000" }}
+              style={{ color: "#001539" }}
             >
               EZAC
             </span>
           ) : (
-            <span
-              className="text-[10px] uppercase tracking-[0.18em]"
-              style={{
-                color: "#6F6F6F",
-                lineHeight: 1.5,
-              }}
-            >
-              Ethiopian Zakat &amp; Awqaf Commission
+            <span className="flex min-w-0 max-w-[220px] flex-col">
+              <span
+                className="font-serif-display text-xl tracking-tight"
+                style={{ color: "#001539", lineHeight: 1.1 }}
+              >
+                EZAC
+              </span>
+              <span
+                className="text-[10px] uppercase tracking-[0.18em]"
+                style={{
+                  color: "#6F6F6F",
+                  lineHeight: 1.4,
+                }}
+              >
+                Ethiopian Zakat &amp; Awqaf Commission
+              </span>
             </span>
           )}
         </a>
@@ -107,9 +121,9 @@ export function Navbar() {
               >
                 <button
                   type="button"
-                  className="flex items-center gap-1 text-sm transition-colors hover:text-black"
+                  className="flex items-center gap-1 text-sm transition-colors hover:text-[#001539]"
                   style={{
-                    color: isOpen ? "#000000" : "#6F6F6F",
+                    color: isOpen ? "#001539" : "#6F6F6F",
                   }}
                   onClick={() => setOpenIndex(isOpen ? null : idx)}
                   aria-expanded={isOpen}
@@ -131,7 +145,7 @@ export function Navbar() {
                           key={child.label}
                           href="#"
                           className="flex flex-col px-4 py-2.5 text-sm transition-colors hover:bg-black/[0.03]"
-                          style={{ color: "#000000" }}
+                          style={{ color: "#001539" }}
                         >
                           <span>{child.label}</span>
                           {child.note && (
@@ -161,13 +175,13 @@ export function Navbar() {
             <button
               type="button"
               onClick={() => setLangOpen((v) => !v)}
-              className="flex items-center gap-1.5 text-xs transition-colors hover:text-black"
+              className="flex items-center gap-1.5 text-xs transition-colors hover:text-[#001539]"
               style={{ color: "#6F6F6F" }}
               aria-haspopup="true"
               aria-expanded={langOpen}
             >
               <GlobeIcon className="h-3.5 w-3.5" />
-              <span style={{ color: "#000000", fontWeight: 500 }}>
+              <span style={{ color: "#001539", fontWeight: 500 }}>
                 {activeLang}
               </span>
               <ChevronDownIcon
@@ -189,7 +203,7 @@ export function Navbar() {
                     }}
                     className="flex w-full items-center justify-between px-4 py-2 text-left text-xs transition-colors hover:bg-black/[0.03]"
                     style={{
-                      color: activeLang === lang ? "#000000" : "#6F6F6F",
+                      color: activeLang === lang ? "#001539" : "#6F6F6F",
                       fontWeight: activeLang === lang ? 500 : 400,
                     }}
                   >
@@ -197,7 +211,7 @@ export function Navbar() {
                     {activeLang === lang && (
                       <span
                         className="h-1.5 w-1.5 rounded-full"
-                        style={{ backgroundColor: "#000000" }}
+                        style={{ backgroundColor: "#007050" }}
                       />
                     )}
                   </button>
@@ -208,7 +222,7 @@ export function Navbar() {
 
           <a
             href="/login"
-            className="hidden text-sm transition-colors hover:text-black md:inline"
+            className="hidden text-sm transition-colors hover:text-[#001539] md:inline"
             style={{ color: "#6F6F6F" }}
           >
             Log In / Register
@@ -217,7 +231,7 @@ export function Navbar() {
           <button
             className="rounded-full px-6 py-2.5 text-sm transition-transform duration-300 hover:scale-[1.03]"
             style={{
-              backgroundColor: "#000000",
+              backgroundColor: "#007050",
               color: "#FFFFFF",
             }}
           >

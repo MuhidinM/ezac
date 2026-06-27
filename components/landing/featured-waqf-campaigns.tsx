@@ -54,13 +54,13 @@ export function FeaturedWaqfCampaigns() {
           <h2
             className="font-serif-display mt-3 text-4xl sm:text-5xl md:text-6xl"
             style={{
-              color: "#000000",
+              color: "#001539",
               lineHeight: 1,
               letterSpacing: "-1.8px",
             }}
           >
             Featured{" "}
-            <span className="italic" style={{ color: "#6F6F6F" }}>
+            <span className="italic" style={{ color: "#e18f35" }}>
               Waqf
             </span>{" "}
             crowdfunding campaigns.
@@ -103,7 +103,7 @@ export function FeaturedWaqfCampaigns() {
                     <h3
                       className="font-serif-display text-xl leading-tight sm:text-2xl"
                       style={{
-                        color: "#000000",
+                        color: "#001539",
                         letterSpacing: "-0.5px",
                       }}
                     >
@@ -112,7 +112,7 @@ export function FeaturedWaqfCampaigns() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-xs">
                         <span style={{ color: "#6F6F6F" }}>Funded</span>
-                        <span style={{ color: "#000000", fontWeight: 500 }}>
+                        <span style={{ color: "#001539", fontWeight: 500 }}>
                           {campaign.fundedPct}%
                         </span>
                       </div>
@@ -124,7 +124,7 @@ export function FeaturedWaqfCampaigns() {
                           className="h-full rounded-full transition-[width]"
                           style={{
                             width: `${campaign.fundedPct}%`,
-                            backgroundColor: "#000000",
+                            backgroundColor: "#007050",
                           }}
                         />
                       </div>
@@ -139,7 +139,7 @@ export function FeaturedWaqfCampaigns() {
                       type="button"
                       className="mt-1 inline-flex w-full items-center justify-center rounded-full py-3.5 text-sm transition-all duration-300 hover:scale-[1.01]"
                       style={{
-                        backgroundColor: "#000000",
+                        backgroundColor: "#007050",
                         color: "#FFFFFF",
                       }}
                     >

@@ -12,16 +12,16 @@ export function Hero() {
       <h1
         className="animate-fade-rise font-serif-display text-6xl font-normal sm:text-7xl md:text-8xl"
         style={{
-          color: "#000000",
+          color: "#001539",
           lineHeight: 0.95,
           letterSpacing: "-2.46px",
         }}
       >
-        <span className="italic" style={{ color: "#6F6F6F" }}>
+        <span className="italic" style={{ color: "#e18f35" }}>
           Trusted
         </span>{" "}
         Zakat.{" "}
-        <span className="italic" style={{ color: "#6F6F6F" }}>
+        <span className="italic" style={{ color: "#e18f35" }}>
           Eternal
         </span>{" "}
         Waqf.
@@ -43,7 +43,7 @@ export function Hero() {
         <button
           className="inline-flex items-center gap-2 rounded-full px-10 py-5 text-base transition-transform duration-300 hover:scale-[1.03]"
           style={{
-            backgroundColor: "#000000",
+            backgroundColor: "#007050",
             color: "#FFFFFF",
           }}
         >
@@ -54,7 +54,7 @@ export function Hero() {
         <button
           className="group relative isolate overflow-hidden rounded-full border px-8 py-5 text-base"
           style={{
-            borderColor: "#000000",
+            borderColor: "#001539",
           }}
           type="button"
         >
@@ -62,10 +62,10 @@ export function Hero() {
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 z-0 -translate-x-full transition-transform duration-500 ease-out group-hover:translate-x-0"
             style={{
-              backgroundColor: "#000000",
+              backgroundColor: "#001539",
             }}
           />
-          <span className="relative z-10 inline-flex items-center gap-2 text-black transition-colors duration-500 group-hover:text-white">
+          <span className="relative z-10 inline-flex items-center gap-2 text-[#001539] transition-colors duration-500 group-hover:text-white">
             View Live Dashboard
             <span className="inline-block transition-transform duration-500 group-hover:translate-x-1">
               →

@@ -15,6 +15,13 @@ export function LandingPage() {
     <div className="relative w-full overflow-x-hidden bg-white">
       <div className="relative min-h-screen w-full overflow-hidden">
         <VideoBackground />
+        {/* eslint-disable-next-line @next/next/no-img-element -- decorative brand watermark served as a static asset */}
+        <img
+          src="/bg2.png"
+          alt=""
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-24 bottom-0 z-0 h-[70vh] w-auto select-none opacity-[0.05]"
+        />
         <Navbar />
         <Hero />
       </div>

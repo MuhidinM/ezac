@@ -56,7 +56,7 @@ export function TrustStrip() {
             <h2
               className="font-serif-display mt-2 text-2xl sm:text-3xl"
               style={{
-                color: "#000000",
+                color: "#001539",
                 letterSpacing: "-0.5px",
               }}
             >
@@ -65,7 +65,7 @@ export function TrustStrip() {
           </div>
           <a
             href="#"
-            className="hidden text-sm transition-colors hover:text-black md:inline"
+            className="hidden text-sm transition-colors hover:text-[#001539] md:inline"
             style={{ color: "#6F6F6F" }}
           >
             Read the standards →
@@ -78,9 +78,9 @@ export function TrustStrip() {
               key={label}
               className="flex flex-col gap-3 p-6 transition-colors hover:bg-black/[0.02]"
             >
-              <Icon className="h-5 w-5" style={{ color: "#000000" }} />
+              <Icon className="h-5 w-5" style={{ color: "#001539" }} />
               <div>
-                <p className="text-sm font-medium" style={{ color: "#000000" }}>
+                <p className="text-sm font-medium" style={{ color: "#001539" }}>
                   {label}
                 </p>
                 <p
