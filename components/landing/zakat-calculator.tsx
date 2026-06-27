@@ -1295,7 +1295,7 @@ export function ZakatCalculator() {
         src="/bg.png"
         alt=""
         aria-hidden="true"
-        className="pointer-events-none absolute top-[62%] right-[-20%] z-0 h-[150%] w-auto max-w-none -translate-y-[calc(50%+22px)] select-none opacity-60"
+        className="pointer-events-none absolute top-1/2 right-[-28%] z-0 h-[150%] w-auto max-w-none -translate-y-1/2 select-none opacity-60"
       />
       <div className="relative z-10 mx-auto max-w-7xl px-8 py-24">
         <div className="mx-auto max-w-3xl text-center">
