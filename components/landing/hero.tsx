@@ -51,12 +51,12 @@ export function Hero() {
           <ArrowRightIcon className="h-4 w-4" />
         </button>
 
-        <button
-          className="group relative isolate overflow-hidden rounded-full border px-8 py-5 text-base"
+        <a
+          href="/dashboard/register"
+          className="group relative isolate inline-flex overflow-hidden rounded-full border px-8 py-5 text-base"
           style={{
             borderColor: "#001539",
           }}
-          type="button"
         >
           <span
             aria-hidden="true"
@@ -66,12 +66,12 @@ export function Hero() {
             }}
           />
           <span className="relative z-10 inline-flex items-center gap-2 text-[#001539] transition-colors duration-500 group-hover:text-white">
-            View Live Dashboard
+            Register to Receive Zakat
             <span className="inline-block transition-transform duration-500 group-hover:translate-x-1">
               →
             </span>
           </span>
-        </button>
+        </a>
       </div>
 
       <div className="animate-fade-rise-delay-2 mt-auto w-full pt-20">
