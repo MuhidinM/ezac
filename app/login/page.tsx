@@ -44,18 +44,21 @@ export default function LoginPage() {
               className="text-xs uppercase tracking-[0.16em]"
               style={{ color: "#6F6F6F" }}
             >
-              Staff portal
+              Sign in
             </p>
             <h1
               className="mt-4 max-w-xl font-serif-display text-5xl leading-[0.98] tracking-tight md:text-6xl"
               style={{ color: "#001539" }}
             >
-              Log in to review and manage beneficiaries.
+              Welcome back to your{" "}
+              <span className="italic" style={{ color: "#e18f35" }}>
+                account
+              </span>
+              .
             </h1>
             <p className="mt-6 max-w-lg text-base leading-relaxed text-black/70 md:text-lg">
-              Admin and field officer accounts can list beneficiaries, review
-              registrations, and update verification status from one secure
-              dashboard.
+              Sign in to access your secure EZAC dashboard — manage your Zakat,
+              Waqf, registrations, and reports, all in one place.
             </p>
           </div>
 
@@ -64,7 +67,7 @@ export default function LoginPage() {
               Welcome back
             </h2>
             <p className="mt-1 text-sm text-black/60">
-              Sign in with your staff username and password.
+              Sign in with your username and password.
             </p>
 
             <Suspense fallback={<p className="mt-8 text-sm text-black/60">Loading...</p>}>
