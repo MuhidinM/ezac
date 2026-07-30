@@ -12,9 +12,8 @@ import {
   isTokenExpired,
 } from "@/lib/auth/jwt";
 
-const COOKIE_OPTIONS = {
+const BASE_COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
   sameSite: "lax" as const,
   path: "/",
 };
@@ -25,16 +24,35 @@ export type AuthTokens = {
   expiresIn: number;
 };
 
-export async function setAuthCookies(tokens: AuthTokens): Promise<void> {
+/** Use Secure cookies only on HTTPS so HTTP IP deploys can keep a session. */
+export function shouldUseSecureCookies(request: Request): boolean {
+  const forwarded = request.headers.get("x-forwarded-proto");
+  if (forwarded) {
+    return forwarded.split(",")[0]?.trim() === "https";
+  }
+
+  try {
+    return new URL(request.url).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+export async function setAuthCookies(
+  tokens: AuthTokens,
+  options?: { secure?: boolean },
+): Promise<void> {
   const cookieStore = await cookies();
+  const secure = options?.secure ?? false;
+  const cookieOptions = { ...BASE_COOKIE_OPTIONS, secure };
 
   cookieStore.set(ACCESS_TOKEN_COOKIE, tokens.accessToken, {
-    ...COOKIE_OPTIONS,
+    ...cookieOptions,
     maxAge: tokens.expiresIn,
   });
 
   cookieStore.set(REFRESH_TOKEN_COOKIE, tokens.refreshToken, {
-    ...COOKIE_OPTIONS,
+    ...cookieOptions,
     maxAge: 60 * 60 * 24 * 7,
   });
 }

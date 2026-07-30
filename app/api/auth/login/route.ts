@@ -3,7 +3,10 @@ import { NextResponse } from "next/server";
 import { ApiError } from "@/lib/api/errors";
 import { gatewayRequest } from "@/lib/api/gateway";
 import type { LoginData } from "@/lib/api/types";
-import { setAuthCookies } from "@/lib/auth/session";
+import {
+  setAuthCookies,
+  shouldUseSecureCookies,
+} from "@/lib/auth/session";
 
 type LoginBody = {
   username?: string;
@@ -38,11 +41,14 @@ export async function POST(request: Request) {
       body: JSON.stringify({ username, password }),
     });
 
-    await setAuthCookies({
-      accessToken: data.accessToken,
-      refreshToken: data.refreshToken,
-      expiresIn: data.expiresIn,
-    });
+    await setAuthCookies(
+      {
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        expiresIn: data.expiresIn,
+      },
+      { secure: shouldUseSecureCookies(request) },
+    );
 
     return NextResponse.json({
       success: true,
