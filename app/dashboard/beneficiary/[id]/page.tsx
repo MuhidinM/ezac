@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
+import { BeneficiaryEditForm } from "@/components/beneficiary/beneficiary-edit-form";
+import { KycDocumentsCard } from "@/components/beneficiary/kyc-documents-card";
 import { VerificationStatusBadge } from "@/components/beneficiary/verification-status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,6 +39,7 @@ export default function BeneficiaryDetailPage() {
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
   const [verificationOpen, setVerificationOpen] = useState(false);
   const [verificationAction, setVerificationAction] =
     useState<VerificationAction>("verified");
@@ -150,6 +153,33 @@ export default function BeneficiaryDetailPage() {
     beneficiary.verificationStatus !== "verified" &&
     beneficiary.verificationStatus !== "rejected";
 
+  const canEdit =
+    session?.isAdmin ||
+    session?.roles.includes("FIELD_OFFICER") ||
+    (session != null && session.roles.length === 0);
+
+  if (isEditing) {
+    return (
+      <section className="space-y-5">
+        <Link
+          href="/dashboard/beneficiary"
+          className="inline-flex items-center gap-2 text-sm text-black/60 hover:text-[#001539]"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to list
+        </Link>
+        <BeneficiaryEditForm
+          beneficiary={beneficiary}
+          onCancel={() => setIsEditing(false)}
+          onSaved={(updated) => {
+            setBeneficiary(updated);
+            setIsEditing(false);
+          }}
+        />
+      </section>
+    );
+  }
+
   return (
     <section className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -161,30 +191,49 @@ export default function BeneficiaryDetailPage() {
             <ArrowLeft className="h-4 w-4" />
             Back to list
           </Link>
-          <h1 className="mt-3 font-serif-display text-4xl tracking-tight text-[#001539]">
-            {beneficiary.fullName ?? "Unnamed beneficiary"}
-          </h1>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <VerificationStatusBadge status={beneficiary.verificationStatus} />
-            <span className="rounded-full border border-black/10 px-2.5 py-0.5 text-xs capitalize text-black/70">
-              {beneficiary.beneficiaryType}
-            </span>
+          <div className="mt-3 flex flex-wrap items-center gap-4">
+            {beneficiary.hasProfilePicture ? (
+              // eslint-disable-next-line @next/next/no-img-element -- authenticated BFF image stream
+              <img
+                src={`/api/beneficiaries/${beneficiary.id}/profile-picture`}
+                alt=""
+                className="h-16 w-16 rounded-full border border-black/10 object-cover"
+              />
+            ) : null}
+            <div>
+              <h1 className="font-serif-display text-4xl tracking-tight text-[#001539]">
+                {beneficiary.fullName ?? "Unnamed beneficiary"}
+              </h1>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <VerificationStatusBadge status={beneficiary.verificationStatus} />
+                <span className="rounded-full border border-black/10 px-2.5 py-0.5 text-xs capitalize text-black/70">
+                  {beneficiary.beneficiaryType}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
-        {canVerify ? (
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              onClick={() => openVerificationDialog("rejected")}
-            >
-              Reject
+        <div className="flex flex-wrap gap-2">
+          {canEdit ? (
+            <Button variant="outline" onClick={() => setIsEditing(true)}>
+              Edit
             </Button>
-            <Button onClick={() => openVerificationDialog("verified")}>
-              Approve
-            </Button>
-          </div>
-        ) : null}
+          ) : null}
+          {canVerify ? (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => openVerificationDialog("rejected")}
+              >
+                Reject
+              </Button>
+              <Button onClick={() => openVerificationDialog("verified")}>
+                Approve
+              </Button>
+            </>
+          ) : null}
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -243,6 +292,10 @@ export default function BeneficiaryDetailPage() {
             <DetailRow label="Fayda link" value={beneficiary.verificationLink} />
           ) : null}
         </DetailCard>
+
+        {beneficiary.beneficiaryType === "institution" ? (
+          <KycDocumentsCard beneficiaryId={beneficiary.id} />
+        ) : null}
       </div>
 
       <Dialog open={verificationOpen} onOpenChange={setVerificationOpen}>

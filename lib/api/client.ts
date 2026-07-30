@@ -23,8 +23,12 @@ export async function apiClient<T>(
   }
 
   if (!response.ok || !envelope.success) {
+    const fallback =
+      response.status === 403
+        ? "Insufficient permissions"
+        : "Request failed";
     throw new ApiError(
-      envelope.message ?? "Request failed",
+      envelope.message ?? fallback,
       response.status || 400,
     );
   }

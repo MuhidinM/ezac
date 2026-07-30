@@ -1,13 +1,17 @@
 import { cookies } from "next/headers";
 
-import type { SessionInfo } from "@/lib/api/types";
+import type { MeProfile, SessionInfo } from "@/lib/api/types";
 import {
   ACCESS_TOKEN_COOKIE,
   REFRESH_TOKEN_COOKIE,
+  filterAppRoles,
+  hasStaffRole,
+  isAdminRole,
+  isBranchRole,
 } from "@/lib/auth/constants";
 import {
   decodeJwtPayload,
-  getRolesFromPayload,
+  getAppRolesFromPayload,
   getUsernameFromPayload,
   isTokenExpired,
 } from "@/lib/auth/jwt";
@@ -68,20 +72,44 @@ export async function getAccessToken(): Promise<string | null> {
   return cookieStore.get(ACCESS_TOKEN_COOKIE)?.value ?? null;
 }
 
-export async function getSession(): Promise<SessionInfo | null> {
+export function sessionFromMeProfile(profile: MeProfile): SessionInfo {
+  const roles = filterAppRoles(profile.roles);
+  return {
+    username:
+      profile.displayName?.trim() ||
+      profile.phone?.trim() ||
+      profile.email?.trim() ||
+      profile.sub,
+    roles,
+    allRoles: profile.roles,
+    isAdmin: isAdminRole(profile.roles),
+    isBranch: isBranchRole(profile.roles) && !hasStaffRole(profile.roles),
+    isStaff: hasStaffRole(profile.roles),
+    email: profile.email,
+    phone: profile.phone,
+    displayName: profile.displayName,
+  };
+}
+
+export async function getSessionFromJwt(): Promise<SessionInfo | null> {
   const accessToken = await getAccessToken();
   if (!accessToken) return null;
 
   const payload = decodeJwtPayload(accessToken);
   if (!payload || isTokenExpired(payload)) return null;
 
-  // Valid cookie token is enough. Some Keycloak tokens omit realm/client roles
-  // until role mappers are configured; still treat those sessions as authenticated.
-  const roles = getRolesFromPayload(payload);
+  const roles = getAppRolesFromPayload(payload);
 
   return {
     username: getUsernameFromPayload(payload),
     roles,
+    allRoles: roles,
     isAdmin: roles.includes("ADMIN"),
+    isBranch: roles.includes("BRANCH") && !hasStaffRole(roles),
+    isStaff: hasStaffRole(roles),
   };
+}
+
+export async function getSession(): Promise<SessionInfo | null> {
+  return getSessionFromJwt();
 }

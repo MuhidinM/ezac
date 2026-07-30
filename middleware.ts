@@ -13,7 +13,11 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (pathname === "/login" && accessToken) {
+  if (pathname === "/login/change-password" && !accessToken) {
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  if ((pathname === "/login" || pathname === "/login/") && accessToken) {
     const redirectTo = request.nextUrl.searchParams.get("redirect");
     const destination =
       redirectTo && redirectTo.startsWith("/dashboard")
@@ -26,5 +30,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/login"],
+  matcher: ["/dashboard/:path*", "/login", "/login/change-password"],
 };

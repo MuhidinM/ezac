@@ -64,9 +64,11 @@ export function DashboardTopbar() {
               <p className="border-b border-black/5 px-4 py-2.5 text-xs text-black/50">
                 {session.isAdmin
                   ? "Administrator"
-                  : session.roles.includes("FIELD_OFFICER")
-                    ? "Field officer"
-                    : "Staff user"}
+                  : session.isBranch
+                    ? "Branch officer"
+                    : session.roles.includes("FIELD_OFFICER")
+                      ? "Field officer"
+                      : "Staff user"}
               </p>
             ) : null}
             <Link

@@ -4,6 +4,9 @@ import { FormEvent, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { ApiError } from "@/lib/api/errors";
+import { apiClient } from "@/lib/api/client";
+import type { SessionInfo } from "@/lib/api/types";
+import { defaultDashboardPath } from "@/lib/auth/constants";
 
 export function LoginForm() {
   const router = useRouter();
@@ -12,6 +15,21 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const passwordChanged = searchParams.get("passwordChanged") === "1";
+
+  async function resolveDestination(): Promise<string> {
+    const redirectTo = searchParams.get("redirect");
+    if (redirectTo?.startsWith("/dashboard")) {
+      return redirectTo;
+    }
+
+    try {
+      const session = await apiClient<SessionInfo>("/api/auth/session");
+      return defaultDashboardPath(session.allRoles);
+    } catch {
+      return "/dashboard/beneficiary";
+    }
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -28,6 +46,7 @@ export function LoginForm() {
       const payload = (await response.json()) as {
         success: boolean;
         message?: string;
+        data?: { passwordChangeRequired?: boolean };
       };
 
       if (!response.ok || !payload.success) {
@@ -35,11 +54,19 @@ export function LoginForm() {
       }
 
       const redirectTo = searchParams.get("redirect");
-      router.push(
+      const redirectQuery =
         redirectTo && redirectTo.startsWith("/dashboard")
-          ? redirectTo
-          : "/dashboard/beneficiary",
-      );
+          ? `?redirect=${encodeURIComponent(redirectTo)}`
+          : "";
+
+      if (payload.data?.passwordChangeRequired) {
+        router.push(`/login/change-password${redirectQuery}`);
+        router.refresh();
+        return;
+      }
+
+      const destination = await resolveDestination();
+      router.push(destination);
       router.refresh();
     } catch (submitError) {
       if (submitError instanceof ApiError) {
@@ -54,6 +81,12 @@ export function LoginForm() {
 
   return (
     <form onSubmit={onSubmit} className="mt-8 space-y-4">
+      {passwordChanged ? (
+        <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          Password updated. Please sign in with your new password.
+        </p>
+      ) : null}
+
       {error ? (
         <p
           role="alert"

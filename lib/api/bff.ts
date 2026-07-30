@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { getApiBaseUrl } from "@/lib/api/config";
 import { ApiError } from "@/lib/api/errors";
 import { gatewayRequest } from "@/lib/api/gateway";
 import { clearAuthCookies, getAccessToken } from "@/lib/auth/session";
@@ -76,4 +77,63 @@ export async function withStaffAccessPublic<T>(
       { status: 500 },
     );
   }
+}
+
+/** Proxy a binary upstream response (KYC files, profile pictures) for staff. */
+export async function proxyStaffFile(
+  path: string,
+  request: Request,
+): Promise<Response> {
+  const accessToken = await getAccessToken();
+  if (!accessToken) {
+    return NextResponse.json(
+      { success: false, message: "Authentication required" },
+      { status: 401 },
+    );
+  }
+
+  const upstreamUrl = new URL(`${getApiBaseUrl()}${path}`);
+  const download = new URL(request.url).searchParams.get("download");
+  if (download) {
+    upstreamUrl.searchParams.set("download", download);
+  }
+
+  const upstream = await fetch(upstreamUrl, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: "no-store",
+  });
+
+  if (!upstream.ok) {
+    if (upstream.status === 401) {
+      await clearAuthCookies();
+    }
+
+    let message = "Failed to fetch file";
+    try {
+      const envelope = (await upstream.json()) as { message?: string };
+      if (envelope.message) message = envelope.message;
+    } catch {
+      // binary error body — keep default message
+    }
+
+    return NextResponse.json(
+      { success: false, message },
+      { status: upstream.status },
+    );
+  }
+
+  const headers = new Headers();
+  const contentType = upstream.headers.get("Content-Type");
+  const contentDisposition = upstream.headers.get("Content-Disposition");
+  const contentLength = upstream.headers.get("Content-Length");
+
+  if (contentType) headers.set("Content-Type", contentType);
+  if (contentDisposition) headers.set("Content-Disposition", contentDisposition);
+  if (contentLength) headers.set("Content-Length", contentLength);
+  headers.set("Cache-Control", "private, no-store");
+
+  return new Response(upstream.body, {
+    status: upstream.status,
+    headers,
+  });
 }
