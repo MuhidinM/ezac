@@ -75,8 +75,9 @@ export async function getSession(): Promise<SessionInfo | null> {
   const payload = decodeJwtPayload(accessToken);
   if (!payload || isTokenExpired(payload)) return null;
 
+  // Valid cookie token is enough. Some Keycloak tokens omit realm/client roles
+  // until role mappers are configured; still treat those sessions as authenticated.
   const roles = getRolesFromPayload(payload);
-  if (roles.length === 0) return null;
 
   return {
     username: getUsernameFromPayload(payload),

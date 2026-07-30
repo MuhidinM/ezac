@@ -62,7 +62,11 @@ export function DashboardTopbar() {
           <div className="absolute right-0 mt-2 w-48 overflow-hidden rounded-xl border border-black/8 bg-white shadow-lg shadow-black/5">
             {session ? (
               <p className="border-b border-black/5 px-4 py-2.5 text-xs text-black/50">
-                {session.isAdmin ? "Administrator" : "Field officer"}
+                {session.isAdmin
+                  ? "Administrator"
+                  : session.roles.includes("FIELD_OFFICER")
+                    ? "Field officer"
+                    : "Staff user"}
               </p>
             ) : null}
             <Link

@@ -4,8 +4,11 @@ import { STAFF_ROLES } from "@/lib/auth/constants";
 type JwtPayload = {
   preferred_username?: string;
   username?: string;
+  name?: string;
+  phone?: string;
   sub?: string;
   exp?: number;
+  roles?: string[];
   realm_access?: { roles?: string[] };
   resource_access?: Record<string, { roles?: string[] }>;
 };
@@ -30,13 +33,21 @@ export function getRolesFromPayload(payload: JwtPayload): StaffRole[] {
     payload.resource_access?.["gateway-client"]?.roles ??
     payload.resource_access?.["gateway_client"]?.roles ??
     [];
+  const claimRoles = Array.isArray(payload.roles) ? payload.roles : [];
 
-  const allRoles = [...realmRoles, ...resourceRoles];
+  const allRoles = [...realmRoles, ...resourceRoles, ...claimRoles];
   return STAFF_ROLES.filter((role) => allRoles.includes(role));
 }
 
 export function getUsernameFromPayload(payload: JwtPayload): string {
-  return payload.preferred_username ?? payload.username ?? payload.sub ?? "Staff user";
+  return (
+    payload.preferred_username ??
+    payload.username ??
+    payload.name ??
+    payload.phone ??
+    payload.sub ??
+    "Staff user"
+  );
 }
 
 export function isTokenExpired(payload: JwtPayload): boolean {
