@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { ApiError } from "@/lib/api/errors";
 import { apiClient } from "@/lib/api/client";
+import { clearSessionCache } from "@/lib/auth/use-session";
 
 export function ChangePasswordForm() {
   const router = useRouter();
@@ -40,6 +41,8 @@ export function ChangePasswordForm() {
           confirmNewPassword,
         }),
       });
+
+      clearSessionCache();
 
       const redirect = searchParams.get("redirect");
       const loginUrl = new URL("/login", window.location.origin);

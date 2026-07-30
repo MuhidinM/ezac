@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,6 +58,13 @@ export function BranchCodesPanel({
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // Callers pass an inline callback, so keep it out of the loader's deps to
+  // avoid re-running the fetch on every parent render.
+  const onUnauthorizedRef = useRef(onUnauthorized);
+  useEffect(() => {
+    onUnauthorizedRef.current = onUnauthorized;
+  }, [onUnauthorized]);
+
   const loadCodes = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -79,7 +86,7 @@ export function BranchCodesPanel({
       setTotalItems(data.pagination.totalItems);
     } catch (loadError) {
       if (loadError instanceof ApiError && loadError.status === 401) {
-        onUnauthorized?.();
+        onUnauthorizedRef.current?.();
         return;
       }
       setError(
@@ -93,7 +100,7 @@ export function BranchCodesPanel({
     } finally {
       setIsLoading(false);
     }
-  }, [listPath, onUnauthorized, page, status]);
+  }, [listPath, page, status]);
 
   useEffect(() => {
     void loadCodes();

@@ -74,6 +74,9 @@ export async function getAccessToken(): Promise<string | null> {
 
 export function sessionFromMeProfile(profile: MeProfile): SessionInfo {
   const roles = filterAppRoles(profile.roles);
+  const staff = hasStaffRole(profile.roles);
+  const branch = isBranchRole(profile.roles);
+
   return {
     username:
       profile.displayName?.trim() ||
@@ -83,8 +86,11 @@ export function sessionFromMeProfile(profile: MeProfile): SessionInfo {
     roles,
     allRoles: profile.roles,
     isAdmin: isAdminRole(profile.roles),
-    isBranch: isBranchRole(profile.roles) && !hasStaffRole(profile.roles),
-    isStaff: hasStaffRole(profile.roles),
+    isBranch: branch && !staff,
+    // Realm role mappers are not configured for every account yet, so a token
+    // without recognized roles is treated as HQ staff; the gateway still
+    // enforces authorization per endpoint.
+    isStaff: staff || !branch,
     email: profile.email,
     phone: profile.phone,
     displayName: profile.displayName,
@@ -99,14 +105,16 @@ export async function getSessionFromJwt(): Promise<SessionInfo | null> {
   if (!payload || isTokenExpired(payload)) return null;
 
   const roles = getAppRolesFromPayload(payload);
+  const staff = hasStaffRole(roles);
+  const branch = isBranchRole(roles);
 
   return {
     username: getUsernameFromPayload(payload),
     roles,
     allRoles: roles,
-    isAdmin: roles.includes("ADMIN"),
-    isBranch: roles.includes("BRANCH") && !hasStaffRole(roles),
-    isStaff: hasStaffRole(roles),
+    isAdmin: isAdminRole(roles),
+    isBranch: branch && !staff,
+    isStaff: staff || !branch,
   };
 }
 

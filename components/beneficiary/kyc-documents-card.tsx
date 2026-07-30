@@ -15,11 +15,16 @@ const DOCUMENT_LABELS: Record<string, string> = {
   AUTHORITY_TO_ACT: "Board resolution / authority to act",
 };
 
+type DocumentsResponse =
+  | InstitutionDocumentItem[]
+  | { items?: InstitutionDocumentItem[]; documents?: InstitutionDocumentItem[] };
+
 function normalizeDocuments(
-  data: InstitutionDocumentItem[] | { items: InstitutionDocumentItem[] },
+  data: DocumentsResponse,
 ): InstitutionDocumentItem[] {
   if (Array.isArray(data)) return data;
-  if (data && Array.isArray(data.items)) return data.items;
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.documents)) return data.documents;
   return [];
 }
 
@@ -35,9 +40,9 @@ export function KycDocumentsCard({ beneficiaryId }: { beneficiaryId: string }) {
       setIsLoading(true);
       setError(null);
       try {
-        const data = await apiClient<
-          InstitutionDocumentItem[] | { items: InstitutionDocumentItem[] }
-        >(`/api/beneficiaries/${beneficiaryId}/institution-documents`);
+        const data = await apiClient<DocumentsResponse>(
+          `/api/beneficiaries/${beneficiaryId}/institution-documents`,
+        );
         if (!cancelled) setDocuments(normalizeDocuments(data));
       } catch (loadError) {
         if (!cancelled) {

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { ApiError } from "@/lib/api/errors";
 import { apiClient } from "@/lib/api/client";
 import type { MeProfile } from "@/lib/api/types";
+import { clearSessionCache } from "@/lib/auth/use-session";
 
 export function ProfileForm() {
   const router = useRouter();
@@ -24,7 +25,6 @@ export function ProfileForm() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
-  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
 
@@ -80,6 +80,8 @@ export function ProfileForm() {
       setDisplayName(updated.displayName ?? "");
       setPhone(updated.phone ?? "");
       setProfileMessage("Profile updated successfully.");
+      clearSessionCache();
+      router.refresh();
     } catch (error) {
       setProfileError(
         error instanceof ApiError ? error.message : "Failed to update profile",
@@ -92,7 +94,6 @@ export function ProfileForm() {
   async function onChangePassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPasswordError(null);
-    setPasswordMessage(null);
 
     if (newPassword.length < 6) {
       setPasswordError("New password must be at least 6 characters.");
@@ -114,6 +115,7 @@ export function ProfileForm() {
           confirmNewPassword,
         }),
       });
+      clearSessionCache();
       router.push("/login?passwordChanged=1&redirect=/dashboard/profile");
       router.refresh();
     } catch (error) {
@@ -217,11 +219,6 @@ export function ProfileForm() {
           </p>
         </div>
 
-        {passwordMessage ? (
-          <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-            {passwordMessage}
-          </p>
-        ) : null}
         {passwordError ? (
           <p
             role="alert"

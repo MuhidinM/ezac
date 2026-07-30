@@ -1,4 +1,4 @@
-import type { AppRole, StaffRole } from "@/lib/api/types";
+import type { AppRole } from "@/lib/api/types";
 
 export const ACCESS_TOKEN_COOKIE = "ezac_access_token";
 export const REFRESH_TOKEN_COOKIE = "ezac_refresh_token";
@@ -18,17 +18,12 @@ export function isBranchRole(roles: string[]): boolean {
   return roles.includes("BRANCH");
 }
 
-export function filterStaffRoles(roles: string[]): StaffRole[] {
-  return STAFF_ROLES.filter((role) => roles.includes(role));
-}
-
 export function filterAppRoles(roles: string[]): AppRole[] {
   return APP_ROLES.filter((role) => roles.includes(role));
 }
 
 /** Default post-login destination based on roles from /me. */
 export function defaultDashboardPath(roles: string[]): string {
-  if (hasStaffRole(roles)) return "/dashboard/beneficiary";
-  if (isBranchRole(roles)) return "/dashboard/branch";
-  return "/dashboard";
+  if (isBranchRole(roles) && !hasStaffRole(roles)) return "/dashboard/branch";
+  return "/dashboard/beneficiary";
 }

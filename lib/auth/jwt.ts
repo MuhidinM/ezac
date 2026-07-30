@@ -1,5 +1,5 @@
-import type { AppRole, StaffRole } from "@/lib/api/types";
-import { filterAppRoles, filterStaffRoles } from "@/lib/auth/constants";
+import type { AppRole } from "@/lib/api/types";
+import { filterAppRoles } from "@/lib/auth/constants";
 
 type JwtPayload = {
   preferred_username?: string;
@@ -27,22 +27,15 @@ export function decodeJwtPayload(token: string): JwtPayload | null {
   }
 }
 
-function collectRawRoles(payload: JwtPayload): string[] {
+export function getAppRolesFromPayload(payload: JwtPayload): AppRole[] {
   const realmRoles = payload.realm_access?.roles ?? [];
   const resourceRoles =
     payload.resource_access?.["gateway-client"]?.roles ??
     payload.resource_access?.["gateway_client"]?.roles ??
     [];
   const claimRoles = Array.isArray(payload.roles) ? payload.roles : [];
-  return [...realmRoles, ...resourceRoles, ...claimRoles];
-}
 
-export function getRolesFromPayload(payload: JwtPayload): StaffRole[] {
-  return filterStaffRoles(collectRawRoles(payload));
-}
-
-export function getAppRolesFromPayload(payload: JwtPayload): AppRole[] {
-  return filterAppRoles(collectRawRoles(payload));
+  return filterAppRoles([...realmRoles, ...resourceRoles, ...claimRoles]);
 }
 
 export function getUsernameFromPayload(payload: JwtPayload): string {

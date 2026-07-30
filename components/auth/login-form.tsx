@@ -4,9 +4,8 @@ import { FormEvent, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { ApiError } from "@/lib/api/errors";
-import { apiClient } from "@/lib/api/client";
-import type { SessionInfo } from "@/lib/api/types";
 import { defaultDashboardPath } from "@/lib/auth/constants";
+import { fetchSession } from "@/lib/auth/use-session";
 
 export function LoginForm() {
   const router = useRouter();
@@ -23,12 +22,10 @@ export function LoginForm() {
       return redirectTo;
     }
 
-    try {
-      const session = await apiClient<SessionInfo>("/api/auth/session");
-      return defaultDashboardPath(session.allRoles);
-    } catch {
-      return "/dashboard/beneficiary";
-    }
+    const session = await fetchSession({ force: true });
+    return session
+      ? defaultDashboardPath(session.allRoles)
+      : "/dashboard/beneficiary";
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {

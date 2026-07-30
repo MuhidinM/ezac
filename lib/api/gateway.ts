@@ -6,6 +6,27 @@ type GatewayRequestOptions = RequestInit & {
   accessToken?: string;
 };
 
+/**
+ * The gateway answers with the success envelope on happy paths, but framework
+ * level failures (auth filters, unhandled exceptions) come back as
+ * `{ status, error, path, requestId }`. Pull a usable message out of both.
+ */
+function errorMessageFrom(body: unknown, fallback: string): string {
+  if (!body || typeof body !== "object") return fallback;
+
+  const record = body as Record<string, unknown>;
+  const message =
+    typeof record.message === "string" && record.message.trim()
+      ? record.message.trim()
+      : typeof record.error === "string" && record.error.trim()
+        ? record.error.trim()
+        : fallback;
+
+  return typeof record.requestId === "string" && record.requestId
+    ? `${message} (request ${record.requestId})`
+    : message;
+}
+
 export async function gatewayRequest<T>(
   path: string,
   options: GatewayRequestOptions = {},
@@ -36,10 +57,17 @@ export async function gatewayRequest<T>(
   }
 
   if (!response.ok || !envelope.success) {
-    throw new ApiError(
-      envelope.message ?? "Request failed",
-      response.status || 400,
+    const status = response.status || 400;
+    const message = errorMessageFrom(
+      envelope,
+      status >= 500 ? "Upstream service error" : "Request failed",
     );
+
+    if (status >= 500) {
+      console.error(`[gateway] ${status} ${path}: ${message}`);
+    }
+
+    throw new ApiError(message, status);
   }
 
   return envelope.data;

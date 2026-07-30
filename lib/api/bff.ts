@@ -79,6 +79,17 @@ export async function withStaffAccessPublic<T>(
   }
 }
 
+// Uploaded documents are served from our own origin, so only render types that
+// cannot execute script inline. Everything else is forced to download.
+const INLINE_SAFE_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/gif",
+  "image/webp",
+  "application/pdf",
+]);
+
 /** Proxy a binary upstream response (KYC files, profile pictures) for staff. */
 export async function proxyStaffFile(
   path: string,
@@ -128,9 +139,20 @@ export async function proxyStaffFile(
   const contentLength = upstream.headers.get("Content-Length");
 
   if (contentType) headers.set("Content-Type", contentType);
-  if (contentDisposition) headers.set("Content-Disposition", contentDisposition);
   if (contentLength) headers.set("Content-Length", contentLength);
   headers.set("Cache-Control", "private, no-store");
+  headers.set("X-Content-Type-Options", "nosniff");
+
+  const baseType = contentType?.split(";")[0]?.trim().toLowerCase() ?? "";
+  if (INLINE_SAFE_TYPES.has(baseType)) {
+    if (contentDisposition) headers.set("Content-Disposition", contentDisposition);
+  } else {
+    headers.set(
+      "Content-Disposition",
+      contentDisposition?.replace(/^\s*inline/i, "attachment") ??
+        "attachment",
+    );
+  }
 
   return new Response(upstream.body, {
     status: upstream.status,

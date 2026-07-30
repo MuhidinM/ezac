@@ -3,10 +3,8 @@
 import Link from "next/link";
 import { ChevronRight, CircleUserRound } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
 
-import { apiClient } from "@/lib/api/client";
-import type { SessionInfo } from "@/lib/api/types";
+import { clearSessionCache, useSession } from "@/lib/auth/use-session";
 
 function formatSegment(segment: string) {
   return segment
@@ -15,22 +13,28 @@ function formatSegment(segment: string) {
     .join(" ");
 }
 
+function roleLabel(session: {
+  isAdmin: boolean;
+  isBranch: boolean;
+  roles: string[];
+}): string {
+  if (session.isAdmin) return "Administrator";
+  if (session.isBranch) return "Branch officer";
+  if (session.roles.includes("FIELD_OFFICER")) return "Field officer";
+  return "Staff user";
+}
+
 export function DashboardTopbar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [session, setSession] = useState<SessionInfo | null>(null);
+  const { session } = useSession();
 
   const segments = pathname.split("/").filter(Boolean);
   const crumbs = ["Dashboard", ...segments.slice(1).map(formatSegment)];
 
-  useEffect(() => {
-    void apiClient<SessionInfo>("/api/auth/session")
-      .then(setSession)
-      .catch(() => setSession(null));
-  }, [pathname]);
-
   async function onLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
+    clearSessionCache();
     router.push("/login");
     router.refresh();
   }
@@ -62,13 +66,7 @@ export function DashboardTopbar() {
           <div className="absolute right-0 mt-2 w-48 overflow-hidden rounded-xl border border-black/8 bg-white shadow-lg shadow-black/5">
             {session ? (
               <p className="border-b border-black/5 px-4 py-2.5 text-xs text-black/50">
-                {session.isAdmin
-                  ? "Administrator"
-                  : session.isBranch
-                    ? "Branch officer"
-                    : session.roles.includes("FIELD_OFFICER")
-                      ? "Field officer"
-                      : "Staff user"}
+                {roleLabel(session)}
               </p>
             ) : null}
             <Link

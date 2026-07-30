@@ -30,8 +30,8 @@ import type {
   BranchListItem,
   CodeStats,
   PaginatedItems,
-  SessionInfo,
 } from "@/lib/api/types";
+import { fetchSession } from "@/lib/auth/use-session";
 
 const PAGE_SIZE = 20;
 
@@ -58,9 +58,7 @@ export default function BranchesPage() {
     setError(null);
 
     try {
-      const session = await apiClient<SessionInfo>("/api/auth/session").catch(
-        () => null,
-      );
+      const session = await fetchSession();
       if (session && !session.isAdmin) {
         router.replace("/dashboard/beneficiary");
         return;

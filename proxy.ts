@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { ACCESS_TOKEN_COOKIE } from "@/lib/auth/constants";
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
 

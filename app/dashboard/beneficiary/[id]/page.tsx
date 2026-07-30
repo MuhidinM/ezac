@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { ApiError } from "@/lib/api/errors";
 import { apiClient } from "@/lib/api/client";
 import type { BeneficiaryDetail, SessionInfo } from "@/lib/api/types";
+import { fetchSession } from "@/lib/auth/use-session";
 import {
   formatAddress,
   formatBeneficiaryCategory,
@@ -54,7 +55,7 @@ export default function BeneficiaryDetailPage() {
     try {
       const [detail, currentSession] = await Promise.all([
         apiClient<BeneficiaryDetail>(`/api/beneficiaries/${beneficiaryId}`),
-        apiClient<SessionInfo>("/api/auth/session").catch(() => null),
+        fetchSession(),
       ]);
 
       setBeneficiary(detail);
@@ -153,10 +154,7 @@ export default function BeneficiaryDetailPage() {
     beneficiary.verificationStatus !== "verified" &&
     beneficiary.verificationStatus !== "rejected";
 
-  const canEdit =
-    session?.isAdmin ||
-    session?.roles.includes("FIELD_OFFICER") ||
-    (session != null && session.roles.length === 0);
+  const canEdit = session?.isStaff ?? false;
 
   if (isEditing) {
     return (

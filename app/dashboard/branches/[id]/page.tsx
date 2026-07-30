@@ -9,7 +9,8 @@ import { BranchCodesPanel } from "@/components/branches/branch-codes-panel";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api/errors";
 import { apiClient } from "@/lib/api/client";
-import type { Branch, CodeStats, SessionInfo } from "@/lib/api/types";
+import type { Branch, CodeStats } from "@/lib/api/types";
+import { fetchSession } from "@/lib/auth/use-session";
 
 function formatCodeStats(stats: CodeStats | null): string {
   if (!stats) return "—";
@@ -32,9 +33,7 @@ export default function BranchDetailPage() {
     setError(null);
 
     try {
-      const session = await apiClient<SessionInfo>("/api/auth/session").catch(
-        () => null,
-      );
+      const session = await fetchSession();
       if (session && !session.isAdmin) {
         router.replace("/dashboard/beneficiary");
         return;

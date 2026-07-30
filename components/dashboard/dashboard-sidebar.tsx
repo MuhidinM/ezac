@@ -1,20 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 
-import { apiClient } from "@/lib/api/client";
-import type { SessionInfo } from "@/lib/api/types";
+import { useSession } from "@/lib/auth/use-session";
 
 type MenuItem = {
   href: string;
   label: string;
-  /** Shown for HQ staff (ADMIN / FIELD_OFFICER) */
+  /** HQ staff only (ADMIN / FIELD_OFFICER) */
   hqOnly?: boolean;
-  /** ADMIN only */
   adminOnly?: boolean;
-  /** BRANCH-only portal */
   branchOnly?: boolean;
 };
 
@@ -28,38 +24,13 @@ const MENU_ITEMS: MenuItem[] = [
   { href: "/dashboard/profile", label: "Profile" },
 ];
 
-const HQ_PATH_PREFIXES = [
-  "/dashboard/beneficiary",
-  "/dashboard/institutions",
-  "/dashboard/branches",
-  "/dashboard/register",
-];
-
 export function DashboardSidebar() {
   const pathname = usePathname();
-  const router = useRouter();
-  const [session, setSession] = useState<SessionInfo | null>(null);
-
-  useEffect(() => {
-    void apiClient<SessionInfo>("/api/auth/session")
-      .then((data) => {
-        setSession(data);
-
-        if (data.isBranch) {
-          const onHqPath =
-            pathname === "/dashboard" ||
-            HQ_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix));
-          if (onHqPath) {
-            router.replace("/dashboard/branch");
-          }
-        }
-      })
-      .catch(() => setSession(null));
-  }, [pathname, router]);
+  const { session } = useSession();
 
   const isAdmin = session?.isAdmin ?? false;
   const isBranch = session?.isBranch ?? false;
-  const isStaff = session?.isStaff ?? !isBranch;
+  const isStaff = session?.isStaff ?? true;
 
   const visibleItems = MENU_ITEMS.filter((item) => {
     if (item.branchOnly) return isBranch;
@@ -70,7 +41,10 @@ export function DashboardSidebar() {
 
   return (
     <aside className="sticky top-0 hidden h-full w-64 shrink-0 overflow-y-auto border-r border-black/5 bg-white/90 p-4 backdrop-blur-xl md:block">
-      <Link href={isBranch ? "/dashboard/branch" : "/dashboard"} className="mb-6 flex items-center gap-2.5 px-2">
+      <Link
+        href={isBranch ? "/dashboard/branch" : "/dashboard"}
+        className="mb-6 flex items-center gap-2.5 px-2"
+      >
         {/* eslint-disable-next-line @next/next/no-img-element -- brand mark served as a static asset */}
         <img src="/logo.svg" alt="EZAC" className="h-8 w-auto" />
         <span

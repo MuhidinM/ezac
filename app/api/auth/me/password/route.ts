@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 
-import { withStaffAccess } from "@/lib/api/bff";
+import { ApiError } from "@/lib/api/errors";
 import { gatewayRequest } from "@/lib/api/gateway";
 import type { ChangePasswordBody } from "@/lib/api/types";
-import { clearAuthCookies } from "@/lib/auth/session";
+import { clearAuthCookies, getAccessToken } from "@/lib/auth/session";
 
 export async function POST(request: Request) {
   let body: ChangePasswordBody;
@@ -42,8 +42,16 @@ export async function POST(request: Request) {
     );
   }
 
-  const response = await withStaffAccess((accessToken) =>
-    gatewayRequest<unknown>("/api/auth/v1/me/password", {
+  const accessToken = await getAccessToken();
+  if (!accessToken) {
+    return NextResponse.json(
+      { success: false, message: "Authentication required" },
+      { status: 401 },
+    );
+  }
+
+  try {
+    await gatewayRequest<unknown>("/api/auth/v1/me/password", {
       method: "POST",
       body: JSON.stringify({
         currentPassword,
@@ -51,12 +59,31 @@ export async function POST(request: Request) {
         confirmNewPassword,
       }),
       accessToken,
-    }),
-  );
+    });
+  } catch (error) {
+    if (error instanceof ApiError) {
+      if (error.status === 401) {
+        await clearAuthCookies();
+      }
 
-  if (response.status >= 200 && response.status < 300) {
-    await clearAuthCookies();
+      return NextResponse.json(
+        { success: false, message: error.message },
+        { status: error.status },
+      );
+    }
+
+    return NextResponse.json(
+      { success: false, message: "Unable to reach authentication service" },
+      { status: 502 },
+    );
   }
 
-  return response;
+  // The old token is no longer valid for the new credentials.
+  await clearAuthCookies();
+
+  return NextResponse.json({
+    success: true,
+    data: null,
+    message: "Password updated. Please sign in again.",
+  });
 }
