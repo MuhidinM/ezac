@@ -39,17 +39,20 @@ export function SetPasswordStep({
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sessionChecked, setSessionChecked] = useState(false);
+  const [branchName, setBranchName] = useState<string | null>(null);
 
   useEffect(() => {
     const session = getRegistrationSession();
     if (
       !session ||
+      !session.branchId ||
       session.registrationType !== registrationType ||
       !session.passwordSetupToken
     ) {
       router.replace("/dashboard/register");
       return;
     }
+    setBranchName(session.branchName);
     setSessionChecked(true);
   }, [registrationType, router]);
 
@@ -115,6 +118,7 @@ export function SetPasswordStep({
     <RegistrationShell
       title="Set password"
       description="Create a password for the new beneficiary account."
+      branchName={branchName}
       steps={steps}
       currentStep={currentStep}
       error={error}

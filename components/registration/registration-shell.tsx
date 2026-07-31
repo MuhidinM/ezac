@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 type RegistrationShellProps = {
   title: string;
   description?: string;
+  branchName?: string | null;
+  wide?: boolean;
   steps?: string[];
   currentStep?: number;
   error?: string | null;
@@ -18,6 +20,8 @@ type RegistrationShellProps = {
 export function RegistrationShell({
   title,
   description,
+  branchName,
+  wide = false,
   steps,
   currentStep = 0,
   error,
@@ -25,7 +29,12 @@ export function RegistrationShell({
   footer,
 }: RegistrationShellProps) {
   return (
-    <section className="mx-auto w-full max-w-xl space-y-6">
+    <section
+      className={cn(
+        "mx-auto w-full space-y-6",
+        wide ? "max-w-4xl" : "max-w-xl",
+      )}
+    >
       <div>
         <Link
           href="/dashboard/beneficiary"
@@ -38,6 +47,11 @@ export function RegistrationShell({
         </h1>
         {description ? (
           <p className="mt-1 text-sm text-black/60">{description}</p>
+        ) : null}
+        {branchName ? (
+          <p className="mt-3 inline-flex items-center rounded-full border border-[rgba(0,112,80,0.2)] bg-[rgba(0,112,80,0.08)] px-3 py-1 text-xs font-medium text-[#007050]">
+            Branch: {branchName}
+          </p>
         ) : null}
       </div>
 

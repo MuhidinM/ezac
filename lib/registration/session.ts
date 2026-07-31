@@ -3,9 +3,11 @@ import type { KycDocument, RegistrationType } from "@/lib/registration/types";
 const STORAGE_KEY = "ezac_registration_session";
 
 export type RegistrationSession = {
-  registrationType: RegistrationType;
-  entityId: string;
-  passwordSetupToken: string;
+  branchId: string;
+  branchName: string;
+  registrationType?: RegistrationType;
+  entityId?: string;
+  passwordSetupToken?: string;
   companyDocumentUploadToken?: string;
   phone?: string;
   kycDocuments?: KycDocument[];
@@ -31,20 +33,50 @@ export function getRegistrationSession(): RegistrationSession | null {
   return readSession();
 }
 
+export function getSelectedBranch(): {
+  branchId: string;
+  branchName: string;
+} | null {
+  const session = readSession();
+  if (!session?.branchId?.trim() || !session.branchName?.trim()) return null;
+  return { branchId: session.branchId, branchName: session.branchName };
+}
+
+/** Start (or reset) registration with a chosen branch. */
+export function setSelectedBranch(branch: {
+  branchId: string;
+  branchName: string;
+}): RegistrationSession {
+  const next: RegistrationSession = {
+    branchId: branch.branchId,
+    branchName: branch.branchName,
+  };
+  writeSession(next);
+  return next;
+}
+
 export function setRegistrationSession(
-  partial: Partial<RegistrationSession> & Pick<RegistrationSession, "registrationType">,
+  partial: Partial<RegistrationSession> & {
+    registrationType: RegistrationType;
+  },
 ): RegistrationSession {
   const current = readSession();
+  if (!current?.branchId || !current.branchName) {
+    throw new Error("Select a branch before continuing registration");
+  }
+
   const next: RegistrationSession = {
+    branchId: partial.branchId ?? current.branchId,
+    branchName: partial.branchName ?? current.branchName,
     registrationType: partial.registrationType,
-    entityId: partial.entityId ?? current?.entityId ?? "",
+    entityId: partial.entityId ?? current.entityId ?? "",
     passwordSetupToken:
-      partial.passwordSetupToken ?? current?.passwordSetupToken ?? "",
+      partial.passwordSetupToken ?? current.passwordSetupToken ?? "",
     companyDocumentUploadToken:
-      partial.companyDocumentUploadToken ?? current?.companyDocumentUploadToken,
-    phone: partial.phone ?? current?.phone,
-    kycDocuments: partial.kycDocuments ?? current?.kycDocuments,
-    kycComplete: partial.kycComplete ?? current?.kycComplete,
+      partial.companyDocumentUploadToken ?? current.companyDocumentUploadToken,
+    phone: partial.phone ?? current.phone,
+    kycDocuments: partial.kycDocuments ?? current.kycDocuments,
+    kycComplete: partial.kycComplete ?? current.kycComplete,
   };
   writeSession(next);
   return next;

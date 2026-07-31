@@ -1,20 +1,50 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, UserRound } from "lucide-react";
 
 import { RegistrationShell } from "@/components/registration/registration-shell";
 import { Button } from "@/components/ui/button";
-import { clearRegistrationSession } from "@/lib/registration/session";
+import {
+  getSelectedBranch,
+  updateRegistrationSession,
+} from "@/lib/registration/session";
+import type { RegistrationType } from "@/lib/registration/types";
 import { cn } from "@/lib/utils";
-
-type RegistrationChoice = "manual" | "institution";
 
 export function WelcomeStep() {
   const router = useRouter();
+  const [branchName, setBranchName] = useState<string | null>(null);
 
-  function onContinue(type: RegistrationChoice) {
-    clearRegistrationSession();
+  useEffect(() => {
+    const branch = getSelectedBranch();
+    if (!branch) {
+      router.replace("/dashboard/register");
+      return;
+    }
+    setBranchName(branch.branchName);
+  }, [router]);
+
+  function onContinue(type: RegistrationType) {
+    const branch = getSelectedBranch();
+    if (!branch) {
+      router.replace("/dashboard/register");
+      return;
+    }
+
+    updateRegistrationSession({
+      branchId: branch.branchId,
+      branchName: branch.branchName,
+      registrationType: type,
+      entityId: undefined,
+      passwordSetupToken: undefined,
+      companyDocumentUploadToken: undefined,
+      phone: undefined,
+      kycDocuments: undefined,
+      kycComplete: undefined,
+    });
+
     router.push(
       type === "manual"
         ? "/dashboard/register/manual"
@@ -22,10 +52,19 @@ export function WelcomeStep() {
     );
   }
 
+  if (!branchName) {
+    return (
+      <RegistrationShell title="Register beneficiary" description="Checking branch selection...">
+        <p className="text-sm text-black/55">Loading...</p>
+      </RegistrationShell>
+    );
+  }
+
   return (
     <RegistrationShell
       title="Register beneficiary"
       description="Choose how you want to register a new beneficiary account."
+      branchName={branchName}
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <button
@@ -57,7 +96,10 @@ export function WelcomeStep() {
         </button>
       </div>
 
-      <div className="mt-6">
+      <div className="mt-6 flex flex-wrap gap-2">
+        <Button variant="outline" asChild>
+          <a href="/dashboard/register">Change branch</a>
+        </Button>
         <Button variant="outline" asChild>
           <a href="/dashboard/beneficiary">Cancel</a>
         </Button>

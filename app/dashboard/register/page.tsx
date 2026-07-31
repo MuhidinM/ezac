@@ -1,5 +1,5 @@
-import { WelcomeStep } from "@/components/registration/welcome-step";
+import { BranchSelectStep } from "@/components/registration/branch-select-step";
 
 export default function RegisterPage() {
-  return <WelcomeStep />;
+  return <BranchSelectStep />;
 }

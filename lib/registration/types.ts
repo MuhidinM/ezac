@@ -31,6 +31,7 @@ export type CreateBeneficiaryPayload = {
   beneficiaryType: "individual";
   category: BeneficiaryCategory;
   notes: string;
+  branchId?: string;
 };
 
 export type CreateCompanyPayload = {
@@ -47,6 +48,7 @@ export type CreateCompanyPayload = {
   institutionSubtype: InstitutionSubtype;
   authorityToActDocumentRequired?: boolean;
   notes?: string;
+  branchId?: string;
 };
 
 export type KycDocument = {

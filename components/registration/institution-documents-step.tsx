@@ -31,11 +31,13 @@ export function InstitutionDocumentsStep() {
   const [uploadingCode, setUploadingCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sessionChecked, setSessionChecked] = useState(false);
+  const [branchName, setBranchName] = useState<string | null>(null);
 
   useEffect(() => {
     const session = getRegistrationSession();
     if (
       !session ||
+      !session.branchId ||
       session.registrationType !== "institution" ||
       !session.entityId ||
       !session.companyDocumentUploadToken
@@ -44,6 +46,7 @@ export function InstitutionDocumentsStep() {
       return;
     }
 
+    setBranchName(session.branchName);
     setCompanyId(session.entityId);
     setUploadToken(session.companyDocumentUploadToken);
     setDocuments(session.kycDocuments ?? []);
@@ -133,6 +136,7 @@ export function InstitutionDocumentsStep() {
     <RegistrationShell
       title="Institution documents"
       description="Upload each required KYC document to complete registration."
+      branchName={branchName}
       steps={INSTITUTION_STEPS}
       currentStep={2}
       error={error}

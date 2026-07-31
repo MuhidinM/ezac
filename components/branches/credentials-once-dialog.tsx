@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { copyToClipboard } from "@/lib/clipboard";
 
 type Props = {
   branchPhone: string;
@@ -11,23 +12,28 @@ type Props = {
   onClose: () => void;
 };
 
+type CopyTarget = "phone" | "password" | "both";
+
 export function CredentialsOnceDialog({
   branchPhone,
   initialPassword,
   passwordChangeRequired,
   onClose,
 }: Props) {
-  const [copied, setCopied] = useState<"phone" | "password" | "both" | null>(
-    null,
-  );
+  const [copied, setCopied] = useState<CopyTarget | null>(null);
+  const [copyError, setCopyError] = useState<string | null>(null);
 
-  async function copyText(value: string, which: "phone" | "password" | "both") {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(which);
-    } catch {
+  async function copyText(value: string, which: CopyTarget) {
+    setCopyError(null);
+    const ok = await copyToClipboard(value);
+    if (!ok) {
       setCopied(null);
+      setCopyError(
+        "Could not copy automatically. Select the text and copy it manually.",
+      );
+      return;
     }
+    setCopied(which);
   }
 
   return (
@@ -45,8 +51,9 @@ export function CredentialsOnceDialog({
           Branch credentials (copy once)
         </h2>
         <p className="mt-2 text-sm text-black/65">
-          These credentials are shown once. Share them securely with the branch
-          officer offline before closing this dialog.
+          These credentials are shown once. Copy the phone and temporary
+          password, then share them securely with the branch officer before
+          closing this dialog.
         </p>
 
         <div className="mt-5 space-y-3">
@@ -55,14 +62,16 @@ export function CredentialsOnceDialog({
               Login (phone)
             </p>
             <div className="mt-1 flex items-center justify-between gap-3">
-              <code className="text-sm text-[#001539]">{branchPhone}</code>
+              <code className="select-all break-all text-sm text-[#001539]">
+                {branchPhone}
+              </code>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => void copyText(branchPhone, "phone")}
               >
-                {copied === "phone" ? "Copied" : "Copy"}
+                {copied === "phone" ? "Copied" : "Copy phone"}
               </Button>
             </div>
           </div>
@@ -72,14 +81,16 @@ export function CredentialsOnceDialog({
               Temporary password
             </p>
             <div className="mt-1 flex items-center justify-between gap-3">
-              <code className="text-sm text-[#001539]">{initialPassword}</code>
+              <code className="select-all break-all text-sm text-[#001539]">
+                {initialPassword}
+              </code>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => void copyText(initialPassword, "password")}
               >
-                {copied === "password" ? "Copied" : "Copy"}
+                {copied === "password" ? "Copied" : "Copy password"}
               </Button>
             </div>
           </div>
@@ -87,6 +98,12 @@ export function CredentialsOnceDialog({
           {passwordChangeRequired ? (
             <p className="text-sm text-black/60">
               The branch officer must change this password on first login.
+            </p>
+          ) : null}
+
+          {copyError ? (
+            <p role="alert" className="text-sm text-red-700">
+              {copyError}
             </p>
           ) : null}
         </div>
@@ -102,7 +119,7 @@ export function CredentialsOnceDialog({
               )
             }
           >
-            {copied === "both" ? "Copied both" : "Copy both"}
+            {copied === "both" ? "Copied both" : "Copy phone + password"}
           </Button>
           <Button type="button" onClick={onClose}>
             I have saved these credentials

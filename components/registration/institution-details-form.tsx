@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { BulkImportUpload } from "@/components/registration/bulk-import-upload";
@@ -16,7 +16,10 @@ import {
   isValidEthiopianPhone,
   normalizePhoneToE164,
 } from "@/lib/registration/phone";
-import { setRegistrationSession } from "@/lib/registration/session";
+import {
+  getSelectedBranch,
+  setRegistrationSession,
+} from "@/lib/registration/session";
 import type {
   CreateCompanyPayload,
   CreateCompanyResponse,
@@ -28,6 +31,8 @@ const INSTITUTION_STEPS = ["Details", "Password", "Documents"];
 
 export function InstitutionDetailsForm() {
   const router = useRouter();
+  const [branchName, setBranchName] = useState<string | null>(null);
+  const [branchId, setBranchId] = useState<string | null>(null);
   const [institutionSubtype, setInstitutionSubtype] = useState<
     InstitutionSubtype | ""
   >("");
@@ -48,9 +53,25 @@ export function InstitutionDetailsForm() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    const branch = getSelectedBranch();
+    if (!branch) {
+      router.replace("/dashboard/register");
+      return;
+    }
+    setBranchId(branch.branchId);
+    setBranchName(branch.branchName);
+  }, [router]);
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+
+    const branch = getSelectedBranch();
+    if (!branch) {
+      router.replace("/dashboard/register");
+      return;
+    }
 
     if (!institutionSubtype) {
       setError("Please select an institution type.");
@@ -78,6 +99,7 @@ export function InstitutionDetailsForm() {
       institutionSubtype,
       authorityToActDocumentRequired,
       notes: notes.trim(),
+      branchId: branch.branchId,
     };
 
     setIsSubmitting(true);
@@ -122,17 +144,29 @@ export function InstitutionDetailsForm() {
     }
   }
 
+  if (!branchId || !branchName) {
+    return (
+      <RegistrationShell
+        title="Institution details"
+        description="Checking branch selection..."
+      >
+        <p className="text-sm text-black/55">Loading...</p>
+      </RegistrationShell>
+    );
+  }
+
   return (
     <RegistrationShell
       title="Institution details"
       description="Enter the organization's registration information."
+      branchName={branchName}
       steps={INSTITUTION_STEPS}
       currentStep={0}
       error={error}
       footer={
         <div className="flex justify-between gap-3">
           <Button variant="outline" asChild disabled={isSubmitting}>
-            <a href="/dashboard/register">Back</a>
+            <a href="/dashboard/register/type">Back</a>
           </Button>
           <Button
             type="submit"

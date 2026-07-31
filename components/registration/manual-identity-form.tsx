@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -25,9 +25,13 @@ import {
   isValidEthiopianPhone,
   normalizePhoneToE164,
 } from "@/lib/registration/phone";
-import { setRegistrationSession } from "@/lib/registration/session";
+import {
+  getSelectedBranch,
+  setRegistrationSession,
+} from "@/lib/registration/session";
 import type {
   BeneficiaryCategory,
+  CreateBeneficiaryPayload,
   CreateBeneficiaryResponse,
   Gender,
 } from "@/lib/registration/types";
@@ -37,6 +41,8 @@ const MANUAL_STEPS = ["Identity", "Password"];
 
 export function ManualIdentityForm() {
   const router = useRouter();
+  const [branchName, setBranchName] = useState<string | null>(null);
+  const [branchId, setBranchId] = useState<string | null>(null);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [grandfatherName, setGrandfatherName] = useState("");
@@ -54,6 +60,16 @@ export function ManualIdentityForm() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    const branch = getSelectedBranch();
+    if (!branch) {
+      router.replace("/dashboard/register");
+      return;
+    }
+    setBranchId(branch.branchId);
+    setBranchName(branch.branchName);
+  }, [router]);
+
   const fileError = validateFile(
     profileFile,
     PROFILE_IMAGE_TYPES,
@@ -63,6 +79,12 @@ export function ManualIdentityForm() {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+
+    const branch = getSelectedBranch();
+    if (!branch) {
+      router.replace("/dashboard/register");
+      return;
+    }
 
     if (!gender || !category) {
       setError("Please complete all required fields.");
@@ -85,7 +107,7 @@ export function ManualIdentityForm() {
       .filter(Boolean)
       .join(" ");
 
-    const payload = {
+    const payload: CreateBeneficiaryPayload = {
       fullName,
       phone: normalizedPhone,
       email: email.trim(),
@@ -94,9 +116,10 @@ export function ManualIdentityForm() {
       region: region.trim(),
       city: city.trim(),
       addressLine: address.trim(),
-      beneficiaryType: "individual" as const,
+      beneficiaryType: "individual",
       category,
       notes: notes.trim(),
+      branchId: branch.branchId,
     };
 
     const formData = new FormData();
@@ -144,17 +167,26 @@ export function ManualIdentityForm() {
     }
   }
 
+  if (!branchId || !branchName) {
+    return (
+      <RegistrationShell title="Individual identity" description="Checking branch selection...">
+        <p className="text-sm text-black/55">Loading...</p>
+      </RegistrationShell>
+    );
+  }
+
   return (
     <RegistrationShell
       title="Individual identity"
       description="Enter the beneficiary's personal details."
+      branchName={branchName}
       steps={MANUAL_STEPS}
       currentStep={0}
       error={error}
       footer={
         <div className="flex justify-between gap-3">
           <Button variant="outline" asChild disabled={isSubmitting}>
-            <a href="/dashboard/register">Back</a>
+            <a href="/dashboard/register/type">Back</a>
           </Button>
           <Button type="submit" form="manual-identity-form" disabled={isSubmitting}>
             {isSubmitting ? "Submitting..." : "Continue"}
