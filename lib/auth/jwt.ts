@@ -29,11 +29,18 @@ export function decodeJwtPayload(token: string): JwtPayload | null {
 
 export function getAppRolesFromPayload(payload: JwtPayload): AppRole[] {
   const realmRoles = payload.realm_access?.roles ?? [];
-  const resourceRoles =
-    payload.resource_access?.["gateway-client"]?.roles ??
-    payload.resource_access?.["gateway_client"]?.roles ??
-    [];
   const claimRoles = Array.isArray(payload.roles) ? payload.roles : [];
+  const access = payload.resource_access ?? {};
+  const preferredResourceRoles =
+    access["gateway-client"]?.roles ??
+    access["gateway_client"]?.roles ??
+    access.account?.roles ??
+    [];
+  const allResourceRoles = Object.values(access).flatMap(
+    (entry) => entry?.roles ?? [],
+  );
+  const resourceRoles =
+    preferredResourceRoles.length > 0 ? preferredResourceRoles : allResourceRoles;
 
   return filterAppRoles([...realmRoles, ...resourceRoles, ...claimRoles]);
 }

@@ -6,20 +6,26 @@ export const REFRESH_TOKEN_COOKIE = "ezac_refresh_token";
 export const STAFF_ROLES = ["ADMIN", "FIELD_OFFICER"] as const;
 export const APP_ROLES = ["ADMIN", "FIELD_OFFICER", "BRANCH"] as const;
 
+function normalizedRoleSet(roles: string[]): Set<string> {
+  return new Set(roles.map((role) => role.trim().toUpperCase()).filter(Boolean));
+}
+
 export function hasStaffRole(roles: string[]): boolean {
-  return STAFF_ROLES.some((role) => roles.includes(role));
+  const set = normalizedRoleSet(roles);
+  return STAFF_ROLES.some((role) => set.has(role));
 }
 
 export function isAdminRole(roles: string[]): boolean {
-  return roles.includes("ADMIN");
+  return normalizedRoleSet(roles).has("ADMIN");
 }
 
 export function isBranchRole(roles: string[]): boolean {
-  return roles.includes("BRANCH");
+  return normalizedRoleSet(roles).has("BRANCH");
 }
 
 export function filterAppRoles(roles: string[]): AppRole[] {
-  return APP_ROLES.filter((role) => roles.includes(role));
+  const set = normalizedRoleSet(roles);
+  return APP_ROLES.filter((role) => set.has(role));
 }
 
 /** Default post-login destination based on roles from /me. */
