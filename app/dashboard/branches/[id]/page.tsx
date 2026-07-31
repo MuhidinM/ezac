@@ -174,6 +174,13 @@ export default function BranchDetailPage() {
           onUnauthorized={() =>
             router.replace(`/login?redirect=/dashboard/branches/${branch.id}`)
           }
+          onGenerated={() => {
+            void apiClient<Branch>(`/api/admin/branches/${branch.id}`)
+              .then(setBranch)
+              .catch(() => {
+                /* keep existing branch details if refresh fails */
+              });
+          }}
         />
       </div>
     </section>

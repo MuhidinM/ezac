@@ -38,12 +38,15 @@ type Props = {
   /** When set, shows generate-codes controls that POST to this path */
   generatePath?: string;
   onUnauthorized?: () => void;
+  /** Called after codes are generated successfully */
+  onGenerated?: (codes: string[]) => void;
 };
 
 export function BranchCodesPanel({
   listPath,
   generatePath,
   onUnauthorized,
+  onGenerated,
 }: Props) {
   const [rows, setRows] = useState<RegistrationCodeItem[]>([]);
   const [page, setPage] = useState(1);
@@ -58,12 +61,14 @@ export function BranchCodesPanel({
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // Callers pass an inline callback, so keep it out of the loader's deps to
-  // avoid re-running the fetch on every parent render.
   const onUnauthorizedRef = useRef(onUnauthorized);
+  const onGeneratedRef = useRef(onGenerated);
   useEffect(() => {
     onUnauthorizedRef.current = onUnauthorized;
   }, [onUnauthorized]);
+  useEffect(() => {
+    onGeneratedRef.current = onGenerated;
+  }, [onGenerated]);
 
   const loadCodes = useCallback(async () => {
     setIsLoading(true);
@@ -129,6 +134,7 @@ export function BranchCodesPanel({
       setGeneratedCodes(codes);
       setPage(1);
       await loadCodes();
+      onGeneratedRef.current?.(codes);
     } catch (genError) {
       setGenerateError(
         genError instanceof ApiError

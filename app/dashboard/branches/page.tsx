@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { CreateBranchForm } from "@/components/branches/create-branch-form";
@@ -133,7 +132,7 @@ export default function BranchesPage() {
             Branches
           </h1>
           <p className="mt-1 text-sm text-black/60">
-            Manage branch offices and registration codes.
+            Tap a branch to view details, generate codes, and see its code list.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -163,13 +162,16 @@ export default function BranchesPage() {
               <TableHead>Phone</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Codes</TableHead>
+              <TableHead className="w-[1%] whitespace-nowrap">
+                <span className="sr-only">Open</span>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={7}
                   className="py-10 text-center text-sm text-black/50"
                 >
                   Loading branches...
@@ -178,7 +180,7 @@ export default function BranchesPage() {
             ) : rows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={7}
                   className="py-10 text-center text-sm text-black/50"
                 >
                   No branches yet. Create one to get started.
@@ -186,14 +188,21 @@ export default function BranchesPage() {
               </TableRow>
             ) : (
               rows.map((item) => (
-                <TableRow key={item.id} className="hover:bg-black/[0.02]">
-                  <TableCell className="font-medium">
-                    <Link
-                      href={`/dashboard/branches/${item.id}`}
-                      className="hover:underline"
-                    >
-                      {item.name}
-                    </Link>
+                <TableRow
+                  key={item.id}
+                  role="link"
+                  tabIndex={0}
+                  className="cursor-pointer hover:bg-black/[0.02]"
+                  onClick={() => router.push(`/dashboard/branches/${item.id}`)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      router.push(`/dashboard/branches/${item.id}`);
+                    }
+                  }}
+                >
+                  <TableCell className="font-medium text-[#007050]">
+                    {item.name}
                   </TableCell>
                   <TableCell>{item.region ?? "—"}</TableCell>
                   <TableCell>{item.zone ?? "—"}</TableCell>
@@ -211,6 +220,9 @@ export default function BranchesPage() {
                   </TableCell>
                   <TableCell className="text-xs text-black/65">
                     {formatCodeStats(item.codeStats)}
+                  </TableCell>
+                  <TableCell className="text-right text-sm text-[#007050]">
+                    View
                   </TableCell>
                 </TableRow>
               ))
