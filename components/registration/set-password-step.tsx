@@ -124,7 +124,11 @@ export function SetPasswordStep({
       error={error}
       footer={
         <div className="flex justify-between gap-3">
-          <Button variant="outline" asChild disabled={isSubmitting}>
+          <Button
+            variant="outline"
+            asChild
+            className={isSubmitting ? "pointer-events-none opacity-50" : undefined}
+          >
             <a href={backHref}>Back</a>
           </Button>
           <Button type="submit" form="set-password-form" disabled={isSubmitting}>

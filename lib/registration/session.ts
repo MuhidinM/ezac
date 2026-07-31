@@ -55,6 +55,24 @@ export function setSelectedBranch(branch: {
   return next;
 }
 
+/** Keep branch context and set type; clear in-progress entity fields. */
+export function beginRegistration(
+  type: RegistrationType,
+): RegistrationSession {
+  const branch = getSelectedBranch();
+  if (!branch) {
+    throw new Error("Select a branch first");
+  }
+
+  const next: RegistrationSession = {
+    branchId: branch.branchId,
+    branchName: branch.branchName,
+    registrationType: type,
+  };
+  writeSession(next);
+  return next;
+}
+
 export function setRegistrationSession(
   partial: Partial<RegistrationSession> & {
     registrationType: RegistrationType;

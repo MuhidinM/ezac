@@ -26,6 +26,7 @@ import {
   normalizePhoneToE164,
 } from "@/lib/registration/phone";
 import {
+  getRegistrationSession,
   getSelectedBranch,
   setRegistrationSession,
 } from "@/lib/registration/session";
@@ -61,13 +62,15 @@ export function ManualIdentityForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    const branch = getSelectedBranch();
-    if (!branch) {
+    const session = getRegistrationSession();
+    const branchIdValue = session?.branchId?.trim();
+    const branchNameValue = session?.branchName?.trim();
+    if (!branchIdValue || !branchNameValue) {
       router.replace("/dashboard/register");
       return;
     }
-    setBranchId(branch.branchId);
-    setBranchName(branch.branchName);
+    setBranchId(branchIdValue);
+    setBranchName(branchNameValue);
   }, [router]);
 
   const fileError = validateFile(
@@ -80,7 +83,18 @@ export function ManualIdentityForm() {
     event.preventDefault();
     setError(null);
 
-    const branch = getSelectedBranch();
+    const branch =
+      getSelectedBranch() ??
+      (() => {
+        const session = getRegistrationSession();
+        if (!session?.branchId?.trim() || !session.branchName?.trim()) {
+          return null;
+        }
+        return {
+          branchId: session.branchId,
+          branchName: session.branchName,
+        };
+      })();
     if (!branch) {
       router.replace("/dashboard/register");
       return;
@@ -185,7 +199,11 @@ export function ManualIdentityForm() {
       error={error}
       footer={
         <div className="flex justify-between gap-3">
-          <Button variant="outline" asChild disabled={isSubmitting}>
+          <Button
+            variant="outline"
+            asChild
+            className={isSubmitting ? "pointer-events-none opacity-50" : undefined}
+          >
             <a href="/dashboard/register/type">Back</a>
           </Button>
           <Button type="submit" form="manual-identity-form" disabled={isSubmitting}>

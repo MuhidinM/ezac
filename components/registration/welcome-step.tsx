@@ -7,8 +7,8 @@ import { Building2, UserRound } from "lucide-react";
 import { RegistrationShell } from "@/components/registration/registration-shell";
 import { Button } from "@/components/ui/button";
 import {
+  beginRegistration,
   getSelectedBranch,
-  updateRegistrationSession,
 } from "@/lib/registration/session";
 import type { RegistrationType } from "@/lib/registration/types";
 import { cn } from "@/lib/utils";
@@ -27,23 +27,12 @@ export function WelcomeStep() {
   }, [router]);
 
   function onContinue(type: RegistrationType) {
-    const branch = getSelectedBranch();
-    if (!branch) {
+    try {
+      beginRegistration(type);
+    } catch {
       router.replace("/dashboard/register");
       return;
     }
-
-    updateRegistrationSession({
-      branchId: branch.branchId,
-      branchName: branch.branchName,
-      registrationType: type,
-      entityId: undefined,
-      passwordSetupToken: undefined,
-      companyDocumentUploadToken: undefined,
-      phone: undefined,
-      kycDocuments: undefined,
-      kycComplete: undefined,
-    });
 
     router.push(
       type === "manual"
@@ -54,7 +43,10 @@ export function WelcomeStep() {
 
   if (!branchName) {
     return (
-      <RegistrationShell title="Register beneficiary" description="Checking branch selection...">
+      <RegistrationShell
+        title="Register beneficiary"
+        description="Checking branch selection..."
+      >
         <p className="text-sm text-black/55">Loading...</p>
       </RegistrationShell>
     );

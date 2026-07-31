@@ -7,6 +7,8 @@ import {
   VideoIcon,
 } from "lucide-react";
 
+import { CITIZEN_APP_DOWNLOAD_URL } from "@/lib/constants/app-download";
+
 const FOOTER_LINKS = [
   { label: "Privacy Policy", href: "/privacy" },
   { label: "FAQ", href: "/faq" },
@@ -78,22 +80,26 @@ export function SiteFooter() {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  <button
-                    type="button"
+                  <a
+                    href={CITIZEN_APP_DOWNLOAD_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2.5 text-sm transition-colors hover:bg-black/2"
                     style={{ color: "#001539" }}
                   >
                     <SmartphoneIcon className="h-4 w-4" />
                     App Store
-                  </button>
-                  <button
-                    type="button"
+                  </a>
+                  <a
+                    href={CITIZEN_APP_DOWNLOAD_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2.5 text-sm transition-colors hover:bg-black/2"
                     style={{ color: "#001539" }}
                   >
                     <PlayCircleIcon className="h-4 w-4" />
                     Google Play
-                  </button>
+                  </a>
                 </div>
               </div>
 

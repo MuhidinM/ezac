@@ -142,7 +142,13 @@ export function InstitutionDocumentsStep() {
       error={error}
       footer={
         <div className="flex justify-between gap-3">
-          <Button variant="outline" asChild disabled={!!uploadingCode}>
+          <Button
+            variant="outline"
+            asChild
+            className={
+              uploadingCode ? "pointer-events-none opacity-50" : undefined
+            }
+          >
             <a href="/dashboard/register/institution/password">Back</a>
           </Button>
           <Button onClick={onFinish} disabled={!kycComplete || !!uploadingCode}>

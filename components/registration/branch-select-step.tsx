@@ -51,12 +51,23 @@ export function BranchSelectStep() {
       let totalPages = 1;
 
       do {
-        const data = await apiClient<PaginatedItems<BranchListItem>>(
-          `/api/admin/branches?page=${page}&limit=${PAGE_SIZE}`,
-        );
-        all.push(...data.items);
-        totalPages = Math.max(1, data.pagination.totalPages);
-        page += 1;
+        try {
+          const data = await apiClient<PaginatedItems<BranchListItem>>(
+            `/api/admin/branches?page=${page}&limit=${PAGE_SIZE}`,
+          );
+          all.push(...(data.items ?? []));
+          totalPages = Math.max(1, data.pagination?.totalPages ?? 1);
+          page += 1;
+        } catch (pageError) {
+          // Keep any pages already loaded; surface the first failure.
+          if (all.length === 0) throw pageError;
+          setError(
+            pageError instanceof ApiError
+              ? pageError.message
+              : "Some branches could not be loaded",
+          );
+          break;
+        }
       } while (page <= totalPages);
 
       setBranches(all);
@@ -111,6 +122,7 @@ export function BranchSelectStep() {
         branch.zone,
         branch.woreda,
       ]
+        .map((part) => (part ?? "").toString())
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
@@ -118,19 +130,24 @@ export function BranchSelectStep() {
     });
 
     rows = [...rows].sort((a, b) => {
+      const aName = a.name ?? "";
+      const bName = b.name ?? "";
+      const aRegion = a.region ?? "";
+      const bRegion = b.region ?? "";
+
       switch (sort) {
         case "name-desc":
-          return b.name.localeCompare(a.name);
+          return bName.localeCompare(aName);
         case "region-asc":
-          return (a.region ?? "").localeCompare(b.region ?? "") || a.name.localeCompare(b.name);
+          return aRegion.localeCompare(bRegion) || aName.localeCompare(bName);
         case "codes-desc": {
           const aCodes = a.codeStats?.available ?? 0;
           const bCodes = b.codeStats?.available ?? 0;
-          return bCodes - aCodes || a.name.localeCompare(b.name);
+          return bCodes - aCodes || aName.localeCompare(bName);
         }
         case "name-asc":
         default:
-          return a.name.localeCompare(b.name);
+          return aName.localeCompare(bName);
       }
     });
 
@@ -139,11 +156,19 @@ export function BranchSelectStep() {
 
   const selected = filtered.find((branch) => branch.id === selectedId) ?? null;
 
+  function branchDisplayName(branch: BranchListItem): string {
+    return (
+      branch.name?.trim() ||
+      branch.branchPhone?.trim() ||
+      branch.id
+    );
+  }
+
   function onContinue() {
     if (!selected) return;
     setSelectedBranch({
       branchId: selected.id,
-      branchName: selected.name,
+      branchName: branchDisplayName(selected),
     });
     router.push("/dashboard/register/type");
   }
@@ -267,7 +292,7 @@ export function BranchSelectStep() {
                       }}
                     >
                       <TableCell className="font-medium text-[#001539]">
-                        {branch.name}
+                        {branchDisplayName(branch)}
                       </TableCell>
                       <TableCell>{branch.region ?? "—"}</TableCell>
                       <TableCell>{branch.branchPhone ?? "—"}</TableCell>
@@ -292,7 +317,9 @@ export function BranchSelectStep() {
         {selected ? (
           <p className="text-sm text-black/60">
             Selected:{" "}
-            <span className="font-medium text-[#001539]">{selected.name}</span>
+            <span className="font-medium text-[#001539]">
+              {branchDisplayName(selected)}
+            </span>
             {" · "}
             {formatCodes(selected)}
           </p>
