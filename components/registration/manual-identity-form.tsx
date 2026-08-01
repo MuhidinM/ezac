@@ -58,7 +58,7 @@ export function ManualIdentityForm() {
 
   if (!branchId || !branchName) {
     return (
-      <QuestionnaireShell showProgress={false}>
+      <QuestionnaireShell title="Individual Registration" formId="EZAC-IND-REG" showProgress={false}>
         <p className="text-base text-[#5a6e62]">Loading...</p>
       </QuestionnaireShell>
     );
@@ -90,6 +90,8 @@ export function ManualIdentityForm() {
 
   return (
     <QuestionnaireShell
+      title="Individual Registration"
+      formId="EZAC-IND-REG"
       branchName={branchName}
       showProgress={false}
       footer={

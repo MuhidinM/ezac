@@ -6,6 +6,10 @@ import Link from "next/link";
 import { ProgressBar } from "./progress-bar";
 
 type QuestionnaireShellProps = {
+  title?: string;
+  formId?: string;
+  totalSteps?: number;
+  sectionName?: string;
   branchName?: string | null;
   currentStep?: number;
   showProgress?: boolean;
@@ -20,6 +24,10 @@ type QuestionnaireShellProps = {
 };
 
 export function QuestionnaireShell({
+  title = "EZAC Household Assessment",
+  formId = "EZAC-MTT-QST-001",
+  totalSteps = 7,
+  sectionName,
   branchName,
   currentStep = 1,
   showProgress = true,
@@ -45,9 +53,11 @@ export function QuestionnaireShell({
                 Back to beneficiaries
               </Link>
               <p className="mt-1 font-playfair text-lg font-semibold text-[#1a3d2b]">
-                EZAC Household Assessment
+                {title}
               </p>
-              <p className="text-xs text-[#5a6e62]">EZAC-MTT-QST-001</p>
+              {formId ? (
+                <p className="text-xs text-[#5a6e62]">{formId}</p>
+              ) : null}
             </div>
             {onSaveDraft ? (
               <button
@@ -89,6 +99,8 @@ export function QuestionnaireShell({
             <div className="mt-4">
               <ProgressBar
                 currentStep={currentStep}
+                totalSteps={totalSteps}
+                sectionName={sectionName}
                 label={progressLabel}
               />
             </div>

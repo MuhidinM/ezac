@@ -10,6 +10,7 @@ type CurrencyInputProps = {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  formatOnBlur?: boolean;
   "aria-invalid"?: boolean;
   "aria-describedby"?: string;
 };
@@ -20,9 +21,24 @@ export function CurrencyInput({
   onChange,
   placeholder = "0",
   className,
+  formatOnBlur = false,
   "aria-invalid": ariaInvalid,
   "aria-describedby": ariaDescribedby,
 }: CurrencyInputProps) {
+  function handleChange(raw: string) {
+    if (formatOnBlur) {
+      onChange(raw.replace(/[^\d.]/g, ""));
+    } else {
+      onChange(formatCurrency(raw));
+    }
+  }
+
+  function handleBlur() {
+    if (formatOnBlur && value) {
+      onChange(formatCurrency(value));
+    }
+  }
+
   return (
     <div className="relative">
       <input
@@ -30,7 +46,8 @@ export function CurrencyInput({
         type="text"
         inputMode="numeric"
         value={value}
-        onChange={(e) => onChange(formatCurrency(e.target.value))}
+        onChange={(e) => handleChange(e.target.value)}
+        onBlur={handleBlur}
         placeholder={placeholder}
         aria-invalid={ariaInvalid}
         aria-describedby={ariaDescribedby}

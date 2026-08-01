@@ -84,7 +84,7 @@ export function WelcomeStep() {
           <Building2 className="h-5 w-5 text-black/70" />
           <p className="mt-3 font-medium text-[#001539]">Institution</p>
           <p className="mt-1 text-sm text-black/60">
-            Register an organization and upload required KYC documents.
+            Apply for NGO cash aid registration and eligibility assessment.
           </p>
         </button>
 
