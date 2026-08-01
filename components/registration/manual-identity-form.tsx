@@ -1,392 +1,119 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import {
-  FileUploadField,
-  validateFile,
-} from "@/components/registration/file-upload-field";
-import { BulkImportUpload } from "@/components/registration/bulk-import-upload";
-import { PhoneInput } from "@/components/registration/phone-input";
-import { RegistrationShell } from "@/components/registration/registration-shell";
+import { createInitialState } from "@/components/questionnaire/initial-state";
+import { QuestionnaireShell } from "@/components/questionnaire/questionnaire-shell";
+import { Step1Identification } from "@/components/questionnaire/steps/step1-identification";
+import type { QuestionnaireState, StepErrors } from "@/components/questionnaire/types";
+import { validateStep1 } from "@/components/questionnaire/validation";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ApiError } from "@/lib/api/errors";
-import { registerApiFormData } from "@/lib/registration/api";
-import {
-  BENEFICIARY_CATEGORIES,
-  GENDER_OPTIONS,
-  MAX_PROFILE_IMAGE_SIZE,
-  PROFILE_IMAGE_TYPES,
-} from "@/lib/registration/constants";
-import {
-  isValidEthiopianPhone,
-  normalizePhoneToE164,
-} from "@/lib/registration/phone";
-import {
-  getRegistrationSession,
-  getSelectedBranch,
-  setRegistrationSession,
-} from "@/lib/registration/session";
-import type {
-  BeneficiaryCategory,
-  CreateBeneficiaryPayload,
-  CreateBeneficiaryResponse,
-  Gender,
-} from "@/lib/registration/types";
-import { cn } from "@/lib/utils";
-
-const MANUAL_STEPS = ["Identity", "Password"];
+import { getSelectedBranch } from "@/lib/registration/session";
 
 export function ManualIdentityForm() {
   const router = useRouter();
   const [branchName, setBranchName] = useState<string | null>(null);
   const [branchId, setBranchId] = useState<string | null>(null);
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [grandfatherName, setGrandfatherName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [gender, setGender] = useState<Gender | "">("");
-  const [birthdate, setBirthdate] = useState("");
-  const [address, setAddress] = useState("");
-  const [region, setRegion] = useState("");
-  const [city, setCity] = useState("");
-  const [category, setCategory] = useState<BeneficiaryCategory | "">("");
-  const [notes, setNotes] = useState("");
-  const [profileFile, setProfileFile] = useState<File | null>(null);
-  const [bulkImportFile, setBulkImportFile] = useState<File | null>(null);
+  const [state, setState] = useState<QuestionnaireState>(createInitialState);
+  const [errors, setErrors] = useState<StepErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
-    const session = getRegistrationSession();
-    const branchIdValue = session?.branchId?.trim();
-    const branchNameValue = session?.branchName?.trim();
-    if (!branchIdValue || !branchNameValue) {
-      router.replace("/dashboard/register");
-      return;
-    }
-    setBranchId(branchIdValue);
-    setBranchName(branchNameValue);
-  }, [router]);
-
-  const fileError = validateFile(
-    profileFile,
-    PROFILE_IMAGE_TYPES,
-    MAX_PROFILE_IMAGE_SIZE,
-  );
-
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-
-    const branch =
-      getSelectedBranch() ??
-      (() => {
-        const session = getRegistrationSession();
-        if (!session?.branchId?.trim() || !session.branchName?.trim()) {
-          return null;
-        }
-        return {
-          branchId: session.branchId,
-          branchName: session.branchName,
-        };
-      })();
+    const branch = getSelectedBranch();
     if (!branch) {
       router.replace("/dashboard/register");
       return;
     }
+    setBranchId(branch.branchId);
+    setBranchName(branch.branchName);
+  }, [router]);
 
-    if (!gender || !category) {
+  function handleSubmit() {
+    setError(null);
+    const stepErrors = validateStep1(state);
+    if (Object.keys(stepErrors).length > 0) {
+      setErrors(stepErrors);
       setError("Please complete all required fields.");
       return;
     }
 
-    if (!isValidEthiopianPhone(phone)) {
-      setError("Please enter a valid Ethiopian phone number.");
-      return;
-    }
-
-    if (fileError) {
-      setError(fileError);
-      return;
-    }
-
-    const normalizedPhone = normalizePhoneToE164(phone);
-    const fullName = [firstName, lastName, grandfatherName]
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .join(" ");
-
-    const payload: CreateBeneficiaryPayload = {
-      fullName,
-      phone: normalizedPhone,
-      email: email.trim(),
-      dateOfBirth: birthdate,
-      gender,
-      region: region.trim(),
-      city: city.trim(),
-      addressLine: address.trim(),
-      beneficiaryType: "individual",
-      category,
-      notes: notes.trim(),
-      branchId: branch.branchId,
-    };
-
-    const formData = new FormData();
-    formData.append(
-      "data",
-      new Blob([JSON.stringify(payload)], { type: "application/json" }),
-    );
-    if (profileFile) {
-      formData.append("profilePicture", profileFile);
-    }
-
     setIsSubmitting(true);
-
-    try {
-      const data = await registerApiFormData<CreateBeneficiaryResponse>(
-        "/api/register/beneficiaries",
-        formData,
-      );
-
-      if (!data.id || !data.passwordSetupToken) {
-        throw new ApiError("Invalid registration response from server", 502);
-      }
-
-      setRegistrationSession({
-        registrationType: "manual",
-        entityId: data.id,
-        passwordSetupToken: data.passwordSetupToken,
-        phone: normalizedPhone,
-      });
-
-      router.push("/dashboard/register/manual/password");
-    } catch (submitError) {
-      if (submitError instanceof ApiError && submitError.status === 401) {
-        router.replace("/login?redirect=/dashboard/register/manual");
-        return;
-      }
-
-      setError(
-        submitError instanceof ApiError
-          ? submitError.message
-          : "Unable to register beneficiary. Please try again.",
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
+    const payload = {
+      formId: "EZAC-IND-REG",
+      registrationType: "manual" as const,
+      branchId,
+      branchName,
+      submittedAt: new Date().toISOString(),
+      assessment: state.assessment,
+      applicant: state.applicant,
+      asnaf: state.asnaf,
+    };
+    console.log("EZAC Individual Registration Submitted:", payload);
+    setSubmitted(true);
+    setIsSubmitting(false);
   }
 
   if (!branchId || !branchName) {
     return (
-      <RegistrationShell title="Individual identity" description="Checking branch selection...">
-        <p className="text-sm text-black/55">Loading...</p>
-      </RegistrationShell>
+      <QuestionnaireShell showProgress={false}>
+        <p className="text-base text-[#5a6e62]">Loading...</p>
+      </QuestionnaireShell>
+    );
+  }
+
+  if (submitted) {
+    return (
+      <QuestionnaireShell branchName={branchName} showProgress={false}>
+        <div className="py-12 text-center">
+          <h2 className="font-playfair text-2xl font-semibold text-[#1a3d2b]">
+            Individual Registration Submitted
+          </h2>
+          <p className="mt-2 text-base text-[#5a6e62]">
+            Registration data has been logged. Check the browser console for the
+            JSON payload.
+          </p>
+          <div className="mt-6 flex justify-center gap-3">
+            <Button variant="outline" asChild>
+              <a href="/dashboard/beneficiary">Back to beneficiaries</a>
+            </Button>
+            <Button asChild>
+              <a href="/dashboard/register/type">Register another</a>
+            </Button>
+          </div>
+        </div>
+      </QuestionnaireShell>
     );
   }
 
   return (
-    <RegistrationShell
-      title="Individual identity"
-      description="Enter the beneficiary's personal details."
+    <QuestionnaireShell
       branchName={branchName}
-      steps={MANUAL_STEPS}
-      currentStep={0}
-      error={error}
+      showProgress={false}
       footer={
-        <div className="flex justify-between gap-3">
-          <Button
-            variant="outline"
-            asChild
-            className={isSubmitting ? "pointer-events-none opacity-50" : undefined}
-          >
+        <div className="flex gap-3">
+          <Button variant="outline" asChild className="min-h-[48px] flex-1">
             <a href="/dashboard/register/type">Back</a>
           </Button>
-          <Button type="submit" form="manual-identity-form" disabled={isSubmitting}>
-            {isSubmitting ? "Submitting..." : "Continue"}
-          </Button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="min-h-[48px] flex-1 rounded-xl bg-[#c4a040] px-6 py-3 text-base font-semibold text-[#1a3d2b] transition hover:bg-[#b89030] disabled:opacity-60"
+          >
+            {isSubmitting ? "Submitting..." : "Submit Registration"}
+          </button>
         </div>
       }
     >
-      <form id="manual-identity-form" onSubmit={onSubmit} className="space-y-4">
-        <BulkImportUpload
-          onFileSelect={setBulkImportFile}
-          disabled={isSubmitting}
-        />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="firstName">First name</Label>
-            <Input
-              id="firstName"
-              value={firstName}
-              onChange={(event) => setFirstName(event.target.value)}
-              required
-              disabled={isSubmitting}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="lastName">Last name (father name)</Label>
-            <Input
-              id="lastName"
-              value={lastName}
-              onChange={(event) => setLastName(event.target.value)}
-              required
-              disabled={isSubmitting}
-            />
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="grandfatherName">Grandfather&apos;s name</Label>
-          <Input
-            id="grandfatherName"
-            value={grandfatherName}
-            onChange={(event) => setGrandfatherName(event.target.value)}
-            required
-            disabled={isSubmitting}
-          />
-        </div>
-
-        <PhoneInput
-          value={phone}
-          onChange={setPhone}
-          disabled={isSubmitting}
-        />
-
-        <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-            disabled={isSubmitting}
-          />
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="gender">Gender</Label>
-            <select
-              id="gender"
-              value={gender}
-              onChange={(event) => setGender(event.target.value as Gender)}
-              required
-              disabled={isSubmitting}
-              className={cn(
-                "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
-                !gender ? "text-muted-foreground/70" : "text-foreground",
-              )}
-            >
-              <option value="">Select gender</option>
-              {GENDER_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="birthdate">Birthdate</Label>
-            <Input
-              id="birthdate"
-              type="date"
-              value={birthdate}
-              onChange={(event) => setBirthdate(event.target.value)}
-              required
-              disabled={isSubmitting}
-            />
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="address">Address</Label>
-          <Input
-            id="address"
-            value={address}
-            onChange={(event) => setAddress(event.target.value)}
-            required
-            disabled={isSubmitting}
-          />
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="region">Region</Label>
-            <Input
-              id="region"
-              value={region}
-              onChange={(event) => setRegion(event.target.value)}
-              required
-              disabled={isSubmitting}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="city">City</Label>
-            <Input
-              id="city"
-              value={city}
-              onChange={(event) => setCity(event.target.value)}
-              required
-              disabled={isSubmitting}
-            />
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="category">Beneficiary category</Label>
-          <select
-            id="category"
-            value={category}
-            onChange={(event) =>
-              setCategory(event.target.value as BeneficiaryCategory)
-            }
-            required
-            disabled={isSubmitting}
-            className={cn(
-              "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
-              !category ? "text-muted-foreground/70" : "text-foreground",
-            )}
-          >
-            <option value="">Select category</option>
-            {BENEFICIARY_CATEGORIES.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="notes">Notes</Label>
-          <textarea
-            id="notes"
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-            required
-            disabled={isSubmitting}
-            rows={3}
-            className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-          />
-        </div>
-
-        <FileUploadField
-          id="profilePicture"
-          label="Profile picture (optional)"
-          accept={PROFILE_IMAGE_TYPES.join(",")}
-          maxSize={MAX_PROFILE_IMAGE_SIZE}
-          allowedTypes={PROFILE_IMAGE_TYPES}
-          file={profileFile}
-          onChange={setProfileFile}
-          error={fileError}
-          disabled={isSubmitting}
-        />
-      </form>
-    </RegistrationShell>
+      {error ? (
+        <p className="mb-4 rounded-xl border border-[#c0392b]/30 bg-[#c0392b]/10 px-4 py-3 text-sm text-[#c0392b]">
+          {error}
+        </p>
+      ) : null}
+      <Step1Identification state={state} setState={setState} errors={errors} />
+    </QuestionnaireShell>
   );
 }

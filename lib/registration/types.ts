@@ -1,4 +1,4 @@
-export type RegistrationType = "manual" | "institution";
+export type RegistrationType = "manual" | "institution" | "household";
 
 export type BeneficiaryCategory =
   | "poor"

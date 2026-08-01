@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, UserRound } from "lucide-react";
+import { Building2, UserRound, Users } from "lucide-react";
 
 import { RegistrationShell } from "@/components/registration/registration-shell";
 import { Button } from "@/components/ui/button";
@@ -34,11 +34,12 @@ export function WelcomeStep() {
       return;
     }
 
-    router.push(
-      type === "manual"
-        ? "/dashboard/register/manual"
-        : "/dashboard/register/institution",
-    );
+    const routes: Record<RegistrationType, string> = {
+      manual: "/dashboard/register/manual",
+      institution: "/dashboard/register/institution",
+      household: "/dashboard/register/household",
+    };
+    router.push(routes[type]);
   }
 
   if (!branchName) {
@@ -58,7 +59,7 @@ export function WelcomeStep() {
       description="Choose how you want to register a new beneficiary account."
       branchName={branchName}
     >
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <button
           type="button"
           onClick={() => onContinue("manual")}
@@ -67,7 +68,7 @@ export function WelcomeStep() {
           )}
         >
           <UserRound className="h-5 w-5 text-black/70" />
-          <p className="mt-3 font-medium text-[#001539]">Manual registration</p>
+          <p className="mt-3 font-medium text-[#001539]">Individual</p>
           <p className="mt-1 text-sm text-black/60">
             Register an individual beneficiary with identity details.
           </p>
@@ -84,6 +85,20 @@ export function WelcomeStep() {
           <p className="mt-3 font-medium text-[#001539]">Institution</p>
           <p className="mt-1 text-sm text-black/60">
             Register an organization and upload required KYC documents.
+          </p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onContinue("household")}
+          className={cn(
+            "rounded-xl border border-black/10 p-4 text-left transition hover:border-black/25 hover:bg-black/[0.02] sm:col-span-2 lg:col-span-1",
+          )}
+        >
+          <Users className="h-5 w-5 text-black/70" />
+          <p className="mt-3 font-medium text-[#001539]">Household</p>
+          <p className="mt-1 text-sm text-black/60">
+            Complete the household socioeconomic assessment questionnaire.
           </p>
         </button>
       </div>

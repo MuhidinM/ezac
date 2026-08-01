@@ -139,6 +139,51 @@
   font-family: var(--font-instrument-serif), "Instrument Serif", serif;
 }
 
+.font-playfair {
+  font-family: var(--font-playfair), "Playfair Display", serif;
+}
+
+.questionnaire-theme {
+  --ezac-green: #1a3d2b;
+  --ezac-gold: #c4a040;
+  --ezac-parchment: #f7f3ec;
+  --ezac-muted: #5a6e62;
+  --ezac-error: #c0392b;
+}
+
+@keyframes step-fade-slide {
+  0% {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-step-enter {
+  animation: step-fade-slide 0.35s ease-out forwards;
+}
+
+@keyframes checkmark-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  60% {
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-checkmark-pop {
+  animation: checkmark-pop 0.6s ease-out forwards;
+}
+
 .font-body {
   font-family: var(--font-inter), "Inter", sans-serif;
 }
