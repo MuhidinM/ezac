@@ -1,3 +1,5 @@
+import { generateId } from "@/lib/utils";
+
 import type {
   AidTypeKey,
   CoverageArea,
@@ -121,7 +123,7 @@ export const SHARIAH_DECLARATION_LABELS: Record<
 
 function createCoverageArea(): CoverageArea {
   return {
-    id: crypto.randomUUID(),
+    id: generateId(),
     region: "",
     zone: "",
     woreda: "",
@@ -131,7 +133,7 @@ function createCoverageArea(): CoverageArea {
 
 function createFundingSource(sourceKey: string): FundingSourceEntry {
   return {
-    id: crypto.randomUUID(),
+    id: generateId(),
     sourceKey,
     description: "",
     annualAmount: "",

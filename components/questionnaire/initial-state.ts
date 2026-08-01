@@ -1,8 +1,10 @@
 import type { HouseholdMember, QuestionnaireState } from "./types";
 
+import { generateId } from "@/lib/utils";
+
 function createMember(): HouseholdMember {
   return {
-    id: crypto.randomUUID(),
+    id: generateId(),
     name: "",
     sex: "",
     age: "",
