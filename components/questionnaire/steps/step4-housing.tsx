@@ -8,11 +8,11 @@ import { FormField } from "../ui/form-field";
 import { RadioGroup } from "../ui/radio-group";
 
 const inputClass =
-  "min-h-[48px] w-full rounded-xl border border-[#1a3d2b]/20 bg-white px-4 py-3 text-base text-[#1a3d2b] outline-none transition focus:border-[#1a3d2b] focus:ring-2 focus:ring-[#1a3d2b]/20";
+  "form-input";
 
 function CardSection({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-[#1a3d2b]/10 bg-[#f7f3ec]/30 p-4">
+    <div className="rounded-xl border border-black/10 bg-black/[0.02] p-4">
       {children}
     </div>
   );

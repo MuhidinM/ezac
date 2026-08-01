@@ -7,10 +7,10 @@ const DECISION_STYLES: Record<
   Exclude<EligibilityDecision, "">,
   string
 > = {
-  approve: "border-[#27ae60] bg-[#27ae60]/15 text-[#1a3d2b]",
-  conditional: "border-[#c4a040] bg-[#c4a040]/20 text-[#1a3d2b]",
-  defer: "border-blue-500 bg-blue-500/10 text-[#1a3d2b]",
-  reject: "border-[#c0392b] bg-[#c0392b]/10 text-[#1a3d2b]",
+  approve: "border-[#27ae60] bg-[#27ae60]/15 text-[#001539]",
+  conditional: "border-[#e18f35] bg-[#e18f35]/20 text-[#001539]",
+  defer: "border-blue-500 bg-blue-500/10 text-[#001539]",
+  reject: "border-[#c0392b] bg-[#c0392b]/10 text-[#001539]",
 };
 
 type DecisionBadgeProps = {
@@ -66,14 +66,14 @@ export function DecisionOverride({
 
   return (
     <div className="mt-4 space-y-3">
-      <label htmlFor="decisionOverride" className="block text-base font-medium text-[#1a3d2b]">
+      <label htmlFor="decisionOverride" className="block text-base font-medium text-[#001539]">
         Override decision (optional)
       </label>
       <select
         id="decisionOverride"
         value={override}
         onChange={(e) => onOverrideChange(e.target.value as EligibilityDecision)}
-        className="min-h-[48px] w-full rounded-xl border border-[#1a3d2b]/20 bg-white px-4 py-3 text-base text-[#1a3d2b]"
+        className="form-input w-full"
       >
         <option value="">Use auto recommendation ({getDecisionLabel(autoDecision)})</option>
         <option value="approve">Approve</option>
@@ -83,7 +83,7 @@ export function DecisionOverride({
       </select>
       {showReason ? (
         <div>
-          <label htmlFor="overrideReason" className="block text-sm font-medium text-[#1a3d2b]">
+          <label htmlFor="overrideReason" className="block text-sm font-medium text-[#001539]">
             Reason for override *
           </label>
           <textarea
@@ -91,7 +91,7 @@ export function DecisionOverride({
             value={overrideReason}
             onChange={(e) => onReasonChange(e.target.value)}
             rows={3}
-            className="mt-1 w-full rounded-xl border border-[#1a3d2b]/20 bg-white px-4 py-3 text-base text-[#1a3d2b]"
+            className="form-input mt-1 w-full resize-y"
           />
           {error ? (
             <p className="mt-1 text-sm text-[#c0392b]" role="alert">

@@ -9,7 +9,7 @@ import { FormField } from "../ui/form-field";
 import { RadioGroup } from "../ui/radio-group";
 
 const inputClass =
-  "min-h-[48px] w-full rounded-xl border border-[#1a3d2b]/20 bg-white px-4 py-3 text-base text-[#1a3d2b] outline-none transition focus:border-[#1a3d2b] focus:ring-2 focus:ring-[#1a3d2b]/20";
+  "form-input";
 
 export function Step1Identification({ state, setState, errors }: StepProps) {
   const { assessment, applicant, asnaf } = state;
@@ -93,7 +93,7 @@ export function Step1Identification({ state, setState, errors }: StepProps) {
     >
       <div className="space-y-8">
         <section>
-          <h3 className="mb-4 text-lg font-semibold text-[#1a3d2b]">
+          <h3 className="mb-4 text-lg font-semibold text-[#001539]">
             Assessment Information
           </h3>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -184,7 +184,7 @@ export function Step1Identification({ state, setState, errors }: StepProps) {
         </section>
 
         <section>
-          <h3 className="mb-4 text-lg font-semibold text-[#1a3d2b]">
+          <h3 className="mb-4 text-lg font-semibold text-[#001539]">
             Applicant Personal Info
           </h3>
           <div className="grid gap-4 sm:grid-cols-2">

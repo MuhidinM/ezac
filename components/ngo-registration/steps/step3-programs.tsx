@@ -18,7 +18,7 @@ import {
 import type { AidTypeKey, NgoStepProps } from "../types";
 
 const inputClass =
-  "min-h-[48px] w-full rounded-xl border border-[#1a3d2b]/20 bg-white px-4 py-3 text-base text-[#1a3d2b] outline-none transition focus:border-[#1a3d2b] focus:ring-2 focus:ring-[#1a3d2b]/20";
+  "form-input";
 
 const yesNo = [
   { value: "yes", label: "Yes" },
@@ -94,12 +94,12 @@ export function Step3Programs({ state, setState, errors }: NgoStepProps) {
 
         {selectedAidTypes.length > 0 ? (
           <section className="space-y-4">
-            <h3 className="text-lg font-semibold text-[#1a3d2b]">Program Details</h3>
+            <h3 className="text-lg font-semibold text-[#001539]">Program Details</h3>
             {selectedAidTypes.map((key) => {
               const program = s.programs[key] ?? emptyProgram();
               return (
-                <div key={key} className="rounded-xl border border-[#1a3d2b]/10 bg-[#f7f3ec]/40 p-4">
-                  <h4 className="mb-3 font-medium text-[#1a3d2b]">{AID_TYPE_LABELS[key]}</h4>
+                <div key={key} className="rounded-xl border border-black/10 bg-black/[0.02] p-4">
+                  <h4 className="mb-3 font-medium text-[#001539]">{AID_TYPE_LABELS[key]}</h4>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <FormField label="Program name">
                       <input type="text" value={program.name} onChange={(e) => updateProgram(key, "name", e.target.value)} className={inputClass} />
@@ -146,7 +146,7 @@ export function Step3Programs({ state, setState, errors }: NgoStepProps) {
         </section>
 
         <section>
-          <h3 className="mb-4 text-lg font-semibold text-[#1a3d2b]">Monitoring & Accountability</h3>
+          <h3 className="mb-4 text-lg font-semibold text-[#001539]">Monitoring & Accountability</h3>
           <div className="space-y-4">
             <RadioGroup name="followUpVisits" label="Does your organization conduct follow-up visits after aid distribution?" value={s.monitoring.followUpVisits} onChange={(v) => updateMonitoring("followUpVisits", v)} options={yesNo} />
             <RadioGroup name="beneficiaryFeedback" label="Do you collect feedback from beneficiaries?" value={s.monitoring.beneficiaryFeedback} onChange={(v) => updateMonitoring("beneficiaryFeedback", v)} options={yesNo} />

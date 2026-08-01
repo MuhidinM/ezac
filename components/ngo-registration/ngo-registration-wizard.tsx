@@ -202,7 +202,7 @@ export function NgoRegistrationWizard() {
       totalSteps={5}
       sectionName={typeof currentStep === "number" ? SECTION_NAMES[currentStep] : undefined}
       branchName={branchName}
-      currentStep={numericStep}
+      currentStep={currentStep}
       showProgress={!isSuccess && !isReview}
       progressLabel={isReview ? "Review your application" : undefined}
       onSaveDraft={isSuccess ? undefined : handleSaveDraft}

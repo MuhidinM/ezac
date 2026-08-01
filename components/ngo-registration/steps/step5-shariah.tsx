@@ -21,7 +21,7 @@ import { DecisionBadge, DecisionOverride } from "../ui/decision-badge";
 import { ScoreSlider } from "../ui/score-slider";
 
 const inputClass =
-  "min-h-[48px] w-full rounded-xl border border-[#1a3d2b]/20 bg-white px-4 py-3 text-base text-[#1a3d2b] outline-none transition focus:border-[#1a3d2b] focus:ring-2 focus:ring-[#1a3d2b]/20";
+  "form-input";
 
 export function Step5Shariah({ state, setState, errors }: NgoStepProps) {
   const s = state.step5;
@@ -52,7 +52,7 @@ export function Step5Shariah({ state, setState, errors }: NgoStepProps) {
     >
       <div className="space-y-8">
         <section>
-          <h3 className="mb-4 text-lg font-semibold text-[#1a3d2b]">
+          <h3 className="mb-4 text-lg font-semibold text-[#001539]">
             Part A — Shariah Compliance Declaration
           </h3>
           <CheckboxGroup
@@ -84,8 +84,8 @@ export function Step5Shariah({ state, setState, errors }: NgoStepProps) {
             </FormField>
           </div>
 
-          <div className="mt-6 rounded-xl border border-[#1a3d2b]/15 bg-[#f7f3ec]/50 p-4">
-            <p className="text-sm text-[#5a6e62]">
+          <div className="mt-6 rounded-xl border border-black/10 bg-black/[0.02] p-4">
+            <p className="text-sm text-black/55">
               I hereby declare that all information provided in this application is true,
               complete, and accurate to the best of my knowledge. I understand that
               providing false information may result in rejection or disqualification.
@@ -101,14 +101,14 @@ export function Step5Shariah({ state, setState, errors }: NgoStepProps) {
                 <input id="applicantDate" type="date" value={s.applicantDate} onChange={(e) => update("applicantDate", e.target.value)} className={inputClass} />
               </FormField>
             </div>
-            <label className="mt-4 flex min-h-[48px] cursor-pointer items-start gap-3 rounded-xl border border-[#1a3d2b]/15 px-4 py-3">
+            <label className="mt-4 flex min-h-[48px] cursor-pointer items-start gap-3 rounded-xl border border-black/10 px-4 py-3">
               <input
                 type="checkbox"
                 checked={s.declarationAgreed}
                 onChange={(e) => update("declarationAgreed", e.target.checked)}
-                className="mt-1 h-5 w-5 accent-[#1a3d2b]"
+                className="mt-1 h-5 w-5 accent-[#007050]"
               />
-              <span className="text-base text-[#1a3d2b]">
+              <span className="text-base text-[#001539]">
                 I agree to the above declaration *
               </span>
             </label>
@@ -119,7 +119,7 @@ export function Step5Shariah({ state, setState, errors }: NgoStepProps) {
         </section>
 
         <section className="reviewer-section">
-          <p className="mb-4 text-sm font-semibold uppercase tracking-wide text-[#1a3d2b]">
+          <p className="mb-4 text-sm font-semibold uppercase tracking-wide text-[#001539]">
             For Reviewer Use Only — Assessment Officer Section
           </p>
           <div className="space-y-6">

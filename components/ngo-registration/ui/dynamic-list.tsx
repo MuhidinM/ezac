@@ -31,14 +31,14 @@ export function DynamicList<T>({
       <div className="hidden overflow-x-auto md:block">
         <table className="w-full text-left text-sm">
           <thead>
-            <tr className="border-b border-[#1a3d2b]/10 text-[#5a6e62]">
+            <tr className="border-b border-black/10 text-black/55">
               {tableHeaders}
               <th className="pb-2" />
             </tr>
           </thead>
           <tbody>
             {items.map((item, index) => (
-              <tr key={index} className="border-b border-[#1a3d2b]/5">
+              <tr key={index} className="border-b border-black/5">
                 {renderTableRow(item, index)}
                 <td className="py-2">
                   {canRemove(index) ? (
@@ -75,7 +75,7 @@ export function DynamicList<T>({
         <button
           type="button"
           onClick={onAdd}
-          className="flex min-h-[48px] items-center gap-2 rounded-xl border-2 border-dashed border-[#1a3d2b]/30 px-4 py-2 text-base font-medium text-[#1a3d2b] transition hover:border-[#1a3d2b]/50 hover:bg-[#1a3d2b]/5"
+          className="flex min-h-[48px] items-center gap-2 rounded-xl border-2 border-dashed border-black/30 px-4 py-2 text-base font-medium text-[#001539] transition hover:border-black/50 hover:bg-[#007050]/5"
         >
           <Plus className="h-5 w-5" /> {addLabel}
         </button>
@@ -98,20 +98,20 @@ function DynamicListCard({
   const [expanded, setExpanded] = useState(index === 0);
 
   return (
-    <div className="rounded-xl border border-[#1a3d2b]/15 bg-[#f7f3ec]/50">
+    <div className="rounded-xl border border-black/10 bg-black/[0.02]">
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
         className="flex w-full items-center justify-between px-4 py-3 text-left"
       >
-        <span className="font-medium text-[#1a3d2b]">Item {index + 1}</span>
+        <span className="font-medium text-[#001539]">Item {index + 1}</span>
         <ChevronDown
-          className={`h-5 w-5 text-[#5a6e62] transition ${expanded ? "rotate-180" : ""}`}
+          className={`h-5 w-5 text-black/55 transition ${expanded ? "rotate-180" : ""}`}
         />
       </button>
       {expanded ? (
-        <div className="space-y-3 border-t border-[#1a3d2b]/10 p-4">
+        <div className="space-y-3 border-t border-black/10 p-4">
           {children}
           {canRemove ? (
             <button

@@ -18,12 +18,12 @@ export function ProgressBar({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between text-sm font-medium text-[#1a3d2b]">
+      <div className="flex items-center justify-between text-sm font-medium text-[#001539]">
         <span>{label ?? defaultLabel}</span>
         <span>{Math.round(percent)}%</span>
       </div>
       <div
-        className="h-2 overflow-hidden rounded-full bg-[#1a3d2b]/15"
+        className="h-2 overflow-hidden rounded-full bg-[rgba(0,112,80,0.15)]"
         role="progressbar"
         aria-valuenow={currentStep}
         aria-valuemin={1}
@@ -31,7 +31,7 @@ export function ProgressBar({
         aria-label={label ?? defaultLabel}
       >
         <div
-          className="h-full rounded-full bg-[#c4a040] transition-all duration-500 ease-out"
+          className="h-full rounded-full bg-[#e18f35] transition-all duration-500 ease-out"
           style={{ width: `${percent}%` }}
         />
       </div>

@@ -59,7 +59,7 @@ export function ManualIdentityForm() {
   if (!branchId || !branchName) {
     return (
       <QuestionnaireShell title="Individual Registration" formId="EZAC-IND-REG" showProgress={false}>
-        <p className="text-base text-[#5a6e62]">Loading...</p>
+        <p className="text-base text-black/55">Loading...</p>
       </QuestionnaireShell>
     );
   }
@@ -68,10 +68,10 @@ export function ManualIdentityForm() {
     return (
       <QuestionnaireShell branchName={branchName} showProgress={false}>
         <div className="py-12 text-center">
-          <h2 className="font-playfair text-2xl font-semibold text-[#1a3d2b]">
+          <h2 className="font-serif-display text-2xl font-semibold text-[#001539]">
             Individual Registration Submitted
           </h2>
-          <p className="mt-2 text-base text-[#5a6e62]">
+          <p className="mt-2 text-base text-black/55">
             Registration data has been logged. Check the browser console for the
             JSON payload.
           </p>
@@ -103,7 +103,7 @@ export function ManualIdentityForm() {
             type="button"
             onClick={handleSubmit}
             disabled={isSubmitting}
-            className="min-h-[48px] flex-1 rounded-xl bg-[#c4a040] px-6 py-3 text-base font-semibold text-[#1a3d2b] transition hover:bg-[#b89030] disabled:opacity-60"
+            className="form-btn-primary flex-1"
           >
             {isSubmitting ? "Submitting..." : "Submit Registration"}
           </button>

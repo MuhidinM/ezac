@@ -52,9 +52,6 @@ export function validateStep7(state: QuestionnaireState): StepErrors {
   const errors: StepErrors = {};
   const { officerAssessment: oa } = state;
 
-  if (!oa.recommendedRiskCategory)
-    errors.recommendedRiskCategory = "Please select a risk category";
-  if (!oa.recommendation) errors.recommendation = "Please select a recommendation";
   if (!oa.reasonForDecision.trim())
     errors.reasonForDecision = "Reason for decision is required";
   if (!oa.officerName.trim()) errors.officerName = "Officer name is required";

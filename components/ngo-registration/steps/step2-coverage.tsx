@@ -11,9 +11,9 @@ import type { CoverageArea, NgoStepProps } from "../types";
 import { DynamicList } from "../ui/dynamic-list";
 
 const inputClass =
-  "min-h-[48px] w-full rounded-xl border border-[#1a3d2b]/20 bg-white px-4 py-3 text-base text-[#1a3d2b] outline-none transition focus:border-[#1a3d2b] focus:ring-2 focus:ring-[#1a3d2b]/20";
+  "form-input";
 
-const cellInput = "min-h-[40px] w-full rounded-lg border border-[#1a3d2b]/20 px-2 text-base";
+const cellInput = "min-h-[40px] w-full rounded-lg border border-black/20 px-2 text-base";
 
 export function Step2Coverage({ state, setState, errors }: NgoStepProps) {
   const s = state.step2;
@@ -51,7 +51,7 @@ export function Step2Coverage({ state, setState, errors }: NgoStepProps) {
     >
       <div className="space-y-8">
         <section>
-          <h3 className="mb-4 text-lg font-semibold text-[#1a3d2b]">Coverage Area</h3>
+          <h3 className="mb-4 text-lg font-semibold text-[#001539]">Coverage Area</h3>
           <div className="mb-4 grid gap-4 sm:grid-cols-3">
             <FormField label="Number of Regions covered" htmlFor="regionsCount">
               <input id="regionsCount" type="number" min={0} value={s.regionsCount} onChange={(e) => updateStep2("regionsCount", e.target.value)} className={inputClass} />
@@ -122,7 +122,7 @@ export function Step2Coverage({ state, setState, errors }: NgoStepProps) {
         </section>
 
         <section>
-          <h3 className="mb-4 text-lg font-semibold text-[#1a3d2b]">Beneficiary Statistics (last 12 months)</h3>
+          <h3 className="mb-4 text-lg font-semibold text-[#001539]">Beneficiary Statistics (last 12 months)</h3>
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Total registered beneficiaries" htmlFor="totalRegistered" required error={errors.totalRegistered}>
               <input id="totalRegistered" type="number" min={0} value={s.beneficiaryStats.totalRegistered} onChange={(e) => updateStat("totalRegistered", e.target.value)} className={inputClass} />
@@ -136,7 +136,7 @@ export function Step2Coverage({ state, setState, errors }: NgoStepProps) {
               </FormField>
             ))}
           </div>
-          <div className="mt-4 rounded-xl border border-[#1a3d2b]/15 bg-[#1a3d2b]/5 px-4 py-4 text-[#1a3d2b]">
+          <div className="mt-4 rounded-xl border border-black/10 bg-[#007050]/5 px-4 py-4 text-[#001539]">
             <p className="text-base">
               Your organization serves <strong>{active}</strong> active beneficiaries across{" "}
               <strong>{woredas}</strong> woredas in <strong>{regions}</strong> regions.

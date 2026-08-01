@@ -42,7 +42,7 @@ export function getDecisionLabel(decision: EligibilityDecision): string {
 
 export function getGapColor(gapPercent: number): string {
   if (gapPercent > 50) return "text-[#c0392b] bg-[#c0392b]/10";
-  if (gapPercent >= 25) return "text-[#c4a040] bg-[#c4a040]/15";
+  if (gapPercent >= 25) return "text-[#e18f35] bg-[#e18f35]/15";
   return "text-[#27ae60] bg-[#27ae60]/10";
 }
 

@@ -1,7 +1,9 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
+
+import { scrollDashboardToTop } from "@/lib/scroll-to-top";
 
 import { ProgressBar } from "./progress-bar";
 
@@ -11,7 +13,7 @@ type QuestionnaireShellProps = {
   totalSteps?: number;
   sectionName?: string;
   branchName?: string | null;
-  currentStep?: number;
+  currentStep?: number | string;
   showProgress?: boolean;
   progressLabel?: string;
   onSaveDraft?: () => void;
@@ -40,82 +42,84 @@ export function QuestionnaireShell({
   children,
   footer,
 }: QuestionnaireShellProps) {
+  useEffect(() => {
+    scrollDashboardToTop();
+  }, [currentStep]);
+
   return (
-    <div className="questionnaire-theme min-h-full bg-[#f7f3ec]">
-      <header className="sticky top-0 z-20 border-b border-[#1a3d2b]/10 bg-[#f7f3ec]/95 backdrop-blur-md">
-        <div className="mx-auto max-w-3xl px-4 py-4 sm:px-6">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <Link
-                href="/dashboard/beneficiary"
-                className="text-xs uppercase tracking-[0.12em] text-[#5a6e62] transition hover:text-[#1a3d2b]"
-              >
-                Back to beneficiaries
-              </Link>
-              <p className="mt-1 font-playfair text-lg font-semibold text-[#1a3d2b]">
-                {title}
+    <div className="questionnaire-theme mx-auto w-full max-w-3xl space-y-6">
+      <div>
+        <Link
+          href="/dashboard/beneficiary"
+          className="text-xs uppercase tracking-[0.12em] text-black/45 transition hover:text-[#001539]"
+        >
+          Back to beneficiaries
+        </Link>
+        <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="font-serif-display text-3xl tracking-tight text-[#001539]">
+              {title}
+            </h1>
+            {formId ? (
+              <p className="mt-1 text-sm text-black/60">{formId}</p>
+            ) : null}
+            {branchName ? (
+              <p className="mt-3 inline-flex items-center rounded-full border border-[rgba(0,112,80,0.2)] bg-[rgba(0,112,80,0.08)] px-3 py-1 text-xs font-medium text-[#007050]">
+                Branch: {branchName}
               </p>
-              {formId ? (
-                <p className="text-xs text-[#5a6e62]">{formId}</p>
-              ) : null}
-            </div>
-            {onSaveDraft ? (
-              <button
-                type="button"
-                onClick={onSaveDraft}
-                className="shrink-0 rounded-lg border border-[#1a3d2b]/30 px-3 py-2 text-sm font-medium text-[#1a3d2b] transition hover:bg-[#1a3d2b]/5"
-              >
-                {draftSaved ? "Draft Saved" : "Save Draft"}
-              </button>
             ) : null}
           </div>
-          {branchName ? (
-            <p className="mt-2 inline-flex items-center rounded-full border border-[#1a3d2b]/20 bg-[#1a3d2b]/8 px-3 py-1 text-xs font-medium text-[#1a3d2b]">
-              Branch: {branchName}
-            </p>
-          ) : null}
-          {showResumeBanner && onResumeDraft && onDiscardDraft ? (
-            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-[#c4a040]/40 bg-[#c4a040]/10 px-4 py-3">
-              <p className="text-sm text-[#1a3d2b]">
-                You have a saved draft. Would you like to resume?
-              </p>
-              <button
-                type="button"
-                onClick={onResumeDraft}
-                className="rounded-lg bg-[#1a3d2b] px-3 py-1.5 text-sm font-medium text-white"
-              >
-                Resume Draft
-              </button>
-              <button
-                type="button"
-                onClick={onDiscardDraft}
-                className="rounded-lg border border-[#1a3d2b]/30 px-3 py-1.5 text-sm text-[#1a3d2b]"
-              >
-                Start Fresh
-              </button>
-            </div>
-          ) : null}
-          {showProgress ? (
-            <div className="mt-4">
-              <ProgressBar
-                currentStep={currentStep}
-                totalSteps={totalSteps}
-                sectionName={sectionName}
-                label={progressLabel}
-              />
-            </div>
+          {onSaveDraft ? (
+            <button
+              type="button"
+              onClick={onSaveDraft}
+              className="shrink-0 rounded-lg border border-black/15 px-3 py-2 text-sm font-medium text-[#001539] transition hover:bg-black/[0.03]"
+            >
+              {draftSaved ? "Draft Saved" : "Save Draft"}
+            </button>
           ) : null}
         </div>
-      </header>
 
-      <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
-        <div className="animate-step-enter">{children}</div>
-      </main>
+        {showResumeBanner && onResumeDraft && onDiscardDraft ? (
+          <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-[rgba(225,143,53,0.35)] bg-[rgba(225,143,53,0.1)] px-4 py-3">
+            <p className="text-sm text-[#001539]">
+              You have a saved draft. Would you like to resume?
+            </p>
+            <button
+              type="button"
+              onClick={onResumeDraft}
+              className="rounded-lg bg-[#007050] px-3 py-1.5 text-sm font-medium text-white"
+            >
+              Resume Draft
+            </button>
+            <button
+              type="button"
+              onClick={onDiscardDraft}
+              className="rounded-lg border border-black/15 px-3 py-1.5 text-sm text-[#001539]"
+            >
+              Start Fresh
+            </button>
+          </div>
+        ) : null}
+
+        {showProgress ? (
+          <div className="mt-4">
+            <ProgressBar
+              currentStep={typeof currentStep === "number" ? currentStep : totalSteps}
+              totalSteps={totalSteps}
+              sectionName={sectionName}
+              label={progressLabel}
+            />
+          </div>
+        ) : null}
+      </div>
+
+      <div className="form-card animate-step-enter sm:p-6">{children}</div>
 
       {footer ? (
-        <footer className="sticky bottom-0 z-20 border-t border-[#1a3d2b]/10 bg-[#f7f3ec]/95 backdrop-blur-md">
-          <div className="mx-auto max-w-3xl px-4 py-4 sm:px-6">{footer}</div>
-        </footer>
+        <div className="sticky bottom-0 z-10 -mx-1 rounded-2xl border border-black/5 bg-white/95 px-1 py-3 backdrop-blur-sm">
+          {footer}
+        </div>
       ) : null}
     </div>
   );

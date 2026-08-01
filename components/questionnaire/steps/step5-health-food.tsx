@@ -48,7 +48,7 @@ export function Step5HealthFood({ state, setState }: StepProps) {
     >
       <div className="space-y-8">
         <section>
-          <h3 className="mb-4 text-lg font-semibold text-[#1a3d2b]">Food Security</h3>
+          <h3 className="mb-4 text-lg font-semibold text-[#001539]">Food Security</h3>
           <div className="space-y-4">
             <RadioGroup
               name="mealsPerDay"
@@ -86,7 +86,7 @@ export function Step5HealthFood({ state, setState }: StepProps) {
         </section>
 
         <section>
-          <h3 className="mb-4 text-lg font-semibold text-[#1a3d2b]">Health</h3>
+          <h3 className="mb-4 text-lg font-semibold text-[#001539]">Health</h3>
           <div className="space-y-4">
             <RadioGroup
               name="chronicIllnessInHousehold"
@@ -120,7 +120,7 @@ export function Step5HealthFood({ state, setState }: StepProps) {
         </section>
 
         <section>
-          <h3 className="mb-4 text-lg font-semibold text-[#1a3d2b]">Education</h3>
+          <h3 className="mb-4 text-lg font-semibold text-[#001539]">Education</h3>
           <RadioGroup
             name="childrenAttendingSchool"
             label="Children attending school"

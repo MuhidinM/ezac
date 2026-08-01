@@ -28,20 +28,20 @@ function AccordionSection({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div className="rounded-xl border border-[#1a3d2b]/10 bg-white">
+    <div className="rounded-xl border border-black/10 bg-white">
       <button
         type="button"
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         className="flex w-full items-center justify-between px-4 py-3 text-left"
       >
-        <span className="font-medium text-[#1a3d2b]">{title}</span>
+        <span className="font-medium text-[#001539]">{title}</span>
         <ChevronDown
-          className={`h-5 w-5 text-[#5a6e62] transition ${open ? "rotate-180" : ""}`}
+          className={`h-5 w-5 text-black/55 transition ${open ? "rotate-180" : ""}`}
         />
       </button>
       {open ? (
-        <div className="border-t border-[#1a3d2b]/10 px-4 py-3 text-sm text-[#5a6e62]">
+        <div className="border-t border-black/10 px-4 py-3 text-sm text-black/55">
           {children}
         </div>
       ) : null}
@@ -53,7 +53,7 @@ function Row({ label, value }: { label: string; value: string }) {
   if (!value) return null;
   return (
     <p>
-      <span className="font-medium text-[#1a3d2b]">{label}:</span> {value}
+      <span className="font-medium text-[#001539]">{label}:</span> {value}
     </p>
   );
 }
@@ -75,10 +75,10 @@ export function StepReview({ state, onSubmit, isSubmitting }: StepReviewProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="font-playfair text-2xl font-semibold text-[#1a3d2b] sm:text-3xl">
+        <h2 className="font-serif-display text-2xl font-semibold text-[#001539] sm:text-3xl">
           Review your answers
         </h2>
-        <p className="mt-1 text-base text-[#5a6e62]">
+        <p className="mt-1 text-base text-black/55">
           Please review all sections before submitting the assessment.
         </p>
       </div>
@@ -110,7 +110,7 @@ export function StepReview({ state, onSubmit, isSubmitting }: StepReviewProps) {
         </AccordionSection>
 
         <AccordionSection title="2. Household Composition">
-          <p className="font-medium text-[#1a3d2b]">
+          <p className="font-medium text-[#001539]">
             {state.household.members.length} member(s)
           </p>
           {state.household.members.map((m, i) => (
@@ -200,7 +200,7 @@ export function StepReview({ state, onSubmit, isSubmitting }: StepReviewProps) {
         type="button"
         onClick={onSubmit}
         disabled={isSubmitting}
-        className="min-h-[52px] w-full rounded-xl bg-[#c4a040] px-6 py-3 text-lg font-semibold text-[#1a3d2b] transition hover:bg-[#b89030] disabled:opacity-60"
+        className="min-h-[52px] w-full rounded-xl bg-[#e18f35] px-6 py-3 text-lg font-semibold text-[#001539] transition hover:bg-[#b89030] disabled:opacity-60"
       >
         {isSubmitting ? "Submitting..." : "Submit Assessment"}
       </button>

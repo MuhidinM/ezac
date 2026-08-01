@@ -9,14 +9,68 @@ import { CheckboxGroup } from "../ui/checkbox-group";
 import { FormField } from "../ui/form-field";
 import { RadioGroup } from "../ui/radio-group";
 import { TextArea } from "../ui/text-area";
-
-const inputClass =
-  "min-h-[48px] w-full rounded-xl border border-[#1a3d2b]/20 bg-white px-4 py-3 text-base text-[#1a3d2b] outline-none transition focus:border-[#1a3d2b] focus:ring-2 focus:ring-[#1a3d2b]/20";
+import { FORM_INPUT_CLASS } from "../form-styles";
 
 const yesNoOptions = [
   { value: "yes", label: "Yes" },
   { value: "no", label: "No" },
 ];
+
+function formatRisk(value: string): string {
+  switch (value) {
+    case "high":
+      return "High Risk";
+    case "medium":
+      return "Medium Risk";
+    case "low":
+      return "Low Risk";
+    default:
+      return "Not assessed";
+  }
+}
+
+function formatRecommendation(value: string): string {
+  switch (value) {
+    case "approve":
+      return "Approve";
+    case "conditional":
+      return "Conditional Approval";
+    case "defer":
+      return "Defer";
+    case "reject":
+      return "Reject";
+    default:
+      return "Not assessed";
+  }
+}
+
+function riskBadgeClass(value: string): string {
+  switch (value) {
+    case "high":
+      return "border-[#c0392b] bg-[#c0392b]/10 text-[#001539]";
+    case "medium":
+      return "border-[#e18f35] bg-[#e18f35]/15 text-[#001539]";
+    case "low":
+      return "border-[#007050] bg-[rgba(0,112,80,0.1)] text-[#001539]";
+    default:
+      return "border-black/10 bg-black/[0.02] text-[#001539]";
+  }
+}
+
+function recommendationBadgeClass(value: string): string {
+  switch (value) {
+    case "approve":
+      return "border-[#27ae60] bg-[#27ae60]/12 text-[#001539]";
+    case "conditional":
+      return "border-[#e18f35] bg-[#e18f35]/15 text-[#001539]";
+    case "defer":
+      return "border-blue-500 bg-blue-500/10 text-[#001539]";
+    case "reject":
+      return "border-[#c0392b] bg-[#c0392b]/10 text-[#001539]";
+    default:
+      return "border-black/10 bg-black/[0.02] text-[#001539]";
+  }
+}
 
 export function Step7Assessment({ state, setState, errors }: StepProps) {
   const oa = state.officerAssessment;
@@ -47,13 +101,13 @@ export function Step7Assessment({ state, setState, errors }: StepProps) {
       description="Complete field observations and assessment recommendation."
       icon={ClipboardCheck}
     >
-      <p className="mb-6 rounded-xl border border-[#c4a040]/30 bg-[#c4a040]/10 px-4 py-3 text-sm text-[#1a3d2b]">
+      <p className="mb-6 rounded-xl border border-[rgba(225,143,53,0.35)] bg-[rgba(225,143,53,0.1)] px-4 py-3 text-sm text-[#001539]">
         This section is completed by the Assessment Officer only.
       </p>
 
       <div className="space-y-8">
         <section>
-          <h3 className="mb-4 text-lg font-semibold text-[#1a3d2b]">
+          <h3 className="form-section-title mb-4">
             Section O — Field Observations
           </h3>
           <div className="space-y-4">
@@ -89,7 +143,7 @@ export function Step7Assessment({ state, setState, errors }: StepProps) {
         </section>
 
         <section>
-          <h3 className="mb-4 text-lg font-semibold text-[#1a3d2b]">
+          <h3 className="form-section-title mb-4">
             Section P — Verification Checklist
           </h3>
           <CheckboxGroup
@@ -138,59 +192,42 @@ export function Step7Assessment({ state, setState, errors }: StepProps) {
         </section>
 
         <section>
-          <h3 className="mb-4 text-lg font-semibold text-[#1a3d2b]">
+          <h3 className="form-section-title mb-4">
             Section Q — Assessment Recommendation
           </h3>
-          <RadioGroup
-            name="recommendedRiskCategory"
-            label="Recommended Risk Category *"
-            value={oa.recommendedRiskCategory}
-            onChange={(v) => update("recommendedRiskCategory", v)}
-            error={errors.recommendedRiskCategory}
-            variant="button"
-            buttonColors={{
-              high: "border-red-600 bg-red-600 text-white",
-              medium: "border-yellow-500 bg-yellow-500 text-[#1a3d2b]",
-              low: "border-green-600 bg-green-600 text-white",
-            }}
-            options={[
-              { value: "high", label: "High Risk" },
-              { value: "medium", label: "Medium Risk" },
-              { value: "low", label: "Low Risk" },
-            ]}
-          />
+          <p className="mb-4 text-sm text-black/60">
+            The following assessment is automatically generated from all household
+            data entered in Steps 1–6.
+          </p>
 
-          <FormField
-            label="Composite Poverty Score (/ 270)"
-            htmlFor="compositePovertyScore"
-            className="mt-4"
-          >
-            <input
-              id="compositePovertyScore"
-              type="number"
-              min={0}
-              max={270}
-              value={oa.compositePovertyScore}
-              onChange={(e) => update("compositePovertyScore", e.target.value)}
-              className={inputClass}
-            />
-          </FormField>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div
+              className={`rounded-xl border-2 px-4 py-4 text-center ${riskBadgeClass(oa.recommendedRiskCategory)}`}
+            >
+              <p className="text-xs font-medium uppercase tracking-wide opacity-70">
+                Recommended Risk Category
+              </p>
+              <p className="mt-2 text-xl font-semibold">
+                {formatRisk(oa.recommendedRiskCategory)}
+              </p>
+            </div>
+            <div
+              className={`rounded-xl border-2 px-4 py-4 text-center ${recommendationBadgeClass(oa.recommendation)}`}
+            >
+              <p className="text-xs font-medium uppercase tracking-wide opacity-70">
+                Recommendation
+              </p>
+              <p className="mt-2 text-xl font-semibold">
+                {formatRecommendation(oa.recommendation)}
+              </p>
+            </div>
+          </div>
 
-          <div className="mt-4">
-            <RadioGroup
-              name="recommendation"
-              label="Recommendation *"
-              value={oa.recommendation}
-              onChange={(v) => update("recommendation", v)}
-              error={errors.recommendation}
-              variant="button"
-              options={[
-                { value: "approve", label: "Approve" },
-                { value: "conditional", label: "Conditional Approval" },
-                { value: "defer", label: "Defer" },
-                { value: "reject", label: "Reject" },
-              ]}
-            />
+          <div className="mt-4 rounded-xl border border-black/10 bg-[rgba(0,112,80,0.06)] px-4 py-4">
+            <p className="text-sm text-black/60">Composite Poverty Score</p>
+            <p className="mt-1 text-3xl font-semibold text-[#001539]">
+              {oa.compositePovertyScore || "0"} / 270
+            </p>
           </div>
 
           <FormField
@@ -219,7 +256,7 @@ export function Step7Assessment({ state, setState, errors }: StepProps) {
                 type="text"
                 value={oa.officerName}
                 onChange={(e) => update("officerName", e.target.value)}
-                className={inputClass}
+                className={FORM_INPUT_CLASS}
               />
             </FormField>
             <FormField
@@ -233,7 +270,7 @@ export function Step7Assessment({ state, setState, errors }: StepProps) {
                 type="date"
                 value={oa.officerDate}
                 onChange={(e) => update("officerDate", e.target.value)}
-                className={inputClass}
+                className={FORM_INPUT_CLASS}
               />
             </FormField>
             <FormField label="Supervisor Name" htmlFor="supervisorName">
@@ -242,7 +279,7 @@ export function Step7Assessment({ state, setState, errors }: StepProps) {
                 type="text"
                 value={oa.supervisorName}
                 onChange={(e) => update("supervisorName", e.target.value)}
-                className={inputClass}
+                className={FORM_INPUT_CLASS}
               />
             </FormField>
             <FormField label="Supervisor Date" htmlFor="supervisorDate">
@@ -251,7 +288,7 @@ export function Step7Assessment({ state, setState, errors }: StepProps) {
                 type="date"
                 value={oa.supervisorDate}
                 onChange={(e) => update("supervisorDate", e.target.value)}
-                className={inputClass}
+                className={FORM_INPUT_CLASS}
               />
             </FormField>
           </div>

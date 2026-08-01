@@ -144,11 +144,103 @@
 }
 
 .questionnaire-theme {
-  --ezac-green: #1a3d2b;
-  --ezac-gold: #c4a040;
-  --ezac-parchment: #f7f3ec;
-  --ezac-muted: #5a6e62;
-  --ezac-error: #c0392b;
+  --form-primary: #007050;
+  --form-heading: #001539;
+  --form-accent: #e18f35;
+  --form-muted: oklch(0.556 0 0);
+  --form-error: #c0392b;
+  --form-success: #27ae60;
+  --form-border: rgba(0, 0, 0, 0.08);
+  --form-card: #ffffff;
+}
+
+.form-label {
+  color: var(--form-heading);
+}
+
+.form-section-title {
+  color: var(--form-heading);
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.form-input {
+  min-height: 48px;
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: #ffffff;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  color: var(--form-heading);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.form-input:focus {
+  border-color: var(--form-primary);
+  box-shadow: 0 0 0 3px rgba(0, 112, 80, 0.15);
+}
+
+.form-card {
+  border-radius: 1rem;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  background: #ffffff;
+  padding: 1.25rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.form-card-muted {
+  border-radius: 0.75rem;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.form-error {
+  color: var(--form-error);
+  font-size: 0.875rem;
+}
+
+.form-btn-primary {
+  min-height: 48px;
+  border-radius: 0.75rem;
+  background: var(--form-primary);
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #ffffff;
+  transition: background 0.15s;
+}
+
+.form-btn-primary:hover {
+  background: #005a40;
+}
+
+.form-btn-primary:disabled {
+  opacity: 0.6;
+}
+
+.form-btn-outline {
+  min-height: 48px;
+  border-radius: 0.75rem;
+  border: 2px solid var(--form-primary);
+  background: transparent;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--form-primary);
+  transition: background 0.15s;
+}
+
+.form-btn-outline:hover {
+  background: rgba(0, 112, 80, 0.05);
+}
+
+.reviewer-section {
+  border: 2px dashed rgba(0, 112, 80, 0.35);
+  background: rgba(0, 112, 80, 0.06);
+  border-radius: 16px;
+  padding: 1.25rem;
 }
 
 @keyframes step-fade-slide {
@@ -182,13 +274,6 @@
 
 .animate-checkmark-pop {
   animation: checkmark-pop 0.6s ease-out forwards;
-}
-
-.reviewer-section {
-  border: 2px dashed rgba(26, 61, 43, 0.35);
-  background: rgba(26, 61, 43, 0.06);
-  border-radius: 16px;
-  padding: 1.25rem;
 }
 
 .font-body {

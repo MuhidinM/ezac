@@ -30,7 +30,7 @@ export function RadioGroup({
 }: RadioGroupProps) {
   return (
     <fieldset className="space-y-2">
-      <legend className="text-base font-medium text-[#1a3d2b]">{label}</legend>
+      <legend className="form-label text-base font-medium">{label}</legend>
       <div
         role="radiogroup"
         aria-label={label}
@@ -52,8 +52,8 @@ export function RadioGroup({
                 className={cn(
                   "flex min-h-[48px] cursor-pointer items-center justify-center rounded-xl border-2 px-4 py-3 text-base font-medium transition",
                   checked
-                    ? buttonColor ?? "border-[#1a3d2b] bg-[#1a3d2b] text-white"
-                    : "border-[#1a3d2b]/20 bg-white text-[#1a3d2b] hover:border-[#1a3d2b]/40",
+                    ? buttonColor ?? "border-[#007050] bg-[#007050] text-white"
+                    : "border-black/10 bg-white text-[#001539] hover:border-black/25",
                 )}
               >
                 <input
@@ -77,8 +77,8 @@ export function RadioGroup({
               className={cn(
                 "flex min-h-[48px] cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-base transition",
                 checked
-                  ? "border-[#1a3d2b] bg-[#1a3d2b]/5"
-                  : "border-[#1a3d2b]/15 bg-white hover:border-[#1a3d2b]/30",
+                  ? "border-[#007050] bg-[rgba(0,112,80,0.06)]"
+                  : "border-black/10 bg-white hover:border-black/20",
               )}
             >
               <input
@@ -88,15 +88,15 @@ export function RadioGroup({
                 value={option.value}
                 checked={checked}
                 onChange={() => onChange(option.value)}
-                className="h-5 w-5 shrink-0 accent-[#1a3d2b]"
+                className="h-5 w-5 shrink-0 accent-[#007050]"
               />
-              <span className="text-[#1a3d2b]">{option.label}</span>
+              <span className="text-[#001539]">{option.label}</span>
             </label>
           );
         })}
       </div>
       {error ? (
-        <p className="text-sm text-[#c0392b]" role="alert">
+        <p className="form-error" role="alert">
           {error}
         </p>
       ) : null}

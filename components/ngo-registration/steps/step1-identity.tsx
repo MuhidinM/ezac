@@ -12,7 +12,7 @@ import { DOCUMENT_LABELS, DOCUMENTS_TO_ATTACH } from "../initial-state";
 import type { NgoStepProps } from "../types";
 
 const inputClass =
-  "min-h-[48px] w-full rounded-xl border border-[#1a3d2b]/20 bg-white px-4 py-3 text-base text-[#1a3d2b] outline-none transition focus:border-[#1a3d2b] focus:ring-2 focus:ring-[#1a3d2b]/20";
+  "form-input";
 
 export function Step1Identity({ state, setState, errors }: NgoStepProps) {
   const s = state.step1;
@@ -32,7 +32,7 @@ export function Step1Identity({ state, setState, errors }: NgoStepProps) {
     >
       <div className="space-y-8">
         <section>
-          <h3 className="mb-4 text-lg font-semibold text-[#1a3d2b]">Organization Details</h3>
+          <h3 className="mb-4 text-lg font-semibold text-[#001539]">Organization Details</h3>
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Organization Full Name" htmlFor="orgName" required error={errors.orgName} className="sm:col-span-2">
               <input id="orgName" type="text" value={s.orgName} onChange={(e) => update("orgName", e.target.value)} className={inputClass} />
@@ -87,7 +87,7 @@ export function Step1Identity({ state, setState, errors }: NgoStepProps) {
         </section>
 
         <section>
-          <h3 className="mb-4 text-lg font-semibold text-[#1a3d2b]">Primary Contact Person</h3>
+          <h3 className="mb-4 text-lg font-semibold text-[#001539]">Primary Contact Person</h3>
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Full Name" htmlFor="contactName" required error={errors.contactName}>
               <input id="contactName" type="text" value={s.contactName} onChange={(e) => update("contactName", e.target.value)} className={inputClass} />
@@ -108,7 +108,7 @@ export function Step1Identity({ state, setState, errors }: NgoStepProps) {
         </section>
 
         <section>
-          <h3 className="mb-4 text-lg font-semibold text-[#1a3d2b]">Organization Head Office</h3>
+          <h3 className="mb-4 text-lg font-semibold text-[#001539]">Organization Head Office</h3>
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Region" htmlFor="region" required error={errors.region}>
               <input id="region" type="text" value={s.region} onChange={(e) => update("region", e.target.value)} className={inputClass} />

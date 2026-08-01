@@ -10,7 +10,7 @@ import { FormField } from "../ui/form-field";
 import { RadioGroup } from "../ui/radio-group";
 
 const inputClass =
-  "min-h-[48px] w-full rounded-xl border border-[#1a3d2b]/20 bg-white px-4 py-3 text-base text-[#1a3d2b] outline-none transition focus:border-[#1a3d2b] focus:ring-2 focus:ring-[#1a3d2b]/20";
+  "form-input";
 
 function MemberCard({
   member,
@@ -30,24 +30,24 @@ function MemberCard({
   const [expanded, setExpanded] = useState(index === 0);
 
   return (
-    <div className="rounded-xl border border-[#1a3d2b]/15 bg-[#f7f3ec]/50">
+    <div className="rounded-xl border border-black/10 bg-black/[0.02]">
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
         className="flex w-full items-center justify-between px-4 py-3 text-left md:hidden"
       >
-        <span className="font-medium text-[#1a3d2b]">
+        <span className="font-medium text-[#001539]">
           Member {index + 1}
           {member.name ? `: ${member.name}` : ""}
         </span>
         <ChevronDown
-          className={`h-5 w-5 text-[#5a6e62] transition ${expanded ? "rotate-180" : ""}`}
+          className={`h-5 w-5 text-black/55 transition ${expanded ? "rotate-180" : ""}`}
         />
       </button>
       <div className={`space-y-3 p-4 ${expanded ? "block" : "hidden md:block"}`}>
         <div className="hidden items-center justify-between md:flex">
-          <span className="font-medium text-[#1a3d2b]">Member {index + 1}</span>
+          <span className="font-medium text-[#001539]">Member {index + 1}</span>
           {canRemove ? (
             <button
               type="button"
@@ -80,8 +80,8 @@ function MemberCard({
                   key={s}
                   className={`flex min-h-[48px] flex-1 cursor-pointer items-center justify-center rounded-xl border text-base capitalize ${
                     member.sex === s
-                      ? "border-[#1a3d2b] bg-[#1a3d2b]/5"
-                      : "border-[#1a3d2b]/15"
+                      ? "border-black/10 bg-[#007050]/5"
+                      : "border-black/10"
                   }`}
                 >
                   <input
@@ -204,7 +204,7 @@ export function Step2Household({ state, setState, errors }: StepProps) {
         <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-[#1a3d2b]/10 text-[#5a6e62]">
+              <tr className="border-b border-black/10 text-black/55">
                 <th className="pb-2 pr-2">Name</th>
                 <th className="pb-2 pr-2">Sex</th>
                 <th className="pb-2 pr-2">Age</th>
@@ -216,13 +216,13 @@ export function Step2Household({ state, setState, errors }: StepProps) {
             </thead>
             <tbody>
               {household.members.map((member, index) => (
-                <tr key={member.id} className="border-b border-[#1a3d2b]/5">
+                <tr key={member.id} className="border-b border-black/5">
                   <td className="py-2 pr-2">
                     <input
                       type="text"
                       value={member.name}
                       onChange={(e) => updateMember(index, "name", e.target.value)}
-                      className="min-h-[40px] w-full rounded-lg border border-[#1a3d2b]/20 px-2 text-base"
+                      className="min-h-[40px] w-full rounded-lg border border-black/20 px-2 text-base"
                     />
                   </td>
                   <td className="py-2 pr-2">
@@ -231,7 +231,7 @@ export function Step2Household({ state, setState, errors }: StepProps) {
                       onChange={(e) =>
                         updateMember(index, "sex", e.target.value as "male" | "female" | "")
                       }
-                      className="min-h-[40px] w-full rounded-lg border border-[#1a3d2b]/20 px-2 text-base"
+                      className="min-h-[40px] w-full rounded-lg border border-black/20 px-2 text-base"
                     >
                       <option value="">—</option>
                       <option value="male">M</option>
@@ -243,7 +243,7 @@ export function Step2Household({ state, setState, errors }: StepProps) {
                       type="number"
                       value={member.age}
                       onChange={(e) => updateMember(index, "age", e.target.value)}
-                      className="min-h-[40px] w-20 rounded-lg border border-[#1a3d2b]/20 px-2 text-base"
+                      className="min-h-[40px] w-20 rounded-lg border border-black/20 px-2 text-base"
                     />
                   </td>
                   <td className="py-2 pr-2">
@@ -251,7 +251,7 @@ export function Step2Household({ state, setState, errors }: StepProps) {
                       type="text"
                       value={member.relationship}
                       onChange={(e) => updateMember(index, "relationship", e.target.value)}
-                      className="min-h-[40px] w-full rounded-lg border border-[#1a3d2b]/20 px-2 text-base"
+                      className="min-h-[40px] w-full rounded-lg border border-black/20 px-2 text-base"
                     />
                   </td>
                   <td className="py-2 pr-2">
@@ -259,7 +259,7 @@ export function Step2Household({ state, setState, errors }: StepProps) {
                       type="text"
                       value={member.occupation}
                       onChange={(e) => updateMember(index, "occupation", e.target.value)}
-                      className="min-h-[40px] w-full rounded-lg border border-[#1a3d2b]/20 px-2 text-base"
+                      className="min-h-[40px] w-full rounded-lg border border-black/20 px-2 text-base"
                     />
                   </td>
                   <td className="py-2 pr-2">
@@ -267,7 +267,7 @@ export function Step2Household({ state, setState, errors }: StepProps) {
                       type="text"
                       value={member.monthlyIncome}
                       onChange={(e) => updateMember(index, "monthlyIncome", e.target.value)}
-                      className="min-h-[40px] w-24 rounded-lg border border-[#1a3d2b]/20 px-2 text-base"
+                      className="min-h-[40px] w-24 rounded-lg border border-black/20 px-2 text-base"
                     />
                   </td>
                   <td className="py-2">
@@ -305,21 +305,21 @@ export function Step2Household({ state, setState, errors }: StepProps) {
           <button
             type="button"
             onClick={addMember}
-            className="flex min-h-[48px] items-center gap-2 rounded-xl border-2 border-dashed border-[#1a3d2b]/30 px-4 py-2 text-base font-medium text-[#1a3d2b] transition hover:border-[#1a3d2b]/50 hover:bg-[#1a3d2b]/5"
+            className="flex min-h-[48px] items-center gap-2 rounded-xl border-2 border-dashed border-black/30 px-4 py-2 text-base font-medium text-[#001539] transition hover:border-black/50 hover:bg-[#007050]/5"
           >
             <Plus className="h-5 w-5" /> Add Member
           </button>
         ) : null}
 
-        <section className="space-y-4 border-t border-[#1a3d2b]/10 pt-6">
-          <h3 className="text-lg font-semibold text-[#1a3d2b]">Household Summary</h3>
+        <section className="space-y-4 border-t border-black/10 pt-6">
+          <h3 className="text-lg font-semibold text-[#001539]">Household Summary</h3>
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Total Household Members">
               <input
                 type="number"
                 value={totalMembers}
                 readOnly
-                className={`${inputClass} bg-[#1a3d2b]/5`}
+                className={`${inputClass} bg-[#007050]/5`}
               />
             </FormField>
             <FormField label="Children under 18" htmlFor="childrenUnder18">

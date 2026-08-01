@@ -67,7 +67,7 @@ export function Step3Finance({ state, setState }: StepProps) {
     >
       <div className="space-y-8">
         <section>
-          <h3 className="mb-4 text-lg font-semibold text-[#1a3d2b]">
+          <h3 className="mb-4 text-lg font-semibold text-[#001539]">
             Section E — Monthly Household Income
           </h3>
           <div className="space-y-3">
@@ -81,7 +81,7 @@ export function Step3Finance({ state, setState }: StepProps) {
               </FormField>
             ))}
           </div>
-          <div className="mt-4 rounded-xl bg-[#1a3d2b] px-4 py-4 text-white">
+          <div className="mt-4 rounded-xl bg-[#007050] px-4 py-4 text-white">
             <p className="text-sm opacity-80">Total Monthly Income</p>
             <p className="text-2xl font-semibold">
               ETB {formatDisplayCurrency(totalIncome)}
@@ -90,7 +90,7 @@ export function Step3Finance({ state, setState }: StepProps) {
         </section>
 
         <section>
-          <h3 className="mb-4 text-lg font-semibold text-[#1a3d2b]">
+          <h3 className="mb-4 text-lg font-semibold text-[#001539]">
             Section F — Monthly Household Expenditure
           </h3>
           <div className="space-y-3">
@@ -108,7 +108,7 @@ export function Step3Finance({ state, setState }: StepProps) {
               </FormField>
             ))}
           </div>
-          <div className="mt-4 rounded-xl bg-[#1a3d2b] px-4 py-4 text-white">
+          <div className="mt-4 rounded-xl bg-[#007050] px-4 py-4 text-white">
             <p className="text-sm opacity-80">Total Monthly Expenditure</p>
             <p className="text-2xl font-semibold">
               ETB {formatDisplayCurrency(totalExpenditure)}
@@ -118,13 +118,13 @@ export function Step3Finance({ state, setState }: StepProps) {
 
         <div
           className={`rounded-xl px-4 py-4 ${
-            surplus < 0 ? "bg-[#c0392b]/10" : "bg-[#1a3d2b]/10"
+            surplus < 0 ? "bg-[#c0392b]/10" : "bg-[#007050]/10"
           }`}
         >
-          <p className="text-sm text-[#5a6e62]">Monthly Surplus / Deficit</p>
+          <p className="text-sm text-black/55">Monthly Surplus / Deficit</p>
           <p
             className={`text-2xl font-semibold ${
-              surplus < 0 ? "text-[#c0392b]" : "text-[#1a3d2b]"
+              surplus < 0 ? "text-[#c0392b]" : "text-[#001539]"
             }`}
           >
             ETB {formatDisplayCurrency(surplus)}
@@ -151,7 +151,7 @@ export function Step3Finance({ state, setState }: StepProps) {
                     finance: { ...prev.finance, assetsOther: e.target.value },
                   }))
                 }
-                className="min-h-[48px] w-full rounded-xl border border-[#1a3d2b]/20 bg-white px-4 py-3 text-base text-[#1a3d2b]"
+                className="form-input w-full"
               />
             </FormField>
           ) : null}

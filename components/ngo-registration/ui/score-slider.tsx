@@ -16,16 +16,16 @@ export function ScoreSlider({ label, guide, max, value, onChange }: ScoreSliderP
     <div className="space-y-2">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-base font-medium text-[#1a3d2b]">{label}</p>
-          <p className="text-sm text-[#5a6e62]">{guide}</p>
+          <p className="text-base font-medium text-[#001539]">{label}</p>
+          <p className="text-sm text-black/55">{guide}</p>
         </div>
-        <span className="shrink-0 text-lg font-semibold text-[#1a3d2b]">
+        <span className="shrink-0 text-lg font-semibold text-[#001539]">
           {numValue}/{max}
         </span>
       </div>
       <div className="relative">
         <div
-          className="absolute inset-y-0 left-0 rounded-full bg-[#c4a040]/30"
+          className="absolute inset-y-0 left-0 rounded-full bg-[#e18f35]/30"
           style={{ width: `${fillPercent}%` }}
         />
         <input
@@ -35,7 +35,7 @@ export function ScoreSlider({ label, guide, max, value, onChange }: ScoreSliderP
           value={numValue}
           onChange={(e) => onChange(e.target.value)}
           aria-label={label}
-          className="relative z-10 h-3 w-full cursor-pointer appearance-none bg-[#1a3d2b]/15 accent-[#c4a040]"
+          className="relative z-10 h-3 w-full cursor-pointer appearance-none bg-[rgba(0,112,80,0.15)] accent-[#007050]"
         />
       </div>
       <input
@@ -45,7 +45,7 @@ export function ScoreSlider({ label, guide, max, value, onChange }: ScoreSliderP
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-label={`${label} score input`}
-        className="min-h-[48px] w-24 rounded-xl border border-[#1a3d2b]/20 bg-white px-3 py-2 text-base text-[#1a3d2b]"
+        className="form-input w-24"
       />
     </div>
   );

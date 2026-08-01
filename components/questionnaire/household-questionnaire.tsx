@@ -17,6 +17,7 @@ import { Step7Assessment } from "./steps/step7-assessment";
 import { StepReview } from "./steps/step-review";
 import { StepSuccess } from "./steps/step-success";
 import type { QuestionnaireState, QuestionnaireStep, StepErrors } from "./types";
+import { applyHouseholdAssessment } from "./poverty-assessment";
 import { validateStep } from "./validation";
 import { getSelectedBranch } from "@/lib/registration/session";
 
@@ -54,7 +55,11 @@ export function HouseholdQuestionnaire() {
   function handleResumeDraft() {
     const draft = loadDraft();
     if (draft) {
-      setState(draft.state);
+      const restored =
+        draft.currentStep === 7
+          ? applyHouseholdAssessment(draft.state)
+          : draft.state;
+      setState(restored);
       setCurrentStep(draft.currentStep);
     }
     setShowResumeBanner(false);
@@ -74,7 +79,11 @@ export function HouseholdQuestionnaire() {
       }
       setErrors({});
       if (currentStep < 7) {
-        setCurrentStep((currentStep + 1) as QuestionnaireStep);
+        const nextStep = (currentStep + 1) as QuestionnaireStep;
+        if (nextStep === 7) {
+          setState((prev) => applyHouseholdAssessment(prev));
+        }
+        setCurrentStep(nextStep);
       } else {
         setCurrentStep("review");
       }
@@ -85,6 +94,7 @@ export function HouseholdQuestionnaire() {
     setErrors({});
     if (currentStep === "review") {
       setCurrentStep(7);
+      setState((prev) => applyHouseholdAssessment(prev));
     } else if (typeof currentStep === "number" && currentStep > 1) {
       setCurrentStep((currentStep - 1) as QuestionnaireStep);
     }
@@ -191,7 +201,7 @@ export function HouseholdQuestionnaire() {
       formId="EZAC-MTT-QST-001"
       totalSteps={7}
       branchName={branchName}
-      currentStep={numericStep}
+      currentStep={currentStep}
       showProgress={!isSuccess && !isReview}
       progressLabel={isReview ? "Review your answers" : undefined}
       onSaveDraft={isSuccess ? undefined : handleSaveDraft}

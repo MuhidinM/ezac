@@ -26,10 +26,7 @@ export function TextArea({
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       rows={rows}
-      className={cn(
-        "w-full rounded-xl border border-[#1a3d2b]/20 bg-white px-4 py-3 text-base text-[#1a3d2b] outline-none transition focus:border-[#1a3d2b] focus:ring-2 focus:ring-[#1a3d2b]/20",
-        className,
-      )}
+      className={cn("form-input min-h-[120px] resize-y py-3", className)}
     />
   );
 }

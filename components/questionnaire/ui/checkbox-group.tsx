@@ -27,7 +27,7 @@ export function CheckboxGroup({
 }: CheckboxGroupProps) {
   return (
     <fieldset className="space-y-2">
-      <legend className="text-base font-medium text-[#1a3d2b]">{label}</legend>
+      <legend className="form-label text-base font-medium">{label}</legend>
       <div
         role="group"
         aria-label={label}
@@ -47,8 +47,8 @@ export function CheckboxGroup({
               className={cn(
                 "flex min-h-[48px] cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 text-base transition",
                 checked
-                  ? "border-[#1a3d2b] bg-[#1a3d2b]/5"
-                  : "border-[#1a3d2b]/15 bg-white hover:border-[#1a3d2b]/30",
+                  ? "border-[#007050] bg-[rgba(0,112,80,0.06)]"
+                  : "border-black/10 bg-white hover:border-black/20",
               )}
             >
               <input
@@ -56,12 +56,12 @@ export function CheckboxGroup({
                 id={id}
                 checked={checked}
                 onChange={(e) => onChange(option.value, e.target.checked)}
-                className="mt-1 h-5 w-5 shrink-0 accent-[#1a3d2b]"
+                className="mt-1 h-5 w-5 shrink-0 accent-[#007050]"
               />
-              <span className="text-[#1a3d2b]">
+              <span className="text-[#001539]">
                 {option.label}
                 {option.description ? (
-                  <span className="block text-sm text-[#5a6e62]">
+                  <span className="block text-sm text-black/55">
                     {option.description}
                   </span>
                 ) : null}
@@ -71,7 +71,7 @@ export function CheckboxGroup({
         })}
       </div>
       {error ? (
-        <p className="text-sm text-[#c0392b]" role="alert">
+        <p className="form-error" role="alert">
           {error}
         </p>
       ) : null}
