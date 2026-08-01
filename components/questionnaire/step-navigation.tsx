@@ -16,9 +16,9 @@ export function StepNavigation({
   isSubmitting,
 }: StepNavigationProps) {
   return (
-    <div className="flex gap-3">
+    <div className="flex flex-wrap items-center justify-end gap-3">
       {showPrevious && onPrevious ? (
-        <button type="button" onClick={onPrevious} className="form-btn-outline flex-1">
+        <button type="button" onClick={onPrevious} className="form-btn-outline">
           Previous
         </button>
       ) : null}
@@ -27,7 +27,7 @@ export function StepNavigation({
           type="button"
           onClick={onNext}
           disabled={isSubmitting}
-          className="form-btn-primary flex-1"
+          className="form-btn-primary min-w-[8.5rem]"
         >
           {isSubmitting ? "Submitting..." : nextLabel}
         </button>

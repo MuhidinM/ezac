@@ -47,7 +47,7 @@ export function QuestionnaireShell({
   }, [currentStep]);
 
   return (
-    <div className="questionnaire-theme mx-auto w-full max-w-3xl space-y-6">
+    <div className="questionnaire-theme mx-auto w-full max-w-6xl space-y-6">
       <div>
         <Link
           href="/dashboard/beneficiary"
@@ -114,13 +114,12 @@ export function QuestionnaireShell({
         ) : null}
       </div>
 
-      <div className="form-card animate-step-enter sm:p-6">{children}</div>
-
-      {footer ? (
-        <div className="sticky bottom-0 z-10 -mx-1 rounded-2xl border border-black/5 bg-white/95 px-1 py-3 backdrop-blur-sm">
-          {footer}
-        </div>
-      ) : null}
+      <div className="form-card animate-step-enter sm:p-8">
+        {children}
+        {footer ? (
+          <div className="mt-8 border-t border-black/5 pt-6">{footer}</div>
+        ) : null}
+      </div>
     </div>
   );
 }

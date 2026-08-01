@@ -86,13 +86,11 @@ export function RegistrationShell({
         ) : null}
 
         {children}
-      </div>
 
-      {footer ? (
-        <div className="sticky bottom-0 -mx-1 rounded-2xl border border-black/5 bg-white/95 px-1 py-3 backdrop-blur-sm">
-          {footer}
-        </div>
-      ) : null}
+        {footer ? (
+          <div className="mt-8 border-t border-black/5 pt-6">{footer}</div>
+        ) : null}
+      </div>
     </section>
   );
 }
