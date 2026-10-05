@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { CheckCircle2, CopyCheck, Pencil, XCircle } from "lucide-react";
 
+import { BeneficiaryAssessments } from "@/components/assessment/beneficiary-assessments";
 import { DuplicateBadge, LifecycleBadge } from "@/components/backoffice/status-badges";
 import { BasicDetailsDialog } from "@/components/beneficiary/basic-details-dialog";
 import { BeneficiaryEditForm } from "@/components/beneficiary/beneficiary-edit-form";
@@ -233,7 +234,11 @@ export default function BeneficiaryDetailPage() {
             </Panel>
           ) : null}
 
-          {isInstitution ? <KycDocumentsCard beneficiaryId={beneficiary.id} /> : null}
+          {isInstitution ? (
+            <KycDocumentsCard beneficiaryId={beneficiary.id} />
+          ) : (
+            <BeneficiaryAssessments beneficiary={beneficiary} />
+          )}
         </div>
 
         <div className="space-y-6">
