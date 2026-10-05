@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { StepNavigation } from "@/components/questionnaire/step-navigation";
-import { QuestionnaireShell } from "@/components/questionnaire/questionnaire-shell";
+import { StepNavigation } from "@/components/wizard/step-navigation";
+import { QuestionnaireShell } from "@/components/wizard/questionnaire-shell";
 import { getSelectedBranch } from "@/lib/registration/session";
 
 import { clearDraft, hasDraft, loadDraft, saveDraft } from "./draft-storage";

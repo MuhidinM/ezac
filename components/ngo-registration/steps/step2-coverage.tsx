@@ -2,9 +2,9 @@
 
 import { MapPin } from "lucide-react";
 
-import { StepWrapper } from "@/components/questionnaire/step-wrapper";
-import { FormField } from "@/components/questionnaire/ui/form-field";
-import { RadioGroup } from "@/components/questionnaire/ui/radio-group";
+import { StepWrapper } from "@/components/wizard/step-wrapper";
+import { FormField } from "@/components/wizard/ui/form-field";
+import { RadioGroup } from "@/components/wizard/ui/radio-group";
 
 import { createCoverageArea } from "../initial-state";
 import type { CoverageArea, NgoStepProps } from "../types";

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Building2, UserRound, Users } from "lucide-react";
+import { ArrowRight, Building2, UserRound, type LucideIcon } from "lucide-react";
 
 import { RegistrationShell } from "@/components/registration/registration-shell";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,29 @@ import {
   getSelectedBranch,
 } from "@/lib/registration/session";
 import type { RegistrationType } from "@/lib/registration/types";
-import { cn } from "@/lib/utils";
+
+const OPTIONS: {
+  type: RegistrationType;
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  href: string;
+}[] = [
+  {
+    type: "manual",
+    title: "Individual",
+    description: "A person or household head. The household assessment follows once they're registered.",
+    icon: UserRound,
+    href: "/dashboard/register/manual",
+  },
+  {
+    type: "institution",
+    title: "Institution",
+    description: "An NGO or organisation applying for cash aid, with KYC documents.",
+    icon: Building2,
+    href: "/dashboard/register/institution",
+  },
+];
 
 export function WelcomeStep() {
   const router = useRouter();
@@ -23,94 +46,62 @@ export function WelcomeStep() {
       router.replace("/dashboard/register");
       return;
     }
+    // Branch lives in sessionStorage, so it can only be read after mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setBranchName(branch.branchName);
   }, [router]);
 
-  function onContinue(type: RegistrationType) {
+  function onContinue(type: RegistrationType, href: string) {
     try {
       beginRegistration(type);
     } catch {
       router.replace("/dashboard/register");
       return;
     }
-
-    const routes: Record<RegistrationType, string> = {
-      manual: "/dashboard/register/manual",
-      institution: "/dashboard/register/institution",
-      household: "/dashboard/register/household",
-    };
-    router.push(routes[type]);
-  }
-
-  if (!branchName) {
-    return (
-      <RegistrationShell
-        title="Register beneficiary"
-        description="Checking branch selection..."
-      >
-        <p className="text-sm text-black/55">Loading...</p>
-      </RegistrationShell>
-    );
+    router.push(href);
   }
 
   return (
     <RegistrationShell
       title="Register beneficiary"
-      description="Choose how you want to register a new beneficiary account."
+      description="Choose what kind of beneficiary you're registering."
       branchName={branchName}
+      wide
     >
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <button
-          type="button"
-          onClick={() => onContinue("manual")}
-          className={cn(
-            "rounded-xl border border-black/10 p-4 text-left transition hover:border-black/25 hover:bg-black/[0.02]",
-          )}
-        >
-          <UserRound className="h-5 w-5 text-black/70" />
-          <p className="mt-3 font-medium text-[#001539]">Individual</p>
-          <p className="mt-1 text-sm text-black/60">
-            Register an individual beneficiary with identity details.
-          </p>
-        </button>
+      {!branchName ? (
+        <div className="h-32 animate-pulse rounded-lg bg-black/[0.04]" />
+      ) : (
+        <div className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-2">
+            {OPTIONS.map((option) => (
+              <button
+                key={option.type}
+                type="button"
+                onClick={() => onContinue(option.type, option.href)}
+                className="group flex items-start gap-4 rounded-xl border border-black/[0.08] bg-white p-5 text-left transition hover:border-[#007050]/40 hover:shadow-sm"
+              >
+                <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-[#007050]/[0.08] text-[#007050]">
+                  <option.icon className="size-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-semibold text-[#001539]">{option.title}</span>
+                  <span className="mt-1 block text-sm text-black/55">{option.description}</span>
+                </span>
+                <ArrowRight className="mt-1 size-4 text-black/30 transition group-hover:translate-x-0.5 group-hover:text-[#007050]" />
+              </button>
+            ))}
+          </div>
 
-        <button
-          type="button"
-          onClick={() => onContinue("institution")}
-          className={cn(
-            "rounded-xl border border-black/10 p-4 text-left transition hover:border-black/25 hover:bg-black/[0.02]",
-          )}
-        >
-          <Building2 className="h-5 w-5 text-black/70" />
-          <p className="mt-3 font-medium text-[#001539]">Institution</p>
-          <p className="mt-1 text-sm text-black/60">
-            Apply for NGO cash aid registration and eligibility assessment.
-          </p>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onContinue("household")}
-          className={cn(
-            "rounded-xl border border-black/10 p-4 text-left transition hover:border-black/25 hover:bg-black/[0.02] sm:col-span-2 lg:col-span-1",
-          )}
-        >
-          <Users className="h-5 w-5 text-black/70" />
-          <p className="mt-3 font-medium text-[#001539]">Household</p>
-          <p className="mt-1 text-sm text-black/60">
-            Complete the household socioeconomic assessment questionnaire.
-          </p>
-        </button>
-      </div>
-
-      <div className="mt-6 flex flex-wrap gap-2">
-        <Button variant="outline" asChild>
-          <a href="/dashboard/register">Change branch</a>
-        </Button>
-        <Button variant="outline" asChild>
-          <a href="/dashboard/beneficiary">Cancel</a>
-        </Button>
-      </div>
+          <div className="flex flex-wrap gap-2 border-t border-black/[0.06] pt-5">
+            <Button variant="outline" asChild>
+              <Link href="/dashboard/register">Change branch</Link>
+            </Button>
+            <Button variant="ghost" asChild>
+              <Link href="/dashboard/beneficiary">Cancel</Link>
+            </Button>
+          </div>
+        </div>
+      )}
     </RegistrationShell>
   );
 }

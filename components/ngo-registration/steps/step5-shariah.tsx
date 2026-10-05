@@ -2,9 +2,9 @@
 
 import { Star } from "lucide-react";
 
-import { StepWrapper } from "@/components/questionnaire/step-wrapper";
-import { CheckboxGroup } from "@/components/questionnaire/ui/checkbox-group";
-import { FormField } from "@/components/questionnaire/ui/form-field";
+import { StepWrapper } from "@/components/wizard/step-wrapper";
+import { CheckboxGroup } from "@/components/wizard/ui/checkbox-group";
+import { FormField } from "@/components/wizard/ui/form-field";
 
 import {
   SHARIAH_DECLARATION_LABELS,

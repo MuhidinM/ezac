@@ -2,11 +2,11 @@
 
 import { Building2 } from "lucide-react";
 
-import { StepWrapper } from "@/components/questionnaire/step-wrapper";
-import { CheckboxGroup } from "@/components/questionnaire/ui/checkbox-group";
-import { FormField } from "@/components/questionnaire/ui/form-field";
-import { RadioGroup } from "@/components/questionnaire/ui/radio-group";
-import { TextArea } from "@/components/questionnaire/ui/text-area";
+import { StepWrapper } from "@/components/wizard/step-wrapper";
+import { CheckboxGroup } from "@/components/wizard/ui/checkbox-group";
+import { FormField } from "@/components/wizard/ui/form-field";
+import { RadioGroup } from "@/components/wizard/ui/radio-group";
+import { TextArea } from "@/components/wizard/ui/text-area";
 
 import { DOCUMENT_LABELS, DOCUMENTS_TO_ATTACH } from "../initial-state";
 import type { NgoStepProps } from "../types";

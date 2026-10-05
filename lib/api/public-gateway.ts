@@ -1,5 +1,5 @@
 import { getApiBaseUrl } from "@/lib/api/config";
-import { ApiError } from "@/lib/api/errors";
+import { ApiError, parseFieldErrors } from "@/lib/api/errors";
 import type { ApiEnvelope } from "@/lib/api/types";
 
 export async function publicGatewayRequest<T>(
@@ -33,6 +33,7 @@ export async function publicGatewayRequest<T>(
     throw new ApiError(
       envelope.message ?? "Request failed",
       response.status || 400,
+      parseFieldErrors((envelope as { errors?: unknown }).errors),
     );
   }
 

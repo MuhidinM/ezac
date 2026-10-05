@@ -1,8 +1,11 @@
 "use client";
 
 import type { ReactNode } from "react";
-import Link from "next/link";
+import { Check, Store } from "lucide-react";
 
+import { InlineAlert } from "@/components/dashboard/inline-alert";
+import { PageHeader } from "@/components/dashboard/page-header";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 type RegistrationShellProps = {
@@ -29,67 +32,57 @@ export function RegistrationShell({
   footer,
 }: RegistrationShellProps) {
   return (
-    <section
-      className={cn(
-        "mx-auto w-full space-y-6",
-        wide ? "max-w-4xl" : "max-w-xl",
-      )}
-    >
-      <div>
-        <Link
-          href="/dashboard/beneficiary"
-          className="text-xs uppercase tracking-[0.12em] text-black/45 transition hover:text-[#001539]"
-        >
-          Back to beneficiaries
-        </Link>
-        <h1 className="mt-3 text-2xl font-semibold tracking-tight text-[#001539]">
-          {title}
-        </h1>
-        {description ? (
-          <p className="mt-1 text-sm text-black/60">{description}</p>
-        ) : null}
-        {branchName ? (
-          <p className="mt-3 inline-flex items-center rounded-full border border-[rgba(0,112,80,0.2)] bg-[rgba(0,112,80,0.08)] px-3 py-1 text-xs font-medium text-[#007050]">
-            Branch: {branchName}
-          </p>
-        ) : null}
-      </div>
+    <section className={cn("mx-auto w-full space-y-6", wide ? "max-w-4xl" : "max-w-2xl")}>
+      <PageHeader
+        back={{ href: "/dashboard/beneficiary", label: "Beneficiaries" }}
+        title={title}
+        description={description}
+        meta={
+          branchName ? (
+            <Badge tone="brand">
+              <Store />
+              {branchName}
+            </Badge>
+          ) : null
+        }
+      />
 
       {steps && steps.length > 0 ? (
-        <ol className="flex flex-wrap gap-2">
-          {steps.map((step, index) => (
-            <li
-              key={step}
-              className={cn(
-                "rounded-full px-3 py-1 text-xs font-medium",
-                index === currentStep
-                  ? "bg-[#007050] text-white"
-                  : index < currentStep
-                    ? "bg-black/10 text-black/70"
-                    : "bg-black/[0.04] text-black/40",
-              )}
-            >
-              {step}
-            </li>
-          ))}
+        <ol className="flex flex-wrap items-center gap-2">
+          {steps.map((step, index) => {
+            const done = index < currentStep;
+            const active = index === currentStep;
+            return (
+              <li key={step} className="flex items-center gap-2">
+                {index > 0 ? <span className="h-px w-6 bg-black/15" aria-hidden /> : null}
+                <span
+                  className={cn(
+                    "flex size-6 items-center justify-center rounded-full text-xs font-semibold tabular-nums",
+                    done && "bg-[#007050] text-white",
+                    active && "bg-[#001539] text-white",
+                    !done && !active && "bg-black/[0.06] text-black/45",
+                  )}
+                >
+                  {done ? <Check className="size-3.5" /> : index + 1}
+                </span>
+                <span
+                  className={cn(
+                    "text-sm",
+                    active ? "font-medium text-[#001539]" : "text-black/50",
+                  )}
+                >
+                  {step}
+                </span>
+              </li>
+            );
+          })}
         </ol>
       ) : null}
 
       <div className="rounded-xl border border-black/[0.06] bg-white p-5 shadow-xs sm:p-6">
-        {error ? (
-          <p
-            role="alert"
-            className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-          >
-            {error}
-          </p>
-        ) : null}
-
+        {error ? <InlineAlert className="mb-5">{error}</InlineAlert> : null}
         {children}
-
-        {footer ? (
-          <div className="mt-8 border-t border-black/5 pt-6">{footer}</div>
-        ) : null}
+        {footer ? <div className="mt-8 border-t border-black/[0.06] pt-6">{footer}</div> : null}
       </div>
     </section>
   );

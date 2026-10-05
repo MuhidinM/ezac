@@ -2,13 +2,13 @@
 
 import { BarChart3 } from "lucide-react";
 
-import { StepWrapper } from "@/components/questionnaire/step-wrapper";
-import { CheckboxGroup } from "@/components/questionnaire/ui/checkbox-group";
-import { CurrencyInput } from "@/components/questionnaire/ui/currency-input";
-import { FormField } from "@/components/questionnaire/ui/form-field";
-import { RadioGroup } from "@/components/questionnaire/ui/radio-group";
-import { TextArea } from "@/components/questionnaire/ui/text-area";
-import { parseCurrency, formatDisplayCurrency } from "@/components/questionnaire/utils";
+import { StepWrapper } from "@/components/wizard/step-wrapper";
+import { CheckboxGroup } from "@/components/wizard/ui/checkbox-group";
+import { CurrencyInput } from "@/components/wizard/ui/currency-input";
+import { FormField } from "@/components/wizard/ui/form-field";
+import { RadioGroup } from "@/components/wizard/ui/radio-group";
+import { TextArea } from "@/components/wizard/ui/text-area";
+import { parseCurrency, formatDisplayCurrency } from "@/components/wizard/utils";
 
 import {
   createFundingSource,

@@ -2,11 +2,11 @@
 
 import { Heart } from "lucide-react";
 
-import { StepWrapper } from "@/components/questionnaire/step-wrapper";
-import { CheckboxGroup } from "@/components/questionnaire/ui/checkbox-group";
-import { CurrencyInput } from "@/components/questionnaire/ui/currency-input";
-import { FormField } from "@/components/questionnaire/ui/form-field";
-import { RadioGroup } from "@/components/questionnaire/ui/radio-group";
+import { StepWrapper } from "@/components/wizard/step-wrapper";
+import { CheckboxGroup } from "@/components/wizard/ui/checkbox-group";
+import { CurrencyInput } from "@/components/wizard/ui/currency-input";
+import { FormField } from "@/components/wizard/ui/form-field";
+import { RadioGroup } from "@/components/wizard/ui/radio-group";
 
 import {
   AID_TYPE_LABELS,
