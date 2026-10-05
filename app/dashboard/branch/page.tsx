@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { ClipboardCheck } from "lucide-react";
+
+import { QueueCard } from "@/components/assessment/queue-card";
 import { BranchCodesPanel } from "@/components/branches/branch-codes-panel";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api/errors";
@@ -96,6 +99,13 @@ export default function BranchPortalPage() {
           Refresh
         </Button>
       </div>
+
+      <QueueCard
+        status="SUBMITTED"
+        title="Assessments to review"
+        description="Submitted by field officers in your branch"
+        icon={ClipboardCheck}
+      />
 
       <div className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-xs">
         <h2 className="text-sm font-medium uppercase tracking-[0.12em] text-black/45">

@@ -5,6 +5,9 @@ import Link from "next/link";
 import {
   ArrowRight,
   BadgeCheck,
+  ClipboardCheck,
+  CornerUpLeft,
+  Gavel,
   Building2,
   Clock,
   Network,
@@ -14,6 +17,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { QueueCard } from "@/components/assessment/queue-card";
+import { isFieldOfficer } from "@/components/dashboard/nav-config";
 import { apiClient } from "@/lib/api/client";
 import type { PaginatedItems } from "@/lib/api/types";
 import { useSession } from "@/lib/auth/use-session";
@@ -154,6 +159,38 @@ export default function DashboardHomePage() {
           <StatCard key={stat.label} stat={stat} />
         ))}
       </div>
+
+      {session?.isAdmin || isFieldOfficer(session) ? (
+        <div>
+          <h2 className="text-sm font-semibold text-[#001539]">Assessment queues</h2>
+          <div className="mt-3 grid gap-4 md:grid-cols-2">
+            {session?.isAdmin ? (
+              <QueueCard
+                status="SUPERVISOR_APPROVED"
+                title="Awaiting committee decision"
+                description="Approved by branch supervisors"
+                icon={Gavel}
+              />
+            ) : null}
+            {isFieldOfficer(session) ? (
+              <>
+                <QueueCard
+                  status="RETURNED"
+                  title="Returned for correction"
+                  description="Sent back by a supervisor"
+                  icon={CornerUpLeft}
+                />
+                <QueueCard
+                  status="DRAFT"
+                  title="Drafts in progress"
+                  description="Started but not yet submitted"
+                  icon={ClipboardCheck}
+                />
+              </>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       <div>
         <h2 className="text-sm font-semibold text-[#001539]">Quick actions</h2>
