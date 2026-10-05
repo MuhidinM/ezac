@@ -10,6 +10,8 @@ const HQ_PATH_PREFIXES = [
   "/dashboard/institutions",
   "/dashboard/branches",
   "/dashboard/register",
+  "/dashboard/field-officers",
+  "/dashboard/scoring-config",
 ];
 
 /** Keeps branch officers inside their own portal. */

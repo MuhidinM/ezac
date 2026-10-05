@@ -1,5 +1,5 @@
 import type { ApiEnvelope } from "@/lib/api/types";
-import { ApiError } from "@/lib/api/errors";
+import { ApiError, parseFieldErrors } from "@/lib/api/errors";
 
 export async function apiClient<T>(
   path: string,
@@ -8,7 +8,10 @@ export async function apiClient<T>(
   const response = await fetch(path, {
     ...init,
     headers: {
-      "Content-Type": "application/json",
+      // FormData bodies need the browser to set the multipart boundary.
+      ...(init?.body instanceof FormData
+        ? {}
+        : { "Content-Type": "application/json" }),
       ...init?.headers,
     },
     cache: "no-store",
@@ -30,6 +33,7 @@ export async function apiClient<T>(
     throw new ApiError(
       envelope.message ?? fallback,
       response.status || 400,
+      parseFieldErrors(envelope.errors),
     );
   }
 

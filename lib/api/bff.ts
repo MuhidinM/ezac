@@ -26,7 +26,7 @@ export async function withStaffAccess<T>(
       }
 
       return NextResponse.json(
-        { success: false, message: error.message },
+        { success: false, message: error.message, errors: error.errors },
         { status: error.status },
       );
     }
@@ -67,7 +67,7 @@ export async function withStaffAccessPublic<T>(
   } catch (error) {
     if (error instanceof ApiError) {
       return NextResponse.json(
-        { success: false, message: error.message },
+        { success: false, message: error.message, errors: error.errors },
         { status: error.status },
       );
     }
@@ -133,6 +133,11 @@ export async function proxyStaffFile(
     );
   }
 
+  return safeFileResponse(upstream);
+}
+
+/** Stream a binary upstream response with headers that cannot run script. */
+export function safeFileResponse(upstream: Response): Response {
   const headers = new Headers();
   const contentType = upstream.headers.get("Content-Type");
   const contentDisposition = upstream.headers.get("Content-Disposition");

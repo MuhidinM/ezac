@@ -1,5 +1,5 @@
 import { getApiBaseUrl } from "@/lib/api/config";
-import { ApiError } from "@/lib/api/errors";
+import { ApiError, parseFieldErrors } from "@/lib/api/errors";
 import type { ApiEnvelope } from "@/lib/api/types";
 
 type GatewayRequestOptions = RequestInit & {
@@ -67,7 +67,11 @@ export async function gatewayRequest<T>(
       console.error(`[gateway] ${status} ${path}: ${message}`);
     }
 
-    throw new ApiError(message, status);
+    throw new ApiError(
+      message,
+      status,
+      parseFieldErrors((envelope as { errors?: unknown }).errors),
+    );
   }
 
   return envelope.data;

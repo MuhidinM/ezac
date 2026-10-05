@@ -114,7 +114,7 @@ export default function BranchesPage() {
     <section className="space-y-5">
       {credentials ? (
         <CredentialsOnceDialog
-          branchPhone={credentials.branchPhone ?? ""}
+          login={credentials.branchPhone ?? ""}
           initialPassword={credentials.initialPassword}
           passwordChangeRequired={credentials.passwordChangeRequired}
           onClose={() => {

@@ -8,6 +8,7 @@ import {
   Building2,
   Clock,
   Network,
+  UserCog,
   UserPlus,
   Users,
   type LucideIcon,
@@ -74,6 +75,13 @@ const ACTIONS = [
     description: "Create branches and issue registration codes.",
     href: "/dashboard/branches",
     icon: Network,
+    adminOnly: true,
+  },
+  {
+    title: "Manage field officers",
+    description: "Create assessment officers and set their branch or region.",
+    href: "/dashboard/field-officers",
+    icon: UserCog,
     adminOnly: true,
   },
 ];
