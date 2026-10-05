@@ -1,3 +1,10 @@
+import type {
+  AssessmentStatus,
+  DuplicateStatus,
+  LifecycleStatus,
+  RiskCategory,
+} from "@/lib/api/backoffice-types";
+
 export type ApiEnvelope<T> = {
   success: boolean;
   data: T;
@@ -41,6 +48,14 @@ export type BeneficiaryListItem = {
   beneficiaryCategory: string | null;
   verificationStatus: VerificationStatus;
   createdAt: string;
+  lifecycleStatus?: LifecycleStatus | null;
+  duplicateStatus?: DuplicateStatus | null;
+  /** Means-test score; absent until the beneficiary is assessed. */
+  score?: number | null;
+  maxScore?: number | null;
+  riskCategory?: RiskCategory | null;
+  lastAssessedAt?: string | null;
+  assessmentStatus?: AssessmentStatus | null;
 };
 
 export type BeneficiaryDetail = {
@@ -72,6 +87,22 @@ export type BeneficiaryDetail = {
   institutionRequiredKycComplete: boolean | null;
   createdAt: string;
   updatedAt: string;
+  // Means-testing basic details (section B)
+  maritalStatus?: string | null;
+  estimatedAge?: number | null;
+  religion?: string | null;
+  primaryLanguage?: string | null;
+  primaryLanguageOther?: string | null;
+  zone?: string | null;
+  woreda?: string | null;
+  kebele?: string | null;
+  branchId?: string | null;
+  branchName?: string | null;
+  /** Beneficiary identification number: the registration code used. */
+  bin?: string | null;
+  registrationCode?: string | null;
+  lifecycleStatus?: LifecycleStatus | null;
+  duplicateStatus?: DuplicateStatus | null;
 };
 
 export type StaffRole = "ADMIN" | "FIELD_OFFICER";
@@ -155,6 +186,14 @@ export type BeneficiaryUpdateBody = {
   taxIdentificationNumber?: string | null;
   vatRegistrationNumber?: string | null;
   institutionSubtype?: string | null;
+  maritalStatus?: string | null;
+  estimatedAge?: number | null;
+  religion?: string | null;
+  primaryLanguage?: string | null;
+  primaryLanguageOther?: string | null;
+  zone?: string | null;
+  woreda?: string | null;
+  kebele?: string | null;
 };
 
 export type CodeStats = {

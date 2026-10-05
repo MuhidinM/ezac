@@ -40,3 +40,53 @@ export type CreateFieldOfficerResponse = {
   initialPassword: string;
   passwordChangeRequired: boolean;
 };
+
+// ---- Beneficiary lifecycle, risk and duplicates -----------------------------
+
+export type LifecycleStatus =
+  | "PENDING_ASSESSMENT"
+  | "UNDER_ASSESSMENT"
+  | "ASSESSED"
+  | "ACTIVE"
+  | "INACTIVE"
+  | "GRADUATED"
+  | "EXITED";
+
+export type RiskCategory = "HIGH" | "MEDIUM" | "LOW";
+
+export type DuplicateStatus =
+  | "NONE"
+  | "POTENTIAL"
+  | "CONFIRMED_DISTINCT"
+  | "CONFIRMED_DUPLICATE";
+
+export type AssessmentStatus =
+  | "DRAFT"
+  | "SUBMITTED"
+  | "RETURNED"
+  | "SUPERVISOR_APPROVED"
+  | "APPROVED"
+  | "CONDITIONALLY_APPROVED"
+  | "DEFERRED"
+  | "REJECTED";
+
+export type DuplicateCandidate = {
+  id: string;
+  fullName: string | null;
+  phone: string | null;
+  nationalId: string | null;
+  dateOfBirth: string | null;
+  woreda?: string | null;
+  kebele?: string | null;
+  branchName?: string | null;
+  createdAt?: string | null;
+  duplicateStatus?: DuplicateStatus | null;
+};
+
+export type DuplicateReview = {
+  duplicateStatus: DuplicateStatus;
+  reasons: ("national_id" | "phone" | "name_dob" | string)[];
+  candidates: DuplicateCandidate[];
+};
+
+export type DuplicateResolution = "CONFIRMED_DISTINCT" | "CONFIRMED_DUPLICATE";

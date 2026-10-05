@@ -1,13 +1,20 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState, type ReactNode } from "react";
+import { type FormEvent, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { useParams } from "next/navigation";
+import { CheckCircle2, CopyCheck, Pencil, XCircle } from "lucide-react";
 
+import { DuplicateBadge, LifecycleBadge } from "@/components/backoffice/status-badges";
+import { BasicDetailsDialog } from "@/components/beneficiary/basic-details-dialog";
 import { BeneficiaryEditForm } from "@/components/beneficiary/beneficiary-edit-form";
 import { KycDocumentsCard } from "@/components/beneficiary/kyc-documents-card";
 import { VerificationStatusBadge } from "@/components/beneficiary/verification-status-badge";
+import { FormField } from "@/components/dashboard/form-field";
+import { InlineAlert } from "@/components/dashboard/inline-alert";
+import { PageHeader } from "@/components/dashboard/page-header";
+import { DetailList, Panel } from "@/components/dashboard/panel";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,161 +24,63 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ApiError } from "@/lib/api/errors";
+import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api/client";
-import type { BeneficiaryDetail, SessionInfo } from "@/lib/api/types";
-import { fetchSession } from "@/lib/auth/use-session";
-import {
-  formatAddress,
-  formatBeneficiaryCategory,
-  formatDateTime,
-} from "@/lib/beneficiary/format";
+import { errorMessage } from "@/lib/api/errors";
+import type { BeneficiaryDetail } from "@/lib/api/types";
+import { useResource } from "@/lib/api/use-resource";
+import { useSession } from "@/lib/auth/use-session";
+import { MARITAL_STATUS, PRIMARY_LANGUAGE, SEX, labelFor } from "@/lib/backoffice/options";
+import { formatBeneficiaryCategory, formatDateTime } from "@/lib/beneficiary/format";
 
 type VerificationAction = "verified" | "rejected";
 
 export default function BeneficiaryDetailPage() {
-  const router = useRouter();
-  const params = useParams<{ id: string }>();
-  const beneficiaryId = params.id;
+  const { id } = useParams<{ id: string }>();
+  const { session } = useSession();
+  const { data: beneficiary, error, isLoading, reload, mutate } = useResource<BeneficiaryDetail>(
+    `/api/beneficiaries/${encodeURIComponent(id)}`,
+  );
 
-  const [beneficiary, setBeneficiary] = useState<BeneficiaryDetail | null>(null);
-  const [session, setSession] = useState<SessionInfo | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [verificationOpen, setVerificationOpen] = useState(false);
-  const [verificationAction, setVerificationAction] =
-    useState<VerificationAction>("verified");
-  const [verificationReason, setVerificationReason] = useState("");
-  const [isSubmittingVerification, setIsSubmittingVerification] = useState(false);
-  const [verificationError, setVerificationError] = useState<string | null>(null);
+  const [isEditingInstitution, setIsEditingInstitution] = useState(false);
+  const [basicOpen, setBasicOpen] = useState(false);
+  const [verificationAction, setVerificationAction] = useState<VerificationAction | null>(null);
 
-  const loadData = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const [detail, currentSession] = await Promise.all([
-        apiClient<BeneficiaryDetail>(`/api/beneficiaries/${beneficiaryId}`),
-        fetchSession(),
-      ]);
-
-      setBeneficiary(detail);
-      setSession(currentSession);
-    } catch (loadError) {
-      if (loadError instanceof ApiError && loadError.status === 401) {
-        router.replace(`/login?redirect=/dashboard/beneficiary/${beneficiaryId}`);
-        return;
-      }
-
-      setError(
-        loadError instanceof ApiError
-          ? loadError.message
-          : "Failed to load beneficiary details",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [beneficiaryId, router]);
-
-  useEffect(() => {
-    void loadData();
-  }, [loadData]);
-
-  function openVerificationDialog(action: VerificationAction) {
-    setVerificationAction(action);
-    setVerificationReason("");
-    setVerificationError(null);
-    setVerificationOpen(true);
+  if (isLoading && !beneficiary) {
+    return <div className="h-72 animate-pulse rounded-xl bg-black/[0.04]" />;
   }
 
-  async function onVerificationSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!beneficiary) return;
-
-    if (verificationAction === "rejected" && !verificationReason.trim()) {
-      setVerificationError("A reason is required when rejecting a beneficiary.");
-      return;
-    }
-
-    setIsSubmittingVerification(true);
-    setVerificationError(null);
-
-    try {
-      const updated = await apiClient<BeneficiaryDetail>(
-        `/api/beneficiaries/${beneficiary.id}/verification`,
-        {
-          method: "PATCH",
-          body: JSON.stringify({
-            verificationStatus: verificationAction,
-            reason: verificationReason.trim() || undefined,
-          }),
-        },
-      );
-
-      setBeneficiary(updated);
-      setVerificationOpen(false);
-    } catch (submitError) {
-      setVerificationError(
-        submitError instanceof ApiError
-          ? submitError.message
-          : "Verification update failed",
-      );
-    } finally {
-      setIsSubmittingVerification(false);
-    }
-  }
-
-  if (isLoading) {
+  if (!beneficiary) {
     return (
-      <section className="space-y-4">
-        <p className="text-sm text-black/60">Loading beneficiary details...</p>
+      <section className="space-y-6">
+        <PageHeader title="Beneficiary" back={{ href: "/dashboard/beneficiary", label: "Beneficiaries" }} />
+        <InlineAlert action={<Button variant="outline" size="sm" onClick={reload}>Retry</Button>}>
+          {error?.message ?? "Beneficiary not found"}
+        </InlineAlert>
       </section>
     );
   }
 
-  if (error || !beneficiary) {
-    return (
-      <section className="space-y-4">
-        <Link
-          href="/dashboard/beneficiary"
-          className="inline-flex items-center gap-2 text-sm text-black/60 hover:text-[#001539]"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to list
-        </Link>
-        <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error ?? "Beneficiary not found"}
-        </p>
-      </section>
-    );
-  }
-
+  const isInstitution = beneficiary.beneficiaryType === "institution";
   const canVerify =
     session?.isAdmin &&
     beneficiary.verificationStatus !== "verified" &&
     beneficiary.verificationStatus !== "rejected";
-
   const canEdit = session?.isStaff ?? false;
 
-  if (isEditing) {
+  if (isEditingInstitution) {
     return (
-      <section className="space-y-5">
-        <Link
-          href="/dashboard/beneficiary"
-          className="inline-flex items-center gap-2 text-sm text-black/60 hover:text-[#001539]"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to list
-        </Link>
+      <section className="space-y-6">
+        <PageHeader
+          title={`Edit ${beneficiary.fullName ?? "beneficiary"}`}
+          back={{ href: `/dashboard/beneficiary/${beneficiary.id}`, label: "Back to profile" }}
+        />
         <BeneficiaryEditForm
           beneficiary={beneficiary}
-          onCancel={() => setIsEditing(false)}
+          onCancel={() => setIsEditingInstitution(false)}
           onSaved={(updated) => {
-            setBeneficiary(updated);
-            setIsEditing(false);
+            mutate(updated);
+            setIsEditingInstitution(false);
           }}
         />
       </section>
@@ -179,210 +88,275 @@ export default function BeneficiaryDetailPage() {
   }
 
   return (
-    <section className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link
-            href="/dashboard/beneficiary"
-            className="inline-flex items-center gap-2 text-sm text-black/60 hover:text-[#001539]"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to list
-          </Link>
-          <div className="mt-3 flex flex-wrap items-center gap-4">
+    <section className="space-y-6">
+      <PageHeader
+        back={{ href: "/dashboard/beneficiary", label: "Beneficiaries" }}
+        title={
+          <span className="flex items-center gap-3">
             {beneficiary.hasProfilePicture ? (
               // eslint-disable-next-line @next/next/no-img-element -- authenticated BFF image stream
               <img
                 src={`/api/beneficiaries/${beneficiary.id}/profile-picture`}
                 alt=""
-                className="h-16 w-16 rounded-full border border-black/10 object-cover"
+                className="size-10 rounded-full border border-black/10 object-cover"
               />
             ) : null}
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight text-[#001539]">
-                {beneficiary.fullName ?? "Unnamed beneficiary"}
-              </h1>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <VerificationStatusBadge status={beneficiary.verificationStatus} />
-                <span className="rounded-full border border-black/10 px-2.5 py-0.5 text-xs capitalize text-black/70">
-                  {beneficiary.beneficiaryType}
-                </span>
-              </div>
-            </div>
+            {beneficiary.fullName ?? "Unnamed beneficiary"}
+          </span>
+        }
+        meta={
+          <div className="flex flex-wrap items-center gap-1.5">
+            <VerificationStatusBadge status={beneficiary.verificationStatus} />
+            <LifecycleBadge status={beneficiary.lifecycleStatus} />
+            <DuplicateBadge status={beneficiary.duplicateStatus} />
+            <Badge tone="neutral" className="capitalize">
+              {beneficiary.beneficiaryType}
+            </Badge>
           </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {canEdit ? (
-            <Button variant="outline" onClick={() => setIsEditing(true)}>
-              Edit
-            </Button>
-          ) : null}
-          {canVerify ? (
-            <>
+        }
+        actions={
+          <>
+            {canEdit ? (
               <Button
                 variant="outline"
-                onClick={() => openVerificationDialog("rejected")}
+                onClick={() => (isInstitution ? setIsEditingInstitution(true) : setBasicOpen(true))}
               >
-                Reject
+                <Pencil />
+                {isInstitution ? "Edit" : "Edit basic details"}
               </Button>
-              <Button onClick={() => openVerificationDialog("verified")}>
-                Approve
-              </Button>
-            </>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <DetailCard title="Contact">
-          <DetailRow label="Phone" value={beneficiary.phone} />
-          <DetailRow label="Email" value={beneficiary.email} />
-          <DetailRow label="Address" value={formatAddress(beneficiary)} />
-          <DetailRow label="Nationality" value={beneficiary.nationality} />
-        </DetailCard>
-
-        <DetailCard title="Identity">
-          <DetailRow label="National ID" value={beneficiary.nationalId} />
-          <DetailRow label="Date of birth" value={beneficiary.dateOfBirth} />
-          <DetailRow label="Gender" value={beneficiary.gender} />
-          <DetailRow
-            label="Category"
-            value={formatBeneficiaryCategory(beneficiary.beneficiaryCategory)}
-          />
-        </DetailCard>
-
-        {beneficiary.beneficiaryType === "institution" ? (
-          <DetailCard title="Institution">
-            <DetailRow label="Trading name" value={beneficiary.tradingName} />
-            <DetailRow
-              label="Trade registration"
-              value={beneficiary.tradeRegistrationNumber}
-            />
-            <DetailRow label="TIN" value={beneficiary.taxIdentificationNumber} />
-            <DetailRow label="VAT" value={beneficiary.vatRegistrationNumber} />
-            <DetailRow
-              label="Subtype"
-              value={beneficiary.institutionSubtype}
-            />
-            <DetailRow
-              label="Required KYC complete"
-              value={
-                beneficiary.institutionRequiredKycComplete == null
-                  ? "—"
-                  : beneficiary.institutionRequiredKycComplete
-                    ? "Yes"
-                    : "No"
-              }
-            />
-          </DetailCard>
-        ) : null}
-
-        <DetailCard title="Review">
-          <DetailRow
-            label="Verification reason"
-            value={beneficiary.verificationReason}
-          />
-          <DetailRow label="Notes" value={beneficiary.notes} />
-          <DetailRow label="Created" value={formatDateTime(beneficiary.createdAt)} />
-          <DetailRow label="Updated" value={formatDateTime(beneficiary.updatedAt)} />
-          {beneficiary.verificationLink ? (
-            <DetailRow label="Fayda link" value={beneficiary.verificationLink} />
-          ) : null}
-        </DetailCard>
-
-        {beneficiary.beneficiaryType === "institution" ? (
-          <KycDocumentsCard beneficiaryId={beneficiary.id} />
-        ) : null}
-      </div>
-
-      <Dialog open={verificationOpen} onOpenChange={setVerificationOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {verificationAction === "verified" ? "Approve beneficiary" : "Reject beneficiary"}
-            </DialogTitle>
-            <DialogDescription>
-              {verificationAction === "verified"
-                ? "Confirm that this beneficiary has passed review."
-                : "Provide a reason that will be stored with the rejection."}
-            </DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={onVerificationSubmit} className="space-y-4">
-            {verificationError ? (
-              <p
-                role="alert"
-                className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-              >
-                {verificationError}
-              </p>
             ) : null}
+            {canVerify ? (
+              <>
+                <Button variant="outline" onClick={() => setVerificationAction("rejected")}>
+                  <XCircle />
+                  Reject
+                </Button>
+                <Button onClick={() => setVerificationAction("verified")}>
+                  <CheckCircle2 />
+                  Verify
+                </Button>
+              </>
+            ) : null}
+          </>
+        }
+      />
 
-            <div className="space-y-2">
-              <Label htmlFor="verification-reason">
-                Reason{verificationAction === "rejected" ? " (required)" : ""}
-              </Label>
-              <Input
-                id="verification-reason"
-                value={verificationReason}
-                onChange={(event) => setVerificationReason(event.target.value)}
-                placeholder={
-                  verificationAction === "verified"
-                    ? "Optional approval note"
-                    : "Explain why this beneficiary was rejected"
-                }
-                required={verificationAction === "rejected"}
+      {beneficiary.duplicateStatus === "POTENTIAL" ? (
+        <InlineAlert
+          tone="warning"
+          title="Possible duplicate registration"
+          action={
+            <Button size="sm" variant="outline" asChild>
+              <Link href={`/dashboard/beneficiary/${beneficiary.id}/duplicates`}>
+                <CopyCheck />
+                Review
+              </Link>
+            </Button>
+          }
+        >
+          This record matches another beneficiary. Resolve it before starting an assessment.
+        </InlineAlert>
+      ) : null}
+      {beneficiary.duplicateStatus === "CONFIRMED_DUPLICATE" ? (
+        <InlineAlert tone="error" title="Confirmed duplicate">
+          This registration was confirmed as a duplicate and can&apos;t be assessed.
+        </InlineAlert>
+      ) : null}
+
+      <div className="grid gap-6 xl:grid-cols-3">
+        <div className="space-y-6 xl:col-span-2">
+          <Panel title="Applicant">
+            <DetailList
+              items={[
+                { label: "Phone", value: beneficiary.phone },
+                { label: "Email", value: beneficiary.email },
+                { label: "National ID", value: beneficiary.nationalId },
+                {
+                  label: "Date of birth",
+                  value:
+                    beneficiary.dateOfBirth ??
+                    (beneficiary.estimatedAge != null ? `About ${beneficiary.estimatedAge} years` : null),
+                },
+                { label: "Sex", value: beneficiary.gender ? labelFor(SEX, beneficiary.gender) : null },
+                {
+                  label: "Marital status",
+                  value: beneficiary.maritalStatus ? labelFor(MARITAL_STATUS, beneficiary.maritalStatus) : null,
+                },
+                { label: "Religion", value: beneficiary.religion },
+                {
+                  label: "Primary language",
+                  value:
+                    beneficiary.primaryLanguage === "other"
+                      ? beneficiary.primaryLanguageOther
+                      : beneficiary.primaryLanguage
+                        ? labelFor(PRIMARY_LANGUAGE, beneficiary.primaryLanguage)
+                        : null,
+                },
+                { label: "Category", value: formatBeneficiaryCategory(beneficiary.beneficiaryCategory) },
+              ]}
+            />
+          </Panel>
+
+          <Panel title="Location">
+            <DetailList
+              items={[
+                { label: "Region", value: beneficiary.region },
+                { label: "Zone", value: beneficiary.zone },
+                { label: "Woreda", value: beneficiary.woreda },
+                { label: "Kebele", value: beneficiary.kebele },
+                { label: "Address", value: beneficiary.addressLine },
+                { label: "City", value: beneficiary.city },
+              ]}
+            />
+          </Panel>
+
+          {isInstitution ? (
+            <Panel title="Institution">
+              <DetailList
+                items={[
+                  { label: "Trading name", value: beneficiary.tradingName },
+                  { label: "Trade registration", value: beneficiary.tradeRegistrationNumber },
+                  { label: "TIN", value: beneficiary.taxIdentificationNumber },
+                  { label: "VAT", value: beneficiary.vatRegistrationNumber },
+                  { label: "Subtype", value: beneficiary.institutionSubtype },
+                  {
+                    label: "Required KYC complete",
+                    value:
+                      beneficiary.institutionRequiredKycComplete == null
+                        ? null
+                        : beneficiary.institutionRequiredKycComplete
+                          ? "Yes"
+                          : "No",
+                  },
+                ]}
               />
-            </div>
+            </Panel>
+          ) : null}
 
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setVerificationOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSubmittingVerification}>
-                {isSubmittingVerification ? "Saving..." : "Confirm"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+          {isInstitution ? <KycDocumentsCard beneficiaryId={beneficiary.id} /> : null}
+        </div>
+
+        <div className="space-y-6">
+          <Panel title="Registration">
+            <DetailList
+              columns={2}
+              items={[
+                { label: "BIN", value: beneficiary.bin ?? beneficiary.registrationCode },
+                { label: "Branch", value: beneficiary.branchName },
+                { label: "Registered", value: formatDateTime(beneficiary.createdAt) },
+                { label: "Updated", value: formatDateTime(beneficiary.updatedAt) },
+              ]}
+            />
+          </Panel>
+          <Panel title="Review notes">
+            <DetailList
+              columns={2}
+              items={[
+                { label: "Verification reason", value: beneficiary.verificationReason },
+                { label: "Notes", value: beneficiary.notes },
+                ...(beneficiary.verificationLink
+                  ? [{ label: "Fayda link", value: beneficiary.verificationLink }]
+                  : []),
+              ]}
+            />
+          </Panel>
+        </div>
+      </div>
+
+      {!isInstitution ? (
+        <BasicDetailsDialog
+          beneficiaryId={beneficiary.id}
+          initial={beneficiary}
+          open={basicOpen}
+          onOpenChange={setBasicOpen}
+          onSaved={mutate}
+        />
+      ) : null}
+
+      <VerificationDialog
+        beneficiary={beneficiary}
+        action={verificationAction}
+        onClose={() => setVerificationAction(null)}
+        onSaved={mutate}
+      />
     </section>
   );
 }
 
-function DetailCard({
-  title,
-  children,
+function VerificationDialog({
+  beneficiary,
+  action,
+  onClose,
+  onSaved,
 }: {
-  title: string;
-  children: ReactNode;
+  beneficiary: BeneficiaryDetail;
+  action: VerificationAction | null;
+  onClose: () => void;
+  onSaved: (updated: BeneficiaryDetail) => void;
 }) {
-  return (
-    <div className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-xs">
-      <h2 className="text-sm font-medium uppercase tracking-[0.12em] text-black/45">
-        {title}
-      </h2>
-      <dl className="mt-4 space-y-3">{children}</dl>
-    </div>
-  );
-}
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-function DetailRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | null | undefined;
-}) {
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (action === "rejected" && !reason.trim()) {
+      setError("A reason is required when rejecting a beneficiary.");
+      return;
+    }
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const updated = await apiClient<BeneficiaryDetail>(
+        `/api/beneficiaries/${beneficiary.id}/verification`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ verificationStatus: action, reason: reason.trim() || undefined }),
+        },
+      );
+      onSaved(updated);
+      setReason("");
+      onClose();
+    } catch (submitError) {
+      setError(errorMessage(submitError, "Verification update failed"));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
-    <div className="grid gap-1 sm:grid-cols-[140px_1fr]">
-      <dt className="text-sm text-black/50">{label}</dt>
-      <dd className="text-sm text-[#001539]">{value?.trim() ? value : "—"}</dd>
-    </div>
+    <Dialog open={action !== null} onOpenChange={(open) => (open ? null : onClose())}>
+      <DialogContent>
+        <form onSubmit={onSubmit} className="space-y-4">
+          <DialogHeader>
+            <DialogTitle className="text-[#001539]">
+              {action === "verified" ? "Verify beneficiary" : "Reject beneficiary"}
+            </DialogTitle>
+            <DialogDescription>
+              {action === "verified"
+                ? "Confirm this beneficiary's identity has been checked."
+                : "The reason is stored with the rejection."}
+            </DialogDescription>
+          </DialogHeader>
+          {error ? <InlineAlert>{error}</InlineAlert> : null}
+          <FormField label="Reason" htmlFor="verification-reason" required={action === "rejected"}>
+            <Textarea
+              id="verification-reason"
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder={action === "verified" ? "Optional note" : "Why is this beneficiary rejected?"}
+            />
+          </FormField>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Saving…" : "Confirm"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -65,8 +65,8 @@ export function KycDocumentsCard({ beneficiaryId }: { beneficiaryId: string }) {
   }, [beneficiaryId]);
 
   return (
-    <div className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-xs lg:col-span-2">
-      <h2 className="text-sm font-medium uppercase tracking-[0.12em] text-black/45">
+    <div className="rounded-xl border border-black/[0.06] bg-white p-5 shadow-xs">
+      <h2 className="text-sm font-semibold text-[#001539]">
         KYC documents
       </h2>
 
