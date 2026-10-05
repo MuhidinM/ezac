@@ -52,6 +52,8 @@ export function SetPasswordStep({
       router.replace("/dashboard/register");
       return;
     }
+    // Registration state lives in sessionStorage, readable only after mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setBranchName(session.branchName);
     setSessionChecked(true);
   }, [registrationType, router]);

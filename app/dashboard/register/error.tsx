@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 
+import { InlineAlert } from "@/components/dashboard/inline-alert";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { Button } from "@/components/ui/button";
 
 export default function RegisterError({
@@ -16,21 +19,22 @@ export default function RegisterError({
   }, [error]);
 
   return (
-    <section className="mx-auto w-full max-w-xl space-y-4 rounded-2xl border border-red-200 bg-white p-6 shadow-sm">
-      <h1 className="text-xl font-semibold tracking-tight text-[#001539]">
-        Registration couldn&apos;t load
-      </h1>
-      <p className="text-sm text-black/65">
+    <section className="mx-auto w-full max-w-2xl space-y-6">
+      <PageHeader title="Registration couldn't load" />
+      <InlineAlert
+        action={
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={reset}>
+              Try again
+            </Button>
+            <Button size="sm" asChild>
+              <Link href="/dashboard/register">Start over</Link>
+            </Button>
+          </div>
+        }
+      >
         {error.message || "Something went wrong in the registration flow."}
-      </p>
-      <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="outline" onClick={reset}>
-          Try again
-        </Button>
-        <Button type="button" asChild>
-          <a href="/dashboard/register">Back to branch selection</a>
-        </Button>
-      </div>
+      </InlineAlert>
     </section>
   );
 }

@@ -30,7 +30,7 @@ export function RadioGroup({
 }: RadioGroupProps) {
   return (
     <fieldset className="space-y-2">
-      <legend className="form-label text-base font-medium">{label}</legend>
+      <legend className="form-label text-sm font-medium">{label}</legend>
       <div
         role="radiogroup"
         aria-label={label}
@@ -50,7 +50,7 @@ export function RadioGroup({
                 key={option.value}
                 htmlFor={id}
                 className={cn(
-                  "flex min-h-[48px] cursor-pointer items-center justify-center rounded-xl border-2 px-4 py-3 text-base font-medium transition",
+                  "flex min-h-10 cursor-pointer items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition",
                   checked
                     ? buttonColor ?? "border-[#007050] bg-[#007050] text-white"
                     : "border-black/10 bg-white text-[#001539] hover:border-black/25",
@@ -75,7 +75,7 @@ export function RadioGroup({
               key={option.value}
               htmlFor={id}
               className={cn(
-                "flex min-h-[48px] cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-base transition",
+                "flex min-h-10 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm transition",
                 checked
                   ? "border-[#007050] bg-[rgba(0,112,80,0.06)]"
                   : "border-black/10 bg-white hover:border-black/20",

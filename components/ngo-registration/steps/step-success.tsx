@@ -43,7 +43,7 @@ export function StepSuccess({
       <h2 className="mt-6 text-2xl font-semibold tracking-tight text-[#001539]">
         Application Submitted Successfully
       </h2>
-      <p className="mt-2 text-base text-black/55">
+      <p className="mt-2 text-sm text-black/55">
         Your NGO aid application has been recorded.
       </p>
 
@@ -68,7 +68,7 @@ export function StepSuccess({
         <button
           type="button"
           onClick={onPrint}
-          className="flex min-h-[48px] items-center gap-2 rounded-xl border-2 border-black/10 px-6 py-3 text-base font-medium text-[#001539] transition hover:bg-[#007050]/5"
+          className="flex min-h-10 items-center gap-2 rounded-xl border-2 border-black/10 px-6 py-3 text-sm font-medium text-[#001539] transition hover:bg-[#007050]/5"
         >
           <Download className="h-5 w-5" />
           Download Summary
@@ -76,7 +76,7 @@ export function StepSuccess({
         <button
           type="button"
           onClick={onStartNew}
-          className="flex min-h-[48px] items-center gap-2 rounded-xl bg-[#e18f35] px-6 py-3 text-base font-semibold text-[#001539] transition hover:bg-[#b89030]"
+          className="flex min-h-10 items-center gap-2 rounded-xl bg-[#e18f35] px-6 py-3 text-sm font-semibold text-[#001539] transition hover:bg-[#b89030]"
         >
           <RotateCcw className="h-5 w-5" />
           Start New Application

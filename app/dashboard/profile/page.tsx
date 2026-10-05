@@ -1,16 +1,10 @@
+import { PageHeader } from "@/components/dashboard/page-header";
 import { ProfileForm } from "@/components/profile/profile-form";
 
 export default function DashboardProfilePage() {
   return (
-    <section className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-[#001539]">
-          Profile
-        </h1>
-        <p className="mt-1 max-w-2xl text-sm text-black/60">
-          Manage your account details and password.
-        </p>
-      </div>
+    <section className="space-y-6">
+      <PageHeader title="Profile & security" description="Your account details and password." />
       <ProfileForm />
     </section>
   );

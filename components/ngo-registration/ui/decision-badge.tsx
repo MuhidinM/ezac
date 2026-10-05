@@ -66,7 +66,7 @@ export function DecisionOverride({
 
   return (
     <div className="mt-4 space-y-3">
-      <label htmlFor="decisionOverride" className="block text-base font-medium text-[#001539]">
+      <label htmlFor="decisionOverride" className="block text-sm font-medium text-[#001539]">
         Override decision (optional)
       </label>
       <select

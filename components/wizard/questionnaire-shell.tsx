@@ -1,8 +1,12 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
-import Link from "next/link";
+import { Save, Store } from "lucide-react";
 
+import { InlineAlert } from "@/components/dashboard/inline-alert";
+import { PageHeader } from "@/components/dashboard/page-header";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { scrollDashboardToTop } from "@/lib/scroll-to-top";
 
 import { ProgressBar } from "./progress-bar";
@@ -25,9 +29,10 @@ type QuestionnaireShellProps = {
   footer?: ReactNode;
 };
 
+/** Page frame for multi-step registration wizards. */
 export function QuestionnaireShell({
-  title = "EZAC Household Assessment",
-  formId = "EZAC-MTT-QST-001",
+  title = "Registration",
+  formId,
   totalSteps = 7,
   sectionName,
   branchName,
@@ -47,78 +52,60 @@ export function QuestionnaireShell({
   }, [currentStep]);
 
   return (
-    <div className="questionnaire-theme mx-auto w-full max-w-6xl space-y-6">
-      <div>
-        <Link
-          href="/dashboard/beneficiary"
-          className="text-xs uppercase tracking-[0.12em] text-black/45 transition hover:text-[#001539]"
+    <div className="questionnaire-theme mx-auto w-full max-w-5xl space-y-6">
+      <PageHeader
+        back={{ href: "/dashboard/beneficiary", label: "Beneficiaries" }}
+        title={title}
+        description={formId ? `Form ${formId}` : undefined}
+        meta={
+          branchName ? (
+            <Badge tone="brand">
+              <Store />
+              {branchName}
+            </Badge>
+          ) : null
+        }
+        actions={
+          onSaveDraft ? (
+            <Button variant="outline" onClick={onSaveDraft}>
+              <Save />
+              {draftSaved ? "Draft saved" : "Save draft"}
+            </Button>
+          ) : null
+        }
+      />
+
+      {showResumeBanner && onResumeDraft && onDiscardDraft ? (
+        <InlineAlert
+          tone="info"
+          title="You have a saved draft"
+          action={
+            <div className="flex gap-2">
+              <Button size="sm" onClick={onResumeDraft}>
+                Resume
+              </Button>
+              <Button size="sm" variant="outline" onClick={onDiscardDraft}>
+                Start fresh
+              </Button>
+            </div>
+          }
         >
-          Back to beneficiaries
-        </Link>
-        <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-[#001539]">
-              {title}
-            </h1>
-            {formId ? (
-              <p className="mt-1 text-sm text-black/60">{formId}</p>
-            ) : null}
-            {branchName ? (
-              <p className="mt-3 inline-flex items-center rounded-full border border-[rgba(0,112,80,0.2)] bg-[rgba(0,112,80,0.08)] px-3 py-1 text-xs font-medium text-[#007050]">
-                Branch: {branchName}
-              </p>
-            ) : null}
-          </div>
-          {onSaveDraft ? (
-            <button
-              type="button"
-              onClick={onSaveDraft}
-              className="shrink-0 rounded-lg border border-black/15 px-3 py-2 text-sm font-medium text-[#001539] transition hover:bg-black/[0.03]"
-            >
-              {draftSaved ? "Draft Saved" : "Save Draft"}
-            </button>
-          ) : null}
-        </div>
+          Pick up where you left off, or start over.
+        </InlineAlert>
+      ) : null}
 
-        {showResumeBanner && onResumeDraft && onDiscardDraft ? (
-          <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-[rgba(225,143,53,0.35)] bg-[rgba(225,143,53,0.1)] px-4 py-3">
-            <p className="text-sm text-[#001539]">
-              You have a saved draft. Would you like to resume?
-            </p>
-            <button
-              type="button"
-              onClick={onResumeDraft}
-              className="rounded-lg bg-[#007050] px-3 py-1.5 text-sm font-medium text-white"
-            >
-              Resume Draft
-            </button>
-            <button
-              type="button"
-              onClick={onDiscardDraft}
-              className="rounded-lg border border-black/15 px-3 py-1.5 text-sm text-[#001539]"
-            >
-              Start Fresh
-            </button>
-          </div>
-        ) : null}
+      {showProgress ? (
+        <ProgressBar
+          currentStep={typeof currentStep === "number" ? currentStep : totalSteps}
+          totalSteps={totalSteps}
+          sectionName={sectionName}
+          label={progressLabel}
+        />
+      ) : null}
 
-        {showProgress ? (
-          <div className="mt-4">
-            <ProgressBar
-              currentStep={typeof currentStep === "number" ? currentStep : totalSteps}
-              totalSteps={totalSteps}
-              sectionName={sectionName}
-              label={progressLabel}
-            />
-          </div>
-        ) : null}
-      </div>
-
-      <div className="form-card animate-step-enter sm:p-8">
+      <div className="rounded-xl border border-black/[0.06] bg-white p-5 shadow-xs sm:p-6">
         {children}
-        {footer ? (
-          <div className="mt-8 border-t border-black/5 pt-6">{footer}</div>
-        ) : null}
+        {footer ? <div className="mt-8 border-t border-black/[0.06] pt-5">{footer}</div> : null}
       </div>
     </div>
   );

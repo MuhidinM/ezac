@@ -13,7 +13,7 @@ import { DynamicList } from "../ui/dynamic-list";
 const inputClass =
   "form-input";
 
-const cellInput = "min-h-[40px] w-full rounded-lg border border-black/20 px-2 text-base";
+const cellInput = "min-h-[40px] w-full rounded-lg border border-black/20 px-2 text-sm";
 
 export function Step2Coverage({ state, setState, errors }: NgoStepProps) {
   const s = state.step2;

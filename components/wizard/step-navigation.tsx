@@ -1,5 +1,9 @@
 "use client";
 
+import { ArrowLeft, ArrowRight } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+
 type StepNavigationProps = {
   onPrevious?: () => void;
   onNext?: () => void;
@@ -16,21 +20,20 @@ export function StepNavigation({
   isSubmitting,
 }: StepNavigationProps) {
   return (
-    <div className="flex flex-wrap items-center justify-end gap-3">
+    <div className="flex flex-wrap items-center justify-between gap-3">
       {showPrevious && onPrevious ? (
-        <button type="button" onClick={onPrevious} className="form-btn-outline">
+        <Button type="button" variant="outline" onClick={onPrevious}>
+          <ArrowLeft />
           Previous
-        </button>
-      ) : null}
+        </Button>
+      ) : (
+        <span />
+      )}
       {onNext ? (
-        <button
-          type="button"
-          onClick={onNext}
-          disabled={isSubmitting}
-          className="form-btn-primary min-w-[8.5rem]"
-        >
-          {isSubmitting ? "Submitting..." : nextLabel}
-        </button>
+        <Button type="button" onClick={onNext} disabled={isSubmitting}>
+          {isSubmitting ? "Submitting…" : nextLabel}
+          <ArrowRight />
+        </Button>
       ) : null}
     </div>
   );

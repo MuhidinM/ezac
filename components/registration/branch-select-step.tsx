@@ -1,342 +1,174 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Check, MapPin, Search, Store } from "lucide-react";
 
+import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { RegistrationShell } from "@/components/registration/registration-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { ApiError } from "@/lib/api/errors";
-import { apiClient } from "@/lib/api/client";
+import { NativeSelect } from "@/components/ui/native-select";
 import type { BranchListItem, PaginatedItems } from "@/lib/api/types";
+import { useResource } from "@/lib/api/use-resource";
 import { setSelectedBranch } from "@/lib/registration/session";
 import { cn } from "@/lib/utils";
 
-type StatusFilter = "active" | "inactive" | "all";
-type SortOption = "name-asc" | "name-desc" | "region-asc" | "codes-desc";
-
-const PAGE_SIZE = 100;
-
-function formatCodes(item: BranchListItem): string {
-  const available = item.codeStats?.available ?? 0;
-  return `${available} available`;
-}
-
 export function BranchSelectStep() {
   const router = useRouter();
-  const [branches, setBranches] = useState<BranchListItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, error, isLoading, reload } = useResource<PaginatedItems<BranchListItem>>(
+    "/api/admin/branches?page=1&limit=100",
+  );
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
-  const [regionFilter, setRegionFilter] = useState("");
-  const [sort, setSort] = useState<SortOption>("name-asc");
+  const [region, setRegion] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const loadBranches = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+  const branches = useMemo(() => (data?.items ?? []).filter((branch) => branch.active), [data]);
+  const regions = useMemo(
+    () => [...new Set(branches.map((branch) => branch.region?.trim()).filter(Boolean) as string[])].sort(),
+    [branches],
+  );
 
-    try {
-      const all: BranchListItem[] = [];
-      let page = 1;
-      let totalPages = 1;
+  const query = search.trim().toLowerCase();
+  const filtered = branches
+    .filter((branch) => !region || branch.region === region)
+    .filter(
+      (branch) =>
+        !query ||
+        [branch.name, branch.region, branch.zone, branch.woreda, branch.branchPhone]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(query),
+    )
+    .sort((a, b) => a.name.localeCompare(b.name));
 
-      do {
-        try {
-          const data = await apiClient<PaginatedItems<BranchListItem>>(
-            `/api/admin/branches?page=${page}&limit=${PAGE_SIZE}`,
-          );
-          all.push(...(data.items ?? []));
-          totalPages = Math.max(1, data.pagination?.totalPages ?? 1);
-          page += 1;
-        } catch (pageError) {
-          // Keep any pages already loaded; surface the first failure.
-          if (all.length === 0) throw pageError;
-          setError(
-            pageError instanceof ApiError
-              ? pageError.message
-              : "Some branches could not be loaded",
-          );
-          break;
-        }
-      } while (page <= totalPages);
-
-      setBranches(all);
-    } catch (loadError) {
-      if (loadError instanceof ApiError && loadError.status === 401) {
-        router.replace("/login?redirect=/dashboard/register");
-        return;
-      }
-      if (loadError instanceof ApiError && loadError.status === 403) {
-        setError(
-          "Insufficient permissions to list branches. An ADMIN account is required to register beneficiaries.",
-        );
-      } else {
-        setError(
-          loadError instanceof ApiError
-            ? loadError.message
-            : "Failed to load branches",
-        );
-      }
-      setBranches([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [router]);
-
-  useEffect(() => {
-    void loadBranches();
-  }, [loadBranches]);
-
-  const regions = useMemo(() => {
-    const set = new Set<string>();
-    for (const branch of branches) {
-      const region = branch.region?.trim();
-      if (region) set.add(region);
-    }
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [branches]);
-
-  const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
-    let rows = branches.filter((branch) => {
-      if (statusFilter === "active" && !branch.active) return false;
-      if (statusFilter === "inactive" && branch.active) return false;
-      if (regionFilter && (branch.region ?? "") !== regionFilter) return false;
-
-      if (!query) return true;
-      const haystack = [
-        branch.name,
-        branch.branchPhone,
-        branch.region,
-        branch.zone,
-        branch.woreda,
-      ]
-        .map((part) => (part ?? "").toString())
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(query);
-    });
-
-    rows = [...rows].sort((a, b) => {
-      const aName = a.name ?? "";
-      const bName = b.name ?? "";
-      const aRegion = a.region ?? "";
-      const bRegion = b.region ?? "";
-
-      switch (sort) {
-        case "name-desc":
-          return bName.localeCompare(aName);
-        case "region-asc":
-          return aRegion.localeCompare(bRegion) || aName.localeCompare(bName);
-        case "codes-desc": {
-          const aCodes = a.codeStats?.available ?? 0;
-          const bCodes = b.codeStats?.available ?? 0;
-          return bCodes - aCodes || aName.localeCompare(bName);
-        }
-        case "name-asc":
-        default:
-          return aName.localeCompare(bName);
-      }
-    });
-
-    return rows;
-  }, [branches, regionFilter, search, sort, statusFilter]);
-
-  const selected = filtered.find((branch) => branch.id === selectedId) ?? null;
-
-  function branchDisplayName(branch: BranchListItem): string {
-    return (
-      branch.name?.trim() ||
-      branch.branchPhone?.trim() ||
-      branch.id
-    );
-  }
+  const selected = branches.find((branch) => branch.id === selectedId) ?? null;
 
   function onContinue() {
     if (!selected) return;
-    setSelectedBranch({
-      branchId: selected.id,
-      branchName: branchDisplayName(selected),
-    });
+    setSelectedBranch({ branchId: selected.id, branchName: selected.name });
     router.push("/dashboard/register/type");
   }
 
   return (
     <RegistrationShell
-      title="Select a branch"
-      description="Choose the branch this beneficiary belongs to before continuing registration."
-      error={error}
+      title="Register beneficiary"
+      description="Pick the branch the beneficiary registers under. Their registration code comes from this branch."
+      steps={["Branch", "Type", "Details"]}
+      currentStep={0}
       wide
     >
-      <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="sm:col-span-2">
-            <label htmlFor="branch-search" className="sr-only">
-              Search branches
-            </label>
+      <div className="space-y-5">
+        <div className="flex flex-wrap gap-3">
+          <div className="relative min-w-60 flex-1">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-black/35" />
             <Input
-              id="branch-search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search name, phone, region, zone, woreda"
+              placeholder="Search branch, zone or woreda"
+              className="bg-white pl-9"
+              aria-label="Search branches"
             />
           </div>
-          <label className="space-y-1 text-xs text-black/55">
-            Status
-            <select
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-              value={statusFilter}
-              onChange={(event) =>
-                setStatusFilter(event.target.value as StatusFilter)
-              }
-            >
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="all">All</option>
-            </select>
-          </label>
-          <label className="space-y-1 text-xs text-black/55">
-            Region
-            <select
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-              value={regionFilter}
-              onChange={(event) => setRegionFilter(event.target.value)}
-            >
+          <div className="w-48">
+            <NativeSelect aria-label="Region" value={region} onChange={(event) => setRegion(event.target.value)}>
               <option value="">All regions</option>
-              {regions.map((region) => (
-                <option key={region} value={region}>
-                  {region}
+              {regions.map((item) => (
+                <option key={item} value={item}>
+                  {item}
                 </option>
               ))}
-            </select>
-          </label>
+            </NativeSelect>
+          </div>
         </div>
 
-        <label className="flex max-w-xs flex-col gap-1 text-xs text-black/55">
-          Sort by
-          <select
-            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            value={sort}
-            onChange={(event) => setSort(event.target.value as SortOption)}
-          >
-            <option value="name-asc">Name A–Z</option>
-            <option value="name-desc">Name Z–A</option>
-            <option value="region-asc">Region A–Z</option>
-            <option value="codes-desc">Available codes (high → low)</option>
-          </select>
-        </label>
+        {error ? (
+          <InlineAlert action={<Button variant="outline" size="sm" onClick={reload}>Retry</Button>}>
+            {error.status === 403
+              ? "Your account can't list branches. Ask an administrator to register this beneficiary."
+              : error.message}
+          </InlineAlert>
+        ) : null}
 
-        <div className="overflow-hidden rounded-xl border border-black/8">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Region</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Codes</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={5}
-                    className="py-8 text-center text-sm text-black/50"
-                  >
-                    Loading branches...
-                  </TableCell>
-                </TableRow>
-              ) : filtered.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={5}
-                    className="py-8 text-center text-sm text-black/50"
-                  >
-                    No branches match your search or filters.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filtered.map((branch) => {
-                  const isSelected = branch.id === selectedId;
-                  return (
-                    <TableRow
-                      key={branch.id}
-                      role="option"
-                      aria-selected={isSelected}
-                      tabIndex={0}
-                      className={cn(
-                        "cursor-pointer",
-                        isSelected
-                          ? "bg-[rgba(0,112,80,0.08)]"
-                          : "hover:bg-black/[0.02]",
-                      )}
-                      onClick={() => setSelectedId(branch.id)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          setSelectedId(branch.id);
-                        }
-                      }}
-                    >
-                      <TableCell className="font-medium text-[#001539]">
-                        {branchDisplayName(branch)}
-                      </TableCell>
-                      <TableCell>{branch.region ?? "—"}</TableCell>
-                      <TableCell>{branch.branchPhone ?? "—"}</TableCell>
-                      <TableCell>
-                        {branch.active ? (
-                          <span className="text-emerald-700">Active</span>
-                        ) : (
-                          <span className="text-black/45">Inactive</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-xs text-black/65">
-                        {formatCodes(branch)}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
-
-        {selected ? (
-          <p className="text-sm text-black/60">
-            Selected:{" "}
-            <span className="font-medium text-[#001539]">
-              {branchDisplayName(selected)}
-            </span>
-            {" · "}
-            {formatCodes(selected)}
+        {isLoading && !data ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="h-24 animate-pulse rounded-lg bg-black/[0.04]" />
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-black/15 py-10 text-center text-sm text-black/50">
+            No active branches match your search.
           </p>
         ) : (
-          <p className="text-sm text-black/50">Select a branch to continue.</p>
+          <div role="radiogroup" aria-label="Branch" className="grid max-h-[28rem] gap-3 overflow-y-auto p-0.5 sm:grid-cols-2">
+            {filtered.map((branch) => {
+              const isSelected = branch.id === selectedId;
+              const available = branch.codeStats?.available ?? 0;
+              return (
+                <button
+                  key={branch.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={isSelected}
+                  onClick={() => setSelectedId(branch.id)}
+                  onDoubleClick={() => {
+                    setSelectedId(branch.id);
+                    setSelectedBranch({ branchId: branch.id, branchName: branch.name });
+                    router.push("/dashboard/register/type");
+                  }}
+                  className={cn(
+                    "relative flex items-start gap-3 rounded-lg border p-4 text-left transition",
+                    isSelected
+                      ? "border-[#007050] bg-[#007050]/[0.05] ring-1 ring-[#007050]"
+                      : "border-black/[0.08] bg-white hover:border-black/20",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "flex size-9 shrink-0 items-center justify-center rounded-md",
+                      isSelected ? "bg-[#007050] text-white" : "bg-black/[0.04] text-black/50",
+                    )}
+                  >
+                    {isSelected ? <Check className="size-4" /> : <Store className="size-4" />}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-medium text-[#001539]">{branch.name}</span>
+                    <span className="mt-0.5 flex items-center gap-1 text-xs text-black/50">
+                      <MapPin className="size-3" />
+                      {[branch.woreda, branch.zone, branch.region].filter(Boolean).join(", ") || "—"}
+                    </span>
+                    <span
+                      className={cn(
+                        "mt-2 inline-block text-xs font-medium tabular-nums",
+                        available > 0 ? "text-emerald-700" : "text-amber-700",
+                      )}
+                    >
+                      {available} code{available === 1 ? "" : "s"} available
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         )}
 
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" asChild>
-            <a href="/dashboard/beneficiary">Cancel</a>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-black/[0.06] pt-5">
+          <Button variant="ghost" asChild>
+            <Link href="/dashboard/beneficiary">Cancel</Link>
           </Button>
-          <Button type="button" variant="outline" onClick={() => void loadBranches()}>
-            Refresh
-          </Button>
-          <Button type="button" disabled={!selected} onClick={onContinue}>
-            Continue
-          </Button>
+          <div className="flex items-center gap-3">
+            {selected ? (
+              <span className="text-sm text-black/55">
+                <span className="font-medium text-[#001539]">{selected.name}</span> selected
+              </span>
+            ) : null}
+            <Button disabled={!selected} onClick={onContinue}>
+              Continue
+            </Button>
+          </div>
         </div>
       </div>
     </RegistrationShell>

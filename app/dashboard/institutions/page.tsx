@@ -1,21 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { type FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Search } from "lucide-react";
+import { RefreshCw, Search } from "lucide-react";
 
 import { VerificationStatusBadge } from "@/components/beneficiary/verification-status-badge";
+import { InlineAlert } from "@/components/dashboard/inline-alert";
+import { ListPagination } from "@/components/dashboard/list-pagination";
+import { PageHeader } from "@/components/dashboard/page-header";
+import { Panel } from "@/components/dashboard/panel";
+import { RequireRole } from "@/components/dashboard/require-role";
+import { TableMessageRow, TableSkeletonRows } from "@/components/dashboard/table-states";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
+import { NativeSelect } from "@/components/ui/native-select";
 import {
   Table,
   TableBody,
@@ -24,15 +24,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ApiError } from "@/lib/api/errors";
-import { apiClient } from "@/lib/api/client";
-import type {
-  InstitutionListItem,
-  PaginatedItems,
-  VerificationStatus,
-} from "@/lib/api/types";
+import type { InstitutionListItem, PaginatedItems, VerificationStatus } from "@/lib/api/types";
+import { useResource } from "@/lib/api/use-resource";
 import { formatDateTime } from "@/lib/beneficiary/format";
-import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 20;
 
@@ -43,281 +37,159 @@ type Filters = {
 };
 
 export default function InstitutionsPage() {
+  return (
+    <RequireRole audience={["hq"]}>
+      <Institutions />
+    </RequireRole>
+  );
+}
+
+function Institutions() {
   const router = useRouter();
-  const [rows, setRows] = useState<InstitutionListItem[]>([]);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
-  const [filters, setFilters] = useState<Filters>({
-    search: "",
-    verificationStatus: "",
-    kycComplete: "",
-  });
+  const [filters, setFilters] = useState<Filters>({ search: "", verificationStatus: "", kycComplete: "" });
   const [draftSearch, setDraftSearch] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const loadInstitutions = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+  const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
+  for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value);
 
-    const params = new URLSearchParams({
-      page: String(page),
-      limit: String(PAGE_SIZE),
-    });
+  const { data, error, isLoading, reload } = useResource<PaginatedItems<InstitutionListItem>>(
+    `/api/beneficiaries/institutions?${params.toString()}`,
+  );
+  const rows = data?.items ?? [];
 
-    if (filters.search) params.set("search", filters.search);
-    if (filters.verificationStatus) {
-      params.set("verificationStatus", filters.verificationStatus);
-    }
-    if (filters.kycComplete) {
-      params.set("kycComplete", filters.kycComplete);
-    }
-
-    try {
-      const data = await apiClient<PaginatedItems<InstitutionListItem>>(
-        `/api/beneficiaries/institutions?${params.toString()}`,
-      );
-
-      setRows(data.items);
-      setTotalPages(Math.max(1, data.pagination.totalPages));
-      setTotalItems(data.pagination.totalItems);
-    } catch (loadError) {
-      if (loadError instanceof ApiError && loadError.status === 401) {
-        router.replace("/login?redirect=/dashboard/institutions");
-        return;
-      }
-
-      setError(
-        loadError instanceof ApiError
-          ? loadError.message
-          : "Failed to load institutions",
-      );
-      setRows([]);
-      setTotalPages(1);
-      setTotalItems(0);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [filters, page, router]);
-
-  useEffect(() => {
-    void loadInstitutions();
-  }, [loadInstitutions]);
-
-  function onSearchSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function update<K extends keyof Filters>(key: K, value: Filters[K]) {
     setPage(1);
-    setFilters((prev) => ({ ...prev, search: draftSearch.trim() }));
+    setFilters((prev) => ({ ...prev, [key]: value }));
   }
 
-  const rangeStart = totalItems === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
-  const rangeEnd = Math.min(page * PAGE_SIZE, totalItems);
+  function onSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    update("search", draftSearch.trim());
+  }
 
   return (
-    <section className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-[#001539]">
-            Institution review
-          </h1>
-          <p className="mt-1 text-sm text-black/60">
-            Review registered institutions and their KYC status.
-          </p>
-        </div>
+    <section className="space-y-6">
+      <PageHeader
+        title="Institution review"
+        description="Registered organisations and their KYC documents. Open one to check documents and verify it."
+        actions={
+          <Button variant="outline" onClick={reload} disabled={isLoading}>
+            <RefreshCw />
+            Refresh
+          </Button>
+        }
+      />
 
-        <Button
-          variant="outline"
-          onClick={() => void loadInstitutions()}
-          disabled={isLoading}
-        >
-          Refresh
-        </Button>
-      </div>
-
-      <div className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-xs">
-        <form
-          onSubmit={onSearchSubmit}
-          className="grid gap-3 md:grid-cols-[1.4fr_1fr_1fr_auto]"
-        >
-          <div className="relative">
-            <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-black/35" />
+      <Panel flush>
+        <form onSubmit={onSearch} className="flex flex-wrap items-center gap-3 border-b border-black/[0.06] px-5 py-3">
+          <div className="relative min-w-60 flex-[2]">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-black/35" />
             <Input
               value={draftSearch}
               onChange={(event) => setDraftSearch(event.target.value)}
-              placeholder="Search name, trading name, or phone"
-              className="pl-9"
+              placeholder="Search name, trading name or phone"
+              className="bg-white pl-9"
             />
           </div>
-
-          <select
-            value={filters.verificationStatus}
-            onChange={(event) => {
-              setPage(1);
-              setFilters((prev) => ({
-                ...prev,
-                verificationStatus: event.target
-                  .value as Filters["verificationStatus"],
-              }));
-            }}
-            className={cn(
-              "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
-              !filters.verificationStatus
-                ? "text-muted-foreground/70"
-                : "text-foreground",
-            )}
-          >
-            <option value="">All statuses</option>
-            <option value="pending">Pending review</option>
-            <option value="pending_third_party">Fayda in progress</option>
-            <option value="verified">Verified</option>
-            <option value="rejected">Rejected</option>
-          </select>
-
-          <select
-            value={filters.kycComplete}
-            onChange={(event) => {
-              setPage(1);
-              setFilters((prev) => ({
-                ...prev,
-                kycComplete: event.target.value as Filters["kycComplete"],
-              }));
-            }}
-            className={cn(
-              "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
-              !filters.kycComplete
-                ? "text-muted-foreground/70"
-                : "text-foreground",
-            )}
-          >
-            <option value="">All KYC</option>
-            <option value="true">KYC complete</option>
-            <option value="false">KYC incomplete</option>
-          </select>
-
-          <Button type="submit">Search</Button>
+          <div className="min-w-40 flex-1">
+            <NativeSelect
+              aria-label="Verification status"
+              value={filters.verificationStatus}
+              onChange={(event) => update("verificationStatus", event.target.value as Filters["verificationStatus"])}
+            >
+              <option value="">All statuses</option>
+              <option value="pending">Pending review</option>
+              <option value="pending_third_party">Fayda in progress</option>
+              <option value="verified">Verified</option>
+              <option value="rejected">Rejected</option>
+            </NativeSelect>
+          </div>
+          <div className="min-w-36 flex-1">
+            <NativeSelect
+              aria-label="KYC"
+              value={filters.kycComplete}
+              onChange={(event) => update("kycComplete", event.target.value as Filters["kycComplete"])}
+            >
+              <option value="">Any KYC</option>
+              <option value="true">KYC complete</option>
+              <option value="false">KYC incomplete</option>
+            </NativeSelect>
+          </div>
+          <Button type="submit" variant="secondary">
+            Search
+          </Button>
         </form>
-      </div>
 
-      <div className="rounded-xl border border-black/[0.06] bg-white p-3 shadow-xs">
         {error ? (
-          <p
-            role="alert"
-            className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-          >
-            {error}
-          </p>
+          <div className="px-5 pt-4">
+            <InlineAlert>{error.message}</InlineAlert>
+          </div>
         ) : null}
 
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Trading name</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Subtype</TableHead>
+            <TableRow className="bg-black/[0.015]">
+              <TableHead className="pl-5">Institution</TableHead>
+              <TableHead>Type</TableHead>
               <TableHead>KYC</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Registered</TableHead>
+              <TableHead>Verification</TableHead>
+              <TableHead className="pr-5">Registered</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell
-                  colSpan={7}
-                  className="py-10 text-center text-sm text-black/50"
-                >
-                  Loading institutions...
-                </TableCell>
-              </TableRow>
+            {isLoading && rows.length === 0 ? (
+              <TableSkeletonRows colSpan={5} />
             ) : rows.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={7}
-                  className="py-10 text-center text-sm text-black/50"
-                >
-                  No institutions match your filters.
-                </TableCell>
-              </TableRow>
+              <TableMessageRow colSpan={5}>No institutions match your filters.</TableMessageRow>
             ) : (
               rows.map((item) => (
                 <TableRow
                   key={item.id}
-                  className="cursor-pointer hover:bg-black/[0.02]"
+                  className="cursor-pointer"
+                  onClick={() => router.push(`/dashboard/beneficiary/${item.id}`)}
                 >
-                  <TableCell className="font-medium">
+                  <TableCell className="pl-5">
                     <Link
                       href={`/dashboard/beneficiary/${item.id}`}
-                      className="hover:underline"
+                      onClick={(event) => event.stopPropagation()}
+                      className="font-medium text-[#001539] hover:underline"
                     >
                       {item.fullName ?? "Unnamed institution"}
                     </Link>
+                    <p className="text-xs text-black/50">
+                      {[item.tradingName, item.phone].filter(Boolean).join(" · ") || "—"}
+                    </p>
                   </TableCell>
-                  <TableCell>{item.tradingName ?? "—"}</TableCell>
-                  <TableCell>{item.phone ?? "—"}</TableCell>
-                  <TableCell className="capitalize">
-                    {item.institutionSubtype?.replaceAll("_", " ") ?? "—"}
-                  </TableCell>
+                  <TableCell className="capitalize">{item.institutionSubtype?.replaceAll("_", " ") ?? "—"}</TableCell>
                   <TableCell>
-                    {item.institutionRequiredKycComplete == null
-                      ? "—"
-                      : item.institutionRequiredKycComplete
-                        ? "Complete"
-                        : "Incomplete"}
+                    {item.institutionRequiredKycComplete == null ? (
+                      <span className="text-black/40">—</span>
+                    ) : (
+                      <Badge tone={item.institutionRequiredKycComplete ? "success" : "warning"}>
+                        {item.institutionRequiredKycComplete ? "Complete" : "Incomplete"}
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell>
                     <VerificationStatusBadge status={item.verificationStatus} />
                   </TableCell>
-                  <TableCell>{formatDateTime(item.createdAt)}</TableCell>
+                  <TableCell className="pr-5">{formatDateTime(item.createdAt)}</TableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm text-black/60">
-            Showing {rangeStart}-{rangeEnd} of {totalItems}
-          </p>
-
-          <Pagination className="mx-0 w-auto justify-end">
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious
-                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                  disabled={page === 1 || isLoading}
-                >
-                  Previous
-                </PaginationPrevious>
-              </PaginationItem>
-              {Array.from({ length: totalPages }).map((_, index) => {
-                const pageNumber = index + 1;
-                return (
-                  <PaginationItem key={pageNumber}>
-                    <PaginationLink
-                      isActive={pageNumber === page}
-                      onClick={() => setPage(pageNumber)}
-                    >
-                      {pageNumber}
-                    </PaginationLink>
-                  </PaginationItem>
-                );
-              })}
-              <PaginationItem>
-                <PaginationNext
-                  onClick={() =>
-                    setPage((prev) => Math.min(totalPages, prev + 1))
-                  }
-                  disabled={page === totalPages || isLoading}
-                >
-                  Next
-                </PaginationNext>
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
-        </div>
-      </div>
+        <ListPagination
+          page={page}
+          pageSize={PAGE_SIZE}
+          totalItems={data?.pagination.totalItems ?? 0}
+          totalPages={data?.pagination.totalPages ?? 1}
+          disabled={isLoading}
+          onPageChange={setPage}
+        />
+      </Panel>
     </section>
   );
 }

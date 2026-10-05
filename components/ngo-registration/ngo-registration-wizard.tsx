@@ -60,6 +60,8 @@ export function NgoRegistrationWizard() {
       router.replace("/dashboard/register");
       return;
     }
+    // Registration state lives in sessionStorage, readable only after mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setBranchId(branch.branchId);
     setBranchName(branch.branchName);
     if (hasDraft()) setShowResumeBanner(true);

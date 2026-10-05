@@ -1,154 +1,143 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { type FormEvent, useState } from "react";
 
+import { FormField } from "@/components/dashboard/form-field";
+import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ApiError } from "@/lib/api/errors";
+import { NativeSelect } from "@/components/ui/native-select";
 import { apiClient } from "@/lib/api/client";
+import { ApiError, errorMessage, fieldErrorMap } from "@/lib/api/errors";
 import type { BranchCreateResponse, CreateBranchBody } from "@/lib/api/types";
+import { ETHIOPIAN_REGIONS } from "@/lib/constants/regions";
+import { normalizePhoneToE164 } from "@/lib/registration/phone";
 
 type Props = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onCreated: (branch: BranchCreateResponse) => void;
-  onCancel: () => void;
 };
 
-export function CreateBranchForm({ onCreated, onCancel }: Props) {
-  const [name, setName] = useState("");
-  const [region, setRegion] = useState("");
-  const [zone, setZone] = useState("");
-  const [woreda, setWoreda] = useState("");
-  const [branchPhone, setBranchPhone] = useState("");
-  const [branchEmail, setBranchEmail] = useState("");
-  const [branchFullName, setBranchFullName] = useState("");
+const EMPTY = {
+  name: "",
+  region: "",
+  zone: "",
+  woreda: "",
+  branchPhone: "",
+  branchEmail: "",
+  branchFullName: "",
+};
+
+export function CreateBranchDialog({ open, onOpenChange, onCreated }: Props) {
+  const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  function set(key: keyof typeof EMPTY, value: string) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setFieldErrors({});
     setIsSubmitting(true);
 
     const body: CreateBranchBody = {
-      name: name.trim(),
-      region: region.trim(),
-      zone: zone.trim(),
-      woreda: woreda.trim(),
-      branchPhone: branchPhone.trim(),
-      branchFullName: branchFullName.trim(),
+      name: form.name.trim(),
+      region: form.region.trim(),
+      zone: form.zone.trim(),
+      woreda: form.woreda.trim(),
+      branchPhone: normalizePhoneToE164(form.branchPhone.trim()),
+      branchFullName: form.branchFullName.trim(),
     };
-    if (branchEmail.trim()) body.branchEmail = branchEmail.trim();
+    if (form.branchEmail.trim()) body.branchEmail = form.branchEmail.trim();
 
     try {
-      const created = await apiClient<BranchCreateResponse>(
-        "/api/admin/branches",
-        {
-          method: "POST",
-          body: JSON.stringify(body),
-        },
-      );
+      const created = await apiClient<BranchCreateResponse>("/api/admin/branches", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      setForm(EMPTY);
       onCreated(created);
     } catch (submitError) {
-      setError(
-        submitError instanceof ApiError
-          ? submitError.message
-          : "Failed to create branch",
-      );
+      setError(errorMessage(submitError, "Failed to create branch"));
+      if (submitError instanceof ApiError) setFieldErrors(fieldErrorMap(submitError.errors));
     } finally {
       setIsSubmitting(false);
     }
   }
 
   return (
-    <form
-      onSubmit={onSubmit}
-      className="space-y-4 rounded-xl border border-black/[0.06] bg-white p-5 shadow-xs"
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-medium text-[#001539]">Create branch</h2>
-          <p className="mt-1 text-sm text-black/60">
-            Provisions a Keycloak BRANCH user. Login username is the branch
-            phone.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Creating..." : "Create branch"}
-          </Button>
-        </div>
-      </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-xl">
+        <form onSubmit={onSubmit} className="space-y-5">
+          <DialogHeader>
+            <DialogTitle className="text-[#001539]">New branch</DialogTitle>
+            <DialogDescription>
+              Creates the branch and a branch-officer login. The officer signs in with the branch phone.
+            </DialogDescription>
+          </DialogHeader>
 
-      {error ? (
-        <p
-          role="alert"
-          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-        >
-          {error}
-        </p>
-      ) : null}
+          {error ? <InlineAlert>{error}</InlineAlert> : null}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Branch name" id="name" value={name} onChange={setName} required />
-        <Field
-          label="Officer full name"
-          id="branchFullName"
-          value={branchFullName}
-          onChange={setBranchFullName}
-          required
-        />
-        <Field
-          label="Branch phone (login)"
-          id="branchPhone"
-          value={branchPhone}
-          onChange={setBranchPhone}
-          placeholder="+2519..."
-          required
-        />
-        <Field
-          label="Branch email"
-          id="branchEmail"
-          value={branchEmail}
-          onChange={setBranchEmail}
-          placeholder="optional"
-        />
-        <Field label="Region" id="region" value={region} onChange={setRegion} required />
-        <Field label="Zone" id="zone" value={zone} onChange={setZone} required />
-        <Field label="Woreda" id="woreda" value={woreda} onChange={setWoreda} required />
-      </div>
-    </form>
-  );
-}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField label="Branch name" htmlFor="b-name" required error={fieldErrors.name} className="sm:col-span-2">
+              <Input id="b-name" value={form.name} onChange={(e) => set("name", e.target.value)} required />
+            </FormField>
+            <FormField label="Region" htmlFor="b-region" required error={fieldErrors.region}>
+              <NativeSelect id="b-region" value={form.region} onChange={(e) => set("region", e.target.value)} required>
+                <option value="">Select</option>
+                {ETHIOPIAN_REGIONS.map((region) => (
+                  <option key={region} value={region}>
+                    {region}
+                  </option>
+                ))}
+              </NativeSelect>
+            </FormField>
+            <FormField label="Zone" htmlFor="b-zone" required error={fieldErrors.zone}>
+              <Input id="b-zone" value={form.zone} onChange={(e) => set("zone", e.target.value)} required />
+            </FormField>
+            <FormField label="Woreda" htmlFor="b-woreda" required error={fieldErrors.woreda}>
+              <Input id="b-woreda" value={form.woreda} onChange={(e) => set("woreda", e.target.value)} required />
+            </FormField>
+          </div>
 
-function Field({
-  label,
-  id,
-  value,
-  onChange,
-  placeholder,
-  required,
-}: {
-  label: string;
-  id: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  required?: boolean;
-}) {
-  return (
-    <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
-      <Input
-        id={id}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        required={required}
-      />
-    </div>
+          <div className="space-y-3 rounded-lg bg-black/[0.02] p-4">
+            <p className="text-sm font-semibold text-[#001539]">Branch officer</p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField label="Full name" htmlFor="b-officer" required error={fieldErrors.branchFullName} className="sm:col-span-2">
+                <Input id="b-officer" value={form.branchFullName} onChange={(e) => set("branchFullName", e.target.value)} required />
+              </FormField>
+              <FormField label="Phone (login)" htmlFor="b-phone" required error={fieldErrors.branchPhone}>
+                <Input id="b-phone" type="tel" value={form.branchPhone} onChange={(e) => set("branchPhone", e.target.value)} placeholder="+2519…" required />
+              </FormField>
+              <FormField label="Email" htmlFor="b-email" error={fieldErrors.branchEmail}>
+                <Input id="b-email" type="email" value={form.branchEmail} onChange={(e) => set("branchEmail", e.target.value)} />
+              </FormField>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Creating…" : "Create branch"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

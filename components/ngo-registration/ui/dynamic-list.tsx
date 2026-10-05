@@ -75,7 +75,7 @@ export function DynamicList<T>({
         <button
           type="button"
           onClick={onAdd}
-          className="flex min-h-[48px] items-center gap-2 rounded-xl border-2 border-dashed border-black/30 px-4 py-2 text-base font-medium text-[#001539] transition hover:border-black/50 hover:bg-[#007050]/5"
+          className="flex min-h-10 items-center gap-2 rounded-xl border-2 border-dashed border-black/30 px-4 py-2 text-sm font-medium text-[#001539] transition hover:border-black/50 hover:bg-[#007050]/5"
         >
           <Plus className="h-5 w-5" /> {addLabel}
         </button>

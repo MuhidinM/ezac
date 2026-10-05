@@ -1,275 +1,173 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { KeyRound, Save } from "lucide-react";
 
+import { FormField } from "@/components/dashboard/form-field";
+import { InlineAlert } from "@/components/dashboard/inline-alert";
+import { Panel } from "@/components/dashboard/panel";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ApiError } from "@/lib/api/errors";
 import { apiClient } from "@/lib/api/client";
+import { errorMessage } from "@/lib/api/errors";
 import type { MeProfile } from "@/lib/api/types";
+import { useResource } from "@/lib/api/use-resource";
 import { clearSessionCache } from "@/lib/auth/use-session";
 
+const ROLE_LABELS: Record<string, string> = {
+  ADMIN: "Administrator",
+  FIELD_OFFICER: "Field officer",
+  BRANCH: "Branch officer",
+};
+
 export function ProfileForm() {
+  const { data: profile, error, isLoading, reload } = useResource<MeProfile>("/api/auth/me");
+
+  if (isLoading && !profile) {
+    return <div className="h-64 animate-pulse rounded-xl bg-black/[0.04]" />;
+  }
+
+  if (!profile) {
+    return (
+      <InlineAlert action={<Button variant="outline" size="sm" onClick={reload}>Retry</Button>}>
+        {error?.message ?? "Profile not available"}
+      </InlineAlert>
+    );
+  }
+
+  // Keyed so the form re-initialises after a save returns new values.
+  return (
+    <div className="grid gap-6 lg:grid-cols-2">
+      <AccountDetails key={`${profile.displayName}|${profile.phone}`} profile={profile} onSaved={reload} />
+      <ChangePassword />
+    </div>
+  );
+}
+
+function AccountDetails({ profile, onSaved }: { profile: MeProfile; onSaved: () => void }) {
   const router = useRouter();
-  const [profile, setProfile] = useState<MeProfile | null>(null);
-  const [displayName, setDisplayName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [profileMessage, setProfileMessage] = useState<string | null>(null);
-  const [profileError, setProfileError] = useState<string | null>(null);
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [displayName, setDisplayName] = useState(profile.displayName ?? "");
+  const [phone, setPhone] = useState(profile.phone ?? "");
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmNewPassword, setConfirmNewPassword] = useState("");
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [isSavingPassword, setIsSavingPassword] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      setIsLoading(true);
-      setLoadError(null);
-      try {
-        const data = await apiClient<MeProfile>("/api/auth/me");
-        if (cancelled) return;
-        setProfile(data);
-        setDisplayName(data.displayName ?? "");
-        setPhone(data.phone ?? "");
-      } catch (error) {
-        if (cancelled) return;
-        if (error instanceof ApiError && error.status === 401) {
-          router.replace("/login?redirect=/dashboard/profile");
-          return;
-        }
-        setLoadError(
-          error instanceof ApiError
-            ? error.message
-            : "Failed to load profile",
-        );
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    }
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [router]);
-
-  async function onSaveProfile(event: FormEvent<HTMLFormElement>) {
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setProfileError(null);
-    setProfileMessage(null);
-    setIsSavingProfile(true);
-
+    setError(null);
+    setMessage(null);
+    setIsSaving(true);
     try {
-      const updated = await apiClient<MeProfile>("/api/auth/me", {
+      await apiClient<MeProfile>("/api/auth/me", {
         method: "PATCH",
-        body: JSON.stringify({
-          displayName: displayName.trim(),
-          phone: phone.trim(),
-        }),
+        body: JSON.stringify({ displayName: displayName.trim(), phone: phone.trim() }),
       });
-      setProfile(updated);
-      setDisplayName(updated.displayName ?? "");
-      setPhone(updated.phone ?? "");
-      setProfileMessage("Profile updated successfully.");
+      setMessage("Profile updated.");
       clearSessionCache();
       router.refresh();
-    } catch (error) {
-      setProfileError(
-        error instanceof ApiError ? error.message : "Failed to update profile",
-      );
+      onSaved();
+    } catch (saveError) {
+      setError(errorMessage(saveError, "Failed to update profile"));
     } finally {
-      setIsSavingProfile(false);
+      setIsSaving(false);
     }
   }
 
-  async function onChangePassword(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setPasswordError(null);
+  return (
+    <Panel title="Account details" description="How your name and phone appear across EZAC.">
+      <form onSubmit={onSubmit} className="space-y-4">
+        {message ? <InlineAlert tone="success">{message}</InlineAlert> : null}
+        {error ? <InlineAlert>{error}</InlineAlert> : null}
+        <FormField label="Display name" htmlFor="displayName">
+          <Input id="displayName" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Your name" />
+        </FormField>
+        <FormField label="Phone" htmlFor="phone">
+          <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+2519…" />
+        </FormField>
+        <FormField label="Email" htmlFor="email" hint="Managed by your administrator">
+          <Input id="email" value={profile.email ?? "—"} disabled readOnly />
+        </FormField>
+        <div className="space-y-1.5">
+          <p className="text-[13px] font-medium text-[#001539]">Roles</p>
+          <div className="flex flex-wrap gap-1.5">
+            {profile.roles.length > 0 ? (
+              profile.roles.map((role) => (
+                <Badge key={role} tone="navy">
+                  {ROLE_LABELS[role] ?? role}
+                </Badge>
+              ))
+            ) : (
+              <span className="text-sm text-black/45">—</span>
+            )}
+          </div>
+        </div>
+        <div className="flex justify-end border-t border-black/[0.06] pt-4">
+          <Button type="submit" disabled={isSaving}>
+            <Save />
+            {isSaving ? "Saving…" : "Save changes"}
+          </Button>
+        </div>
+      </form>
+    </Panel>
+  );
+}
 
+function ChangePassword() {
+  const router = useRouter();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
     if (newPassword.length < 6) {
-      setPasswordError("New password must be at least 6 characters.");
+      setError("New password must be at least 6 characters.");
       return;
     }
     if (newPassword !== confirmNewPassword) {
-      setPasswordError("New password and confirmation do not match.");
+      setError("New password and confirmation don't match.");
       return;
     }
-
-    setIsSavingPassword(true);
-
+    setIsSaving(true);
     try {
       await apiClient<unknown>("/api/auth/me/password", {
         method: "POST",
-        body: JSON.stringify({
-          currentPassword,
-          newPassword,
-          confirmNewPassword,
-        }),
+        body: JSON.stringify({ currentPassword, newPassword, confirmNewPassword }),
       });
       clearSessionCache();
       router.push("/login?passwordChanged=1&redirect=/dashboard/profile");
       router.refresh();
-    } catch (error) {
-      setPasswordError(
-        error instanceof ApiError
-          ? error.message
-          : "Failed to change password",
-      );
-    } finally {
-      setIsSavingPassword(false);
+    } catch (saveError) {
+      setError(errorMessage(saveError, "Failed to change password"));
+      setIsSaving(false);
     }
   }
 
-  if (isLoading) {
-    return <p className="text-sm text-black/60">Loading profile...</p>;
-  }
-
-  if (loadError || !profile) {
-    return (
-      <p
-        role="alert"
-        className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-      >
-        {loadError ?? "Profile not available"}
-      </p>
-    );
-  }
-
   return (
-    <div className="grid gap-5 lg:grid-cols-2">
-      <form
-        onSubmit={onSaveProfile}
-        className="space-y-4 rounded-xl border border-black/[0.06] bg-white p-5 shadow-xs"
-      >
-        <div>
-          <h2 className="text-lg font-medium text-[#001539]">Account details</h2>
-          <p className="mt-1 text-sm text-black/60">
-            Update how your name and phone appear in EZAC.
-          </p>
+    <Panel title="Password" description="You'll be signed out and asked to sign in with the new password.">
+      <form onSubmit={onSubmit} className="space-y-4">
+        {error ? <InlineAlert>{error}</InlineAlert> : null}
+        <FormField label="Current password" htmlFor="currentPassword" required>
+          <Input id="currentPassword" type="password" autoComplete="current-password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required />
+        </FormField>
+        <FormField label="New password" htmlFor="newPassword" hint="At least 6 characters" required>
+          <Input id="newPassword" type="password" autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} minLength={6} required />
+        </FormField>
+        <FormField label="Confirm new password" htmlFor="confirmNewPassword" required>
+          <Input id="confirmNewPassword" type="password" autoComplete="new-password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} minLength={6} required />
+        </FormField>
+        <div className="flex justify-end border-t border-black/[0.06] pt-4">
+          <Button type="submit" disabled={isSaving}>
+            <KeyRound />
+            {isSaving ? "Updating…" : "Update password"}
+          </Button>
         </div>
-
-        {profileMessage ? (
-          <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-            {profileMessage}
-          </p>
-        ) : null}
-        {profileError ? (
-          <p
-            role="alert"
-            className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-          >
-            {profileError}
-          </p>
-        ) : null}
-
-        <div className="space-y-2">
-          <Label htmlFor="displayName">Display name</Label>
-          <Input
-            id="displayName"
-            value={displayName}
-            onChange={(event) => setDisplayName(event.target.value)}
-            placeholder="Your name"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="phone">Phone</Label>
-          <Input
-            id="phone"
-            value={phone}
-            onChange={(event) => setPhone(event.target.value)}
-            placeholder="+2519..."
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label>Email</Label>
-          <Input value={profile.email ?? "—"} disabled readOnly />
-        </div>
-
-        <div className="space-y-2">
-          <Label>Roles</Label>
-          <p className="rounded-md border border-black/10 bg-black/[0.02] px-3 py-2 text-sm text-[#001539]">
-            {profile.roles.length > 0 ? profile.roles.join(", ") : "—"}
-          </p>
-        </div>
-
-        <Button type="submit" disabled={isSavingProfile}>
-          {isSavingProfile ? "Saving..." : "Save profile"}
-        </Button>
       </form>
-
-      <form
-        onSubmit={onChangePassword}
-        className="space-y-4 rounded-xl border border-black/[0.06] bg-white p-5 shadow-xs"
-      >
-        <div>
-          <h2 className="text-lg font-medium text-[#001539]">Change password</h2>
-          <p className="mt-1 text-sm text-black/60">
-            After changing your password you will need to sign in again.
-          </p>
-        </div>
-
-        {passwordError ? (
-          <p
-            role="alert"
-            className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-          >
-            {passwordError}
-          </p>
-        ) : null}
-
-        <div className="space-y-2">
-          <Label htmlFor="currentPassword">Current password</Label>
-          <Input
-            id="currentPassword"
-            type="password"
-            autoComplete="current-password"
-            value={currentPassword}
-            onChange={(event) => setCurrentPassword(event.target.value)}
-            required
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="newPassword">New password</Label>
-          <Input
-            id="newPassword"
-            type="password"
-            autoComplete="new-password"
-            value={newPassword}
-            onChange={(event) => setNewPassword(event.target.value)}
-            minLength={6}
-            required
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="confirmNewPassword">Confirm new password</Label>
-          <Input
-            id="confirmNewPassword"
-            type="password"
-            autoComplete="new-password"
-            value={confirmNewPassword}
-            onChange={(event) => setConfirmNewPassword(event.target.value)}
-            minLength={6}
-            required
-          />
-        </div>
-
-        <Button type="submit" disabled={isSavingPassword}>
-          {isSavingPassword ? "Updating..." : "Update password"}
-        </Button>
-      </form>
-    </div>
+    </Panel>
   );
 }

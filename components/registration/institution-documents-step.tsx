@@ -46,6 +46,8 @@ export function InstitutionDocumentsStep() {
       return;
     }
 
+    // Registration state lives in sessionStorage, readable only after mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setBranchName(session.branchName);
     setCompanyId(session.entityId);
     setUploadToken(session.companyDocumentUploadToken);

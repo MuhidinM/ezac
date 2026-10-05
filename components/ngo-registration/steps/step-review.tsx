@@ -73,7 +73,7 @@ export function StepReview({ state, onSubmit, isSubmitting }: StepReviewProps) {
         <h2 className="text-xl font-semibold tracking-tight text-[#001539] sm:text-2xl">
           Review your application
         </h2>
-        <p className="mt-1 text-base text-black/55">
+        <p className="mt-1 text-sm text-black/55">
           Please review all sections before submitting.
         </p>
       </div>

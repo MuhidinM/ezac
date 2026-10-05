@@ -16,7 +16,7 @@ export function ScoreSlider({ label, guide, max, value, onChange }: ScoreSliderP
     <div className="space-y-2">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-base font-medium text-[#001539]">{label}</p>
+          <p className="text-sm font-medium text-[#001539]">{label}</p>
           <p className="text-sm text-black/55">{guide}</p>
         </div>
         <span className="shrink-0 text-lg font-semibold text-[#001539]">

@@ -101,14 +101,14 @@ export function Step5Shariah({ state, setState, errors }: NgoStepProps) {
                 <input id="applicantDate" type="date" value={s.applicantDate} onChange={(e) => update("applicantDate", e.target.value)} className={inputClass} />
               </FormField>
             </div>
-            <label className="mt-4 flex min-h-[48px] cursor-pointer items-start gap-3 rounded-xl border border-black/10 px-4 py-3">
+            <label className="mt-4 flex min-h-10 cursor-pointer items-start gap-3 rounded-xl border border-black/10 px-4 py-3">
               <input
                 type="checkbox"
                 checked={s.declarationAgreed}
                 onChange={(e) => update("declarationAgreed", e.target.checked)}
                 className="mt-1 h-5 w-5 accent-[#007050]"
               />
-              <span className="text-base text-[#001539]">
+              <span className="text-sm text-[#001539]">
                 I agree to the above declaration *
               </span>
             </label>

@@ -1,19 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Plus, RefreshCw, Search } from "lucide-react";
 
-import { CreateBranchForm } from "@/components/branches/create-branch-form";
+import { CodeStatsInline } from "@/components/branches/code-stats";
+import { CreateBranchDialog } from "@/components/branches/create-branch-form";
 import { CredentialsOnceDialog } from "@/components/branches/credentials-once-dialog";
+import { InlineAlert } from "@/components/dashboard/inline-alert";
+import { ListPagination } from "@/components/dashboard/list-pagination";
+import { PageHeader } from "@/components/dashboard/page-header";
+import { Panel } from "@/components/dashboard/panel";
+import { RequireRole } from "@/components/dashboard/require-role";
+import { TableMessageRow, TableSkeletonRows } from "@/components/dashboard/table-states";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -22,207 +24,142 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ApiError } from "@/lib/api/errors";
-import { apiClient } from "@/lib/api/client";
-import type {
-  BranchCreateResponse,
-  BranchListItem,
-  CodeStats,
-  PaginatedItems,
-} from "@/lib/api/types";
-import { fetchSession } from "@/lib/auth/use-session";
+import type { BranchCreateResponse, BranchListItem, PaginatedItems } from "@/lib/api/types";
+import { useResource } from "@/lib/api/use-resource";
 
 const PAGE_SIZE = 20;
 
-function formatCodeStats(stats: CodeStats | null): string {
-  if (!stats) return "—";
-  return `${stats.available} avail · ${stats.reserved} res · ${stats.consumed} used · ${stats.revoked} rev`;
+export default function BranchesPage() {
+  return (
+    <RequireRole audience={["admin"]}>
+      <Branches />
+    </RequireRole>
+  );
 }
 
-export default function BranchesPage() {
+function Branches() {
   const router = useRouter();
-  const [rows, setRows] = useState<BranchListItem[]>([]);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
-  const [credentials, setCredentials] = useState<BranchCreateResponse | null>(
-    null,
+  const [filter, setFilter] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [credentials, setCredentials] = useState<BranchCreateResponse | null>(null);
+
+  const { data, error, isLoading, reload } = useResource<PaginatedItems<BranchListItem>>(
+    `/api/admin/branches?page=${page}&limit=${PAGE_SIZE}`,
   );
 
-  const loadBranches = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const session = await fetchSession();
-      if (session && !session.isAdmin) {
-        router.replace("/dashboard/beneficiary");
-        return;
-      }
-
-      const data = await apiClient<PaginatedItems<BranchListItem>>(
-        `/api/admin/branches?page=${page}&limit=${PAGE_SIZE}`,
-      );
-      setRows(data.items);
-      setTotalPages(Math.max(1, data.pagination.totalPages));
-      setTotalItems(data.pagination.totalItems);
-    } catch (loadError) {
-      if (loadError instanceof ApiError && loadError.status === 401) {
-        router.replace("/login?redirect=/dashboard/branches");
-        return;
-      }
-      setError(
-        loadError instanceof ApiError
-          ? loadError.message
-          : "Failed to load branches",
-      );
-      setRows([]);
-      setTotalPages(1);
-      setTotalItems(0);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [page, router]);
-
-  useEffect(() => {
-    void loadBranches();
-  }, [loadBranches]);
-
-  const rangeStart = totalItems === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
-  const rangeEnd = Math.min(page * PAGE_SIZE, totalItems);
-
-  if (isCreating) {
-    return (
-      <section className="space-y-5">
-        <CreateBranchForm
-          onCancel={() => setIsCreating(false)}
-          onCreated={(created) => {
-            setIsCreating(false);
-            setCredentials(created);
-            setPage(1);
-            void loadBranches();
-          }}
-        />
-      </section>
-    );
-  }
+  // The branches endpoint has no search; filter the current page locally.
+  const query = filter.trim().toLowerCase();
+  const rows = (data?.items ?? []).filter(
+    (item) =>
+      !query ||
+      [item.name, item.region, item.zone, item.woreda, item.branchPhone]
+        .filter(Boolean)
+        .some((value) => value!.toLowerCase().includes(query)),
+  );
 
   return (
-    <section className="space-y-5">
+    <section className="space-y-6">
       {credentials ? (
         <CredentialsOnceDialog
           login={credentials.branchPhone ?? ""}
           initialPassword={credentials.initialPassword}
           passwordChangeRequired={credentials.passwordChangeRequired}
           onClose={() => {
+            const id = credentials.id;
             setCredentials(null);
-            if (credentials.id) {
-              router.push(`/dashboard/branches/${credentials.id}`);
-            }
+            if (id) router.push(`/dashboard/branches/${id}`);
           }}
         />
       ) : null}
 
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-[#001539]">
-            Branches
-          </h1>
-          <p className="mt-1 text-sm text-black/60">
-            Tap a branch to view details, generate codes, and see its code list.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => void loadBranches()} disabled={isLoading}>
-            Refresh
-          </Button>
-          <Button onClick={() => setIsCreating(true)}>Create branch</Button>
-        </div>
-      </div>
+      <CreateBranchDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={(created) => {
+          setCreateOpen(false);
+          setCredentials(created);
+          reload();
+        }}
+      />
 
-      <div className="rounded-xl border border-black/[0.06] bg-white p-3 shadow-xs">
+      <PageHeader
+        title="Branches"
+        description="Branches hand out registration codes; beneficiaries belong to the branch whose code they used."
+        actions={
+          <>
+            <Button variant="outline" onClick={reload} disabled={isLoading}>
+              <RefreshCw />
+              Refresh
+            </Button>
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus />
+              New branch
+            </Button>
+          </>
+        }
+      />
+
+      <Panel flush>
+        <div className="border-b border-black/[0.06] px-5 py-3">
+          <div className="relative max-w-sm">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-black/35" />
+            <Input
+              value={filter}
+              onChange={(event) => setFilter(event.target.value)}
+              placeholder="Filter by name, location or phone"
+              className="bg-white pl-9"
+            />
+          </div>
+        </div>
+
         {error ? (
-          <p
-            role="alert"
-            className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-          >
-            {error}
-          </p>
+          <div className="px-5 pt-4">
+            <InlineAlert>{error.message}</InlineAlert>
+          </div>
         ) : null}
 
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Region</TableHead>
-              <TableHead>Zone</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Status</TableHead>
+            <TableRow className="bg-black/[0.015]">
+              <TableHead className="pl-5">Branch</TableHead>
+              <TableHead>Location</TableHead>
+              <TableHead>Officer</TableHead>
               <TableHead>Codes</TableHead>
-              <TableHead className="w-[1%] whitespace-nowrap">
-                <span className="sr-only">Open</span>
-              </TableHead>
+              <TableHead className="pr-5">Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell
-                  colSpan={7}
-                  className="py-10 text-center text-sm text-black/50"
-                >
-                  Loading branches...
-                </TableCell>
-              </TableRow>
+            {isLoading && rows.length === 0 ? (
+              <TableSkeletonRows colSpan={5} />
             ) : rows.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={7}
-                  className="py-10 text-center text-sm text-black/50"
-                >
-                  No branches yet. Create one to get started.
-                </TableCell>
-              </TableRow>
+              <TableMessageRow colSpan={5}>
+                {query ? "No branches on this page match your filter." : "No branches yet. Create one to get started."}
+              </TableMessageRow>
             ) : (
               rows.map((item) => (
                 <TableRow
                   key={item.id}
-                  role="link"
                   tabIndex={0}
-                  className="cursor-pointer hover:bg-black/[0.02]"
+                  className="cursor-pointer"
                   onClick={() => router.push(`/dashboard/branches/${item.id}`)}
                   onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      router.push(`/dashboard/branches/${item.id}`);
-                    }
+                    if (event.key === "Enter") router.push(`/dashboard/branches/${item.id}`);
                   }}
                 >
-                  <TableCell className="font-medium text-[#007050]">
-                    {item.name}
+                  <TableCell className="pl-5 font-medium text-[#001539]">{item.name}</TableCell>
+                  <TableCell className="text-sm text-black/65">
+                    {[item.woreda, item.zone, item.region].filter(Boolean).join(", ") || "—"}
                   </TableCell>
-                  <TableCell>{item.region ?? "—"}</TableCell>
-                  <TableCell>{item.zone ?? "—"}</TableCell>
-                  <TableCell>{item.branchPhone ?? "—"}</TableCell>
                   <TableCell>
-                    <span
-                      className={
-                        item.active
-                          ? "text-emerald-700"
-                          : "text-black/50"
-                      }
-                    >
-                      {item.active ? "Active" : "Inactive"}
-                    </span>
+                    <p className="text-sm text-[#001539]">{item.branchFullName ?? "—"}</p>
+                    <p className="text-xs text-black/50 tabular-nums">{item.branchPhone ?? ""}</p>
                   </TableCell>
-                  <TableCell className="text-xs text-black/65">
-                    {formatCodeStats(item.codeStats)}
+                  <TableCell>
+                    <CodeStatsInline stats={item.codeStats} />
                   </TableCell>
-                  <TableCell className="text-right text-sm text-[#007050]">
-                    View
+                  <TableCell className="pr-5">
+                    <Badge tone={item.active ? "success" : "neutral"}>{item.active ? "Active" : "Inactive"}</Badge>
                   </TableCell>
                 </TableRow>
               ))
@@ -230,47 +167,15 @@ export default function BranchesPage() {
           </TableBody>
         </Table>
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm text-black/60">
-            Showing {rangeStart}-{rangeEnd} of {totalItems}
-          </p>
-          <Pagination className="mx-0 w-auto justify-end">
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious
-                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                  disabled={page === 1 || isLoading}
-                >
-                  Previous
-                </PaginationPrevious>
-              </PaginationItem>
-              {Array.from({ length: totalPages }).map((_, index) => {
-                const pageNumber = index + 1;
-                return (
-                  <PaginationItem key={pageNumber}>
-                    <PaginationLink
-                      isActive={pageNumber === page}
-                      onClick={() => setPage(pageNumber)}
-                    >
-                      {pageNumber}
-                    </PaginationLink>
-                  </PaginationItem>
-                );
-              })}
-              <PaginationItem>
-                <PaginationNext
-                  onClick={() =>
-                    setPage((prev) => Math.min(totalPages, prev + 1))
-                  }
-                  disabled={page === totalPages || isLoading}
-                >
-                  Next
-                </PaginationNext>
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
-        </div>
-      </div>
+        <ListPagination
+          page={page}
+          pageSize={PAGE_SIZE}
+          totalItems={data?.pagination.totalItems ?? 0}
+          totalPages={data?.pagination.totalPages ?? 1}
+          disabled={isLoading}
+          onPageChange={setPage}
+        />
+      </Panel>
     </section>
   );
 }

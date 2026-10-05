@@ -27,7 +27,7 @@ export function CheckboxGroup({
 }: CheckboxGroupProps) {
   return (
     <fieldset className="space-y-2">
-      <legend className="form-label text-base font-medium">{label}</legend>
+      <legend className="form-label text-sm font-medium">{label}</legend>
       <div
         role="group"
         aria-label={label}
@@ -45,7 +45,7 @@ export function CheckboxGroup({
               key={option.value}
               htmlFor={id}
               className={cn(
-                "flex min-h-[48px] cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 text-base transition",
+                "flex min-h-10 cursor-pointer items-start gap-3 rounded-lg border px-3 py-2 text-sm transition",
                 checked
                   ? "border-[#007050] bg-[rgba(0,112,80,0.06)]"
                   : "border-black/10 bg-white hover:border-black/20",
