@@ -42,7 +42,7 @@ export function RegistrationShell({
         >
           Back to beneficiaries
         </Link>
-        <h1 className="mt-3 font-serif-display text-3xl tracking-tight text-[#001539]">
+        <h1 className="mt-3 text-2xl font-semibold tracking-tight text-[#001539]">
           {title}
         </h1>
         {description ? (
@@ -75,7 +75,7 @@ export function RegistrationShell({
         </ol>
       ) : null}
 
-      <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm shadow-black/5 sm:p-6">
+      <div className="rounded-xl border border-black/[0.06] bg-white p-5 shadow-xs sm:p-6">
         {error ? (
           <p
             role="alert"

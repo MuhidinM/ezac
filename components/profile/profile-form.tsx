@@ -148,7 +148,7 @@ export function ProfileForm() {
     <div className="grid gap-5 lg:grid-cols-2">
       <form
         onSubmit={onSaveProfile}
-        className="space-y-4 rounded-2xl border border-black/5 bg-white p-5 shadow-sm shadow-black/5"
+        className="space-y-4 rounded-xl border border-black/[0.06] bg-white p-5 shadow-xs"
       >
         <div>
           <h2 className="text-lg font-medium text-[#001539]">Account details</h2>
@@ -210,7 +210,7 @@ export function ProfileForm() {
 
       <form
         onSubmit={onChangePassword}
-        className="space-y-4 rounded-2xl border border-black/5 bg-white p-5 shadow-sm shadow-black/5"
+        className="space-y-4 rounded-xl border border-black/[0.06] bg-white p-5 shadow-xs"
       >
         <div>
           <h2 className="text-lg font-medium text-[#001539]">Change password</h2>

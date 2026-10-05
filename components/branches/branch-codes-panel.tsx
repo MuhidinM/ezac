@@ -164,7 +164,7 @@ export function BranchCodesPanel({
       {generatePath ? (
         <form
           onSubmit={onGenerate}
-          className="flex flex-wrap items-end gap-3 rounded-2xl border border-black/5 bg-white p-4 shadow-sm shadow-black/5"
+          className="flex flex-wrap items-end gap-3 rounded-xl border border-black/[0.06] bg-white p-4 shadow-xs"
         >
           <div className="space-y-1.5">
             <label
@@ -219,7 +219,7 @@ export function BranchCodesPanel({
         </div>
       ) : null}
 
-      <div className="rounded-2xl border border-black/5 bg-white p-3 shadow-sm shadow-black/5">
+      <div className="rounded-xl border border-black/[0.06] bg-white p-3 shadow-xs">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
           <select
             value={status}

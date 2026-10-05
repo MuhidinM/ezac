@@ -68,7 +68,7 @@ export function ManualIdentityForm() {
     return (
       <QuestionnaireShell branchName={branchName} showProgress={false}>
         <div className="py-12 text-center">
-          <h2 className="font-serif-display text-2xl font-semibold text-[#001539]">
+          <h2 className="text-xl font-semibold tracking-tight text-[#001539]">
             Individual Registration Submitted
           </h2>
           <p className="mt-2 text-base text-black/55">

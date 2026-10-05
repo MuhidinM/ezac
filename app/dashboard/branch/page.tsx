@@ -65,7 +65,7 @@ export default function BranchPortalPage() {
   if (error || !profile) {
     return (
       <section className="space-y-4">
-        <h1 className="font-serif-display text-4xl tracking-tight text-[#001539]">
+        <h1 className="text-2xl font-semibold tracking-tight text-[#001539]">
           My branch
         </h1>
         <p
@@ -85,7 +85,7 @@ export default function BranchPortalPage() {
     <section className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-serif-display text-4xl tracking-tight text-[#001539]">
+          <h1 className="text-2xl font-semibold tracking-tight text-[#001539]">
             {profile.name}
           </h1>
           <p className="mt-1 text-sm text-black/60">
@@ -97,7 +97,7 @@ export default function BranchPortalPage() {
         </Button>
       </div>
 
-      <div className="rounded-2xl border border-black/5 bg-white p-4 shadow-sm shadow-black/5">
+      <div className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-xs">
         <h2 className="text-sm font-medium uppercase tracking-[0.12em] text-black/45">
           Location
         </h2>

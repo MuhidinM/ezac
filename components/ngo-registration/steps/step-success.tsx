@@ -40,7 +40,7 @@ export function StepSuccess({
       <div className="animate-checkmark-pop">
         <CheckCircle className="h-20 w-20 text-[#27ae60]" strokeWidth={1.5} />
       </div>
-      <h2 className="mt-6 font-serif-display text-3xl font-semibold text-[#001539]">
+      <h2 className="mt-6 text-2xl font-semibold tracking-tight text-[#001539]">
         Application Submitted Successfully
       </h2>
       <p className="mt-2 text-base text-black/55">

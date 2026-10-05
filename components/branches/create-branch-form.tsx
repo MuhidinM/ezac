@@ -63,7 +63,7 @@ export function CreateBranchForm({ onCreated, onCancel }: Props) {
   return (
     <form
       onSubmit={onSubmit}
-      className="space-y-4 rounded-2xl border border-black/5 bg-white p-5 shadow-sm shadow-black/5"
+      className="space-y-4 rounded-xl border border-black/[0.06] bg-white p-5 shadow-xs"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>

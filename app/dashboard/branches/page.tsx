@@ -128,7 +128,7 @@ export default function BranchesPage() {
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-serif-display text-4xl tracking-tight text-[#001539]">
+          <h1 className="text-2xl font-semibold tracking-tight text-[#001539]">
             Branches
           </h1>
           <p className="mt-1 text-sm text-black/60">
@@ -143,7 +143,7 @@ export default function BranchesPage() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-black/5 bg-white p-3 shadow-sm shadow-black/5">
+      <div className="rounded-xl border border-black/[0.06] bg-white p-3 shadow-xs">
         {error ? (
           <p
             role="alert"

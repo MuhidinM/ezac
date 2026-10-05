@@ -75,7 +75,7 @@ export function StepReview({ state, onSubmit, isSubmitting }: StepReviewProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="font-serif-display text-2xl font-semibold text-[#001539] sm:text-3xl">
+        <h2 className="text-xl font-semibold tracking-tight text-[#001539] sm:text-2xl">
           Review your answers
         </h2>
         <p className="mt-1 text-base text-black/55">

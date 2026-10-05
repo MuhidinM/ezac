@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { Geist_Mono, Instrument_Serif, Inter, Playfair_Display } from "next/font/google";
+import { Geist, Geist_Mono, Instrument_Serif, Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({
@@ -15,6 +15,13 @@ const instrumentSerif = Instrument_Serif({
   weight: "400",
   style: ["normal", "italic"],
   variable: "--font-instrument-serif",
+  display: "swap",
+});
+
+// Dashboard typeface; swapped in via --font-app-sans in globals.css.
+const geist = Geist({
+  subsets: ["latin"],
+  variable: "--font-geist-sans",
   display: "swap",
 });
 
@@ -44,7 +51,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${instrumentSerif.variable} ${geistMono.variable} ${playfair.variable} h-full antialiased`}
+      className={`${inter.variable} ${instrumentSerif.variable} ${geist.variable} ${geistMono.variable} ${playfair.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">{children}</body>
     </html>

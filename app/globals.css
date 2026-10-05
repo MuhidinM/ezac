@@ -7,7 +7,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-app-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -51,6 +51,8 @@
 }
 
 :root {
+  /* Inter on public pages; Geist while the dashboard shell is mounted. */
+  --font-app-sans: var(--font-inter);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -133,6 +135,25 @@
   html {
     @apply font-sans;
   }
+}
+
+/* Dashboard shell: brand-tinted neutrals around the sidebar-08 inset layout. */
+/* Scoped on :root so portaled UI (mobile sidebar sheet, menus) picks it up too. */
+:root:has(.dashboard-theme) {
+  --font-app-sans: var(--font-geist-sans);
+  --dashboard-canvas: #f7f8f9;
+  --sidebar: #f1f4f3;
+  --sidebar-foreground: #46526a;
+  --sidebar-primary: #007050;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e5ebe8;
+  --sidebar-accent-foreground: #001539;
+  --sidebar-border: #e1e6e4;
+  --sidebar-ring: #007050;
+}
+
+.dashboard-theme table {
+  font-variant-numeric: tabular-nums;
 }
 
 .font-serif-display {

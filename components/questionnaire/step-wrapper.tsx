@@ -21,7 +21,7 @@ export function StepWrapper({
           <Icon className="h-6 w-6 text-[#007050]" aria-hidden />
         </div>
         <div>
-          <h2 className="font-serif-display text-2xl tracking-tight text-[#001539] sm:text-3xl">
+          <h2 className="text-xl font-semibold tracking-tight text-[#001539] sm:text-2xl">
             {title}
           </h2>
           <p className="mt-1 text-base text-black/60">{description}</p>

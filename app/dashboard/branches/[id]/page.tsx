@@ -121,7 +121,7 @@ export default function BranchDetailPage() {
             <ArrowLeft className="h-4 w-4" />
             Back to branches
           </Link>
-          <h1 className="mt-3 font-serif-display text-4xl tracking-tight text-[#001539]">
+          <h1 className="mt-3 text-2xl font-semibold tracking-tight text-[#001539]">
             {branch.name}
           </h1>
           <p className="mt-1 text-sm text-black/60">
@@ -195,7 +195,7 @@ function DetailCard({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-black/5 bg-white p-4 shadow-sm shadow-black/5">
+    <div className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-xs">
       <h2 className="text-sm font-medium uppercase tracking-[0.12em] text-black/45">
         {title}
       </h2>

@@ -57,7 +57,7 @@ export function QuestionnaireShell({
         </Link>
         <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="font-serif-display text-3xl tracking-tight text-[#001539]">
+            <h1 className="text-2xl font-semibold tracking-tight text-[#001539]">
               {title}
             </h1>
             {formId ? (

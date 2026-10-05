@@ -130,7 +130,7 @@ export default function BeneficiaryPage() {
     <section className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-serif-display text-4xl tracking-tight text-[#001539]">
+          <h1 className="text-2xl font-semibold tracking-tight text-[#001539]">
             Beneficiary
           </h1>
           <p className="mt-1 text-sm text-black/60">
@@ -148,7 +148,7 @@ export default function BeneficiaryPage() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-black/5 bg-white p-4 shadow-sm shadow-black/5">
+      <div className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-xs">
         <form
           onSubmit={onSearchSubmit}
           className="grid gap-3 md:grid-cols-[1.4fr_1fr_1fr_auto]"
@@ -207,7 +207,7 @@ export default function BeneficiaryPage() {
         </form>
       </div>
 
-      <div className="rounded-2xl border border-black/5 bg-white p-3 shadow-sm shadow-black/5">
+      <div className="rounded-xl border border-black/[0.06] bg-white p-3 shadow-xs">
         {successMessage ? (
           <p className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
             {successMessage}

@@ -17,7 +17,7 @@ export default function RegisterError({
 
   return (
     <section className="mx-auto w-full max-w-xl space-y-4 rounded-2xl border border-red-200 bg-white p-6 shadow-sm">
-      <h1 className="font-serif-display text-2xl tracking-tight text-[#001539]">
+      <h1 className="text-xl font-semibold tracking-tight text-[#001539]">
         Registration couldn&apos;t load
       </h1>
       <p className="text-sm text-black/65">

@@ -199,7 +199,7 @@ export default function BeneficiaryDetailPage() {
               />
             ) : null}
             <div>
-              <h1 className="font-serif-display text-4xl tracking-tight text-[#001539]">
+              <h1 className="text-2xl font-semibold tracking-tight text-[#001539]">
                 {beneficiary.fullName ?? "Unnamed beneficiary"}
               </h1>
               <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -363,7 +363,7 @@ function DetailCard({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-black/5 bg-white p-4 shadow-sm shadow-black/5">
+    <div className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-xs">
       <h2 className="text-sm font-medium uppercase tracking-[0.12em] text-black/45">
         {title}
       </h2>
