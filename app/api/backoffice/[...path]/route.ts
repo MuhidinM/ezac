@@ -117,9 +117,18 @@ async function forward(request: NextRequest, context: RouteContext) {
     });
   }
 
-  return NextResponse.json(toEnvelope(body, upstream.status), {
-    status: upstream.status,
-  });
+  const envelope = toEnvelope(body, upstream.status);
+  if (upstream.status >= 500) {
+    // Surface upstream failures in the dev/server log; the browser only
+    // sees the normalised message.
+    console.error(
+      `[backoffice] ${upstream.status} ${request.method} ${upstreamUrl.pathname}${upstreamUrl.search}:`,
+      (envelope as { message?: string }).message,
+      body ?? "(empty body)",
+    );
+  }
+
+  return NextResponse.json(envelope, { status: upstream.status });
 }
 
 export const GET = forward;
