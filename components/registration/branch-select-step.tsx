@@ -10,21 +10,21 @@ import { RegistrationShell } from "@/components/registration/registration-shell"
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
-import type { BranchListItem, PaginatedItems } from "@/lib/api/types";
+import type { StaffMe } from "@/lib/api/backoffice-types";
 import { useResource } from "@/lib/api/use-resource";
 import { setSelectedBranch } from "@/lib/registration/session";
 import { cn } from "@/lib/utils";
 
 export function BranchSelectStep() {
   const router = useRouter();
-  const { data, error, isLoading, reload } = useResource<PaginatedItems<BranchListItem>>(
-    "/api/admin/branches?page=1&limit=100",
-  );
+  // Branches the signed-in user may register into: all active ones for ADMIN,
+  // their own for BRANCH, assigned branches and regions for field officers.
+  const { data, error, isLoading, reload } = useResource<StaffMe>("/api/backoffice/staff/me");
   const [search, setSearch] = useState("");
   const [region, setRegion] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const branches = useMemo(() => (data?.items ?? []).filter((branch) => branch.active), [data]);
+  const branches = useMemo(() => (data?.branches ?? []).filter((branch) => branch.active), [data]);
   const regions = useMemo(
     () => [...new Set(branches.map((branch) => branch.region?.trim()).filter(Boolean) as string[])].sort(),
     [branches],
@@ -36,7 +36,7 @@ export function BranchSelectStep() {
     .filter(
       (branch) =>
         !query ||
-        [branch.name, branch.region, branch.zone, branch.woreda, branch.branchPhone]
+        [branch.name, branch.region, branch.zone, branch.woreda]
           .filter(Boolean)
           .join(" ")
           .toLowerCase()
@@ -86,9 +86,7 @@ export function BranchSelectStep() {
 
         {error ? (
           <InlineAlert action={<Button variant="outline" size="sm" onClick={reload}>Retry</Button>}>
-            {error.status === 403
-              ? "Your account can't list branches. Ask an administrator to register this beneficiary."
-              : error.message}
+            {error.message}
           </InlineAlert>
         ) : null}
 
@@ -100,7 +98,9 @@ export function BranchSelectStep() {
           </div>
         ) : filtered.length === 0 ? (
           <p className="rounded-lg border border-dashed border-black/15 py-10 text-center text-sm text-black/50">
-            No active branches match your search.
+            {branches.length === 0
+              ? "You aren't assigned to any active branch yet. Ask an administrator to add an assignment."
+              : "No active branches match your search."}
           </p>
         ) : (
           <div role="radiogroup" aria-label="Branch" className="grid max-h-[28rem] gap-3 overflow-y-auto p-0.5 sm:grid-cols-2">

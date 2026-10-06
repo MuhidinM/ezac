@@ -13,6 +13,7 @@ export type StaffAssignment = {
   region?: string | null;
   active: boolean;
   createdAt?: string | null;
+  deactivatedAt?: string | null;
 };
 
 export type FieldOfficer = {
@@ -24,6 +25,54 @@ export type FieldOfficer = {
   active: boolean;
   assignments: StaffAssignment[];
   createdAt?: string | null;
+  /** DRAFT + RETURNED assessments. */
+  openAssessments?: number | null;
+  submittedThisMonth?: number | null;
+};
+
+/** One-time credentials from a password reset. */
+export type PasswordResetResponse = {
+  username?: string | null;
+  initialPassword: string;
+  passwordChangeRequired: boolean;
+};
+
+// ---- Staff "me" ---------------------------------------------------------------
+
+export type StaffBranchOption = {
+  id: string;
+  name: string;
+  region?: string | null;
+  zone?: string | null;
+  woreda?: string | null;
+  active: boolean;
+  codeStats?: { available: number } | null;
+};
+
+export type StaffMe = {
+  sub: string;
+  roles: string[];
+  fieldOfficer?: Omit<FieldOfficer, "assignments"> | null;
+  branch?: StaffBranchOption | null;
+  assignments?: StaffAssignment[];
+  /** Branches the caller can register beneficiaries into. */
+  branches: StaffBranchOption[];
+};
+
+// ---- Lifecycle ----------------------------------------------------------------
+
+export type LifecycleAction = "INACTIVE" | "GRADUATED" | "EXITED" | "REINSTATED";
+
+export type LifecycleHistory = {
+  lifecycleStatus: LifecycleStatus;
+  history: {
+    fromStatus: string | null;
+    toStatus: string;
+    reason: string | null;
+    changedBy?: string | null;
+    changedByName?: string | null;
+    changedAt: string;
+  }[];
 };
 
 export type CreateFieldOfficerBody = {
@@ -352,4 +401,28 @@ export type SubmitAssessmentBody = {
   officerRecommendation: OfficerRecommendation;
   recommendationReason: string;
   warningAcknowledgements: Record<string, string>;
+};
+
+// ---- Analytics ----------------------------------------------------------------
+
+export type DateRange = { from: string; to: string };
+
+export type OfficerStats = {
+  officerId: string;
+  fullName: string;
+  range: DateRange;
+  byStatus: Partial<Record<AssessmentStatus, number>>;
+  averageDaysToSubmit: number | null;
+  /** Share (0–1) of submitted assessments returned at least once. */
+  returnRate: number | null;
+  submittedInRange: number;
+  coverage: {
+    assignmentId: string;
+    branchId?: string | null;
+    branchName?: string | null;
+    region?: string | null;
+    beneficiaries: number;
+    pendingAssessment: number;
+    assessed: number;
+  }[];
 };

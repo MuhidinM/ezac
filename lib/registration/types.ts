@@ -61,6 +61,8 @@ export type KycDocument = {
 export type CreateBeneficiaryResponse = {
   id: string;
   passwordSetupToken?: string;
+  /** The registration code used (assigned automatically for staff walk-ins). */
+  bin?: string | null;
 };
 
 export type CreateCompanyResponse = {

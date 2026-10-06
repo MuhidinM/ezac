@@ -156,14 +156,16 @@ function FieldOfficers() {
               <TableHead className="pl-5">Officer</TableHead>
               <TableHead>Phone</TableHead>
               <TableHead>Assignments</TableHead>
+              <TableHead className="text-right">Open</TableHead>
+              <TableHead className="text-right">This month</TableHead>
               <TableHead>Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && rows.length === 0 ? (
-              <TableSkeletonRows colSpan={4} />
+              <TableSkeletonRows colSpan={6} />
             ) : rows.length === 0 ? (
-              <TableMessageRow colSpan={4}>
+              <TableMessageRow colSpan={6}>
                 {search || active
                   ? "No field officers match your filters."
                   : "No field officers yet. Create one to start assigning assessments."}
@@ -187,6 +189,8 @@ function FieldOfficers() {
                   <TableCell>
                     <AssignmentBadges assignments={officer.assignments ?? []} />
                   </TableCell>
+                  <TableCell className="text-right tabular-nums">{officer.openAssessments ?? "—"}</TableCell>
+                  <TableCell className="text-right tabular-nums">{officer.submittedThisMonth ?? "—"}</TableCell>
                   <TableCell>
                     <Badge tone={officer.active ? "success" : "neutral"}>
                       {officer.active ? "Active" : "Inactive"}

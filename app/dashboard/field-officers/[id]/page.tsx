@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useParams } from "next/navigation";
-import { MapPin, Plus, Power, Store } from "lucide-react";
+import { MapPin, Pencil, Plus, Power, Store } from "lucide-react";
 
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
@@ -10,7 +10,10 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { DetailList, Panel } from "@/components/dashboard/panel";
 import { RequireRole } from "@/components/dashboard/require-role";
 import { TableMessageRow } from "@/components/dashboard/table-states";
+import { ResetPasswordButton } from "@/components/dashboard/reset-password-button";
 import { assignmentLabel } from "@/components/field-officers/assignment-badges";
+import { EditOfficerDialog } from "@/components/field-officers/edit-officer-dialog";
+import { OfficerStatsPanel } from "@/components/field-officers/officer-stats";
 import {
   EMPTY_SCOPE,
   ScopePicker,
@@ -47,6 +50,7 @@ function FieldOfficerDetail() {
   const { data: officer, error, isLoading, reload, mutate } = useResource<FieldOfficer>(path);
 
   const [confirmToggle, setConfirmToggle] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [scope, setScope] = useState<ScopeValue>(EMPTY_SCOPE);
   const [assignError, setAssignError] = useState<string | null>(null);
   const [assignFieldErrors, setAssignFieldErrors] = useState<Record<string, string>>({});
@@ -151,10 +155,21 @@ function FieldOfficerDetail() {
         }
         description="Field officer account and the areas they can assess."
         actions={
-          <Button variant="outline" onClick={() => setConfirmToggle(true)}>
-            <Power />
-            {officer.active ? "Deactivate" : "Reactivate"}
-          </Button>
+          <>
+            <Button variant="outline" onClick={() => setEditOpen(true)}>
+              <Pencil />
+              Edit
+            </Button>
+            <ResetPasswordButton
+              path={`${path}/reset-password`}
+              login={officer.username ?? officer.phone ?? ""}
+              recipient="field officer"
+            />
+            <Button variant="outline" onClick={() => setConfirmToggle(true)}>
+              <Power />
+              {officer.active ? "Deactivate" : "Reactivate"}
+            </Button>
+          </>
         }
       />
 
@@ -166,9 +181,15 @@ function FieldOfficerDetail() {
             { label: "Phone", value: officer.phone },
             { label: "Email", value: officer.email },
             { label: "Created", value: formatDateTime(officer.createdAt ?? null) },
+            { label: "Open assessments", value: officer.openAssessments ?? null },
+            { label: "Submitted this month", value: officer.submittedThisMonth ?? null },
           ]}
         />
       </Panel>
+
+      <EditOfficerDialog officer={officer} open={editOpen} onOpenChange={setEditOpen} onSaved={mutate} />
+
+      <OfficerStatsPanel officerId={officer.id} />
 
       <Panel
         title="Assignments"

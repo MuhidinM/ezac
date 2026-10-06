@@ -2,7 +2,6 @@
 
 import { type FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Ticket } from "lucide-react";
 
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
@@ -12,8 +11,6 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { apiClient } from "@/lib/api/client";
 import { ApiError, errorMessage, fieldErrorMap } from "@/lib/api/errors";
-import type { PaginatedItems, RegistrationCodeItem } from "@/lib/api/types";
-import { useSession } from "@/lib/auth/use-session";
 import { ASNAF, MARITAL_STATUS, PRIMARY_LANGUAGE, SEX } from "@/lib/backoffice/options";
 import { normalizePhoneToE164 } from "@/lib/registration/phone";
 import {
@@ -63,13 +60,11 @@ const STEPS = ["Applicant", "Password"];
 
 export function ManualIdentityForm() {
   const router = useRouter();
-  const { session } = useSession();
   const [branch, setBranch] = useState<{ branchId: string; branchName: string } | null>(null);
   const [form, setForm] = useState<Form>(EMPTY);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isFetchingCode, setIsFetchingCode] = useState(false);
 
   useEffect(() => {
     const selected = getSelectedBranch();
@@ -84,24 +79,6 @@ export function ManualIdentityForm() {
 
   function set<K extends keyof Form>(key: K, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
-  }
-
-  async function fillNextCode() {
-    if (!branch) return;
-    setIsFetchingCode(true);
-    setError(null);
-    try {
-      const codes = await apiClient<PaginatedItems<RegistrationCodeItem>>(
-        `/api/admin/branches/${encodeURIComponent(branch.branchId)}/codes?status=AVAILABLE&page=1&limit=1`,
-      );
-      const next = codes.items[0]?.code;
-      if (next) set("registrationCode", next);
-      else setError("This branch has no available registration codes. Generate more on the branch page.");
-    } catch (codeError) {
-      setError(errorMessage(codeError, "Couldn't load a registration code"));
-    } finally {
-      setIsFetchingCode(false);
-    }
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -128,7 +105,9 @@ export function ManualIdentityForm() {
       addressLine: text(form.addressLine),
       beneficiaryType: "individual",
       category: form.category,
-      registrationCode: form.registrationCode.trim().toUpperCase(),
+      // Staff registration takes the branch's next free code unless a printed
+      // code is given.
+      registrationCode: form.registrationCode.trim().toUpperCase() || undefined,
       branchId: branch.branchId,
     };
 
@@ -136,7 +115,7 @@ export function ManualIdentityForm() {
     body.append("data", new Blob([JSON.stringify(data)], { type: "application/json" }));
 
     try {
-      const created = await apiClient<CreateBeneficiaryResponse>("/api/register/beneficiaries", {
+      const created = await apiClient<CreateBeneficiaryResponse>("/api/backoffice/staff/beneficiaries", {
         method: "POST",
         body,
       });
@@ -184,28 +163,18 @@ export function ManualIdentityForm() {
           <legend className="text-sm font-semibold text-[#001539]">Registration</legend>
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField
-              label="Registration code"
+              label="Printed registration code"
               htmlFor="reg-code"
-              required
-              hint="Single-use code from this branch (EZW-XXXX-XXXX). It becomes the BIN."
+              hint="Optional. Leave empty and the branch's next free code is assigned; it becomes the BIN."
               error={err("registrationCode")}
             >
-              <div className="flex gap-2">
-                <Input
-                  id="reg-code"
-                  value={form.registrationCode}
-                  onChange={(e) => set("registrationCode", e.target.value)}
-                  placeholder="EZW-XXXX-XXXX"
-                  className="font-mono uppercase"
-                  required
-                />
-                {session?.isAdmin ? (
-                  <Button type="button" variant="outline" onClick={() => void fillNextCode()} disabled={isFetchingCode}>
-                    <Ticket />
-                    {isFetchingCode ? "…" : "Next free"}
-                  </Button>
-                ) : null}
-              </div>
+              <Input
+                id="reg-code"
+                value={form.registrationCode}
+                onChange={(e) => set("registrationCode", e.target.value)}
+                placeholder="EZW-XXXX-XXXX"
+                className="font-mono uppercase"
+              />
             </FormField>
             <FormField label="Asnaf category" htmlFor="reg-category" required error={err("category")}>
               <NativeSelect

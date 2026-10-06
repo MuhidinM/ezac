@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { useParams } from "next/navigation";
-import { Power } from "lucide-react";
+import { Pencil, Power } from "lucide-react";
 
 import { BranchCodesPanel } from "@/components/branches/branch-codes-panel";
 import { CodeStatTiles } from "@/components/branches/code-stats";
+import { EditBranchDialog } from "@/components/branches/edit-branch-dialog";
+import { ResetPasswordButton } from "@/components/dashboard/reset-password-button";
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -30,6 +32,7 @@ function BranchDetail() {
   const path = `/api/admin/branches/${encodeURIComponent(id)}`;
   const { data: branch, error, isLoading, reload, mutate } = useResource<Branch>(path);
   const [confirmToggle, setConfirmToggle] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   if (isLoading && !branch) {
     return <div className="h-72 animate-pulse rounded-xl bg-black/[0.04]" />;
@@ -77,12 +80,25 @@ function BranchDetail() {
         meta={<Badge tone={branch.active ? "success" : "neutral"}>{branch.active ? "Active" : "Inactive"}</Badge>}
         description={[branch.woreda, branch.zone, branch.region].filter(Boolean).join(", ")}
         actions={
-          <Button variant="outline" onClick={() => setConfirmToggle(true)}>
-            <Power />
-            {branch.active ? "Deactivate" : "Activate"}
-          </Button>
+          <>
+            <Button variant="outline" onClick={() => setEditOpen(true)}>
+              <Pencil />
+              Edit
+            </Button>
+            <ResetPasswordButton
+              path={`/api/backoffice/admin/branches/${encodeURIComponent(branch.id)}/reset-password`}
+              login={branch.branchPhone ?? ""}
+              recipient="branch officer"
+            />
+            <Button variant="outline" onClick={() => setConfirmToggle(true)}>
+              <Power />
+              {branch.active ? "Deactivate" : "Activate"}
+            </Button>
+          </>
         }
       />
+
+      <EditBranchDialog branch={branch} open={editOpen} onOpenChange={setEditOpen} onSaved={mutate} />
 
       <CodeStatTiles stats={branch.codeStats} />
 
@@ -99,7 +115,7 @@ function BranchDetail() {
         <Panel title="Branch officer" description="Signs in to the branch portal with this phone number.">
           <DetailList
             items={[
-              { label: "Full name", value: branch.branchFullName },
+              { label: "Full name", value: branch.officerName ?? branch.branchFullName },
               { label: "Phone (login)", value: branch.branchPhone },
               { label: "Email", value: branch.branchEmail },
             ]}
@@ -111,6 +127,7 @@ function BranchDetail() {
         listPath={`${path}/codes`}
         generatePath={`${path}/codes`}
         linkBeneficiaries
+        revokeBasePath={`/api/backoffice/admin/branches/${encodeURIComponent(branch.id)}/codes`}
         onGenerated={reload}
       />
     </section>

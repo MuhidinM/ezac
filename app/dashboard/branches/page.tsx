@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, RefreshCw, Search } from "lucide-react";
 
@@ -16,6 +16,7 @@ import { TableMessageRow, TableSkeletonRows } from "@/components/dashboard/table
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 import {
   Table,
   TableBody,
@@ -26,6 +27,7 @@ import {
 } from "@/components/ui/table";
 import type { BranchCreateResponse, BranchListItem, PaginatedItems } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
+import { ETHIOPIAN_REGIONS } from "@/lib/constants/regions";
 
 const PAGE_SIZE = 20;
 
@@ -40,23 +42,28 @@ export default function BranchesPage() {
 function Branches() {
   const router = useRouter();
   const [page, setPage] = useState(1);
-  const [filter, setFilter] = useState("");
+  const [search, setSearch] = useState("");
+  const [draftSearch, setDraftSearch] = useState("");
+  const [region, setRegion] = useState("");
+  const [active, setActive] = useState<"" | "true" | "false">("");
   const [createOpen, setCreateOpen] = useState(false);
   const [credentials, setCredentials] = useState<BranchCreateResponse | null>(null);
 
+  const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
+  if (search) params.set("search", search);
+  if (region) params.set("region", region);
+  if (active) params.set("active", active);
   const { data, error, isLoading, reload } = useResource<PaginatedItems<BranchListItem>>(
-    `/api/admin/branches?page=${page}&limit=${PAGE_SIZE}`,
+    `/api/backoffice/admin/branches?${params.toString()}`,
   );
+  const rows = data?.items ?? [];
+  const query = search || region || active;
 
-  // The branches endpoint has no search; filter the current page locally.
-  const query = filter.trim().toLowerCase();
-  const rows = (data?.items ?? []).filter(
-    (item) =>
-      !query ||
-      [item.name, item.region, item.zone, item.woreda, item.branchPhone]
-        .filter(Boolean)
-        .some((value) => value!.toLowerCase().includes(query)),
-  );
+  function onSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPage(1);
+    setSearch(draftSearch.trim());
+  }
 
   return (
     <section className="space-y-6">
@@ -101,17 +108,51 @@ function Branches() {
       />
 
       <Panel flush>
-        <div className="border-b border-black/[0.06] px-5 py-3">
-          <div className="relative max-w-sm">
+        <form onSubmit={onSearch} className="flex flex-wrap items-center gap-3 border-b border-black/[0.06] px-5 py-3">
+          <div className="relative min-w-60 flex-[2]">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-black/35" />
             <Input
-              value={filter}
-              onChange={(event) => setFilter(event.target.value)}
-              placeholder="Filter by name, location or phone"
+              value={draftSearch}
+              onChange={(event) => setDraftSearch(event.target.value)}
+              placeholder="Search name, location or phone"
               className="bg-white pl-9"
             />
           </div>
-        </div>
+          <div className="min-w-44 flex-1">
+            <NativeSelect
+              aria-label="Region"
+              value={region}
+              onChange={(event) => {
+                setPage(1);
+                setRegion(event.target.value);
+              }}
+            >
+              <option value="">All regions</option>
+              {ETHIOPIAN_REGIONS.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </NativeSelect>
+          </div>
+          <div className="min-w-36 flex-1">
+            <NativeSelect
+              aria-label="Status"
+              value={active}
+              onChange={(event) => {
+                setPage(1);
+                setActive(event.target.value as typeof active);
+              }}
+            >
+              <option value="">All statuses</option>
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </NativeSelect>
+          </div>
+          <Button type="submit" variant="secondary">
+            Search
+          </Button>
+        </form>
 
         {error ? (
           <div className="px-5 pt-4">
@@ -134,7 +175,7 @@ function Branches() {
               <TableSkeletonRows colSpan={5} />
             ) : rows.length === 0 ? (
               <TableMessageRow colSpan={5}>
-                {query ? "No branches on this page match your filter." : "No branches yet. Create one to get started."}
+                {query ? "No branches match your filters." : "No branches yet. Create one to get started."}
               </TableMessageRow>
             ) : (
               rows.map((item) => (
@@ -152,7 +193,7 @@ function Branches() {
                     {[item.woreda, item.zone, item.region].filter(Boolean).join(", ") || "—"}
                   </TableCell>
                   <TableCell>
-                    <p className="text-sm text-[#001539]">{item.branchFullName ?? "—"}</p>
+                    <p className="text-sm text-[#001539]">{item.officerName ?? item.branchFullName ?? "—"}</p>
                     <p className="text-xs text-black/50 tabular-nums">{item.branchPhone ?? ""}</p>
                   </TableCell>
                   <TableCell>

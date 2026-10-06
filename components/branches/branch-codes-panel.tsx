@@ -2,7 +2,10 @@
 
 import { type FormEvent, useState } from "react";
 import Link from "next/link";
-import { Check, Copy, Download, Plus, RefreshCw } from "lucide-react";
+import { Ban, Check, Copy, Download, Plus, RefreshCw } from "lucide-react";
+
+import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
@@ -64,16 +67,22 @@ type Props = {
   generatePath?: string;
   /** Link consumed codes to beneficiary profiles (HQ staff only). */
   linkBeneficiaries?: boolean;
+  /** Admin codes path; enables single and bulk revoke. */
+  revokeBasePath?: string;
   /** Called after codes are generated successfully */
   onGenerated?: (codes: string[]) => void;
 };
 
-export function BranchCodesPanel({ listPath, generatePath, linkBeneficiaries, onGenerated }: Props) {
+export function BranchCodesPanel({ listPath, generatePath, linkBeneficiaries, revokeBasePath, onGenerated }: Props) {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<RegistrationCodeStatus | "">("");
   const [generateOpen, setGenerateOpen] = useState(false);
   const [generated, setGenerated] = useState<string[] | null>(null);
   const [copied, setCopied] = useState(false);
+  // null = closed, "all" = every available code, otherwise one code.
+  const [revokeTarget, setRevokeTarget] = useState<RegistrationCodeItem | "all" | null>(null);
+  const [revokeReason, setRevokeReason] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
 
   const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
   if (status) params.set("status", status);
@@ -125,6 +134,12 @@ export function BranchCodesPanel({ listPath, generatePath, linkBeneficiaries, on
               <RefreshCw />
               Refresh
             </Button>
+            {revokeBasePath ? (
+              <Button variant="ghost" size="sm" className="text-rose-700 hover:text-rose-800" onClick={() => setRevokeTarget("all")}>
+                <Ban />
+                Revoke available
+              </Button>
+            ) : null}
             {generatePath ? (
               <Button size="sm" onClick={() => setGenerateOpen(true)}>
                 <Plus />
@@ -157,9 +172,10 @@ export function BranchCodesPanel({ listPath, generatePath, linkBeneficiaries, on
           ))}
         </div>
 
-        {error ? (
-          <div className="px-5 pt-4">
-            <InlineAlert>{error.message}</InlineAlert>
+        {error || notice ? (
+          <div className="space-y-2 px-5 pt-4">
+            {error ? <InlineAlert>{error.message}</InlineAlert> : null}
+            {notice ? <InlineAlert tone="success">{notice}</InlineAlert> : null}
           </div>
         ) : null}
 
@@ -170,14 +186,19 @@ export function BranchCodesPanel({ listPath, generatePath, linkBeneficiaries, on
               <TableHead>Status</TableHead>
               <TableHead>Beneficiary</TableHead>
               <TableHead>Used</TableHead>
-              <TableHead className="pr-5">Created</TableHead>
+              <TableHead className={revokeBasePath ? undefined : "pr-5"}>Created</TableHead>
+              {revokeBasePath ? (
+                <TableHead className="pr-5 text-right">
+                  <span className="sr-only">Actions</span>
+                </TableHead>
+              ) : null}
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && rows.length === 0 ? (
-              <TableSkeletonRows colSpan={5} />
+              <TableSkeletonRows colSpan={revokeBasePath ? 6 : 5} />
             ) : rows.length === 0 ? (
-              <TableMessageRow colSpan={5}>
+              <TableMessageRow colSpan={revokeBasePath ? 6 : 5}>
                 {status ? "No codes with this status." : "No registration codes yet."}
               </TableMessageRow>
             ) : (
@@ -188,6 +209,11 @@ export function BranchCodesPanel({ listPath, generatePath, linkBeneficiaries, on
                     <Badge tone={STATUS[item.status]?.tone ?? "neutral"}>
                       {STATUS[item.status]?.label ?? item.status}
                     </Badge>
+                    {item.status === "REVOKED" && item.revokeReason ? (
+                      <p className="mt-1 max-w-48 truncate text-xs text-black/45" title={item.revokeReason}>
+                        {item.revokeReason}
+                      </p>
+                    ) : null}
                   </TableCell>
                   <TableCell>
                     {item.beneficiaryId ? (
@@ -203,7 +229,16 @@ export function BranchCodesPanel({ listPath, generatePath, linkBeneficiaries, on
                     )}
                   </TableCell>
                   <TableCell>{formatDateTime(item.consumedAt)}</TableCell>
-                  <TableCell className="pr-5">{formatDateTime(item.createdAt)}</TableCell>
+                  <TableCell className={revokeBasePath ? undefined : "pr-5"}>{formatDateTime(item.createdAt)}</TableCell>
+                  {revokeBasePath ? (
+                    <TableCell className="pr-5 text-right">
+                      {item.status === "AVAILABLE" || item.status === "RESERVED" ? (
+                        <Button variant="ghost" size="sm" onClick={() => setRevokeTarget(item)}>
+                          Revoke
+                        </Button>
+                      ) : null}
+                    </TableCell>
+                  ) : null}
                 </TableRow>
               ))
             )}
@@ -219,6 +254,50 @@ export function BranchCodesPanel({ listPath, generatePath, linkBeneficiaries, on
           onPageChange={setPage}
         />
       </Panel>
+
+      {revokeBasePath ? (
+        <ConfirmDialog
+          open={revokeTarget !== null}
+          onOpenChange={(open) => (open ? null : setRevokeTarget(null))}
+          title={revokeTarget === "all" ? "Revoke every available code?" : `Revoke ${revokeTarget ? revokeTarget.code : "code"}?`}
+          description={
+            revokeTarget === "all"
+              ? "All unused codes of this branch stop working immediately. Used codes are not affected."
+              : "This code stops working immediately and can't be restored."
+          }
+          confirmLabel="Revoke"
+          destructive
+          confirmDisabled={!revokeReason.trim()}
+          onConfirm={async () => {
+            if (!revokeTarget) return;
+            if (revokeTarget === "all") {
+              const result = await apiClient<{ revoked: number }>(`${revokeBasePath}/revoke`, {
+                method: "POST",
+                body: JSON.stringify({ allAvailable: true, reason: revokeReason.trim() }),
+              });
+              setNotice(`${result.revoked} code${result.revoked === 1 ? "" : "s"} revoked.`);
+            } else {
+              await apiClient(`${revokeBasePath}/${encodeURIComponent(revokeTarget.id)}`, {
+                method: "PATCH",
+                body: JSON.stringify({ status: "REVOKED", reason: revokeReason.trim() }),
+              });
+              setNotice(`${revokeTarget.code} revoked.`);
+            }
+            setRevokeReason("");
+            reload();
+            onGenerated?.([]);
+          }}
+        >
+          <FormField label="Reason" htmlFor="revoke-reason" required>
+            <Textarea
+              id="revoke-reason"
+              value={revokeReason}
+              onChange={(event) => setRevokeReason(event.target.value)}
+              placeholder="e.g. Printed batch lost"
+            />
+          </FormField>
+        </ConfirmDialog>
+      ) : null}
 
       {generatePath ? (
         <GenerateCodesDialog

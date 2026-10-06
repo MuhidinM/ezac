@@ -216,6 +216,9 @@ export type RegistrationCodeItem = {
   beneficiaryId: string | null;
   consumedAt: string | null;
   createdAt: string;
+  revokedAt?: string | null;
+  revokedBy?: string | null;
+  revokeReason?: string | null;
 };
 
 export type BranchListItem = {
@@ -230,6 +233,7 @@ export type BranchListItem = {
   active: boolean;
   codeStats: CodeStats | null;
   createdAt?: string;
+  officerName?: string | null;
 };
 
 export type Branch = BranchListItem;

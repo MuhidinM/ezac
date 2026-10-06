@@ -9,6 +9,7 @@ import { BeneficiaryAssessments } from "@/components/assessment/beneficiary-asse
 import { DuplicateBadge, LifecycleBadge } from "@/components/backoffice/status-badges";
 import { BasicDetailsDialog } from "@/components/beneficiary/basic-details-dialog";
 import { BeneficiaryEditForm } from "@/components/beneficiary/beneficiary-edit-form";
+import { LifecyclePanel } from "@/components/beneficiary/lifecycle-panel";
 import { KycDocumentsCard } from "@/components/beneficiary/kyc-documents-card";
 import { VerificationStatusBadge } from "@/components/beneficiary/verification-status-badge";
 import { FormField } from "@/components/dashboard/form-field";
@@ -242,6 +243,13 @@ export default function BeneficiaryDetailPage() {
         </div>
 
         <div className="space-y-6">
+          {!isInstitution && session?.isStaff ? (
+            <LifecyclePanel
+              beneficiaryId={beneficiary.id}
+              canChange={session?.isAdmin ?? false}
+              onChanged={(lifecycleStatus) => mutate({ ...beneficiary, lifecycleStatus })}
+            />
+          ) : null}
           <Panel title="Registration">
             <DetailList
               columns={2}
