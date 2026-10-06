@@ -3,6 +3,7 @@
 import { RefreshCw, ClipboardCheck } from "lucide-react";
 
 import { QueueCard } from "@/components/assessment/queue-card";
+import { BranchAnalytics } from "@/components/branches/branch-analytics";
 import { BranchCodesPanel } from "@/components/branches/branch-codes-panel";
 import { CodeStatTiles } from "@/components/branches/code-stats";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
@@ -61,6 +62,8 @@ function BranchPortal() {
         description="Submitted by field officers in your branch"
         icon={ClipboardCheck}
       />
+
+      <BranchAnalytics />
 
       <CodeStatTiles stats={profile.codeStats} />
 

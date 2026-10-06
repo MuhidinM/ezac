@@ -426,3 +426,98 @@ export type OfficerStats = {
     assessed: number;
   }[];
 };
+
+export type AnalyticsOverview = {
+  range: DateRange;
+  beneficiaries: {
+    total: number;
+    newInRange: number;
+    byLifecycle: Partial<Record<LifecycleStatus, number>>;
+    byVerification: Record<string, number>;
+    byType: Record<string, number>;
+    duplicatesPending: number;
+  };
+  assessments: {
+    byStatus: Partial<Record<AssessmentStatus, number>>;
+    byRisk: Partial<Record<RiskCategory, number>>;
+    averageScore: number | null;
+    submittedInRange: number;
+    decidedInRange: number;
+    turnaroundDays: {
+      submitToDecisionMedian: number | null;
+      approvalToPoolMedian: number | null;
+    };
+    officerVsSystemAgreementRate: number | null;
+  };
+  codes: { available: number; reserved: number; consumed: number; revoked: number };
+};
+
+export type TimeseriesMetric = "registrations" | "assessmentsSubmitted" | "decisions" | "pooled";
+
+export type AnalyticsTimeseries = {
+  interval: "day" | "week" | "month";
+  range: DateRange;
+  metrics: TimeseriesMetric[];
+  points: ({ period: string } & Partial<Record<TimeseriesMetric, number>>)[];
+};
+
+export type ScoreDistribution = {
+  max: number;
+  bucket: number;
+  scored: number;
+  buckets: { from: number; to: number; count: number }[];
+  thresholds: { high: number; medium: number };
+};
+
+export type AnalyticsAreaRow = {
+  id: string;
+  name: string;
+  region: string | null;
+  beneficiaries: number;
+  pendingAssessment: number;
+  underAssessment: number;
+  submitted: number;
+  approved: number;
+  averageScore: number | null;
+  highRisk: number;
+  codesAvailable: number | null;
+};
+
+export type AnalyticsBreakdown = {
+  by: string;
+  total: number;
+  items: { key: string; count: number }[];
+};
+
+export type OfficerHome = {
+  range: DateRange;
+  drafts: number;
+  returned: number;
+  submittedInRange: number;
+  approvedInRange: number;
+  beneficiariesPendingAssessment: number;
+  averageDaysToSubmit: number | null;
+  recent: {
+    assessmentId: string;
+    assessmentNumber?: string | null;
+    beneficiaryName?: string | null;
+    status: AssessmentStatus;
+    updatedAt: string;
+  }[];
+};
+
+export type BranchHome = {
+  range: DateRange;
+  reviewQueue: number;
+  reviewedInRange: Partial<Record<"APPROVED" | "RETURNED" | "REJECTED" | "DEFERRED", number>>;
+  medianReviewDays: number | null;
+  registrationsPerWeek: { week: string; registrations: number }[];
+  codesUsedPerWeek: { week: string; codesUsed: number }[];
+  assessmentsPerOfficer: {
+    officerSub: string;
+    officerName?: string | null;
+    open: number;
+    submittedInRange: number;
+    approvedInRange: number;
+  }[];
+};
