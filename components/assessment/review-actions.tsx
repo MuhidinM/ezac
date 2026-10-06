@@ -1,84 +1,146 @@
 "use client";
 
 import { useState } from "react";
-import { CornerUpLeft, Gavel, ShieldCheck } from "lucide-react";
+import { Ban, CheckCircle2, Clock, CornerUpLeft, UserRoundCog, XCircle } from "lucide-react";
 
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { FormField } from "@/components/dashboard/form-field";
-import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { Panel } from "@/components/dashboard/panel";
 import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
-import type { Assessment, CommitteeDecision } from "@/lib/api/backoffice-types";
+import type { Assessment, BranchDecision, FieldOfficer } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
-import { errorMessage } from "@/lib/api/errors";
-import { COMMITTEE_DECISION, OFFICER_RECOMMENDATION, labelFor } from "@/lib/backoffice/options";
-import { cn } from "@/lib/utils";
+import type { PaginatedItems } from "@/lib/api/types";
+import { useResource } from "@/lib/api/use-resource";
+import { OFFICER_RECOMMENDATION, labelFor } from "@/lib/backoffice/options";
 
 function actionPath(id: string, action: string) {
   return `/api/backoffice/assessments/${encodeURIComponent(id)}/${action}`;
 }
 
-/** BRANCH: return a SUBMITTED assessment or approve it for the committee. */
-export function SupervisorReview({
+type ReviewMode = "return" | BranchDecision;
+
+const REVIEW_COPY: Record<
+  ReviewMode,
+  { title: string; description: string; confirm: string; required: boolean; placeholder: string; destructive?: boolean }
+> = {
+  return: {
+    title: "Return for correction",
+    description: "The officer gets the assessment back to edit and resubmit. Tell them what to fix.",
+    confirm: "Return to officer",
+    required: true,
+    placeholder: "e.g. Please confirm the kebele with the household",
+  },
+  APPROVED: {
+    title: "Approve household",
+    description: "This is the final decision. The beneficiary becomes active and waits to be pooled for disbursement.",
+    confirm: "Approve",
+    required: false,
+    placeholder: "e.g. Verified on site",
+  },
+  DEFERRED: {
+    title: "Defer",
+    description: "The household isn't supported now. A new assessment can start later.",
+    confirm: "Defer",
+    required: true,
+    placeholder: "Why is this deferred?",
+  },
+  REJECTED: {
+    title: "Reject",
+    description: "The household doesn't qualify. This is final for this assessment.",
+    confirm: "Reject",
+    required: true,
+    placeholder: "Why is this rejected?",
+    destructive: true,
+  },
+};
+
+/** BRANCH: final decision on a SUBMITTED assessment. */
+export function BranchReview({
   assessment,
   onDone,
 }: {
   assessment: Assessment;
   onDone: (updated: Assessment) => void;
 }) {
-  const [mode, setMode] = useState<"return" | "approve" | null>(null);
+  const [mode, setMode] = useState<ReviewMode | null>(null);
   const [comment, setComment] = useState("");
+  const copy = mode ? REVIEW_COPY[mode] : null;
+  const system = assessment.score?.preliminaryRecommendation;
+  const officer = assessment.recommendation?.officerRecommendation;
 
   async function confirm() {
-    const updated = await apiClient<Assessment>(
-      actionPath(assessment.id, mode === "return" ? "return" : "supervisor-approval"),
-      { method: "POST", body: JSON.stringify({ comment: comment.trim() || undefined }) },
-    );
+    if (!mode) return;
+    const updated =
+      mode === "return"
+        ? await apiClient<Assessment>(actionPath(assessment.id, "return"), {
+            method: "POST",
+            body: JSON.stringify({ comment: comment.trim() }),
+          })
+        : await apiClient<Assessment>(actionPath(assessment.id, "decision"), {
+            method: "POST",
+            body: JSON.stringify({ decision: mode, reason: comment.trim() || undefined }),
+          });
     setComment("");
     onDone(updated);
   }
 
   return (
     <Panel
-      title="Supervisor review"
-      description="Check the responses and score, then send it on to the committee or back to the officer."
+      title="Branch decision"
+      description={
+        <>
+          System recommends <strong>{labelFor(OFFICER_RECOMMENDATION, system)}</strong>
+          {officer ? (
+            <>
+              ; officer recommends <strong>{labelFor(OFFICER_RECOMMENDATION, officer)}</strong>
+            </>
+          ) : null}
+          .
+        </>
+      }
     >
-      <div className="flex flex-wrap gap-2">
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Button onClick={() => setMode("APPROVED")}>
+          <CheckCircle2 />
+          Approve
+        </Button>
         <Button variant="outline" onClick={() => setMode("return")}>
           <CornerUpLeft />
-          Return for correction
+          Return
         </Button>
-        <Button onClick={() => setMode("approve")}>
-          <ShieldCheck />
-          Approve for committee
+        <Button variant="outline" onClick={() => setMode("DEFERRED")}>
+          <Clock />
+          Defer
+        </Button>
+        <Button variant="outline" className="text-rose-700 hover:text-rose-800" onClick={() => setMode("REJECTED")}>
+          <XCircle />
+          Reject
         </Button>
       </div>
 
       <ConfirmDialog
         open={mode !== null}
         onOpenChange={(open) => (open ? null : setMode(null))}
-        title={mode === "return" ? "Return for correction" : "Approve for committee"}
-        description={
-          mode === "return"
-            ? "The officer gets the assessment back to edit and resubmit. Tell them what to fix."
-            : "The assessment moves to the committee queue for a final decision."
-        }
-        confirmLabel={mode === "return" ? "Return to officer" : "Approve"}
-        confirmDisabled={mode === "return" && !comment.trim()}
+        title={copy?.title ?? ""}
+        description={copy?.description}
+        confirmLabel={copy?.confirm ?? "Confirm"}
+        destructive={copy?.destructive}
+        confirmDisabled={!!copy?.required && !comment.trim()}
         onConfirm={confirm}
       >
         <FormField
-          label="Comment"
+          label={mode === "return" ? "What needs fixing" : "Reason"}
           htmlFor="review-comment"
-          required={mode === "return"}
-          hint={mode === "return" ? "Required" : "Optional, visible to the committee"}
+          required={copy?.required}
+          hint={copy?.required ? "Required" : "Optional"}
         >
           <Textarea
             id="review-comment"
             value={comment}
             onChange={(event) => setComment(event.target.value)}
-            placeholder={mode === "return" ? "e.g. Please confirm the kebele with the household" : "e.g. Verified on site"}
+            placeholder={copy?.placeholder}
           />
         </FormField>
       </ConfirmDialog>
@@ -86,106 +148,101 @@ export function SupervisorReview({
   );
 }
 
-/** ADMIN: final committee decision on a SUPERVISOR_APPROVED assessment. */
-export function CommitteeDecisionForm({
+/** Cancel a draft (its officer or ADMIN) and reassign open ones (ADMIN). */
+export function AssessmentManagement({
   assessment,
+  canCancel,
+  canReassign,
   onDone,
 }: {
   assessment: Assessment;
-  onDone: (updated: Assessment) => void;
+  canCancel: boolean;
+  canReassign: boolean;
+  onDone: (updated: Assessment, message: string) => void;
 }) {
-  const officerRecommendation = assessment.recommendation?.officerRecommendation;
-  const systemRecommendation = assessment.score?.preliminaryRecommendation;
-  const [decision, setDecision] = useState<CommitteeDecision | null>(null);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [reassignOpen, setReassignOpen] = useState(false);
   const [reason, setReason] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [officerId, setOfficerId] = useState("");
+  const { data: officers } = useResource<PaginatedItems<FieldOfficer>>(
+    reassignOpen ? "/api/backoffice/admin/field-officers?active=true&page=1&limit=100" : null,
+  );
 
-  async function submit() {
-    if (!decision || !reason.trim()) return;
-    setIsSubmitting(true);
-    setError(null);
-    try {
-      const updated = await apiClient<Assessment>(actionPath(assessment.id, "decision"), {
-        method: "POST",
-        body: JSON.stringify({ decision, reason: reason.trim() }),
-      });
-      onDone(updated);
-    } catch (decisionError) {
-      setError(errorMessage(decisionError, "Couldn't record the decision"));
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  const tones: Record<CommitteeDecision, string> = {
-    APPROVED: "border-emerald-500 bg-emerald-50/70 ring-emerald-500",
-    CONDITIONALLY_APPROVED: "border-[#007050] bg-[#007050]/[0.05] ring-[#007050]",
-    DEFERRED: "border-amber-500 bg-amber-50/70 ring-amber-500",
-    REJECTED: "border-rose-500 bg-rose-50/70 ring-rose-500",
-  };
+  if (!canCancel && !canReassign) return null;
 
   return (
-    <Panel
-      title={
-        <span className="inline-flex items-center gap-2">
-          <Gavel className="size-4 text-black/45" />
-          Committee decision
-        </span>
-      }
-      description={
-        <>
-          System recommends <strong>{labelFor(OFFICER_RECOMMENDATION, systemRecommendation)}</strong>
-          {officerRecommendation ? (
-            <>
-              ; officer recommends <strong>{labelFor(OFFICER_RECOMMENDATION, officerRecommendation)}</strong>
-            </>
-          ) : null}
-          .
-        </>
-      }
-    >
-      <div className="space-y-4">
-        {error ? <InlineAlert>{error}</InlineAlert> : null}
-        <div role="radiogroup" aria-label="Decision" className="grid gap-2 sm:grid-cols-2">
-          {COMMITTEE_DECISION.map((option) => {
-            const key = option.value as CommitteeDecision;
-            const selected = decision === key;
-            return (
-              <button
-                key={key}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                onClick={() => setDecision(key)}
-                className={cn(
-                  "rounded-lg border px-4 py-3 text-left text-sm font-medium text-[#001539] transition",
-                  selected ? cn("ring-1", tones[key]) : "border-black/10 hover:border-black/20",
-                )}
-              >
-                {option.label}
-              </button>
-            );
-          })}
-        </div>
-        <FormField label="Reason" htmlFor="decision-reason" required hint="Recorded with the decision">
-          <Textarea
-            id="decision-reason"
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-            placeholder="e.g. Meets EZAC criteria"
-          />
-        </FormField>
-        <p className="text-xs text-black/50">
-          Approved and conditionally approved beneficiaries become Active; deferred and rejected ones are marked Assessed.
-        </p>
-        <div className="flex justify-end">
-          <Button onClick={() => void submit()} disabled={!decision || !reason.trim() || isSubmitting}>
-            <Gavel />
-            {isSubmitting ? "Recording…" : "Record decision"}
+    <Panel title="Manage">
+      <div className="flex flex-wrap gap-2">
+        {canReassign ? (
+          <Button variant="outline" onClick={() => setReassignOpen(true)}>
+            <UserRoundCog />
+            Reassign officer
           </Button>
-        </div>
+        ) : null}
+        {canCancel ? (
+          <Button variant="outline" className="text-rose-700 hover:text-rose-800" onClick={() => setCancelOpen(true)}>
+            <Ban />
+            Cancel draft
+          </Button>
+        ) : null}
       </div>
+
+      <ConfirmDialog
+        open={cancelOpen}
+        onOpenChange={setCancelOpen}
+        title="Cancel this draft?"
+        description="The assessment is kept as Cancelled and the beneficiary goes back to their previous state. A new assessment can be started later."
+        confirmLabel="Cancel draft"
+        destructive
+        confirmDisabled={!reason.trim()}
+        onConfirm={async () => {
+          const updated = await apiClient<Assessment>(actionPath(assessment.id, "cancel"), {
+            method: "POST",
+            body: JSON.stringify({ reason: reason.trim() }),
+          });
+          setReason("");
+          onDone(updated, "Draft cancelled.");
+        }}
+      >
+        <FormField label="Reason" htmlFor="cancel-reason" required>
+          <Textarea id="cancel-reason" value={reason} onChange={(event) => setReason(event.target.value)} />
+        </FormField>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={reassignOpen}
+        onOpenChange={setReassignOpen}
+        title="Reassign to another officer"
+        description="The new officer must be active and assigned to this assessment's branch or region."
+        confirmLabel="Reassign"
+        confirmDisabled={!officerId}
+        onConfirm={async () => {
+          const updated = await apiClient<Assessment>(actionPath(assessment.id, "reassign"), {
+            method: "POST",
+            body: JSON.stringify({ officerId }),
+          });
+          setOfficerId("");
+          onDone(updated, "Assessment reassigned.");
+        }}
+      >
+        <FormField label="Field officer" htmlFor="reassign-officer" required>
+          <NativeSelect id="reassign-officer" value={officerId} onChange={(event) => setOfficerId(event.target.value)}>
+            <option value="">{officers ? "Select an officer" : "Loading…"}</option>
+            {officers?.items.map((officer) => (
+              <option key={officer.id} value={officer.id}>
+                {officer.fullName}
+                {officer.assignments?.length
+                  ? ` — ${officer.assignments
+                      .filter((item) => item.active)
+                      .map((item) => item.branchName ?? item.region)
+                      .filter(Boolean)
+                      .join(", ")}`
+                  : ""}
+              </option>
+            ))}
+          </NativeSelect>
+        </FormField>
+      </ConfirmDialog>
     </Panel>
   );
 }

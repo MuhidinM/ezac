@@ -120,23 +120,26 @@ export function SignOffTimeline({ assessment }: { assessment: Assessment }) {
     {
       done: !!s.reviewedAt,
       title:
-        assessment.status === "RETURNED" ? "Returned by supervisor" : "Reviewed by supervisor",
+        assessment.status === "RETURNED"
+          ? "Returned by branch"
+          : assessment.status === "APPROVED" || assessment.status === "REJECTED" || assessment.status === "DEFERRED"
+            ? `Branch decision: ${ASSESSMENT_STATUS[assessment.status].label.toLowerCase()}`
+            : "Branch decision",
       who: s.reviewedByName ?? assessment.assessmentInfo?.supervisorName,
       when: s.reviewedAt,
       body: s.reviewComment,
     },
-    {
-      done: !!s.decidedAt,
-      title: "Committee decision",
-      who: s.decidedByName,
-      when: s.decidedAt,
-      body: s.decision ? (
-        <>
-          <strong>{ASSESSMENT_STATUS[s.decision]?.label ?? s.decision}</strong>
-          {s.decisionReason ? ` — ${s.decisionReason}` : ""}
-        </>
-      ) : null,
-    },
+    ...(s.cancelledAt
+      ? [
+          {
+            done: true,
+            title: "Cancelled",
+            who: s.cancelledByName,
+            when: s.cancelledAt,
+            body: s.cancelReason,
+          },
+        ]
+      : []),
   ];
 
   return (

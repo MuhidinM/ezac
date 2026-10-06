@@ -20,8 +20,12 @@ const ALLOWED_PREFIXES = [
   "admin/staff-assignments",
   "admin/scoring-configs",
   "admin/branches",
+  "admin/pool",
   "assessments",
   "beneficiaries",
+  "staff",
+  "analytics",
+  "branch/analytics",
 ];
 
 type RouteContext = {

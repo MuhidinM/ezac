@@ -7,26 +7,33 @@ import type { AssessmentStatus } from "@/lib/api/backoffice-types";
 import type { PaginatedItems } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
 
-/** Count of assessments in one status, linking to that queue. */
+/**
+ * A count linking to a queue: assessments in `status`, or the paginated list
+ * at `countPath` (its `totalItems`).
+ */
 export function QueueCard({
   status,
+  countPath,
+  href = "/dashboard/assessments",
   title,
   description,
   icon: Icon,
 }: {
-  status: AssessmentStatus;
+  status?: AssessmentStatus | string;
+  countPath?: string;
+  href?: string;
   title: string;
   description: string;
   icon: LucideIcon;
 }) {
   const { data, error } = useResource<PaginatedItems<unknown>>(
-    `/api/backoffice/assessments?status=${status}&page=1&limit=1`,
+    countPath ?? `/api/backoffice/assessments?status=${status}&page=1&limit=1`,
   );
   const total = data?.pagination.totalItems;
 
   return (
     <Link
-      href="/dashboard/assessments"
+      href={href}
       className="group flex items-center gap-4 rounded-xl border border-black/[0.06] bg-white p-5 shadow-xs transition hover:border-[#007050]/30 hover:shadow-sm"
     >
       <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-[#001539] text-white">

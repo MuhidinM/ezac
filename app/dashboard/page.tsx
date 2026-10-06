@@ -166,9 +166,9 @@ export default function DashboardHomePage() {
           <div className="mt-3 grid gap-4 md:grid-cols-2">
             {session?.isAdmin ? (
               <QueueCard
-                status="SUPERVISOR_APPROVED"
-                title="Awaiting committee decision"
-                description="Approved by branch supervisors"
+                countPath="/api/backoffice/admin/pool/awaiting?page=1&limit=1"
+                title="Awaiting disbursement pool"
+                description="Approved by branches, not yet pooled"
                 icon={Gavel}
               />
             ) : null}

@@ -1,4 +1,6 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+
+import { getApiBaseUrl } from "@/lib/api/config";
 
 import type { MeProfile, SessionInfo } from "@/lib/api/types";
 import {
@@ -67,9 +69,79 @@ export async function clearAuthCookies(): Promise<void> {
   cookieStore.delete(REFRESH_TOKEN_COOKIE);
 }
 
+/** Refresh this long before expiry so a request never starts with a dying token. */
+const REFRESH_LEEWAY_SECONDS = 30;
+
+// Parallel requests (an overview page fires several) share one refresh, so a
+// rotating refresh token is never redeemed twice.
+const refreshes = new Map<string, Promise<AuthTokens | null>>();
+
+async function redeemRefreshToken(refreshToken: string): Promise<AuthTokens | null> {
+  const pending = refreshes.get(refreshToken);
+  if (pending) return pending;
+
+  const request = fetch(`${getApiBaseUrl()}/api/auth/v1/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refreshToken }),
+    cache: "no-store",
+  })
+    .then(async (response) => {
+      if (!response.ok) return null;
+      const envelope = (await response.json()) as { success?: boolean; data?: AuthTokens };
+      const data = envelope.data;
+      return envelope.success && data?.accessToken ? data : null;
+    })
+    .catch(() => null);
+
+  refreshes.set(refreshToken, request);
+  // Keep the result briefly for requests that arrive right after.
+  void request.finally(() => setTimeout(() => refreshes.delete(refreshToken), 10_000));
+  return request;
+}
+
+function expiresSoon(token: string) {
+  const payload = decodeJwtPayload(token);
+  if (!payload?.exp) return false;
+  return payload.exp * 1000 - Date.now() < REFRESH_LEEWAY_SECONDS * 1000;
+}
+
+/**
+ * The access token for upstream calls. Access tokens live ~5 minutes, so when
+ * it is missing or about to expire the refresh token is redeemed and both
+ * cookies are rotated (route handlers can write cookies; elsewhere the new
+ * token is still used for this request).
+ */
 export async function getAccessToken(): Promise<string | null> {
   const cookieStore = await cookies();
-  return cookieStore.get(ACCESS_TOKEN_COOKIE)?.value ?? null;
+  const access = cookieStore.get(ACCESS_TOKEN_COOKIE)?.value ?? null;
+  if (access && !expiresSoon(access)) return access;
+
+  const refreshToken = cookieStore.get(REFRESH_TOKEN_COOKIE)?.value;
+  if (!refreshToken) return access;
+
+  const tokens = await redeemRefreshToken(refreshToken);
+  if (!tokens) {
+    // A dead refresh token would otherwise keep the route guard treating the
+    // user as signed in and bounce between /login and /dashboard.
+    try {
+      await clearAuthCookies();
+    } catch {
+      // Read-only cookie context.
+    }
+    return access;
+  }
+
+  try {
+    const forwarded = (await headers()).get("x-forwarded-proto");
+    await setAuthCookies(
+      { ...tokens, refreshToken: tokens.refreshToken ?? refreshToken },
+      { secure: forwarded?.split(",")[0]?.trim() === "https" },
+    );
+  } catch {
+    // Read-only cookie context (server component render); still use the token.
+  }
+  return tokens.accessToken;
 }
 
 export function sessionFromMeProfile(profile: MeProfile): SessionInfo {

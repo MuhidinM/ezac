@@ -7,7 +7,7 @@ import { Pencil } from "lucide-react";
 
 import { AssessmentSummary } from "@/components/assessment/assessment-summary";
 import { DocumentsList } from "@/components/assessment/documents-panel";
-import { CommitteeDecisionForm, SupervisorReview } from "@/components/assessment/review-actions";
+import { AssessmentManagement, BranchReview } from "@/components/assessment/review-actions";
 import { ScoreHistory, ScorePanel, SignOffTimeline } from "@/components/assessment/score-panel";
 import { AssessmentStatusBadge } from "@/components/backoffice/status-badges";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
@@ -60,7 +60,9 @@ function AssessmentDetail() {
   const name = assessment.applicant?.fullName ?? "Beneficiary";
   const canEdit = isFieldOfficer(session) && isEditable(assessment.status);
   const canReview = (session?.isBranch ?? false) && assessment.status === "SUBMITTED";
-  const canDecide = (session?.isAdmin ?? false) && assessment.status === "SUPERVISOR_APPROVED";
+  const canCancel = assessment.status === "DRAFT" && ((session?.isAdmin ?? false) || isFieldOfficer(session));
+  const canReassign =
+    (session?.isAdmin ?? false) && ["DRAFT", "SUBMITTED", "RETURNED"].includes(assessment.status);
   const documents = assessment.documents ?? [];
   const activeTab: TabKey = tab ?? (assessment.score ? "score" : "responses");
 
@@ -152,17 +154,14 @@ function AssessmentDetail() {
 
         <div className="space-y-6">
           {canReview ? (
-            <SupervisorReview
-              assessment={assessment}
-              onDone={onActionDone("Review recorded.")}
-            />
+            <BranchReview assessment={assessment} onDone={onActionDone("Decision recorded.")} />
           ) : null}
-          {canDecide ? (
-            <CommitteeDecisionForm
-              assessment={assessment}
-              onDone={onActionDone("Committee decision recorded.")}
-            />
-          ) : null}
+          <AssessmentManagement
+            assessment={assessment}
+            canCancel={canCancel}
+            canReassign={canReassign}
+            onDone={(updated, message) => onActionDone(message)(updated)}
+          />
           <SignOffTimeline assessment={assessment} />
         </div>
       </div>

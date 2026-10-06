@@ -240,9 +240,8 @@ export default function BeneficiaryPage() {
                   <option value="DRAFT">Draft</option>
                   <option value="SUBMITTED">Submitted</option>
                   <option value="RETURNED">Returned</option>
-                  <option value="SUPERVISOR_APPROVED">Supervisor approved</option>
                   <option value="APPROVED">Approved</option>
-                  <option value="CONDITIONALLY_APPROVED">Conditionally approved</option>
+                  <option value="CANCELLED">Cancelled</option>
                   <option value="DEFERRED">Deferred</option>
                   <option value="REJECTED">Rejected</option>
                 </NativeSelect>

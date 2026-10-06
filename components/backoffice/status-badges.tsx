@@ -23,11 +23,10 @@ export const ASSESSMENT_STATUS: Record<AssessmentStatus, { label: string; tone: 
   DRAFT: { label: "Draft", tone: "neutral" },
   SUBMITTED: { label: "Submitted", tone: "info" },
   RETURNED: { label: "Returned", tone: "warning" },
-  SUPERVISOR_APPROVED: { label: "Supervisor approved", tone: "violet" },
   APPROVED: { label: "Approved", tone: "success" },
-  CONDITIONALLY_APPROVED: { label: "Conditionally approved", tone: "brand" },
   DEFERRED: { label: "Deferred", tone: "warning" },
   REJECTED: { label: "Rejected", tone: "danger" },
+  CANCELLED: { label: "Cancelled", tone: "neutral" },
 };
 
 const RISK: Record<RiskCategory, { label: string; tone: BadgeTone; bar: string }> = {

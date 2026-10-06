@@ -60,15 +60,18 @@ export type DuplicateStatus =
   | "CONFIRMED_DISTINCT"
   | "CONFIRMED_DUPLICATE";
 
+/**
+ * The branch supervisor's review is the final decision (no committee step);
+ * approved households are then pooled for disbursement by ADMIN.
+ */
 export type AssessmentStatus =
   | "DRAFT"
   | "SUBMITTED"
   | "RETURNED"
-  | "SUPERVISOR_APPROVED"
   | "APPROVED"
-  | "CONDITIONALLY_APPROVED"
+  | "REJECTED"
   | "DEFERRED"
-  | "REJECTED";
+  | "CANCELLED";
 
 export type DuplicateCandidate = {
   id: string;
@@ -95,11 +98,7 @@ export type DuplicateResolution = "CONFIRMED_DISTINCT" | "CONFIRMED_DUPLICATE";
 
 export type OfficerRecommendation = "approve" | "conditional_approval" | "defer" | "reject";
 
-export type CommitteeDecision =
-  | "APPROVED"
-  | "CONDITIONALLY_APPROVED"
-  | "DEFERRED"
-  | "REJECTED";
+export type BranchDecision = "APPROVED" | "REJECTED" | "DEFERRED";
 
 export type HouseholdMember = {
   name: string | null;
@@ -242,11 +241,12 @@ export type AssessmentScore = {
 export type AssessmentDocument = {
   id: string;
   documentType: string;
-  fileName?: string | null;
+  originalFilename?: string | null;
   contentType?: string | null;
   sizeBytes?: number | null;
   uploadedAt?: string | null;
   uploadedBy?: string | null;
+  uploadedByName?: string | null;
 };
 
 export type AssessmentApplicant = {
@@ -278,15 +278,15 @@ export type AssessmentSignOffs = {
   reviewedByName?: string | null;
   reviewedAt?: string | null;
   reviewComment?: string | null;
-  decidedBy?: string | null;
-  decidedByName?: string | null;
-  decidedAt?: string | null;
-  decision?: CommitteeDecision | null;
-  decisionReason?: string | null;
+  cancelledBy?: string | null;
+  cancelledByName?: string | null;
+  cancelledAt?: string | null;
+  cancelReason?: string | null;
 };
 
 export type Assessment = Partial<AssessmentSections> & {
   id: string;
+  assessmentNumber?: string | null;
   beneficiaryId: string;
   status: AssessmentStatus;
   applicant?: AssessmentApplicant | null;
@@ -318,6 +318,7 @@ export type Assessment = Partial<AssessmentSections> & {
 
 export type AssessmentListItem = {
   id: string;
+  assessmentNumber?: string | null;
   beneficiaryId: string;
   beneficiaryName?: string | null;
   fullName?: string | null;

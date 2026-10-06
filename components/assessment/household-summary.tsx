@@ -7,7 +7,7 @@ const LABELS: Record<string, string> = {
   workingAgeCount: "Working age",
   disabledCount: "With disability",
   chronicallyIllCount: "Chronically ill",
-  pregnantOrLactatingCount: "Pregnant / lactating",
+  pregnantLactatingCount: "Pregnant / lactating",
   schoolAgeChildrenCount: "School-age children",
   dependentsCount: "Dependents",
   dependencyRatio: "Dependency ratio",

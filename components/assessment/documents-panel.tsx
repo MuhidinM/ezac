@@ -47,7 +47,7 @@ export function DocumentsList({
                   {labelFor(DOCUMENT_TYPES, document.documentType)}
                 </p>
                 <p className="truncate text-xs text-black/50">
-                  {[document.fileName, formatBytes(document.sizeBytes), document.uploadedAt ? formatDateTime(document.uploadedAt) : null]
+                  {[document.originalFilename, formatBytes(document.sizeBytes), document.uploadedAt ? formatDateTime(document.uploadedAt) : null, document.uploadedByName]
                     .filter(Boolean)
                     .join(" · ")}
                 </p>

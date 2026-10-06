@@ -32,7 +32,7 @@ import { useSession } from "@/lib/auth/use-session";
 import { isEditable } from "@/lib/backoffice/assessment-steps";
 import { formatDate, todayIso } from "@/lib/backoffice/format";
 
-const DECIDED: AssessmentStatus[] = ["APPROVED", "CONDITIONALLY_APPROVED", "DEFERRED", "REJECTED"];
+const CLOSED: AssessmentStatus[] = ["APPROVED", "DEFERRED", "REJECTED", "CANCELLED"];
 
 /** Assessment history on the beneficiary profile, with start / continue. */
 export function BeneficiaryAssessments({ beneficiary }: { beneficiary: BeneficiaryDetail }) {
@@ -47,7 +47,7 @@ export function BeneficiaryAssessments({ beneficiary }: { beneficiary: Beneficia
   const history = Array.isArray(data) ? data : (data?.items ?? []);
 
   const officer = isFieldOfficer(session);
-  const open = history.find((item) => !DECIDED.includes(item.status));
+  const open = history.find((item) => !CLOSED.includes(item.status));
   const blockedReason =
     beneficiary.beneficiaryType !== "individual"
       ? "Only individuals are assessed."

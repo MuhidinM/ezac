@@ -188,9 +188,8 @@ export const OFFICER_RECOMMENDATION = options({
   reject: "Reject",
 });
 
-export const COMMITTEE_DECISION = options({
+export const BRANCH_DECISION = options({
   APPROVED: "Approve",
-  CONDITIONALLY_APPROVED: "Conditionally approve",
   DEFERRED: "Defer",
   REJECTED: "Reject",
 });
