@@ -2,14 +2,15 @@
 
 import { useEffect, useRef } from "react";
 
-const IMPACT_POINTS = [
-  { label: "Mekelle", lat: 13.4967, lng: 39.4753 },
-  { label: "Bahir Dar", lat: 11.5742, lng: 37.3614 },
-  { label: "Addis Ababa", lat: 8.9806, lng: 38.7578 },
-  { label: "Adama", lat: 8.54, lng: 39.27 },
-  { label: "Jimma", lat: 7.6736, lng: 36.8344 },
-  { label: "Hawassa", lat: 7.0621, lng: 38.4764 },
-];
+import type { ImpactRegion } from "@/lib/zakat/impact";
+
+function markerTitle(region: ImpactRegion) {
+  const parts = [region.name];
+  if (region.beneficiaries) parts.push(`${region.beneficiaries.toLocaleString()} beneficiaries`);
+  if (region.distributedFundsEtb) parts.push(`ETB ${region.distributedFundsEtb.toLocaleString()} distributed`);
+  if (region.activeProjects) parts.push(`${region.activeProjects} active projects`);
+  return parts.join(" · ");
+}
 
 declare global {
   interface Window {
@@ -17,7 +18,8 @@ declare global {
   }
 }
 
-export function ImpactMapTeaser() {
+/** One marker per region, from GET /api/zakat/v1/impact/regions (passed in by the server page). */
+export function ImpactMapTeaser({ regions = [] }: { regions?: ImpactRegion[] }) {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
@@ -35,11 +37,11 @@ export function ImpactMapTeaser() {
         fullscreenControl: false,
       });
 
-      IMPACT_POINTS.forEach((point) => {
+      regions.forEach((region) => {
         new window.google.maps.Marker({
-          position: { lat: point.lat, lng: point.lng },
+          position: { lat: region.latitude, lng: region.longitude },
           map,
-          title: point.label,
+          title: markerTitle(region),
         });
       });
     };
@@ -69,7 +71,7 @@ export function ImpactMapTeaser() {
     return () => {
       script.removeEventListener("load", initializeMap);
     };
-  }, [apiKey]);
+  }, [apiKey, regions]);
 
   return (
     <section className="relative z-10 w-full overflow-hidden border-t border-black/5 bg-white">

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { FileTextIcon, DownloadIcon } from "lucide-react";
 import { SitePage } from "@/components/site/site-page";
 import { Section, SectionHeading, CtaBand } from "@/components/site/sections";
+import { getImpactReports } from "@/lib/zakat/impact";
 
 export const metadata: Metadata = {
   title: "Impact Reports — EZAC",
@@ -9,30 +10,17 @@ export const metadata: Metadata = {
     "Audited quarterly and annual reports detailing how Zakat and Waqf funds were collected, invested, and disbursed.",
 };
 
-const REPORTS = [
-  {
-    title: "Ramadan 2026 Impact Report",
-    period: "Q1 2026",
-    note: "Collection, disbursement, and beneficiary outcomes for the Ramadan season.",
-  },
-  {
-    title: "Annual Report 2025",
-    period: "FY 2025",
-    note: "Full-year audited accounts, Waqf portfolio performance, and regional reach.",
-  },
-  {
-    title: "Waqf Portfolio Review",
-    period: "H2 2025",
-    note: "Endowment asset allocation, returns, and causes funded from investment income.",
-  },
-  {
-    title: "Beneficiary Verification Audit",
-    period: "Q4 2025",
-    note: "Independent review of Fayda-based verification and disbursement controls.",
-  },
-];
+// Published reports from zakat-engine, refreshed every 5 minutes.
+export const revalidate = 300;
 
-export default function ImpactReportsPage() {
+function fileSize(bytes: number | null) {
+  if (!bytes) return null;
+  return bytes > 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`;
+}
+
+export default async function ImpactReportsPage() {
+  const reports = (await getImpactReports())?.items ?? [];
+
   return (
     <SitePage
       eyebrow="Transparency & Impact"
@@ -44,13 +32,21 @@ export default function ImpactReportsPage() {
         <SectionHeading
           eyebrow="Library"
           title="Published reports"
-          intro="Each report is independently reviewed before release."
+          intro="Each report is reviewed before release."
         />
         <div className="mx-auto mt-12 max-w-3xl space-y-3">
-          {REPORTS.map((r) => (
-            <div
-              key={r.title}
-              className="flex items-center gap-4 rounded-2xl border border-black/10 bg-white p-5"
+          {reports.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-black/15 p-10 text-center text-sm" style={{ color: "#6F6F6F" }}>
+              No reports have been published yet.
+            </p>
+          ) : null}
+          {reports.map((r) => (
+            <a
+              key={r.id}
+              href={r.fileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-4 rounded-2xl border border-black/10 bg-white p-5 transition hover:border-black/20"
             >
               <span
                 className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
@@ -63,7 +59,9 @@ export default function ImpactReportsPage() {
                   {r.title}
                 </p>
                 <p className="mt-0.5 text-xs" style={{ color: "#6F6F6F" }}>
-                  <span style={{ color: "#e18f35" }}>{r.period}</span> · {r.note}
+                  {r.period ? <span style={{ color: "#e18f35" }}>{r.period}</span> : null}
+                  {r.period && (r.summary || r.publishedAt) ? " · " : null}
+                  {r.summary ?? (r.publishedAt ? `Published ${new Date(r.publishedAt).toLocaleDateString("en", { dateStyle: "medium" })}` : null)}
                 </p>
               </div>
               <span
@@ -71,9 +69,9 @@ export default function ImpactReportsPage() {
                 style={{ color: "#001539" }}
               >
                 <DownloadIcon className="h-3.5 w-3.5" />
-                PDF
+                PDF{fileSize(r.sizeBytes) ? ` · ${fileSize(r.sizeBytes)}` : ""}
               </span>
-            </div>
+            </a>
           ))}
         </div>
       </Section>

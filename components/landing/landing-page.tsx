@@ -5,12 +5,15 @@ import { TrustStrip } from "./trust-strip";
 import { VideoBackground } from "./video-background";
 import { FeaturedWaqfCampaigns } from "./featured-waqf-campaigns";
 import { HowItWorksTrust } from "./how-it-works-trust";
+import { getImpactRegions } from "@/lib/zakat/impact";
+
 import { ImpactMapTeaser } from "./impact-map-teaser";
 import { PartnersSponsors } from "./partners-sponsors";
 import { SiteFooter } from "./site-footer";
 import { ZakatCalculator } from "./zakat-calculator";
 
-export function LandingPage() {
+export async function LandingPage() {
+  const regions = await getImpactRegions();
   return (
     <div className="relative w-full overflow-x-hidden bg-white">
       <div className="relative min-h-screen w-full overflow-hidden">
@@ -30,7 +33,7 @@ export function LandingPage() {
       <ZakatCalculator />
       <FeaturedWaqfCampaigns />
       <HowItWorksTrust />
-      <ImpactMapTeaser />
+      <ImpactMapTeaser regions={regions ?? []} />
       <PartnersSponsors />
       <SiteFooter />
     </div>

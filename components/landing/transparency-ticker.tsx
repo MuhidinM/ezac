@@ -1,19 +1,41 @@
 import { Fragment } from "react";
 import { TrendingUpIcon } from "lucide-react";
 
+import {
+  formatCount,
+  formatEtbCompact,
+  getCalculatorConfig,
+  getHomeSummary,
+  getImpactSummary,
+} from "@/lib/zakat/impact";
+
 type Stat = {
   value: string;
   label: string;
 };
 
-const STATS: Stat[] = [
-  { value: "ETB 45,200,000", label: "Zakat Collected" },
-  { value: "12,450", label: "Families Supported" },
-  { value: "847", label: "Waqf Assets Registered" },
-  { value: "3,210", label: "Diaspora Donors" },
-  { value: "124", label: "Active Crowdfunding Projects" },
-  { value: "ETB 8.4M", label: "Disbursed This Week" },
-];
+/** Live figures from zakat-engine; unpublished ones are left out. */
+async function loadStats(): Promise<Stat[]> {
+  const [home, impact, config] = await Promise.all([getHomeSummary(), getImpactSummary(), getCalculatorConfig()]);
+  const stats: (Stat | null)[] = [
+    config
+      ? { value: `ETB ${new Intl.NumberFormat("en-ET").format(Math.round(config.nisab.valueEtb))}`, label: `Nisab today (${config.nisab.basis})` }
+      : null,
+    config
+      ? { value: `ETB ${new Intl.NumberFormat("en-ET").format(Math.round(config.goldPricePerGramEtb["24k"] ?? 0))}/g`, label: "Gold 24k" }
+      : null,
+    formatEtbCompact(home?.totalCollectedEtb) ? { value: formatEtbCompact(home?.totalCollectedEtb)!, label: "Zakat Collected" } : null,
+    formatCount(home?.totalBeneficiariesSupported)
+      ? { value: formatCount(home?.totalBeneficiariesSupported)!, label: "Families Supported" }
+      : null,
+    impact?.distributedFundsEtb
+      ? { value: formatEtbCompact(impact.distributedFundsEtb)!, label: "Funds Distributed" }
+      : null,
+    formatCount(impact?.livesTouched) ? { value: formatCount(impact?.livesTouched)!, label: "Lives Touched" } : null,
+    impact?.activeProjects ? { value: formatCount(impact.activeProjects)!, label: "Active Projects" } : null,
+  ];
+  return stats.filter((stat): stat is Stat => stat !== null);
+}
 
 function StatItem({ stat }: { stat: Stat }) {
   return (
@@ -37,7 +59,12 @@ function StatItem({ stat }: { stat: Stat }) {
   );
 }
 
-export function TransparencyTicker() {
+export async function TransparencyTicker() {
+  const stats = await loadStats();
+  if (stats.length === 0) return null;
+  // Repeat short lists so the marquee still fills the strip.
+  const loop = Array.from({ length: Math.max(2, Math.ceil(8 / stats.length) * 2) }, () => stats).flat();
+
   return (
     <section
       className="relative z-10 w-full overflow-hidden"
@@ -63,7 +90,7 @@ export function TransparencyTicker() {
             className="whitespace-nowrap text-[10px] uppercase tracking-[0.2em]"
             style={{ color: "#FFFFFF" }}
           >
-            Ramadan 2026 · Live Impact
+            Live Impact
           </span>
           <TrendingUpIcon
             className="h-3.5 w-3.5"
@@ -76,7 +103,7 @@ export function TransparencyTicker() {
             className="animate-marquee flex whitespace-nowrap"
             style={{ width: "max-content" }}
           >
-            {[...STATS, ...STATS].map((stat, i) => (
+            {loop.map((stat, i) => (
               <Fragment key={i}>
                 <StatItem stat={stat} />
                 <span
