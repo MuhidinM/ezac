@@ -1,6 +1,8 @@
 import {
   Building2,
   ClipboardCheck,
+  Coins,
+  FileText,
   LayoutDashboard,
   Network,
   SlidersHorizontal,
@@ -96,6 +98,23 @@ export const NAV_SECTIONS: NavSection[] = [
       },
     ],
   },
+  {
+    label: "Zakat & transparency",
+    items: [
+      {
+        title: "Prices & nisab",
+        url: "/dashboard/zakat/prices",
+        icon: Coins,
+        audience: ["admin"],
+      },
+      {
+        title: "Impact reports",
+        url: "/dashboard/zakat/reports",
+        icon: FileText,
+        audience: ["admin"],
+      },
+    ],
+  },
 ];
 
 export function isFieldOfficer(session: SessionInfo | null) {
@@ -142,6 +161,8 @@ export const SEGMENT_LABELS: Record<string, string> = {
   edit: "Edit",
   "scoring-config": "Scoring config",
   duplicates: "Duplicate review",
+  zakat: "Zakat",
+  prices: "Prices & nisab",
 };
 
 export function roleLabel(session: SessionInfo): string {
