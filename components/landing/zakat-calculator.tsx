@@ -16,6 +16,13 @@ import {
   ScaleIcon,
   XIcon,
 } from "lucide-react";
+import {
+  MIXED_IRRIGATION_RATE,
+  RIKAZ_RATE as OFFICIAL_RIKAZ_RATE,
+  livestockDue,
+  pricePerGram,
+  type CalculatorConfig,
+} from "@/lib/zakat/calculator-config";
 
 type CategoryKey =
   | "cash"
@@ -93,8 +100,9 @@ const CATEGORIES: Category[] = [
   },
 ];
 
+// Offline fallbacks only; the official values come from the zakat service.
 const ZAKAT_RATE = 0.025;
-const RIKAZ_RATE = 0.2;
+const RIKAZ_RATE = OFFICIAL_RIKAZ_RATE;
 const GOLD_NISAB_GRAMS = 85;
 const SILVER_NISAB_GRAMS = 595;
 const AGRI_NISAB_KG = 653;
@@ -107,14 +115,6 @@ const FOCUS_RING =
 
 type MetalType = "gold" | "silver";
 type Karat = (typeof KARATS)[number];
-type RatesByKarat = Record<Karat, number>;
-type MetalPricing = {
-  usdToEtb: number;
-  etbPerGram: Record<MetalType, RatesByKarat>;
-  fetchedAt: string;
-  expiresAt: string;
-  sourceStatus: "live" | "cache";
-};
 type MetalLineItem = {
   id: string;
   metal: MetalType;
@@ -206,35 +206,22 @@ function fineMetalGrams(grossGrams: number, karat: Karat) {
 function etbPerGramForKarat(
   metal: MetalType,
   karat: Karat,
-  pricing: MetalPricing | null,
+  config: CalculatorConfig | null,
 ): number {
-  const pure24FallbackConst =
-    metal === "gold" ? GOLD_PRICE_PER_GRAM_ETB : SILVER_PRICE_PER_GRAM_ETB;
-  if (!pricing) {
-    return pure24FallbackConst * (karat / 24);
-  }
-  const rates = pricing.etbPerGram[metal];
-  const direct = rates[karat];
-  if (typeof direct === "number" && direct > 0) {
-    return direct;
-  }
-  const pure24 = rates[24];
-  if (typeof pure24 === "number" && pure24 > 0) {
-    return pure24 * (karat / 24);
-  }
-  return pure24FallbackConst * (karat / 24);
+  if (config) return pricePerGram(config, metal, karat);
+  const pure24 = metal === "gold" ? GOLD_PRICE_PER_GRAM_ETB : SILVER_PRICE_PER_GRAM_ETB;
+  return pure24 * (karat / 24);
 }
 
-function irrigationRate(mode: IrrigationMode) {
+function irrigationRate(mode: IrrigationMode, config: CalculatorConfig | null) {
   switch (mode) {
-    case "natural":
-      return 0.1;
     case "mixed":
-      return 0.075;
+      return MIXED_IRRIGATION_RATE;
     case "artificial":
-      return 0.05;
+      return config?.crops.irrigatedRate ?? 0.05;
+    case "natural":
     default:
-      return 0.1;
+      return config?.crops.rainFedRate ?? 0.1;
   }
 }
 
@@ -364,63 +351,42 @@ function InfoTip({ text, label }: { text: string; label: string }) {
 export function ZakatCalculator() {
   const [added, setAdded] = useState<CategoryKey[]>(["cash"]);
   const [form, setForm] = useState<CalculatorState>(INITIAL_STATE);
-  const [metalPricing, setMetalPricing] = useState<MetalPricing | null>(null);
+  const [config, setConfig] = useState<CalculatorConfig | null>(null);
   const [pricingLoading, setPricingLoading] = useState(true);
   const [pricingError, setPricingError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
-
-    async function loadPricing() {
-      try {
-        setPricingLoading(true);
-        setPricingError(null);
-        const response = await fetch("/api/metal-pricing", {
-          method: "GET",
-          cache: "no-store",
-        });
-        const json = (await response.json()) as unknown;
-        if (!response.ok || !json || typeof json !== "object") {
-          const err =
-            json &&
-            typeof json === "object" &&
-            "error" in json &&
-            typeof (json as { error: unknown }).error === "string"
-              ? (json as { error: string }).error
-              : `Pricing unavailable (${response.status}).`;
-          throw new Error(err);
+    fetch("/api/zakat/calculator-config")
+      .then(async (response) => {
+        const json = (await response.json().catch(() => null)) as {
+          success?: boolean;
+          data?: CalculatorConfig;
+          message?: string;
+        } | null;
+        if (!response.ok || !json?.success || !json.data?.nisab) {
+          throw new Error(json?.message ?? "Rates unavailable (" + response.status + ").");
         }
-        const pricing = json as MetalPricing;
-        if (
-          typeof pricing.usdToEtb !== "number" ||
-          !pricing.etbPerGram?.gold ||
-          !pricing.etbPerGram?.silver
-        ) {
-          throw new Error("Invalid pricing response from server.");
-        }
+        if (isMounted) setConfig(json.data);
+      })
+      .catch((error: unknown) => {
         if (isMounted) {
-          setMetalPricing(pricing);
+          setPricingError(error instanceof Error ? error.message : "Unable to load the official rates.");
         }
-      } catch (error) {
-        if (isMounted) {
-          setPricingError(
-            error instanceof Error
-              ? error.message
-              : "Unable to load live metal market values.",
-          );
-        }
-      } finally {
-        if (isMounted) {
-          setPricingLoading(false);
-        }
-      }
-    }
-
-    loadPricing();
+      })
+      .finally(() => {
+        if (isMounted) setPricingLoading(false);
+      });
     return () => {
       isMounted = false;
     };
   }, []);
+
+  const zakatRate = config?.wealth.rate ?? ZAKAT_RATE;
+  const agriNisabKg = config?.crops.nisabKg ?? AGRI_NISAB_KG;
+  const goldNisabGrams = config?.nisab.goldGrams ?? GOLD_NISAB_GRAMS;
+  const silverNisabGrams = config?.nisab.silverGrams ?? SILVER_NISAB_GRAMS;
+  const nisabBasis = config?.nisab.basis ?? "silver";
 
   const has = (key: CategoryKey) => added.includes(key);
 
@@ -457,7 +423,7 @@ export function ZakatCalculator() {
     );
   const preciousMetalsValue = form.metalItems.reduce((sum, item) => {
     const grams = parseAmount(item.grams);
-    const etbPerGram = etbPerGramForKarat(item.metal, item.karat, metalPricing);
+    const etbPerGram = etbPerGramForKarat(item.metal, item.karat, config);
     return sum + grams * etbPerGram;
   }, 0);
   // Business base
@@ -478,20 +444,19 @@ export function ZakatCalculator() {
   // Agriculture (no Hawl required)
   const agricultureHarvestKg = parseAmount(form.cropsHarvestKg);
   const agricultureDue =
-    has("agriculture") && agricultureHarvestKg >= AGRI_NISAB_KG
-      ? agricultureHarvestKg * irrigationRate(form.irrigationMode)
+    has("agriculture") && agricultureHarvestKg >= agriNisabKg
+      ? agricultureHarvestKg * irrigationRate(form.irrigationMode, config)
       : 0;
 
   // Thresholds & minerals / rikaz
-  const silver24kEtb =
-    metalPricing?.etbPerGram.silver[24] ?? SILVER_PRICE_PER_GRAM_ETB;
-  const gold24kEtb =
-    metalPricing?.etbPerGram.gold[24] ?? GOLD_PRICE_PER_GRAM_ETB;
-  const nisabETB = SILVER_NISAB_GRAMS * silver24kEtb;
+  const silver24kEtb = config?.silverPricePerGramEtb ?? SILVER_PRICE_PER_GRAM_ETB;
+  const gold24kEtb = config?.goldPricePerGramEtb["24k"] ?? GOLD_PRICE_PER_GRAM_ETB;
+  // The commission sets the basis (gold today); offline we fall back to silver.
+  const nisabETB = config?.nisab.valueEtb ?? SILVER_NISAB_GRAMS * silver24kEtb;
   const mineralsBase = parseAmount(form.mineralsValue);
   const mineralsDue =
     has("rikazMinerals") && mineralsBase >= nisabETB
-      ? mineralsBase * ZAKAT_RATE
+      ? mineralsBase * zakatRate
       : 0;
   const rikazDue = has("rikazMinerals")
     ? parseAmount(form.rikazValue) * RIKAZ_RATE
@@ -508,7 +473,9 @@ export function ZakatCalculator() {
     form.livestockFreelyGrazing && !form.livestockUsedForWork;
   const livestockUnits =
     has("livestock") && livestockEligible
-      ? getLivestockDueString(form.livestockMode, livestockCount)
+      ? config
+        ? livestockDue(config.livestock, form.livestockMode, livestockCount)
+        : getLivestockDueString(form.livestockMode, livestockCount)
       : "No Zakat";
 
   // Pooled monetary base — only categories the user has actually added count.
@@ -531,14 +498,14 @@ export function ZakatCalculator() {
   const wealthDueActive = form.hawlCompleted && meetsNisab;
 
   // Per-category 2.5% shares (for the transparent breakdown)
-  const cashShare = wealthDueActive ? includedCash * ZAKAT_RATE : 0;
-  const goldShare = wealthDueActive ? includedMetals * ZAKAT_RATE : 0;
-  const businessShare = wealthDueActive ? includedBusiness * ZAKAT_RATE : 0;
-  const propertyShare = wealthDueActive ? includedProperty * ZAKAT_RATE : 0;
+  const cashShare = wealthDueActive ? includedCash * zakatRate : 0;
+  const goldShare = wealthDueActive ? includedMetals * zakatRate : 0;
+  const businessShare = wealthDueActive ? includedBusiness * zakatRate : 0;
+  const propertyShare = wealthDueActive ? includedProperty * zakatRate : 0;
   const liabilitiesDeduction = wealthDueActive
-    ? deductibleLiabilities * ZAKAT_RATE
+    ? deductibleLiabilities * zakatRate
     : 0;
-  const annualDue = wealthDueActive ? adjustedAnnualBase * ZAKAT_RATE : 0;
+  const annualDue = wealthDueActive ? adjustedAnnualBase * zakatRate : 0;
 
   // Grand monetary total (in-kind dues are reported separately)
   const totalEtbDue = annualDue + rikazDue + mineralsDue;
@@ -655,18 +622,24 @@ export function ZakatCalculator() {
               style={{ color: "#6F6F6F" }}
             >
               <p>
-                Live rates: GoldAPI (USD per gram by karat) × Cooperative Bank
-                of Oromia USD→ETB. Nisab uses{" "}
+                Official EZAC prices per gram by karat. Nisab is measured in{" "}
                 <strong style={{ color: "#001539" }}>fine metal</strong> (gross
-                grams × karat ÷ 24): gold ≥ {GOLD_NISAB_GRAMS}g fine, silver ≥{" "}
-                {SILVER_NISAB_GRAMS}g fine.
+                grams × karat ÷ 24): gold {goldNisabGrams}g, silver {silverNisabGrams}g. The
+                commission currently applies the{" "}
+                <strong style={{ color: "#001539" }}>{nisabBasis}</strong> nisab.
               </p>
               <p className="mt-1">
                 {pricingLoading
-                  ? "Loading live market values..."
+                  ? "Loading official rates..."
                   : pricingError
-                    ? `${pricingError} Using purity-adjusted offline estimates until live pricing loads.`
-                    : `USD/ETB ${metalPricing?.usdToEtb.toFixed(3)} · Updated ${new Date(metalPricing?.fetchedAt ?? "").toLocaleString()} (${metalPricing?.sourceStatus === "cache" ? "cached" : "live"})`}
+                    ? pricingError + " Using offline estimates until the official rates load."
+                    : [
+                        "Prices as of " + new Date(config?.pricesAsOf ?? "").toLocaleString(),
+                        config?.priceSource,
+                        config?.usdEtbRate ? "USD/ETB " + config.usdEtbRate.toFixed(2) : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
               </p>
             </div>
             <div className="space-y-3">
@@ -849,7 +822,7 @@ export function ZakatCalculator() {
               "Harvest amount (kg)",
               form.cropsHarvestKg,
               updateAmount("cropsHarvestKg"),
-              `Nisab starts at ${AGRI_NISAB_KG} kg. Due on harvest — no Hawl needed.`,
+              `Nisab starts at ${agriNisabKg} kg. Due on harvest — no Hawl needed.`,
             )}
             <div className="space-y-2">
               <p className="text-xs" style={{ color: "#6F6F6F" }}>
@@ -1105,7 +1078,7 @@ export function ZakatCalculator() {
                 Silver 24k {formatCurrency(silver24kEtb)} ETB/g
               </span>
               {" · "}
-              Nisab ETB {formatCurrency(nisabETB)}
+              Nisab ({nisabBasis}) ETB {formatCurrency(nisabETB)}
             </span>
           </div>
         </div>
