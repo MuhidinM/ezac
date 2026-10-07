@@ -6,7 +6,12 @@ import { useParams } from "next/navigation";
 import { CheckCircle2, CopyCheck, Pencil, XCircle } from "lucide-react";
 
 import { BeneficiaryAssessments } from "@/components/assessment/beneficiary-assessments";
-import { DuplicateBadge, LifecycleBadge } from "@/components/backoffice/status-badges";
+import {
+  DuplicateBadge,
+  LifecycleBadge,
+  PoolStatusBadge,
+  WhitelistBadge,
+} from "@/components/backoffice/status-badges";
 import { BasicDetailsDialog } from "@/components/beneficiary/basic-details-dialog";
 import { BeneficiaryEditForm } from "@/components/beneficiary/beneficiary-edit-form";
 import { LifecyclePanel } from "@/components/beneficiary/lifecycle-panel";
@@ -110,6 +115,8 @@ export default function BeneficiaryDetailPage() {
           <div className="flex flex-wrap items-center gap-1.5">
             <VerificationStatusBadge status={beneficiary.verificationStatus} />
             <LifecycleBadge status={beneficiary.lifecycleStatus} />
+            <PoolStatusBadge status={beneficiary.poolStatus} />
+            <WhitelistBadge effect={beneficiary.whitelistEffect} />
             <DuplicateBadge status={beneficiary.duplicateStatus} />
             <Badge tone="neutral" className="capitalize">
               {beneficiary.beneficiaryType}
@@ -172,7 +179,6 @@ export default function BeneficiaryDetailPage() {
               items={[
                 { label: "Phone", value: beneficiary.phone },
                 { label: "Email", value: beneficiary.email },
-                { label: "National ID", value: beneficiary.nationalId },
                 {
                   label: "Date of birth",
                   value:
@@ -198,6 +204,36 @@ export default function BeneficiaryDetailPage() {
               ]}
             />
           </Panel>
+
+          {!isInstitution ? (
+            <Panel
+              title="Bank account"
+              description="Where disbursements are paid. Required before an assessment can be submitted."
+              actions={
+                canEdit ? (
+                  <Button size="sm" variant="ghost" onClick={() => setBasicOpen(true)}>
+                    <Pencil />
+                    Edit
+                  </Button>
+                ) : null
+              }
+            >
+              {beneficiary.bankAccount?.accountNumber ? (
+                <DetailList
+                  items={[
+                    { label: "Bank", value: beneficiary.bankAccount.bankName ?? beneficiary.bankAccount.bankCode },
+                    {
+                      label: "Account number",
+                      value: <span className="font-mono">{beneficiary.bankAccount.accountNumber}</span>,
+                    },
+                    { label: "Account holder", value: beneficiary.bankAccount.accountHolderName },
+                  ]}
+                />
+              ) : (
+                <InlineAlert tone="warning">No bank account yet. Add it before submitting an assessment.</InlineAlert>
+              )}
+            </Panel>
+          ) : null}
 
           <Panel title="Location">
             <DetailList

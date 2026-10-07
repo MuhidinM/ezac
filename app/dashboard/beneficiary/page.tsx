@@ -3,14 +3,16 @@
 import { type FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { RefreshCw, Search, SlidersHorizontal, UserPlus, X } from "lucide-react";
+import { Landmark, RefreshCw, Search, SlidersHorizontal, UserPlus, X } from "lucide-react";
 
 import {
   AssessmentStatusBadge,
   DuplicateBadge,
   LifecycleBadge,
+  PoolStatusBadge,
   RiskBadge,
   ScoreMeter,
+  WhitelistBadge,
 } from "@/components/backoffice/status-badges";
 import { VerificationStatusBadge } from "@/components/beneficiary/verification-status-badge";
 import { FormField } from "@/components/dashboard/form-field";
@@ -53,6 +55,7 @@ type Filters = {
   asnaf: string;
   branchId: string;
   region: string;
+  whitelistEffect: string;
 };
 
 const EMPTY_FILTERS: Filters = {
@@ -68,6 +71,7 @@ const EMPTY_FILTERS: Filters = {
   asnaf: "",
   branchId: "",
   region: "",
+  whitelistEffect: "",
 };
 
 const ADVANCED_KEYS: (keyof Filters)[] = [
@@ -80,15 +84,19 @@ const ADVANCED_KEYS: (keyof Filters)[] = [
   "asnaf",
   "branchId",
   "region",
+  "whitelistEffect",
 ];
 
 function toQuery(filters: Filters, page: number) {
   const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
   for (const [key, value] of Object.entries(filters)) {
-    if (!value || key === "assessed") continue;
+    if (!value || key === "assessed" || key === "whitelistEffect") continue;
     params.set(key, value);
   }
   if (filters.assessed) params.set("notAssessed", String(filters.assessed === "not_assessed"));
+  if (filters.whitelistEffect === "any") params.set("whitelisted", "true");
+  else if (filters.whitelistEffect === "none") params.set("whitelisted", "false");
+  else if (filters.whitelistEffect) params.set("whitelistEffect", filters.whitelistEffect);
   return params.toString();
 }
 
@@ -163,7 +171,7 @@ export default function BeneficiaryPage() {
               <Input
                 value={draftSearch}
                 onChange={(event) => setDraftSearch(event.target.value)}
-                placeholder="Search name, phone or national ID"
+                placeholder="Search name, phone or bank account number"
                 className="bg-white pl-9"
               />
             </div>
@@ -336,6 +344,19 @@ export default function BeneficiaryPage() {
                   ))}
                 </NativeSelect>
               </FormField>
+              <FormField label="Whitelist" htmlFor="f-whitelist">
+                <NativeSelect
+                  id="f-whitelist"
+                  value={filters.whitelistEffect}
+                  onChange={(event) => update("whitelistEffect", event.target.value)}
+                >
+                  <option value="">Any</option>
+                  <option value="any">Whitelisted</option>
+                  <option value="FAST_TRACK">Fast track</option>
+                  <option value="PRIORITY">Priority</option>
+                  <option value="none">Not whitelisted</option>
+                </NativeSelect>
+              </FormField>
               {isAdmin ? (
                 <FormField label="Branch" htmlFor="f-branch">
                   <NativeSelect
@@ -397,7 +418,13 @@ export default function BeneficiaryPage() {
                       >
                         {item.fullName ?? "Unnamed beneficiary"}
                       </Link>
+                      <WhitelistBadge effect={item.whitelistEffect} />
                       <DuplicateBadge status={item.duplicateStatus} />
+                      {item.hasBankAccount === false && item.beneficiaryType === "individual" ? (
+                        <span title="No bank account yet" className="text-amber-600">
+                          <Landmark className="size-3.5" aria-label="No bank account yet" />
+                        </span>
+                      ) : null}
                     </div>
                     <p className="text-xs text-black/50 tabular-nums">
                       {item.phone ?? "—"}
@@ -406,7 +433,10 @@ export default function BeneficiaryPage() {
                   </TableCell>
                   <TableCell>{formatBeneficiaryCategory(item.beneficiaryCategory)}</TableCell>
                   <TableCell>
-                    <LifecycleBadge status={item.lifecycleStatus} />
+                    <div className="flex flex-col items-start gap-1">
+                      <LifecycleBadge status={item.lifecycleStatus} />
+                      <PoolStatusBadge status={item.poolStatus} />
+                    </div>
                   </TableCell>
                   <TableCell>
                     <ScoreMeter score={item.score} max={item.maxScore} risk={item.riskCategory} />

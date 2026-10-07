@@ -1,11 +1,13 @@
-import { CopyCheck } from "lucide-react";
+import { CopyCheck, Star, Zap } from "lucide-react";
 
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import type {
   AssessmentStatus,
   DuplicateStatus,
   LifecycleStatus,
+  PoolStatus,
   RiskCategory,
+  WhitelistEffect,
 } from "@/lib/api/backoffice-types";
 import { cn } from "@/lib/utils";
 
@@ -117,4 +119,38 @@ export function ScoreMeter({
       </div>
     </div>
   );
+}
+
+export const POOL_STATUS: Record<PoolStatus, { label: string; tone: BadgeTone }> = {
+  AWAITING_POOL: { label: "Awaiting pool", tone: "violet" },
+  POOLED: { label: "Pooled", tone: "success" },
+  DECLINED: { label: "Pool declined", tone: "neutral" },
+  REMOVED: { label: "Removed from pool", tone: "neutral" },
+};
+
+export function PoolStatusBadge({ status }: { status?: PoolStatus | null }) {
+  if (!status) return null;
+  const meta = POOL_STATUS[status] ?? { label: status, tone: "neutral" as const };
+  return <Badge tone={meta.tone}>{meta.label}</Badge>;
+}
+
+/** Whitelist marks a known need; it never changes the score. */
+export function WhitelistBadge({ effect }: { effect?: WhitelistEffect | null }) {
+  if (effect === "FAST_TRACK") {
+    return (
+      <Badge tone="danger">
+        <Zap />
+        Fast track
+      </Badge>
+    );
+  }
+  if (effect === "PRIORITY") {
+    return (
+      <Badge tone="warning">
+        <Star />
+        Priority
+      </Badge>
+    );
+  }
+  return null;
 }

@@ -3,7 +3,7 @@
 import { Check, Circle, MessageSquareWarning } from "lucide-react";
 
 import { ScoreBreakdown, ScoreHeadline, flagText } from "@/components/assessment/score-breakdown";
-import { ASSESSMENT_STATUS, RiskBadge } from "@/components/backoffice/status-badges";
+import { ASSESSMENT_STATUS, POOL_STATUS, RiskBadge } from "@/components/backoffice/status-badges";
 import { DetailList, Panel } from "@/components/dashboard/panel";
 import { TableMessageRow, TableSkeletonRows } from "@/components/dashboard/table-states";
 import { Badge } from "@/components/ui/badge";
@@ -129,6 +129,20 @@ export function SignOffTimeline({ assessment }: { assessment: Assessment }) {
       when: s.reviewedAt,
       body: s.reviewComment,
     },
+    ...(assessment.status === "APPROVED"
+      ? [
+          {
+            done: !!assessment.pool && assessment.pool.status !== "AWAITING_POOL",
+            title:
+              assessment.pool && assessment.pool.status !== "AWAITING_POOL"
+                ? POOL_STATUS[assessment.pool.status].label
+                : "Disbursement pool",
+            who: assessment.pool?.changedByName,
+            when: assessment.pool?.status !== "AWAITING_POOL" ? assessment.pool?.changedAt : null,
+            body: assessment.pool?.reason,
+          },
+        ]
+      : []),
     ...(s.cancelledAt
       ? [
           {

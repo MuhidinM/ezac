@@ -9,7 +9,7 @@ import { AssessmentSummary } from "@/components/assessment/assessment-summary";
 import { DocumentsList } from "@/components/assessment/documents-panel";
 import { AssessmentManagement, BranchReview } from "@/components/assessment/review-actions";
 import { ScoreHistory, ScorePanel, SignOffTimeline } from "@/components/assessment/score-panel";
-import { AssessmentStatusBadge } from "@/components/backoffice/status-badges";
+import { AssessmentStatusBadge, PoolStatusBadge } from "@/components/backoffice/status-badges";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { isFieldOfficer } from "@/components/dashboard/nav-config";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -87,7 +87,12 @@ function AssessmentDetail() {
       <PageHeader
         back={{ href: "/dashboard/assessments", label: "Assessments" }}
         title={name}
-        meta={<AssessmentStatusBadge status={assessment.status} />}
+        meta={
+          <span className="flex items-center gap-1.5">
+            <AssessmentStatusBadge status={assessment.status} />
+            <PoolStatusBadge status={assessment.pool?.status} />
+          </span>
+        }
         description={
           <>
             Household assessment of {formatDate(assessment.assessmentInfo?.assessmentDate)}

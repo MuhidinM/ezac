@@ -122,11 +122,30 @@ export type AssessmentStatus =
   | "DEFERRED"
   | "CANCELLED";
 
+export type BankAccount = {
+  bankCode: string | null;
+  bankName: string | null;
+  accountNumber: string | null;
+  accountHolderName: string | null;
+};
+
+/** On APPROVED assessments only; absent before the branch approves. */
+export type PoolStatus = "AWAITING_POOL" | "POOLED" | "DECLINED" | "REMOVED";
+
+export type WhitelistEffect = "PRIORITY" | "FAST_TRACK";
+
+export type AssessmentPool = {
+  status: PoolStatus;
+  changedBy?: string | null;
+  changedByName?: string | null;
+  changedAt?: string | null;
+  reason?: string | null;
+};
+
 export type DuplicateCandidate = {
   id: string;
   fullName: string | null;
   phone: string | null;
-  nationalId: string | null;
   dateOfBirth: string | null;
   woreda?: string | null;
   kebele?: string | null;
@@ -137,7 +156,7 @@ export type DuplicateCandidate = {
 
 export type DuplicateReview = {
   duplicateStatus: DuplicateStatus;
-  reasons: ("national_id" | "phone" | "name_dob" | string)[];
+  reasons: ("bank_account" | "phone" | "name_dob" | string)[];
   candidates: DuplicateCandidate[];
 };
 
@@ -304,9 +323,9 @@ export type AssessmentApplicant = {
   bin?: string | null;
   fullName?: string | null;
   phone?: string | null;
-  nationalId?: string | null;
   dateOfBirth?: string | null;
   estimatedAge?: number | null;
+  bankAccount?: BankAccount | null;
   gender?: string | null;
   maritalStatus?: string | null;
   religion?: string | null;
@@ -359,6 +378,8 @@ export type Assessment = Partial<AssessmentSections> & {
     systemRecommendation?: OfficerRecommendation | null;
   } | null;
   signOffs?: AssessmentSignOffs | null;
+  /** Null until the branch approves, and after an ADMIN send-back. */
+  pool?: AssessmentPool | null;
   documents?: AssessmentDocument[] | null;
   score?: AssessmentScore | null;
   createdAt?: string | null;

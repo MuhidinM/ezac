@@ -23,7 +23,12 @@ export function ApplicantCard({
   const items = [
     { label: "BIN", value: a.bin },
     { label: "Phone", value: a.phone },
-    { label: "National ID", value: a.nationalId },
+    {
+      label: "Bank account",
+      value: a.bankAccount?.accountNumber
+        ? `${a.bankAccount.bankName ?? a.bankAccount.bankCode ?? ""} · ${a.bankAccount.accountNumber}`
+        : null,
+    },
     { label: "Sex", value: a.gender ? labelFor(SEX, a.gender) : null },
     { label: "Born", value: age },
     { label: "Marital status", value: a.maritalStatus ? labelFor(MARITAL_STATUS, a.maritalStatus) : null },

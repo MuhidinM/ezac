@@ -26,7 +26,6 @@ export function BeneficiaryEditForm({
   const [fullName, setFullName] = useState(beneficiary.fullName ?? "");
   const [phone, setPhone] = useState(beneficiary.phone ?? "");
   const [email, setEmail] = useState(beneficiary.email ?? "");
-  const [nationalId, setNationalId] = useState(beneficiary.nationalId ?? "");
   const [dateOfBirth, setDateOfBirth] = useState(beneficiary.dateOfBirth ?? "");
   const [gender, setGender] = useState(beneficiary.gender ?? "");
   const [region, setRegion] = useState(beneficiary.region ?? "");
@@ -62,7 +61,6 @@ export function BeneficiaryEditForm({
       fullName: fullName.trim() || null,
       phone: phone.trim() || null,
       email: email.trim() || null,
-      nationalId: nationalId.trim() || null,
       dateOfBirth: dateOfBirth.trim() || null,
       gender: gender.trim() || null,
       region: region.trim() || null,
@@ -137,12 +135,6 @@ export function BeneficiaryEditForm({
         <Field label="Full name" id="fullName" value={fullName} onChange={setFullName} />
         <Field label="Phone" id="phone" value={phone} onChange={setPhone} />
         <Field label="Email" id="email" value={email} onChange={setEmail} />
-        <Field
-          label="National ID"
-          id="nationalId"
-          value={nationalId}
-          onChange={setNationalId}
-        />
         <Field
           label="Date of birth"
           id="dateOfBirth"

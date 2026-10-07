@@ -27,7 +27,6 @@ type Form = {
   gender: string;
   dateOfBirth: string;
   estimatedAge: string;
-  nationalId: string;
   maritalStatus: string;
   religion: string;
   primaryLanguage: string;
@@ -45,7 +44,6 @@ const EMPTY: Form = {
   gender: "",
   dateOfBirth: "",
   estimatedAge: "",
-  nationalId: "",
   maritalStatus: "",
   religion: "",
   primaryLanguage: "",
@@ -96,7 +94,6 @@ export function ManualIdentityForm() {
       gender: text(form.gender),
       dateOfBirth: text(form.dateOfBirth),
       estimatedAge: form.estimatedAge.trim() ? Number(form.estimatedAge) : undefined,
-      nationalId: text(form.nationalId),
       maritalStatus: text(form.maritalStatus),
       religion: text(form.religion),
       primaryLanguage: text(form.primaryLanguage),
@@ -227,9 +224,6 @@ export function ManualIdentityForm() {
             </FormField>
             <FormField label="Estimated age" htmlFor="reg-age" hint="When the date of birth is unknown" error={err("estimatedAge")}>
               <Input id="reg-age" type="number" min={0} max={120} value={form.estimatedAge} onChange={(e) => set("estimatedAge", e.target.value)} />
-            </FormField>
-            <FormField label="National ID" htmlFor="reg-nid" error={err("nationalId")}>
-              <Input id="reg-nid" value={form.nationalId} onChange={(e) => set("nationalId", e.target.value)} />
             </FormField>
             <FormField label="Religion" htmlFor="reg-religion" error={err("religion")}>
               <Input id="reg-religion" value={form.religion} onChange={(e) => set("religion", e.target.value)} />

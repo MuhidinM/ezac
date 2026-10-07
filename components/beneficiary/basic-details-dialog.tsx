@@ -17,14 +17,17 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { apiClient } from "@/lib/api/client";
 import { ApiError, errorMessage, fieldErrorMap } from "@/lib/api/errors";
+import type { BankAccount } from "@/lib/api/backoffice-types";
 import type { BeneficiaryDetail } from "@/lib/api/types";
-import { MARITAL_STATUS, PRIMARY_LANGUAGE, SEX } from "@/lib/backoffice/options";
+import { BANKS, MARITAL_STATUS, PRIMARY_LANGUAGE, SEX } from "@/lib/backoffice/options";
 
-/** Section B fields; the assessment refuses to submit until they're complete. */
+/**
+ * Section B fields plus the bank account; the assessment refuses to submit
+ * until they're complete (422 on `beneficiary.*`).
+ */
 export type BasicDetails = {
   fullName: string;
   phone: string;
-  nationalId: string;
   dateOfBirth: string;
   estimatedAge: string;
   gender: string;
@@ -36,17 +39,25 @@ export type BasicDetails = {
   woreda: string;
   kebele: string;
   addressLine: string;
+  bankCode: string;
+  bankNameOther: string;
+  bankAccountNumber: string;
+  bankAccountHolderName: string;
 };
 
-type Source = Partial<Record<keyof BasicDetails, string | number | null | undefined>>;
+type BankKey = "bankCode" | "bankNameOther" | "bankAccountNumber" | "bankAccountHolderName";
+
+/** A beneficiary detail or an assessment applicant: flat fields plus a nested bank account. */
+type Source = Partial<Record<Exclude<keyof BasicDetails, BankKey>, string | number | null | undefined>> & {
+  bankAccount?: BankAccount | null;
+};
 
 function fromSource(source: Source): BasicDetails {
-  const pick = (key: keyof BasicDetails) =>
+  const pick = (key: Exclude<keyof BasicDetails, BankKey>) =>
     source[key] === null || source[key] === undefined ? "" : String(source[key]);
   return {
     fullName: pick("fullName"),
     phone: pick("phone"),
-    nationalId: pick("nationalId"),
     dateOfBirth: pick("dateOfBirth"),
     estimatedAge: pick("estimatedAge"),
     gender: pick("gender"),
@@ -58,6 +69,11 @@ function fromSource(source: Source): BasicDetails {
     woreda: pick("woreda"),
     kebele: pick("kebele"),
     addressLine: pick("addressLine"),
+    bankCode: source.bankAccount?.bankCode ?? "",
+    // For "other" banks the stored bankName is the free-text name.
+    bankNameOther: source.bankAccount?.bankCode === "other" ? (source.bankAccount?.bankName ?? "") : "",
+    bankAccountNumber: source.bankAccount?.accountNumber ?? "",
+    bankAccountHolderName: source.bankAccount?.accountHolderName ?? "",
   };
 }
 
@@ -66,7 +82,6 @@ function toBody(details: BasicDetails) {
   return {
     fullName: text(details.fullName),
     phone: text(details.phone),
-    nationalId: text(details.nationalId),
     dateOfBirth: text(details.dateOfBirth),
     estimatedAge: details.estimatedAge.trim() ? Number(details.estimatedAge) : null,
     gender: text(details.gender),
@@ -79,6 +94,10 @@ function toBody(details: BasicDetails) {
     woreda: text(details.woreda),
     kebele: text(details.kebele),
     addressLine: text(details.addressLine),
+    bankCode: text(details.bankCode),
+    bankNameOther: details.bankCode === "other" ? text(details.bankNameOther) : null,
+    bankAccountNumber: text(details.bankAccountNumber),
+    bankAccountHolderName: text(details.bankAccountHolderName),
   };
 }
 
@@ -175,9 +194,6 @@ export function BasicDetailsDialog({
             <FormField label="Phone" htmlFor="bd-phone" error={fieldError("phone")}>
               <Input id="bd-phone" type="tel" value={details.phone} onChange={(e) => set("phone", e.target.value)} />
             </FormField>
-            <FormField label="National ID" htmlFor="bd-nid" error={fieldError("nationalId")}>
-              <Input id="bd-nid" value={details.nationalId} onChange={(e) => set("nationalId", e.target.value)} />
-            </FormField>
             <FormField label="Sex" htmlFor="bd-sex" error={fieldError("gender")}>
               <NativeSelect id="bd-sex" value={details.gender} onChange={(e) => set("gender", e.target.value)}>
                 <option value="">Select</option>
@@ -252,6 +268,52 @@ export function BasicDetailsDialog({
               <Input id="bd-address" value={details.addressLine} onChange={(e) => set("addressLine", e.target.value)} />
             </FormField>
           </div>
+
+          <fieldset className="space-y-4 rounded-lg bg-black/[0.02] p-4">
+            <legend className="sr-only">Bank account</legend>
+            <div>
+              <p className="text-sm font-semibold text-[#001539]">Bank account</p>
+              <p className="text-xs text-black/50">
+                Required before the assessment can be submitted. Disbursements go to this account.
+              </p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField label="Bank" htmlFor="bd-bank" error={fieldError("bankCode")}>
+                <NativeSelect id="bd-bank" value={details.bankCode} onChange={(e) => set("bankCode", e.target.value)}>
+                  <option value="">Select</option>
+                  {BANKS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </NativeSelect>
+              </FormField>
+              {details.bankCode === "other" ? (
+                <FormField label="Bank name" htmlFor="bd-bank-other" required error={fieldError("bankNameOther")}>
+                  <Input id="bd-bank-other" value={details.bankNameOther} onChange={(e) => set("bankNameOther", e.target.value)} />
+                </FormField>
+              ) : null}
+              <FormField
+                label="Account number"
+                htmlFor="bd-account"
+                hint="6–30 digits; spaces and dashes are removed"
+                error={fieldError("bankAccountNumber")}
+              >
+                <Input
+                  id="bd-account"
+                  inputMode="numeric"
+                  value={details.bankAccountNumber}
+                  onChange={(e) => set("bankAccountNumber", e.target.value)}
+                  className="font-mono"
+                />
+              </FormField>
+              <FormField label="Account holder name" htmlFor="bd-holder" error={fieldError("bankAccountHolderName")}>
+                <Input
+                  id="bd-holder"
+                  value={details.bankAccountHolderName}
+                  onChange={(e) => set("bankAccountHolderName", e.target.value)}
+                />
+              </FormField>
+            </div>
+          </fieldset>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

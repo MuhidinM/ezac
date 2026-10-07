@@ -21,6 +21,14 @@ function actionPath(id: string, action: string) {
 
 type ReviewMode = "return" | BranchDecision;
 
+/** Each outcome has its own endpoint; only approve accepts an empty comment. */
+const DECISION_PATH: Record<ReviewMode, string> = {
+  APPROVED: "supervisor-approval",
+  return: "return",
+  REJECTED: "reject",
+  DEFERRED: "defer",
+};
+
 const REVIEW_COPY: Record<
   ReviewMode,
   { title: string; description: string; confirm: string; required: boolean; placeholder: string; destructive?: boolean }
@@ -34,7 +42,7 @@ const REVIEW_COPY: Record<
   },
   APPROVED: {
     title: "Approve household",
-    description: "This is the final decision. The beneficiary becomes active and waits to be pooled for disbursement.",
+    description: "This is the final decision. The household moves to ADMIN's disbursement pool queue.",
     confirm: "Approve",
     required: false,
     placeholder: "e.g. Verified on site",
@@ -72,16 +80,10 @@ export function BranchReview({
 
   async function confirm() {
     if (!mode) return;
-    const updated =
-      mode === "return"
-        ? await apiClient<Assessment>(actionPath(assessment.id, "return"), {
-            method: "POST",
-            body: JSON.stringify({ comment: comment.trim() }),
-          })
-        : await apiClient<Assessment>(actionPath(assessment.id, "decision"), {
-            method: "POST",
-            body: JSON.stringify({ decision: mode, reason: comment.trim() || undefined }),
-          });
+    const updated = await apiClient<Assessment>(actionPath(assessment.id, DECISION_PATH[mode]), {
+      method: "POST",
+      body: JSON.stringify({ comment: comment.trim() || undefined }),
+    });
     setComment("");
     onDone(updated);
   }
@@ -138,6 +140,7 @@ export function BranchReview({
         >
           <Textarea
             id="review-comment"
+            maxLength={2000}
             value={comment}
             onChange={(event) => setComment(event.target.value)}
             placeholder={copy?.placeholder}

@@ -1,8 +1,11 @@
 import type {
   AssessmentStatus,
+  BankAccount,
   DuplicateStatus,
   LifecycleStatus,
+  PoolStatus,
   RiskCategory,
+  WhitelistEffect,
 } from "@/lib/api/backoffice-types";
 
 export type ApiEnvelope<T> = {
@@ -56,6 +59,11 @@ export type BeneficiaryListItem = {
   riskCategory?: RiskCategory | null;
   lastAssessedAt?: string | null;
   assessmentStatus?: AssessmentStatus | null;
+  /** Absent until the branch approves. */
+  poolStatus?: PoolStatus | null;
+  /** false = the officer still has to enter the bank details. */
+  hasBankAccount?: boolean | null;
+  whitelistEffect?: WhitelistEffect | null;
 };
 
 export type BeneficiaryDetail = {
@@ -63,7 +71,6 @@ export type BeneficiaryDetail = {
   fullName: string | null;
   phone: string | null;
   email: string | null;
-  nationalId: string | null;
   dateOfBirth: string | null;
   gender: string | null;
   region: string | null;
@@ -103,6 +110,9 @@ export type BeneficiaryDetail = {
   registrationCode?: string | null;
   lifecycleStatus?: LifecycleStatus | null;
   duplicateStatus?: DuplicateStatus | null;
+  bankAccount?: BankAccount | null;
+  poolStatus?: PoolStatus | null;
+  whitelistEffect?: WhitelistEffect | null;
 };
 
 export type StaffRole = "ADMIN" | "FIELD_OFFICER";
@@ -172,7 +182,6 @@ export type BeneficiaryUpdateBody = {
   fullName?: string | null;
   phone?: string | null;
   email?: string | null;
-  nationalId?: string | null;
   dateOfBirth?: string | null;
   gender?: string | null;
   region?: string | null;

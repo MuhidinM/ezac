@@ -27,7 +27,7 @@ import { formatDateTime } from "@/lib/beneficiary/format";
 import { cn } from "@/lib/utils";
 
 const REASON_LABELS: Record<string, string> = {
-  national_id: "Same national ID",
+  bank_account: "Same bank account",
   phone: "Same phone number",
   name_dob: "Same name and date of birth",
 };
@@ -43,7 +43,6 @@ const ROWS: Row[] = [
   { label: "Full name", value: (r) => r.fullName, reason: "name_dob" },
   { label: "Date of birth", value: (r) => r.dateOfBirth, reason: "name_dob" },
   { label: "Phone", value: (r) => r.phone, reason: "phone" },
-  { label: "National ID", value: (r) => r.nationalId, reason: "national_id" },
   { label: "Woreda", value: (r) => r.woreda },
   { label: "Kebele", value: (r) => r.kebele },
   { label: "Branch", value: (r) => r.branchName },
@@ -103,7 +102,6 @@ function DuplicateReviewView() {
         id: beneficiary.id,
         fullName: beneficiary.fullName,
         phone: beneficiary.phone,
-        nationalId: beneficiary.nationalId,
         dateOfBirth: beneficiary.dateOfBirth,
         woreda: beneficiary.woreda,
         kebele: beneficiary.kebele,
