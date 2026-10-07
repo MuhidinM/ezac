@@ -11,6 +11,7 @@ import { Panel } from "@/components/dashboard/panel";
 import { RangeSelect } from "@/components/dashboard/range-select";
 import { RequireRole } from "@/components/dashboard/require-role";
 import { TableMessageRow, TableSkeletonRows } from "@/components/dashboard/table-states";
+import { PriceStatusPanel } from "@/components/zakat/price-status-panel";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -79,6 +80,14 @@ function Prices() {
         title="Prices & nisab"
         description="Metal prices behind the public Zakat calculator and the nisab it applies. Newest first."
         actions={<RangeSelect value={range} onChange={(value) => { setRange(value); setPage(1); }} />}
+      />
+
+      <PriceStatusPanel
+        onChanged={() => {
+          config.reload();
+          history.reload();
+          chart.reload();
+        }}
       />
 
       {config.error ? <InlineAlert>{config.error.message}</InlineAlert> : null}

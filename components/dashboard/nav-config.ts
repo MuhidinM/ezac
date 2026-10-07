@@ -7,6 +7,7 @@ import {
   ListChecks,
   LayoutDashboard,
   Network,
+  Settings2,
   SlidersHorizontal,
   Store,
   UserPlus,
@@ -127,6 +128,12 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: FileText,
         audience: ["admin"],
       },
+      {
+        title: "Zakat settings",
+        url: "/dashboard/zakat/settings",
+        icon: Settings2,
+        audience: ["admin"],
+      },
     ],
   },
 ];
@@ -179,6 +186,7 @@ export const SEGMENT_LABELS: Record<string, string> = {
   pool: "Disbursement pool",
   whitelist: "Whitelist",
   prices: "Prices & nisab",
+  settings: "Settings",
 };
 
 export function roleLabel(session: SessionInfo): string {
