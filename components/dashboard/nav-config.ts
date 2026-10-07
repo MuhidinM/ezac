@@ -1,5 +1,6 @@
 import {
   Building2,
+  Calculator,
   ClipboardCheck,
   Coins,
   FileText,
@@ -120,6 +121,12 @@ export const NAV_SECTIONS: NavSection[] = [
         title: "Prices & nisab",
         url: "/dashboard/zakat/prices",
         icon: Coins,
+        audience: ["admin"],
+      },
+      {
+        title: "Calculator rules",
+        url: "/dashboard/zakat/rules",
+        icon: Calculator,
         audience: ["admin"],
       },
       {
