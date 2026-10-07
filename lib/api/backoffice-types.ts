@@ -542,3 +542,32 @@ export type BranchHome = {
     approvedInRange: number;
   }[];
 };
+
+// ---- Disbursement pool ------------------------------------------------------
+
+export type PoolEntry = {
+  /** ASSESSMENT: a branch-approved assessment; WHITELIST: a FAST_TRACK household without one. */
+  source: "ASSESSMENT" | "WHITELIST";
+  assessmentId?: string;
+  whitelistEntryId?: string;
+  assessmentNumber?: string;
+  beneficiaryId: string;
+  fullName?: string | null;
+  phone?: string | null;
+  branchId?: string | null;
+  branchName?: string | null;
+  region?: string | null;
+  woreda?: string | null;
+  score?: number | null;
+  maxScore?: number | null;
+  riskCategory?: RiskCategory | null;
+  whitelistEffect?: WhitelistEffect | null;
+  assessmentStatus?: AssessmentStatus;
+  poolStatus: PoolStatus;
+  poolStatusBy?: string | null;
+  poolStatusAt?: string | null;
+  poolStatusReason?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  bankAccount?: BankAccount | null;
+};

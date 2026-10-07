@@ -155,6 +155,7 @@ export default function DashboardHomePage() {
         <div className="grid gap-4 md:grid-cols-2">
           <QueueCard
             countPath="/api/backoffice/admin/pool/awaiting?page=1&limit=1"
+            href="/dashboard/pool"
             title="Awaiting disbursement pool"
             description="Approved by branches, not yet pooled"
             icon={Inbox}

@@ -3,6 +3,7 @@ import {
   ClipboardCheck,
   Coins,
   FileText,
+  Inbox,
   LayoutDashboard,
   Network,
   SlidersHorizontal,
@@ -78,6 +79,12 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     label: "Administration",
     items: [
+      {
+        title: "Disbursement pool",
+        url: "/dashboard/pool",
+        icon: Inbox,
+        audience: ["admin"],
+      },
       {
         title: "Branches",
         url: "/dashboard/branches",
@@ -162,6 +169,7 @@ export const SEGMENT_LABELS: Record<string, string> = {
   "scoring-config": "Scoring config",
   duplicates: "Duplicate review",
   zakat: "Zakat",
+  pool: "Disbursement pool",
   prices: "Prices & nisab",
 };
 
