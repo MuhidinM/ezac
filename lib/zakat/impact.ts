@@ -1,5 +1,6 @@
 import { getApiBaseUrl } from "@/lib/api/config";
 import type { CalculatorConfig } from "@/lib/zakat/calculator-config";
+import type { PublicCause, PublicStory } from "@/lib/zakat/content";
 
 /**
  * Public impact and transparency data from zakat-engine (no login).
@@ -10,6 +11,13 @@ import type { CalculatorConfig } from "@/lib/zakat/calculator-config";
 export type HomeSummary = {
   totalCollectedEtb: number | null;
   totalBeneficiariesSupported: number | null;
+  /** Calendar month, Addis Ababa time; null when unavailable. */
+  currentMonth?: {
+    collectedEtb: number | null;
+    previousMonthCollectedEtb: number | null;
+    /** One decimal; null when last month was 0 (show no trend). */
+    changePercent: number | null;
+  } | null;
   asOf: string | null;
 };
 
@@ -20,7 +28,7 @@ export type ImpactSummary = {
   distributedFundsEtb: number | null;
   livesTouched: number | null;
   activeProjects: number | null;
-  beneficiariesByAsnaf: { asnaf?: string; key?: string; count?: number; beneficiaries?: number }[];
+  beneficiariesByAsnaf: { asnaf: string; count: number }[];
   asOf: string | null;
 };
 
@@ -71,10 +79,34 @@ export const getImpactSummary = () => getPublic<ImpactSummary>("/impact/summary"
 export const getImpactRegions = () => getPublic<ImpactRegion[]>("/impact/regions");
 export const getImpactTimeseries = () => getPublic<ImpactTimeseries>("/impact/timeseries");
 export const getCalculatorConfig = () => getPublic<CalculatorConfig>("/calculator/config");
-export const getImpactReports = (page = 1, limit = 50) =>
-  getPublic<{ items: ImpactReport[]; pagination: { totalItems: number } }>(
-    `/impact/reports?page=${page}&limit=${limit}`,
-  );
+/** Published reports; tolerates both a plain array and a paginated page. */
+export async function getImpactReports(page = 1, limit = 50): Promise<ImpactReport[] | null> {
+  const data = await getPublic<ImpactReport[] | { items: ImpactReport[] }>(`/impact/reports?page=${page}&limit=${limit}`);
+  if (!data) return null;
+  return Array.isArray(data) ? data : data.items;
+}
+
+type Page<T> = { items: T[]; pagination: { page: number; limit: number; totalItems: number; totalPages: number } };
+
+/** Public causes. The permanent general fund (id "general") is left out of campaign lists. */
+export async function getCauses(query: { status?: "active" | "closed"; urgent?: boolean; page?: number; limit?: number } = {}) {
+  const params = new URLSearchParams({
+    status: query.status ?? "active",
+    page: String(query.page ?? 1),
+    limit: String(query.limit ?? 24),
+  });
+  if (query.urgent) params.set("urgent", "true");
+  const data = await getPublic<Page<PublicCause>>(`/causes?${params}`);
+  if (!data) return null;
+  return { ...data, items: data.items.filter((cause) => cause.id !== "general") };
+}
+
+export const getCause = (id: string) => getPublic<PublicCause>(`/causes/${encodeURIComponent(id)}`);
+
+export const getStories = (page = 1, limit = 24) =>
+  getPublic<Page<PublicStory>>(`/impact/stories?page=${page}&limit=${limit}`);
+
+export const getStory = (id: string) => getPublic<PublicStory>(`/impact/stories/${encodeURIComponent(id)}`);
 
 const etb = new Intl.NumberFormat("en-ET", { notation: "compact", maximumFractionDigits: 1 });
 const count = new Intl.NumberFormat("en-ET");

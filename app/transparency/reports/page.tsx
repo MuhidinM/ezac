@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { FileTextIcon, DownloadIcon } from "lucide-react";
 import { SitePage } from "@/components/site/site-page";
 import { Section, SectionHeading, CtaBand } from "@/components/site/sections";
+import { mediaSrc } from "@/lib/zakat/content";
 import { getImpactReports } from "@/lib/zakat/impact";
 
 export const metadata: Metadata = {
@@ -19,7 +20,7 @@ function fileSize(bytes: number | null) {
 }
 
 export default async function ImpactReportsPage() {
-  const reports = (await getImpactReports())?.items ?? [];
+  const reports = (await getImpactReports()) ?? [];
 
   return (
     <SitePage
@@ -43,7 +44,7 @@ export default async function ImpactReportsPage() {
           {reports.map((r) => (
             <a
               key={r.id}
-              href={r.fileUrl}
+              href={mediaSrc(r.fileUrl) ?? r.fileUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-4 rounded-2xl border border-black/10 bg-white p-5 transition hover:border-black/20"

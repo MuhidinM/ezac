@@ -25,6 +25,16 @@ async function loadStats(): Promise<Stat[]> {
       ? { value: `ETB ${new Intl.NumberFormat("en-ET").format(Math.round(config.goldPricePerGramEtb["24k"] ?? 0))}/g`, label: "Gold 24k" }
       : null,
     formatEtbCompact(home?.totalCollectedEtb) ? { value: formatEtbCompact(home?.totalCollectedEtb)!, label: "Zakat Collected" } : null,
+    home?.currentMonth?.collectedEtb
+      ? {
+          value: `${formatEtbCompact(home.currentMonth.collectedEtb)}${
+            home.currentMonth.changePercent != null
+              ? ` ${home.currentMonth.changePercent >= 0 ? "▲" : "▼"} ${Math.abs(home.currentMonth.changePercent)}%`
+              : ""
+          }`,
+          label: "This Month",
+        }
+      : null,
     formatCount(home?.totalBeneficiariesSupported)
       ? { value: formatCount(home?.totalBeneficiariesSupported)!, label: "Families Supported" }
       : null,

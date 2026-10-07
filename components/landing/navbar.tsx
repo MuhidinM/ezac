@@ -18,6 +18,7 @@ const MENU_ITEMS: MenuItem[] = [
     children: [
       { label: "Zakat Calculator", href: "/zakat/calculator" },
       { label: "Pay Zakat Now", href: "/zakat/pay" },
+      { label: "Causes", href: "/causes" },
       { label: "Corporate Zakat", href: "/zakat/corporate" },
     ],
   },
@@ -37,6 +38,7 @@ const MENU_ITEMS: MenuItem[] = [
         href: "/transparency/dashboard",
         note: "Crucial for Phase 1",
       },
+      { label: "Impact Stories", href: "/transparency/stories" },
       { label: "Impact Reports", href: "/transparency/reports" },
     ],
   },

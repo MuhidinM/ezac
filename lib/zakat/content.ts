@@ -16,6 +16,16 @@ export const CAUSE_BADGES = [
   { value: "essential", label: "Essential" },
 ] as const;
 
+/**
+ * Rewrites a zakat media URL (`…/api/zakat/v1/media/{id}`) to the site's
+ * own /api/media proxy; other URLs pass through unchanged.
+ */
+export function mediaSrc(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const match = /\/api\/zakat\/v1\/media\/(\d+)(?:[?#].*)?$/.exec(url);
+  return match ? `/api/media/${match[1]}` : url;
+}
+
 export function categoryLabel(value: string | null | undefined) {
   return CONTENT_CATEGORIES.find((item) => item.value === value)?.label ?? value ?? "—";
 }

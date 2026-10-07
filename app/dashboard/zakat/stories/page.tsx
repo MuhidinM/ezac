@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/table";
 import { useResource } from "@/lib/api/use-resource";
 import { formatDate } from "@/lib/backoffice/format";
-import { type AdminStory, categoryLabel } from "@/lib/zakat/content";
+import { type AdminStory, categoryLabel, mediaSrc } from "@/lib/zakat/content";
 
 export default function StoriesAdminPage() {
   return (
@@ -79,7 +79,7 @@ function StoriesAdmin() {
                     <span className="flex items-center gap-3">
                       {story.imageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element -- served by the zakat service
-                        <img src={story.imageUrl} alt="" className="size-10 shrink-0 rounded-md object-cover" />
+                        <img src={mediaSrc(story.imageUrl) ?? undefined} alt="" className="size-10 shrink-0 rounded-md object-cover" />
                       ) : (
                         <span className="size-10 shrink-0 rounded-md bg-black/[0.05]" />
                       )}

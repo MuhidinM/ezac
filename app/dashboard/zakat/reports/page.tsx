@@ -35,6 +35,7 @@ import { errorMessage } from "@/lib/api/errors";
 import { useResource } from "@/lib/api/use-resource";
 import { formatBytes } from "@/lib/backoffice/format";
 import { formatDateTime } from "@/lib/beneficiary/format";
+import { mediaSrc } from "@/lib/zakat/content";
 
 const API = "/api/zakat-admin/impact/reports";
 const MAX_BYTES = 20 * 1024 * 1024;
@@ -123,7 +124,7 @@ function ImpactReportsAdmin() {
                         <FileText className="mt-0.5 size-4 shrink-0 text-black/40" />
                         <span className="min-w-0">
                           {report.fileUrl ? (
-                            <a href={report.fileUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-[#001539] hover:underline">
+                            <a href={mediaSrc(report.fileUrl) ?? report.fileUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-[#001539] hover:underline">
                               {report.title}
                             </a>
                           ) : (

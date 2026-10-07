@@ -3,7 +3,7 @@ import { Navbar } from "./navbar";
 import { TransparencyTicker } from "./transparency-ticker";
 import { TrustStrip } from "./trust-strip";
 import { VideoBackground } from "./video-background";
-import { FeaturedWaqfCampaigns } from "./featured-waqf-campaigns";
+import { FeaturedCauses } from "./featured-causes";
 import { HowItWorksTrust } from "./how-it-works-trust";
 import { getImpactRegions } from "@/lib/zakat/impact";
 
@@ -31,7 +31,7 @@ export async function LandingPage() {
       <TrustStrip />
       <TransparencyTicker />
       <ZakatCalculator />
-      <FeaturedWaqfCampaigns />
+      <FeaturedCauses />
       <HowItWorksTrust />
       <ImpactMapTeaser regions={regions ?? []} />
       <PartnersSponsors />

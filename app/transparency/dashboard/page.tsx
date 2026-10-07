@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { ImpactMapTeaser } from "@/components/landing/impact-map-teaser";
 import { CtaBand, Section, SectionHeading } from "@/components/site/sections";
 import { SitePage } from "@/components/site/site-page";
+import { ASNAF, labelFor } from "@/lib/backoffice/options";
 import {
   formatCount,
   formatEtbCompact,
@@ -36,14 +37,22 @@ export default async function LiveDashboardPage() {
     getImpactTimeseries(),
   ]);
 
+  const month = home?.currentMonth ?? null;
   const stats = [
     { value: formatEtbCompact(home?.totalCollectedEtb), label: "Zakat collected (all time)" },
+    {
+      value: formatEtbCompact(month?.collectedEtb),
+      label: "Collected this month",
+      trend: month?.changePercent ?? null,
+    },
     { value: formatCount(home?.totalBeneficiariesSupported), label: "Families supported" },
     { value: formatEtbCompact(impact?.distributedFundsEtb), label: "Funds distributed" },
     { value: formatCount(impact?.livesTouched), label: "Lives touched" },
     { value: formatCount(impact?.activeProjects), label: "Active projects" },
   ];
   const asOf = impact?.asOf ?? home?.asOf;
+  const asnaf = (impact?.beneficiariesByAsnaf ?? []).filter((row) => row.count > 0).sort((a, b) => b.count - a.count);
+  const maxAsnaf = Math.max(1, ...asnaf.map((row) => row.count));
   const points = (series?.points ?? []).filter((point) => point.collectedEtb !== null);
   const maxCollected = Math.max(1, ...points.map((point) => point.collectedEtb ?? 0));
   // Hide the table until at least one region has published figures.
@@ -80,6 +89,11 @@ export default async function LiveDashboardPage() {
               <p className="mt-2 text-xs tracking-[0.12em] uppercase" style={{ color: "#6F6F6F" }}>
                 {stat.label}
               </p>
+              {"trend" in stat && stat.trend != null ? (
+                <p className="mt-1 text-xs tabular-nums" style={{ color: stat.trend >= 0 ? "#007050" : "#b4532a" }}>
+                  {stat.trend >= 0 ? "▲" : "▼"} {Math.abs(stat.trend)}% vs last month
+                </p>
+              ) : null}
             </div>
           ))}
         </div>
@@ -101,6 +115,30 @@ export default async function LiveDashboardPage() {
                   </span>
                   <span className="text-right tabular-nums" style={{ color: "#001539" }}>
                     {formatEtbCompact(point.collectedEtb)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {asnaf.length > 0 ? (
+          <div className="mt-12 rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
+            <p className="text-sm font-medium" style={{ color: "#001539" }}>
+              Families supported, by eligible category (asnaf)
+            </p>
+            <ul className="mt-5 space-y-2">
+              {asnaf.map((row) => (
+                <li key={row.asnaf} className="grid grid-cols-[minmax(8rem,12rem)_minmax(0,1fr)_4rem] items-center gap-3 text-sm">
+                  <span style={{ color: "#6F6F6F" }}>{labelFor(ASNAF, row.asnaf)}</span>
+                  <span className="h-2.5">
+                    <span
+                      className="block h-full rounded-r-[4px]"
+                      style={{ width: `${(row.count / maxAsnaf) * 100}%`, backgroundColor: "#e18f35" }}
+                    />
+                  </span>
+                  <span className="text-right tabular-nums" style={{ color: "#001539" }}>
+                    {formatCount(row.count)}
                   </span>
                 </li>
               ))}

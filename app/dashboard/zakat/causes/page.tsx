@@ -23,7 +23,7 @@ import {
 import type { PaginatedItems } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
 import { formatDate } from "@/lib/backoffice/format";
-import { type AdminCause, type CauseStatus, categoryLabel } from "@/lib/zakat/content";
+import { type AdminCause, type CauseStatus, categoryLabel, mediaSrc } from "@/lib/zakat/content";
 import { cn } from "@/lib/utils";
 
 const etb = new Intl.NumberFormat("en-ET", { maximumFractionDigits: 0 });
@@ -111,7 +111,7 @@ function CausesAdmin() {
                     <span className="flex items-center gap-3">
                       {cause.imageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element -- served by the zakat service
-                        <img src={cause.imageUrl} alt="" className="size-10 shrink-0 rounded-md object-cover" />
+                        <img src={mediaSrc(cause.imageUrl) ?? undefined} alt="" className="size-10 shrink-0 rounded-md object-cover" />
                       ) : (
                         <span className="size-10 shrink-0 rounded-md bg-black/[0.05]" />
                       )}

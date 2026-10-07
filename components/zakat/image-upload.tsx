@@ -6,7 +6,7 @@ import { ImagePlus, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errors";
-import { IMAGE_TYPES, MAX_IMAGE_BYTES, type UploadedMedia } from "@/lib/zakat/content";
+import { IMAGE_TYPES, MAX_IMAGE_BYTES, mediaSrc, type UploadedMedia } from "@/lib/zakat/content";
 import { cn } from "@/lib/utils";
 
 export type MediaRef = { id: string; url: string | null };
@@ -25,7 +25,7 @@ function Thumb({ media, onRemove, disabled }: { media: MediaRef; onRemove: () =>
     <div className="group relative size-24 overflow-hidden rounded-lg border border-black/10 bg-black/[0.03]">
       {media.url ? (
         // eslint-disable-next-line @next/next/no-img-element -- media is served by the zakat service, not optimisable here
-        <img src={media.url} alt="" className="size-full object-cover" />
+        <img src={mediaSrc(media.url) ?? undefined} alt="" className="size-full object-cover" />
       ) : (
         <span className="flex size-full items-center justify-center text-xs text-black/45">#{media.id}</span>
       )}
