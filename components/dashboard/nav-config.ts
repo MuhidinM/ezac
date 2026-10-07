@@ -17,6 +17,7 @@ import {
   UserPlus,
   UserCog,
   Users,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 
@@ -120,6 +121,12 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     label: "Zakat & transparency",
     items: [
+      {
+        title: "Zakat payments",
+        url: "/dashboard/zakat/payments",
+        icon: Wallet,
+        audience: ["admin"],
+      },
       {
         title: "Prices & nisab",
         url: "/dashboard/zakat/prices",
