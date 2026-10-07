@@ -7,6 +7,8 @@ import {
   HandHeart,
   Inbox,
   ListChecks,
+  MapPinned,
+  Newspaper,
   LayoutDashboard,
   Network,
   Settings2,
@@ -134,6 +136,18 @@ export const NAV_SECTIONS: NavSection[] = [
         title: "Causes",
         url: "/dashboard/zakat/causes",
         icon: HandHeart,
+        audience: ["admin"],
+      },
+      {
+        title: "Impact regions",
+        url: "/dashboard/zakat/regions",
+        icon: MapPinned,
+        audience: ["admin"],
+      },
+      {
+        title: "Impact stories",
+        url: "/dashboard/zakat/stories",
+        icon: Newspaper,
         audience: ["admin"],
       },
       {

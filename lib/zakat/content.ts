@@ -67,6 +67,39 @@ export type PublicCause = {
   images?: string[] | null;
 };
 
+export type StoryStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
+
+export type AdminStory = {
+  id: string;
+  title: string;
+  summary: string;
+  body: string;
+  category: string;
+  regionCode: string | null;
+  region: string | null;
+  imageMediaId: string | null;
+  imageUrl: string | null;
+  consentConfirmed: boolean;
+  consentNote: string | null;
+  status: StoryStatus;
+  publishedAt: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string | null;
+};
+
+/** Public story (`GET /api/zakat/v1/impact/stories`); detail adds `body`. */
+export type PublicStory = {
+  id: string;
+  title: string;
+  summary: string;
+  category: string;
+  region: string | null;
+  imageUrl: string | null;
+  publishedAt: string | null;
+  body?: string;
+};
+
 export type UploadedMedia = { id: string; url: string; contentType?: string; sizeBytes?: number };
 
 export const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
