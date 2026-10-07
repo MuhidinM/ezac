@@ -14,6 +14,7 @@ const HQ_PATH_PREFIXES = [
   "/dashboard/scoring-config",
   "/dashboard/zakat",
   "/dashboard/pool",
+  "/dashboard/whitelist",
 ];
 
 /** Keeps branch officers inside their own portal. */

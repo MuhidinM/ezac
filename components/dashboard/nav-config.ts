@@ -4,6 +4,7 @@ import {
   Coins,
   FileText,
   Inbox,
+  ListChecks,
   LayoutDashboard,
   Network,
   SlidersHorizontal,
@@ -83,6 +84,12 @@ export const NAV_SECTIONS: NavSection[] = [
         title: "Disbursement pool",
         url: "/dashboard/pool",
         icon: Inbox,
+        audience: ["admin"],
+      },
+      {
+        title: "Whitelist",
+        url: "/dashboard/whitelist",
+        icon: ListChecks,
         audience: ["admin"],
       },
       {
@@ -170,6 +177,7 @@ export const SEGMENT_LABELS: Record<string, string> = {
   duplicates: "Duplicate review",
   zakat: "Zakat",
   pool: "Disbursement pool",
+  whitelist: "Whitelist",
   prices: "Prices & nisab",
 };
 

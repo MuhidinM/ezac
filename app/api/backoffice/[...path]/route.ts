@@ -10,6 +10,8 @@ export const { GET, POST, PATCH, PUT, DELETE } = createProxy({
     "admin/scoring-configs",
     "admin/branches",
     "admin/pool",
+    "admin/whitelist",
+    "whitelist-entries",
     "assessments",
     "beneficiaries",
     "staff",

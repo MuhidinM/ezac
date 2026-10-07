@@ -15,6 +15,7 @@ import {
 import { BasicDetailsDialog } from "@/components/beneficiary/basic-details-dialog";
 import { BeneficiaryEditForm } from "@/components/beneficiary/beneficiary-edit-form";
 import { LifecyclePanel } from "@/components/beneficiary/lifecycle-panel";
+import { WhitelistPanel } from "@/components/whitelist/whitelist-panel";
 import { KycDocumentsCard } from "@/components/beneficiary/kyc-documents-card";
 import { VerificationStatusBadge } from "@/components/beneficiary/verification-status-badge";
 import { FormField } from "@/components/dashboard/form-field";
@@ -279,6 +280,7 @@ export default function BeneficiaryDetailPage() {
         </div>
 
         <div className="space-y-6">
+          {!isInstitution ? <WhitelistPanel beneficiaryId={beneficiary.id} /> : null}
           {!isInstitution && session?.isStaff ? (
             <LifecyclePanel
               beneficiaryId={beneficiary.id}

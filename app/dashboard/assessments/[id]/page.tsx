@@ -9,6 +9,7 @@ import { AssessmentSummary } from "@/components/assessment/assessment-summary";
 import { DocumentsList } from "@/components/assessment/documents-panel";
 import { AssessmentManagement, BranchReview } from "@/components/assessment/review-actions";
 import { ScoreHistory, ScorePanel, SignOffTimeline } from "@/components/assessment/score-panel";
+import { WhitelistPanel } from "@/components/whitelist/whitelist-panel";
 import { AssessmentStatusBadge, PoolStatusBadge } from "@/components/backoffice/status-badges";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { isFieldOfficer } from "@/components/dashboard/nav-config";
@@ -168,6 +169,7 @@ function AssessmentDetail() {
             onDone={(updated, message) => onActionDone(message)(updated)}
           />
           <SignOffTimeline assessment={assessment} />
+          <WhitelistPanel beneficiaryId={assessment.beneficiaryId} />
         </div>
       </div>
     </section>

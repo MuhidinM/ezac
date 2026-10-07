@@ -571,3 +571,52 @@ export type PoolEntry = {
   approvedAt?: string | null;
   bankAccount?: BankAccount | null;
 };
+
+// ---- Whitelist ----------------------------------------------------------------
+
+export type WhitelistStatus = "PENDING_APPROVAL" | "ACTIVE" | "REJECTED" | "REVOKED";
+
+export type WhitelistEvidence = {
+  id: string;
+  fileName?: string | null;
+  contentType?: string | null;
+  sizeBytes?: number | null;
+  uploadedBy?: string | null;
+  uploadedAt?: string | null;
+  /** Upstream path, e.g. /api/beneficiaries/v1/whitelist-entries/7/evidence/3/content */
+  contentUrl?: string | null;
+};
+
+export type WhitelistEntry = {
+  id: string;
+  beneficiaryId: string;
+  beneficiaryName?: string | null;
+  branchId?: string | null;
+  branchName?: string | null;
+  region?: string | null;
+  effect: WhitelistEffect;
+  reasonCode: string;
+  justification?: string | null;
+  communityVerificationNote?: string | null;
+  status: WhitelistStatus;
+  requestedBy?: string | null;
+  requestedByName?: string | null;
+  requestedAt?: string | null;
+  decidedBy?: string | null;
+  decidedByName?: string | null;
+  decidedAt?: string | null;
+  decisionComment?: string | null;
+  revokedBy?: string | null;
+  revokedAt?: string | null;
+  revocationReason?: string | null;
+  poolStatus?: PoolStatus | null;
+  poolStatusAt?: string | null;
+  poolStatusReason?: string | null;
+  evidence?: WhitelistEvidence[];
+};
+
+export type BeneficiaryWhitelist = {
+  /** The pending or active entry, if any. */
+  current?: WhitelistEntry | null;
+  history: WhitelistEntry[];
+};

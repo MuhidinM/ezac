@@ -231,6 +231,17 @@ export const BRANCH_DECISION = options({
   REJECTED: "Reject",
 });
 
+export const WHITELIST_REASONS = options({
+  orphan_in_care: "Orphan in care",
+  severe_disability_bedridden: "Severe disability (bedridden)",
+  terminal_illness: "Terminal illness",
+  elderly_no_caregiver: "Elderly without a caregiver",
+  disaster_or_displacement_emergency: "Disaster or displacement emergency",
+  committee_referral: "Committee referral",
+  shariah_committee_referral: "Shariah committee referral",
+  other: "Other",
+});
+
 /** Label for a key in a list, falling back to a readable version of the key. */
 export function labelFor(list: Option[], value: string | null | undefined): string {
   if (!value) return "—";
