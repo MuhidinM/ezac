@@ -4,6 +4,7 @@ import {
   ClipboardCheck,
   Coins,
   FileText,
+  HandHeart,
   Inbox,
   ListChecks,
   LayoutDashboard,
@@ -127,6 +128,12 @@ export const NAV_SECTIONS: NavSection[] = [
         title: "Calculator rules",
         url: "/dashboard/zakat/rules",
         icon: Calculator,
+        audience: ["admin"],
+      },
+      {
+        title: "Causes",
+        url: "/dashboard/zakat/causes",
+        icon: HandHeart,
         audience: ["admin"],
       },
       {
