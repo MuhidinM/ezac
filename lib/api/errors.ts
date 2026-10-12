@@ -7,12 +7,18 @@ export class ApiError extends Error {
   readonly status: number;
   /** Per-field validation errors from 400/422 responses (`errors[]`). */
   readonly errors: FieldError[];
+  /** `data` sent with an error, e.g. the existing id on a 409 conflict. */
+  readonly data: unknown;
+  /** Machine-readable error code when the backend sends one (e.g. NOT_POOLED). */
+  readonly code: string | null;
 
-  constructor(message: string, status: number, errors: FieldError[] = []) {
+  constructor(message: string, status: number, errors: FieldError[] = [], data: unknown = null, code: string | null = null) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.errors = errors;
+    this.data = data;
+    this.code = code;
   }
 }
 

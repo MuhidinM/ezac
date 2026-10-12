@@ -13,6 +13,8 @@ export type ApiEnvelope<T> = {
   data: T;
   message?: string;
   errors?: unknown;
+  code?: string;
+  errorCode?: string;
 };
 
 export type Pagination = {

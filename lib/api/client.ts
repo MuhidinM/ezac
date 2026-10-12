@@ -34,6 +34,8 @@ export async function apiClient<T>(
       envelope.message ?? fallback,
       response.status || 400,
       parseFieldErrors(envelope.errors),
+      envelope.data ?? null,
+      envelope.code ?? envelope.errorCode ?? null,
     );
   }
 

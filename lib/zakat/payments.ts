@@ -5,6 +5,7 @@ import { rangeDates } from "@/lib/backoffice/date-range";
 export type PaymentStatus =
   | "AWAITING_CONFIRMATION"
   | "OTP_SENT"
+  | "AWAITING_PAYMENT"
   | "PROCESSING"
   | "SUCCEEDED"
   | "FAILED"
@@ -15,6 +16,8 @@ export type PaymentStatus =
 export type ZakatPayment = {
   paymentId: string;
   status: PaymentStatus;
+  /** "ethqr" for QR payments; Coop account payments may leave it out. */
+  methodCode?: string;
   zakatType?: string;
   amountEtb: number;
   causeId?: string;
@@ -36,6 +39,9 @@ export type ZakatPayment = {
   paidAt?: string;
   createdAt: string;
   updatedAt?: string;
+  /** QR payments: the EMV payload shown to the donor, and when it stops being payable. */
+  qrPayload?: string;
+  expiresAt?: string;
 };
 
 export type PaymentSummary = {
@@ -51,6 +57,7 @@ export type PaymentSummary = {
 export const PAYMENT_STATUSES: { value: PaymentStatus; label: string; tone: BadgeTone }[] = [
   { value: "AWAITING_CONFIRMATION", label: "Started", tone: "neutral" },
   { value: "OTP_SENT", label: "Waiting for code", tone: "info" },
+  { value: "AWAITING_PAYMENT", label: "QR: to confirm", tone: "warning" },
   { value: "PROCESSING", label: "Needs checking", tone: "warning" },
   { value: "SUCCEEDED", label: "Paid", tone: "success" },
   { value: "FAILED", label: "Failed", tone: "danger" },
@@ -59,6 +66,19 @@ export const PAYMENT_STATUSES: { value: PaymentStatus; label: string; tone: Badg
 ];
 
 const STALE_MS = 15 * 60_000;
+
+export function isQr(payment: Pick<ZakatPayment, "methodCode">) {
+  return payment.methodCode === "ethqr";
+}
+
+/**
+ * Payments an admin can settle by hand: PROCESSING Coop payments, and QR payments
+ * still waiting or expired (EthQR doesn't report which QR was paid yet).
+ */
+export function canResolve(payment: Pick<ZakatPayment, "status" | "methodCode">) {
+  if (payment.status === "PROCESSING") return true;
+  return isQr(payment) && (payment.status === "AWAITING_PAYMENT" || payment.status === "EXPIRED");
+}
 
 /** Open payments older than 15 minutes can no longer finish, so they show as expired. */
 export function displayStatus(payment: Pick<ZakatPayment, "status" | "createdAt">, now: number) {

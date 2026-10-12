@@ -12,6 +12,7 @@ import { DetailList, Panel } from "@/components/dashboard/panel";
 import { RangeSelect } from "@/components/dashboard/range-select";
 import { RequireRole } from "@/components/dashboard/require-role";
 import { TableMessageRow, TableSkeletonRows } from "@/components/dashboard/table-states";
+import { EthqrTransactions } from "@/components/zakat/ethqr-transactions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,7 +35,9 @@ import type { RangeKey } from "@/lib/backoffice/date-range";
 import { formatEtb } from "@/lib/backoffice/format";
 import { formatDateTime } from "@/lib/beneficiary/format";
 import {
+  canResolve,
   displayStatus,
+  isQr,
   PAYMENT_STATUSES,
   type PaymentStatus,
   type PaymentSummary,
@@ -69,6 +72,7 @@ function PaymentsAdmin() {
   );
   const rows = list.data?.items ?? [];
   const s = summary.data;
+  const qrToConfirm = s?.byStatus.find((row) => row.status === "AWAITING_PAYMENT")?.count ?? 0;
 
   function filter(next: PaymentStatus | "") {
     setStatus(next);
@@ -84,7 +88,7 @@ function PaymentsAdmin() {
     <section className="space-y-6">
       <PageHeader
         title="Zakat payments"
-        description="Payments made in the app through Coop Bank. Quote the message id and bank reference when asking Coop Bank about a payment."
+        description="Payments made in the app, from a Coop Bank account or by QR code. Quote the message id and bank reference when asking Coop Bank about a payment."
         actions={
           <>
             <RangeSelect
@@ -107,6 +111,16 @@ function PaymentsAdmin() {
           The bank gave no clear answer, so the money may or may not have moved. Ask Coop Bank and settle each one.{" "}
           {status !== "PROCESSING" ? (
             <button type="button" className="font-medium underline underline-offset-2" onClick={() => filter("PROCESSING")}>
+              Show them
+            </button>
+          ) : null}
+        </InlineAlert>
+      ) : null}
+      {qrToConfirm > 0 ? (
+        <InlineAlert tone="warning" title={`${qrToConfirm} QR payment${qrToConfirm === 1 ? "" : "s"} to confirm`}>
+          EthQR doesn&apos;t tell us which QR was paid yet. Match each one with the EthQR list below and confirm it.{" "}
+          {status !== "AWAITING_PAYMENT" ? (
+            <button type="button" className="font-medium underline underline-offset-2" onClick={() => filter("AWAITING_PAYMENT")}>
               Show them
             </button>
           ) : null}
@@ -174,7 +188,10 @@ function PaymentsAdmin() {
                 return (
                   <TableRow
                     key={payment.paymentId}
-                    className={cn("cursor-pointer", payment.status === "PROCESSING" && "bg-amber-50/60 hover:bg-amber-50")}
+                    className={cn(
+                      "cursor-pointer",
+                      (payment.status === "PROCESSING" || payment.status === "AWAITING_PAYMENT") && "bg-amber-50/60 hover:bg-amber-50",
+                    )}
                     onClick={() => setOpenId(payment.paymentId)}
                   >
                     <TableCell className="pl-5">
@@ -182,7 +199,9 @@ function PaymentsAdmin() {
                         {payment.payerFullName ?? payment.accountHolderName ?? "Unknown payer"}
                       </button>
                       <span className="block text-xs text-black/50">
-                        {[payment.payerPhone, payment.payerType === "guest" ? "Guest" : payment.payerType ? "App user" : null].filter(Boolean).join(" · ")}
+                        {[isQr(payment) ? "QR" : "Coop account", payment.payerPhone, payment.payerType === "guest" ? "Guest" : payment.payerType ? "App user" : null]
+                          .filter(Boolean)
+                          .join(" · ")}
                       </span>
                     </TableCell>
                     <TableCell>
@@ -192,7 +211,7 @@ function PaymentsAdmin() {
                     <TableCell className="text-right tabular-nums">{formatEtb(payment.amountEtb)}</TableCell>
                     <TableCell>
                       <Badge tone={shown.tone}>
-                        {payment.status === "PROCESSING" ? <CircleAlert /> : null}
+                        {payment.status === "PROCESSING" || payment.status === "AWAITING_PAYMENT" ? <CircleAlert /> : null}
                         {shown.label}
                       </Badge>
                     </TableCell>
@@ -212,6 +231,8 @@ function PaymentsAdmin() {
           onPageChange={setPage}
         />
       </Panel>
+
+      <EthqrTransactions key={range} range={range} />
 
       <CertificateCheck />
 
@@ -271,7 +292,7 @@ function PaymentSheet({
           {!payment && !error ? <p className="text-sm text-black/45">Loading…</p> : null}
           {payment ? (
             <>
-              {payment.status === "PROCESSING" ? (
+              {canResolve(payment) ? (
                 <ResolveForm
                   key={payment.paymentId}
                   payment={payment}
@@ -288,6 +309,7 @@ function PaymentSheet({
                   { label: "Payer", value: payment.payerFullName },
                   { label: "Phone", value: payment.payerPhone },
                   { label: "Payer type", value: payment.payerType === "guest" ? "Guest" : payment.payerType ? "App user" : null },
+                  { label: "Method", value: isQr(payment) ? "QR code (EthQR)" : "Coop Bank account" },
                   { label: "Zakat type", value: payment.zakatType?.replace(/_/g, " ") },
                   { label: "Cause", value: payment.causeTitle },
                   { label: "Certificate", value: payment.certificateId },
@@ -314,6 +336,7 @@ function PaymentSheet({
                   items={[
                     { label: "Started", value: formatDateTime(payment.createdAt) },
                     { label: "Paid", value: formatDateTime(payment.paidAt ?? null) },
+                    ...(isQr(payment) ? [{ label: "QR payable until", value: formatDateTime(payment.expiresAt ?? null) }] : []),
                     { label: "Last update", value: formatDateTime(payment.updatedAt ?? null) },
                     { label: "Settled by", value: payment.resolvedBy },
                   ]}
@@ -339,6 +362,7 @@ function PaymentSheet({
 }
 
 function ResolveForm({ payment, onResolved }: { payment: ZakatPayment; onResolved: (payment: ZakatPayment) => void }) {
+  const qr = isQr(payment);
   const [outcome, setOutcome] = useState<"SUCCEEDED" | "FAILED" | "">("");
   const [reference, setReference] = useState("");
   const [note, setNote] = useState("");
@@ -362,7 +386,15 @@ function ResolveForm({ payment, onResolved }: { payment: ZakatPayment; onResolve
       });
       onResolved(next);
     } catch (resolveError) {
-      setError(errorMessage(resolveError, "Couldn't settle the payment"));
+      const usedBy =
+        resolveError instanceof ApiError && resolveError.status === 409
+          ? (resolveError.data as { paymentId?: string } | null)?.paymentId
+          : undefined;
+      setError(
+        usedBy
+          ? `That reference already confirmed payment ${usedBy}. One EthQR transaction confirms one payment.`
+          : errorMessage(resolveError, "Couldn't settle the payment"),
+      );
       if (resolveError instanceof ApiError) setFieldErrors(fieldErrorMap(resolveError.errors));
     } finally {
       setIsSaving(false);
@@ -372,18 +404,31 @@ function ResolveForm({ payment, onResolved }: { payment: ZakatPayment; onResolve
   return (
     <form onSubmit={onSubmit} className="space-y-4 rounded-xl border border-amber-200 bg-amber-50/50 p-4">
       <div>
-        <p className="text-sm font-semibold text-[#001539]">Settle this payment</p>
+        <p className="text-sm font-semibold text-[#001539]">{qr ? "Confirm this QR payment" : "Settle this payment"}</p>
         <p className="mt-0.5 text-xs text-black/55">
-          Ask Coop Bank quoting message id <span className="font-mono">{payment.messageId ?? "—"}</span>, then record their answer.
+          {qr ? (
+            <>
+              Find a transaction of {formatEtb(payment.amountEtb)} around {formatDateTime(payment.createdAt)} in the EthQR list, then record it.
+            </>
+          ) : (
+            <>
+              Ask Coop Bank quoting message id <span className="font-mono">{payment.messageId ?? "—"}</span>, then record their answer.
+            </>
+          )}
         </p>
       </div>
       {error ? <InlineAlert>{error}</InlineAlert> : null}
-      <div role="radiogroup" aria-label="Bank answer" className="grid grid-cols-2 gap-2">
+      <div role="radiogroup" aria-label="Outcome" className="grid grid-cols-2 gap-2">
         {(
-          [
-            ["SUCCEEDED", "Money moved", "Mark paid and issue the certificate"],
-            ["FAILED", "No debit", "Mark failed"],
-          ] as const
+          qr
+            ? ([
+                ["SUCCEEDED", "Paid", "Matched in EthQR; issue the certificate"],
+                ["FAILED", "Never paid", "Close the QR payment"],
+              ] as const)
+            : ([
+                ["SUCCEEDED", "Money moved", "Mark paid and issue the certificate"],
+                ["FAILED", "No debit", "Mark failed"],
+              ] as const)
         ).map(([value, label, hint]) => (
           <button
             key={value}
@@ -402,16 +447,16 @@ function ResolveForm({ payment, onResolved }: { payment: ZakatPayment; onResolve
         ))}
       </div>
       {outcome === "SUCCEEDED" ? (
-        <FormField label="Bank reference" htmlFor="resolve-ref" required error={fieldErrors.providerReference}>
-          <Input id="resolve-ref" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="FT…" required className="font-mono" />
+        <FormField label={qr ? "EthQR transaction reference" : "Bank reference"} htmlFor="resolve-ref" required error={fieldErrors.providerReference}>
+          <Input id="resolve-ref" value={reference} onChange={(e) => setReference(e.target.value)} placeholder={qr ? undefined : "FT…"} required className="font-mono" />
         </FormField>
       ) : null}
-      <FormField label="Note" htmlFor="resolve-note" required hint="Who at Coop Bank confirmed, and when" error={fieldErrors.note}>
+      <FormField label="Note" htmlFor="resolve-note" required hint={qr ? "How you matched it, e.g. time and amount" : "Who at Coop Bank confirmed, and when"} error={fieldErrors.note}>
         <Textarea id="resolve-note" rows={2} maxLength={1000} value={note} onChange={(e) => setNote(e.target.value)} required />
       </FormField>
       <div className="flex justify-end">
         <Button type="submit" disabled={isSaving || !outcome || !note.trim() || (outcome === "SUCCEEDED" && !reference.trim())}>
-          {isSaving ? "Saving…" : "Settle payment"}
+          {isSaving ? "Saving…" : qr ? "Record" : "Settle payment"}
         </Button>
       </div>
     </form>
