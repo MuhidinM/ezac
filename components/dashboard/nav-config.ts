@@ -1,4 +1,5 @@
 import {
+  Banknote,
   Building2,
   Calculator,
   ClipboardCheck,
@@ -90,6 +91,12 @@ export const NAV_SECTIONS: NavSection[] = [
         title: "Disbursement pool",
         url: "/dashboard/pool",
         icon: Inbox,
+        audience: ["admin"],
+      },
+      {
+        title: "Payouts",
+        url: "/dashboard/disbursements",
+        icon: Banknote,
         audience: ["admin"],
       },
       {
@@ -219,6 +226,7 @@ export const SEGMENT_LABELS: Record<string, string> = {
   duplicates: "Duplicate review",
   zakat: "Zakat",
   pool: "Disbursement pool",
+  disbursements: "Payouts",
   whitelist: "Whitelist",
   prices: "Prices & nisab",
   settings: "Settings",

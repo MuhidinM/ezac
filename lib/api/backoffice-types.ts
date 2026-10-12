@@ -130,7 +130,8 @@ export type BankAccount = {
 };
 
 /** On APPROVED assessments only; absent before the branch approves. */
-export type PoolStatus = "AWAITING_POOL" | "POOLED" | "DECLINED" | "REMOVED";
+/** DISBURSED: paid out; the household left the pool and must be pooled again to be paid again. */
+export type PoolStatus = "AWAITING_POOL" | "POOLED" | "DECLINED" | "REMOVED" | "DISBURSED";
 
 export type WhitelistEffect = "PRIORITY" | "FAST_TRACK";
 

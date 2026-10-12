@@ -126,6 +126,7 @@ export const POOL_STATUS: Record<PoolStatus, { label: string; tone: BadgeTone }>
   POOLED: { label: "Pooled", tone: "success" },
   DECLINED: { label: "Pool declined", tone: "neutral" },
   REMOVED: { label: "Removed from pool", tone: "neutral" },
+  DISBURSED: { label: "Paid out", tone: "brand" },
 };
 
 export function PoolStatusBadge({ status }: { status?: PoolStatus | null }) {

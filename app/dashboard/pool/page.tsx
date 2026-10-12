@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { CheckCheck, CornerUpLeft, MinusCircle, RefreshCw, SlidersHorizontal, X, XCircle } from "lucide-react";
+import { Banknote, CheckCheck, CornerUpLeft, MinusCircle, RefreshCw, SlidersHorizontal, X, XCircle } from "lucide-react";
 
 import { RiskBadge, ScoreMeter, WhitelistBadge } from "@/components/backoffice/status-badges";
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
+import { PayoutDialog } from "@/components/disbursements/payout-dialog";
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { ListPagination } from "@/components/dashboard/list-pagination";
@@ -114,6 +115,7 @@ function Pool() {
   const [notice, setNotice] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [poolOpen, setPoolOpen] = useState(false);
   const [action, setAction] = useState<{ entry: PoolEntry; kind: RowAction } | null>(null);
+  const [paying, setPaying] = useState<PoolEntry | null>(null);
   const [reason, setReason] = useState("");
 
   const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
@@ -417,10 +419,22 @@ function Pool() {
                             </Button>
                           </>
                         ) : (
-                          <Button variant="ghost" size="sm" className="text-rose-700 hover:text-rose-800" onClick={() => setAction({ entry, kind: "remove" })}>
-                            <MinusCircle />
-                            Remove
-                          </Button>
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setPaying(entry)}
+                              disabled={!entry.bankAccount?.accountNumber}
+                              title={entry.bankAccount?.accountNumber ? undefined : "No bank account on file"}
+                            >
+                              <Banknote />
+                              Pay
+                            </Button>
+                            <Button variant="ghost" size="sm" className="text-rose-700 hover:text-rose-800" onClick={() => setAction({ entry, kind: "remove" })}>
+                              <MinusCircle />
+                              Remove
+                            </Button>
+                          </>
                         )}
                       </div>
                     </TableCell>
@@ -443,6 +457,20 @@ function Pool() {
           }}
         />
       </Panel>
+
+      {paying ? (
+        <PayoutDialog
+          key={rowKey(paying)}
+          entry={paying}
+          onClose={() => setPaying(null)}
+          onFinished={(payout) => {
+            if (payout.status === "SUCCEEDED") {
+              setNotice({ tone: "success", text: `Paid ${paying.fullName ?? "household"}. They have left the pool.` });
+            }
+            reload();
+          }}
+        />
+      ) : null}
 
       <ConfirmDialog
         open={poolOpen}
