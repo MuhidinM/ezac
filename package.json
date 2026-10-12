@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:uat": "node scripts/with-uat-cert.mjs dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
