@@ -53,8 +53,10 @@ export default async function LiveDashboardPage() {
   const asOf = impact?.asOf ?? home?.asOf;
   const asnaf = (impact?.beneficiariesByAsnaf ?? []).filter((row) => row.count > 0).sort((a, b) => b.count - a.count);
   const maxAsnaf = Math.max(1, ...asnaf.map((row) => row.count));
-  const points = (series?.points ?? []).filter((point) => point.collectedEtb !== null);
-  const maxCollected = Math.max(1, ...points.map((point) => point.collectedEtb ?? 0));
+  const points = (series?.points ?? []).filter((point) => point.collectedEtb !== null || point.disbursedEtb !== null);
+  // disbursedEtb is the amount paid out that month (0 until the first payout).
+  const showDisbursed = points.some((point) => point.disbursedEtb !== null);
+  const maxMonthly = Math.max(1, ...points.flatMap((point) => [point.collectedEtb ?? 0, point.disbursedEtb ?? 0]));
   // Hide the table until at least one region has published figures.
   const regionsWithData = (regions ?? []).filter(
     (region) => (region.beneficiaries ?? 0) > 0 || (region.distributedFundsEtb ?? 0) > 0 || (region.activeProjects ?? 0) > 0,
@@ -100,22 +102,51 @@ export default async function LiveDashboardPage() {
 
         {points.length > 0 ? (
           <div className="mt-12 rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
-            <p className="text-sm font-medium" style={{ color: "#001539" }}>
-              Zakat collected per month
-            </p>
-            <ul className="mt-5 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm font-medium" style={{ color: "#001539" }}>
+                {showDisbursed ? "Zakat collected and distributed per month" : "Zakat collected per month"}
+              </p>
+              {showDisbursed ? (
+                <div className="flex gap-4 text-xs" style={{ color: "#6F6F6F" }}>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="size-2.5 rounded-sm" style={{ backgroundColor: "#007050" }} />
+                    Collected
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="size-2.5 rounded-sm" style={{ backgroundColor: "#eb6834" }} />
+                    Distributed
+                  </span>
+                </div>
+              ) : null}
+            </div>
+            <ul className="mt-5 space-y-3">
               {points.map((point) => (
-                <li key={point.period} className="grid grid-cols-[6rem_minmax(0,1fr)_7rem] items-center gap-3 text-sm">
-                  <span style={{ color: "#6F6F6F" }}>{monthLabel(point.period)}</span>
+                <li key={point.period} className="grid grid-cols-[6rem_minmax(0,1fr)_7rem] items-center gap-x-3 gap-y-1 text-sm">
+                  <span className={showDisbursed ? "row-span-2" : undefined} style={{ color: "#6F6F6F" }}>
+                    {monthLabel(point.period)}
+                  </span>
                   <span className="h-2.5">
                     <span
                       className="block h-full rounded-r-[4px]"
-                      style={{ width: `${((point.collectedEtb ?? 0) / maxCollected) * 100}%`, backgroundColor: "#007050" }}
+                      style={{ width: `${((point.collectedEtb ?? 0) / maxMonthly) * 100}%`, backgroundColor: "#007050" }}
                     />
                   </span>
                   <span className="text-right tabular-nums" style={{ color: "#001539" }}>
-                    {formatEtbCompact(point.collectedEtb)}
+                    {formatEtbCompact(point.collectedEtb) ?? "—"}
                   </span>
+                  {showDisbursed ? (
+                    <>
+                      <span className="h-2.5">
+                        <span
+                          className="block h-full rounded-r-[4px]"
+                          style={{ width: `${((point.disbursedEtb ?? 0) / maxMonthly) * 100}%`, backgroundColor: "#eb6834" }}
+                        />
+                      </span>
+                      <span className="text-right text-xs tabular-nums" style={{ color: "#6F6F6F" }}>
+                        {formatEtbCompact(point.disbursedEtb) ?? "—"}
+                      </span>
+                    </>
+                  ) : null}
                 </li>
               ))}
             </ul>
