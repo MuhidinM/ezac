@@ -3,6 +3,7 @@
 import { type FormEvent, useState } from "react";
 import { Pencil, Plus, QrCode, Save } from "lucide-react";
 
+import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -63,6 +64,8 @@ type PaymentSettings = {
 
 type EthqrMerchant = {
   puid: string;
+  merchantId?: string | null;
+  globalMerchantId?: string | null;
   merchantName: string;
   accountNumber: string;
   registeredBy?: string | null;
@@ -109,12 +112,11 @@ function PaymentSettingsPanel() {
     <>
       <Panel
         title="Payment settings"
-        description="Donors pay into this commission account, from a Coop Bank account or by QR code from any bank app. Changes apply to new payments only."
+        description="Donors pay by QR code from any bank app into this commission account. Changes apply to new payments only."
         actions={
           data ? (
             <>
-              <Badge tone={data.ready ? "success" : "neutral"}>{data.ready ? "Coop payments on" : "Coop payments off"}</Badge>
-              <Badge tone={data.qrReady ? "success" : "neutral"}>{data.qrReady ? "QR payments on" : "QR payments off"}</Badge>
+              <Badge tone={data.qrReady ? "success" : "warning"}>{data.qrReady ? "QR payments: ready" : "QR payments: not ready"}</Badge>
             </>
           ) : null
         }
@@ -131,7 +133,9 @@ function PaymentSettingsPanel() {
 function PaymentSettingsForm({ settings, onSaved }: { settings: PaymentSettings; onSaved: (settings: PaymentSettings) => void }) {
   const [account, setAccount] = useState(settings.creditAccountNumber ?? "");
   const [name, setName] = useState(settings.creditAccountName ?? "");
+  // The old Coop account flow is kept off; it can only be switched off from here.
   const [enabled, setEnabled] = useState(settings.coopEnabled);
+  const [confirmAccount, setConfirmAccount] = useState(false);
   const [qrEnabled, setQrEnabled] = useState(settings.qrEnabled ?? false);
   const accountChanged = (settings.creditAccountNumber ?? "") !== account.trim();
   const [min, setMin] = useState(settings.minAmountEtb != null ? String(settings.minAmountEtb) : "");
@@ -140,8 +144,17 @@ function PaymentSettingsForm({ settings, onSaved }: { settings: PaymentSettings;
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    // A new commission account clears the EthQR registration, so ask first.
+    if (accountChanged && settings.ethqrPuid) {
+      setConfirmAccount(true);
+      return;
+    }
+    void save();
+  }
+
+  async function save() {
     setIsSaving(true);
     setMessage(null);
     setFieldErrors({});
@@ -207,15 +220,23 @@ function PaymentSettingsForm({ settings, onSaved }: { settings: PaymentSettings;
           <Input id="ps-max" type="number" min={0} value={max} onChange={(e) => setMax(e.target.value)} />
         </FormField>
       </div>
-      <label className="flex items-center gap-2 text-sm text-[#001539]">
-        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="size-4 accent-[#007050]" />
-        Accept Coop Bank account payments in the app
-      </label>
+      {settings.coopEnabled ? (
+        <label className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-sm text-[#001539]">
+          <input type="checkbox" checked={!enabled} onChange={(e) => setEnabled(!e.target.checked)} className="mt-0.5 size-4 accent-[#007050]" />
+          <span>
+            Switch off the old Coop account payments
+            <span className="block text-xs text-black/55">They are still on. Donors should pay by QR; the old flow is being retired.</span>
+          </span>
+        </label>
+      ) : (
+        <p className="text-xs text-black/45">Old Coop account payments: switched off.</p>
+      )}
       <label className="flex items-start gap-2 text-sm text-[#001539]">
         <input
           type="checkbox"
           checked={qrEnabled}
           onChange={(e) => setQrEnabled(e.target.checked)}
+          disabled={!settings.ethqrPuid && !qrEnabled}
           className="mt-0.5 size-4 accent-[#007050]"
         />
         <span>
@@ -234,6 +255,15 @@ function PaymentSettingsForm({ settings, onSaved }: { settings: PaymentSettings;
           {isSaving ? "Saving…" : "Save"}
         </Button>
       </div>
+      <ConfirmDialog
+        open={confirmAccount}
+        onOpenChange={setConfirmAccount}
+        title="Change the commission account?"
+        description={`This clears the EthQR registration (merchant ${settings.ethqrPuid}). QR payments stop until the new account is registered with EthQR.`}
+        confirmLabel="Change account"
+        destructive
+        onConfirm={save}
+      />
     </form>
   );
 }
@@ -272,6 +302,7 @@ function EthqrPanel({ onRegistered }: { onRegistered: () => void }) {
               value: <Badge tone={data.qrReady ? "success" : "warning"}>{data.qrReady ? "Ready" : data.qrEnabled ? "Switched on, not ready" : "Switched off"}</Badge>,
             },
             { label: "Mode", value: data.mode === "sandbox" ? "Sandbox" : "Live" },
+            { label: "Merchant id", value: data.merchantId ? <span className="font-mono text-xs">{data.merchantId}</span> : null },
           ]}
         />
       ) : notRegistered ? (
@@ -297,7 +328,7 @@ function EthqrPanel({ onRegistered }: { onRegistered: () => void }) {
 
 function EthqrRegisterDialog({ onClose, onRegistered }: { onClose: () => void; onRegistered: (merchant: EthqrMerchant) => void }) {
   const [form, setForm] = useState({ phoneNumber: "", email: "", dbaName: "", businessType: "", city: "", region: "" });
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ text: string; ethqrCode?: string; ethqrResponse?: string } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const set = (key: keyof typeof form, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
@@ -322,7 +353,13 @@ function EthqrRegisterDialog({ onClose, onRegistered }: { onClose: () => void; o
       });
       onRegistered(merchant);
     } catch (saveError) {
-      setError(errorMessage(saveError, "Couldn't register with EthQR"));
+      const details = saveError instanceof ApiError ? (saveError.data as { ethqrCode?: unknown; ethqrResponse?: unknown } | null) : null;
+      const text = (value: unknown) => (value == null ? undefined : typeof value === "string" ? value : JSON.stringify(value, null, 2));
+      setError({
+        text: errorMessage(saveError, "Couldn't register with EthQR"),
+        ethqrCode: text(details?.ethqrCode),
+        ethqrResponse: text(details?.ethqrResponse),
+      });
       if (saveError instanceof ApiError) setFieldErrors(fieldErrorMap(saveError.errors));
     } finally {
       setIsSaving(false);
@@ -339,7 +376,18 @@ function EthqrRegisterDialog({ onClose, onRegistered }: { onClose: () => void; o
               Registers the commission account set above. Doing it again returns the same merchant.
             </DialogDescription>
           </DialogHeader>
-          {error ? <InlineAlert>{error}</InlineAlert> : null}
+          {error ? (
+            <InlineAlert title={error.text}>
+              {error.ethqrCode ? (
+                <span className="block">
+                  EthQR code: <span className="font-mono">{error.ethqrCode}</span>
+                </span>
+              ) : null}
+              {error.ethqrResponse ? (
+                <pre className="mt-1 max-h-40 overflow-auto rounded bg-white/60 p-2 text-xs whitespace-pre-wrap break-all">{error.ethqrResponse}</pre>
+              ) : null}
+            </InlineAlert>
+          ) : null}
           <div className="grid gap-3 sm:grid-cols-2">
             <FormField label="Name on QR posters" htmlFor="eq-dba" required error={fieldErrors.dbaName} className="sm:col-span-2">
               <Input id="eq-dba" value={form.dbaName} onChange={(e) => set("dbaName", e.target.value)} placeholder="EZAC Zakat Fund" required />
@@ -347,7 +395,7 @@ function EthqrRegisterDialog({ onClose, onRegistered }: { onClose: () => void; o
             <FormField label="Phone" htmlFor="eq-phone" required error={fieldErrors.phoneNumber}>
               <Input id="eq-phone" type="tel" value={form.phoneNumber} onChange={(e) => set("phoneNumber", e.target.value)} placeholder="+2519…" required />
             </FormField>
-            <FormField label="Email" htmlFor="eq-email" required hint="Becomes the EthQR merchant portal login" error={fieldErrors.email}>
+            <FormField label="Email" htmlFor="eq-email" required hint="Must be real: it becomes the EthQR merchant portal login" error={fieldErrors.email}>
               <Input id="eq-email" type="email" value={form.email} onChange={(e) => set("email", e.target.value)} required />
             </FormField>
             <FormField label="Business type" htmlFor="eq-type" error={fieldErrors.businessType}>

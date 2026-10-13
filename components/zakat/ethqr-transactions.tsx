@@ -59,7 +59,7 @@ export function EthqrTransactions({ range }: { range: RangeKey }) {
   return (
     <Panel
       title="Received through EthQR"
-      description="EthQR's own list, newest first. Match a QR payment by amount and time, then confirm it with the transaction's reference."
+      description="EthQR's own list, newest first, for reconciliation. QR payments confirm themselves; use this only when one needs confirming by hand."
       flush
     >
       {notRegistered ? (

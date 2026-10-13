@@ -1,7 +1,7 @@
 "use client";
 
 import { type FormEvent, useState } from "react";
-import { BadgeCheck, CircleAlert, Copy, RefreshCw, Search } from "lucide-react";
+import { BadgeCheck, CircleAlert, Copy, RefreshCw, ScanSearch, Search } from "lucide-react";
 
 import { StatTile } from "@/components/charts/stat-tile";
 import { FormField } from "@/components/dashboard/form-field";
@@ -37,6 +37,7 @@ import { formatDateTime } from "@/lib/beneficiary/format";
 import {
   canResolve,
   displayStatus,
+  isOpenQr,
   isQr,
   PAYMENT_STATUSES,
   type PaymentStatus,
@@ -60,6 +61,8 @@ export default function PaymentsAdminPage() {
 function PaymentsAdmin() {
   const [range, setRange] = useState<RangeKey>("30d");
   const [status, setStatus] = useState<PaymentStatus | "">("");
+  // The API can't filter by method yet, so this narrows the loaded page only.
+  const [method, setMethod] = useState<"" | "ethqr" | "coopbank">("");
   const [page, setPage] = useState(1);
   const [openId, setOpenId] = useState<string | null>(null);
   // Captured once per mount; only used to show stale open payments as expired.
@@ -70,9 +73,9 @@ function PaymentsAdmin() {
   const list = useResource<PaginatedItems<ZakatPayment>>(
     `${API}?${rangeParams}${status ? `&status=${status}` : ""}&page=${page}&limit=${PAGE_SIZE}`,
   );
-  const rows = list.data?.items ?? [];
+  const allRows = list.data?.items ?? [];
+  const rows = method ? allRows.filter((row) => (method === "ethqr" ? isQr(row) : !isQr(row))) : allRows;
   const s = summary.data;
-  const qrToConfirm = s?.byStatus.find((row) => row.status === "AWAITING_PAYMENT")?.count ?? 0;
 
   function filter(next: PaymentStatus | "") {
     setStatus(next);
@@ -88,7 +91,7 @@ function PaymentsAdmin() {
     <section className="space-y-6">
       <PageHeader
         title="Zakat payments"
-        description="Payments made in the app, from a Coop Bank account or by QR code. Quote the message id and bank reference when asking Coop Bank about a payment."
+        description="Donations made in the app. Donors pay by QR code from any bank app, and QR payments confirm themselves. Quote the bank reference when asking Coop Bank about a payment."
         actions={
           <>
             <RangeSelect
@@ -108,19 +111,9 @@ function PaymentsAdmin() {
 
       {s && s.needsChecking > 0 ? (
         <InlineAlert tone="warning" title={`${s.needsChecking} payment${s.needsChecking === 1 ? "" : "s"} need checking`}>
-          The bank gave no clear answer, so the money may or may not have moved. Ask Coop Bank and settle each one.{" "}
+          The bank reference already confirmed another payment, or the bank gave no clear answer. Check each one (see its failure reason) and settle it.{" "}
           {status !== "PROCESSING" ? (
             <button type="button" className="font-medium underline underline-offset-2" onClick={() => filter("PROCESSING")}>
-              Show them
-            </button>
-          ) : null}
-        </InlineAlert>
-      ) : null}
-      {qrToConfirm > 0 ? (
-        <InlineAlert tone="warning" title={`${qrToConfirm} QR payment${qrToConfirm === 1 ? "" : "s"} to confirm`}>
-          EthQR doesn&apos;t tell us which QR was paid yet. Match each one with the EthQR list below and confirm it.{" "}
-          {status !== "AWAITING_PAYMENT" ? (
-            <button type="button" className="font-medium underline underline-offset-2" onClick={() => filter("AWAITING_PAYMENT")}>
               Show them
             </button>
           ) : null}
@@ -137,7 +130,7 @@ function PaymentsAdmin() {
           hint="Paid ÷ started"
           loading={summary.isLoading && !s}
         />
-        <StatTile label="Needs checking" value={s ? s.needsChecking.toLocaleString("en") : "—"} hint="Waiting on Coop Bank" loading={summary.isLoading && !s} />
+        <StatTile label="Needs checking" value={s ? s.needsChecking.toLocaleString("en") : "—"} hint="Settle by hand" loading={summary.isLoading && !s} />
       </div>
 
       <Panel flush>
@@ -156,8 +149,23 @@ function PaymentsAdmin() {
               })}
             </NativeSelect>
           </div>
-          {status ? (
-            <Button variant="ghost" size="sm" onClick={() => filter("")}>
+          <div className="w-44">
+            <NativeSelect aria-label="Method" value={method} onChange={(e) => setMethod(e.target.value as "" | "ethqr" | "coopbank")}>
+              <option value="">All methods</option>
+              <option value="ethqr">QR</option>
+              <option value="coopbank">Coop account</option>
+            </NativeSelect>
+          </div>
+          {method ? <span className="text-xs text-black/45">Method filter applies to this page</span> : null}
+          {status || method ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                filter("");
+                setMethod("");
+              }}
+            >
               Clear
             </Button>
           ) : null}
@@ -181,22 +189,19 @@ function PaymentsAdmin() {
             {list.isLoading && rows.length === 0 ? (
               <TableSkeletonRows colSpan={5} />
             ) : rows.length === 0 ? (
-              <TableMessageRow colSpan={5}>No payments in this period.</TableMessageRow>
+              <TableMessageRow colSpan={5}>{allRows.length ? "No payments with this method on this page." : "No payments in this period."}</TableMessageRow>
             ) : (
               rows.map((payment) => {
                 const shown = displayStatus(payment, now);
                 return (
                   <TableRow
                     key={payment.paymentId}
-                    className={cn(
-                      "cursor-pointer",
-                      (payment.status === "PROCESSING" || payment.status === "AWAITING_PAYMENT") && "bg-amber-50/60 hover:bg-amber-50",
-                    )}
+                    className={cn("cursor-pointer", payment.status === "PROCESSING" && "bg-amber-50/60 hover:bg-amber-50")}
                     onClick={() => setOpenId(payment.paymentId)}
                   >
                     <TableCell className="pl-5">
                       <button type="button" className="text-left font-medium text-[#001539] hover:underline" onClick={() => setOpenId(payment.paymentId)}>
-                        {payment.payerFullName ?? payment.accountHolderName ?? "Unknown payer"}
+                        {payment.payerFullName ?? payment.paidByName ?? payment.accountHolderName ?? "Unknown payer"}
                       </button>
                       <span className="block text-xs text-black/50">
                         {[isQr(payment) ? "QR" : "Coop account", payment.payerPhone, payment.payerType === "guest" ? "Guest" : payment.payerType ? "App user" : null]
@@ -208,10 +213,15 @@ function PaymentsAdmin() {
                       <span className="block max-w-56 truncate">{payment.causeTitle ?? "—"}</span>
                       {payment.zakatType ? <span className="block text-xs capitalize text-black/50">{payment.zakatType.replace(/_/g, " ")}</span> : null}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{formatEtb(payment.amountEtb)}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatEtb(payment.amountEtb)}
+                      {payment.issuedAmountEtb != null ? (
+                        <span className="block text-xs text-amber-700">QR asked {formatEtb(payment.issuedAmountEtb)}</span>
+                      ) : null}
+                    </TableCell>
                     <TableCell>
                       <Badge tone={shown.tone}>
-                        {payment.status === "PROCESSING" || payment.status === "AWAITING_PAYMENT" ? <CircleAlert /> : null}
+                        {payment.status === "PROCESSING" ? <CircleAlert /> : null}
                         {shown.label}
                       </Badge>
                     </TableCell>
@@ -237,6 +247,7 @@ function PaymentsAdmin() {
       <CertificateCheck />
 
       <PaymentSheet
+        key={openId ?? "none"}
         paymentId={openId}
         now={now}
         onClose={() => setOpenId(null)}
@@ -276,6 +287,34 @@ function PaymentSheet({
 }) {
   const { data: payment, error, mutate } = useResource<ZakatPayment>(paymentId ? `${API}/${encodeURIComponent(paymentId)}` : null);
   const shown = payment ? displayStatus(payment, now) : null;
+  const [check, setCheck] = useState<{ tone: "success" | "info" | "error"; text: string } | null>(null);
+  const [isChecking, setIsChecking] = useState(false);
+
+  async function checkNow() {
+    if (!payment) return;
+    setCheck(null);
+    setIsChecking(true);
+    try {
+      const next = await apiClient<ZakatPayment>(`${API}/${encodeURIComponent(payment.paymentId)}/check`, { method: "POST" });
+      mutate(next);
+      if (next.status === "SUCCEEDED") {
+        setCheck({ tone: "success", text: "EthQR reports it paid. The certificate has been issued." });
+        onResolved();
+      } else {
+        setCheck({ tone: "info", text: "EthQR doesn't report it paid yet." });
+      }
+    } catch (checkError) {
+      setCheck({
+        tone: "error",
+        text:
+          checkError instanceof ApiError && checkError.status === 409
+            ? "This QR payment was started before automatic confirmation, so EthQR can't be asked. Confirm it by hand."
+            : errorMessage(checkError, "Couldn't check with EthQR"),
+      });
+    } finally {
+      setIsChecking(false);
+    }
+  }
 
   return (
     <Sheet open={paymentId !== null} onOpenChange={(open) => !open && onClose()}>
@@ -292,7 +331,25 @@ function PaymentSheet({
           {!payment && !error ? <p className="text-sm text-black/45">Loading…</p> : null}
           {payment ? (
             <>
-              {canResolve(payment) ? (
+              {isOpenQr(payment) ? (
+                <div className="space-y-3 rounded-xl border border-sky-200 bg-sky-50/40 p-4">
+                  <p className="text-sm text-[#001539]">
+                    QR payments confirm themselves; the server keeps checking until 24 hours after the QR expires.
+                    {payment.qrCheckCount != null
+                      ? ` Checked ${payment.qrCheckCount} time${payment.qrCheckCount === 1 ? "" : "s"}${payment.qrLastCheckedAt ? `, last ${formatDateTime(payment.qrLastCheckedAt)}` : ""}.`
+                      : ""}
+                  </p>
+                  {check ? <InlineAlert tone={check.tone}>{check.text}</InlineAlert> : null}
+                  <div className="flex justify-end">
+                    <Button size="sm" variant="outline" onClick={checkNow} disabled={isChecking}>
+                      <ScanSearch />
+                      {isChecking ? "Checking…" : "Check now"}
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
+              {payment.status === "PROCESSING" ? (
                 <ResolveForm
                   key={payment.paymentId}
                   payment={payment}
@@ -301,6 +358,20 @@ function PaymentSheet({
                     onResolved();
                   }}
                 />
+              ) : canResolve(payment) ? (
+                <details className="group rounded-xl border border-black/[0.08] p-4">
+                  <summary className="cursor-pointer text-sm font-medium text-[#001539]">Confirm by hand or close as unpaid</summary>
+                  <div className="mt-4">
+                    <ResolveForm
+                      key={payment.paymentId}
+                      payment={payment}
+                      onResolved={(next) => {
+                        mutate(next);
+                        onResolved();
+                      }}
+                    />
+                  </div>
+                </details>
               ) : null}
 
               <DetailList
@@ -310,6 +381,9 @@ function PaymentSheet({
                   { label: "Phone", value: payment.payerPhone },
                   { label: "Payer type", value: payment.payerType === "guest" ? "Guest" : payment.payerType ? "App user" : null },
                   { label: "Method", value: isQr(payment) ? "QR code (EthQR)" : "Coop Bank account" },
+                  ...(payment.issuedAmountEtb != null
+                    ? [{ label: "QR asked for", value: <span className="text-amber-700">{formatEtb(payment.issuedAmountEtb)}</span> }]
+                    : []),
                   { label: "Zakat type", value: payment.zakatType?.replace(/_/g, " ") },
                   { label: "Cause", value: payment.causeTitle },
                   { label: "Certificate", value: payment.certificateId },
@@ -320,6 +394,14 @@ function PaymentSheet({
                 <DetailList
                   columns={2}
                   items={[
+                    ...(isQr(payment)
+                      ? [
+                          { label: "Paid by", value: payment.paidByName },
+                          { label: "Paid from", value: payment.paidFromBank },
+                          { label: "Bank paid at", value: formatDateTime(payment.bankPaidAt ?? null) },
+                          { label: "QR order id", value: payment.ethqrOrderId ? <CopyValue value={payment.ethqrOrderId} /> : "None (old QR payment)" },
+                        ]
+                      : []),
                     { label: "Message id", value: <CopyValue value={payment.messageId} /> },
                     { label: "Bank reference", value: <CopyValue value={payment.providerReference} /> },
                     { label: "Debit account", value: <CopyValue value={payment.debitAccount} /> },
@@ -408,7 +490,8 @@ function ResolveForm({ payment, onResolved }: { payment: ZakatPayment; onResolve
         <p className="mt-0.5 text-xs text-black/55">
           {qr ? (
             <>
-              Find a transaction of {formatEtb(payment.amountEtb)} around {formatDateTime(payment.createdAt)} in the EthQR list, then record it.
+              Only if automatic confirmation failed: find the bank&apos;s transaction of {formatEtb(payment.amountEtb)} around{" "}
+              {formatDateTime(payment.createdAt)} in the EthQR list below, then record its reference.
             </>
           ) : (
             <>
@@ -417,13 +500,14 @@ function ResolveForm({ payment, onResolved }: { payment: ZakatPayment; onResolve
           )}
         </p>
       </div>
+      {payment.failureReason ? <InlineAlert tone="warning">{payment.failureReason}</InlineAlert> : null}
       {error ? <InlineAlert>{error}</InlineAlert> : null}
       <div role="radiogroup" aria-label="Outcome" className="grid grid-cols-2 gap-2">
         {(
           qr
             ? ([
-                ["SUCCEEDED", "Paid", "Matched in EthQR; issue the certificate"],
-                ["FAILED", "Never paid", "Close the QR payment"],
+                ["SUCCEEDED", "Paid", "Issue the certificate"],
+                ["FAILED", "Not paid", "Close the payment as unpaid"],
               ] as const)
             : ([
                 ["SUCCEEDED", "Money moved", "Mark paid and issue the certificate"],
@@ -447,8 +531,8 @@ function ResolveForm({ payment, onResolved }: { payment: ZakatPayment; onResolve
         ))}
       </div>
       {outcome === "SUCCEEDED" ? (
-        <FormField label={qr ? "EthQR transaction reference" : "Bank reference"} htmlFor="resolve-ref" required error={fieldErrors.providerReference}>
-          <Input id="resolve-ref" value={reference} onChange={(e) => setReference(e.target.value)} placeholder={qr ? undefined : "FT…"} required className="font-mono" />
+        <FormField label="Bank reference" htmlFor="resolve-ref" required error={fieldErrors.providerReference}>
+          <Input id="resolve-ref" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="FT…" required className="font-mono" />
         </FormField>
       ) : null}
       <FormField label="Note" htmlFor="resolve-note" required hint={qr ? "How you matched it, e.g. time and amount" : "Who at Coop Bank confirmed, and when"} error={fieldErrors.note}>

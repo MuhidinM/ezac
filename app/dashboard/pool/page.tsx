@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Banknote, CheckCheck, CornerUpLeft, MinusCircle, RefreshCw, SlidersHorizontal, X, XCircle } from "lucide-react";
 
-import { RiskBadge, ScoreMeter, WhitelistBadge } from "@/components/backoffice/status-badges";
+import { PoolStatusBadge, RiskBadge, ScoreMeter, WhitelistBadge } from "@/components/backoffice/status-badges";
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { PayoutDialog } from "@/components/disbursements/payout-dialog";
 import { FormField } from "@/components/dashboard/form-field";
@@ -418,6 +418,12 @@ function Pool() {
                               Decline
                             </Button>
                           </>
+                        ) : entry.poolStatus === "DISBURSED" ? (
+                          // Paid and left the pool; it must be assessed and pooled again to be paid again.
+                          <div className="text-right">
+                            <PoolStatusBadge status="DISBURSED" />
+                            {entry.poolStatusReason ? <p className="mt-1 text-xs text-black/50">{entry.poolStatusReason}</p> : null}
+                          </div>
                         ) : (
                           <>
                             <Button

@@ -16,10 +16,13 @@ export type PaymentStatus =
 export type ZakatPayment = {
   paymentId: string;
   status: PaymentStatus;
-  /** "ethqr" for QR payments; Coop account payments may leave it out. */
-  methodCode?: string;
+  /** "ethqr" (QR) or "coopbank" (the old Coop account flow). */
+  methodCode?: "ethqr" | "coopbank" | string;
   zakatType?: string;
+  /** What was paid. */
   amountEtb: number;
+  /** Only when the donor paid another amount than the QR asked for. */
+  issuedAmountEtb?: number;
   causeId?: string;
   causeTitle?: string;
   payerType?: "guest" | "registered" | string;
@@ -39,8 +42,17 @@ export type ZakatPayment = {
   paidAt?: string;
   createdAt: string;
   updatedAt?: string;
-  /** QR payments: the EMV payload shown to the donor, and when it stops being payable. */
+  /** QR payments: the QR content and the order id it carries (equal to paymentId; absent on old QR payments). */
   qrPayload?: string;
+  ethqrOrderId?: string;
+  /** From the bank once paid. */
+  paidByName?: string;
+  paidFromBank?: string;
+  bankPaidAt?: string;
+  /** How often, and when last, the payment was checked with EthQR. */
+  qrCheckCount?: number;
+  qrLastCheckedAt?: string;
+  /** Shown while the payment is open. */
   expiresAt?: string;
 };
 
@@ -57,7 +69,7 @@ export type PaymentSummary = {
 export const PAYMENT_STATUSES: { value: PaymentStatus; label: string; tone: BadgeTone }[] = [
   { value: "AWAITING_CONFIRMATION", label: "Started", tone: "neutral" },
   { value: "OTP_SENT", label: "Waiting for code", tone: "info" },
-  { value: "AWAITING_PAYMENT", label: "QR: to confirm", tone: "warning" },
+  { value: "AWAITING_PAYMENT", label: "Waiting for payment", tone: "info" },
   { value: "PROCESSING", label: "Needs checking", tone: "warning" },
   { value: "SUCCEEDED", label: "Paid", tone: "success" },
   { value: "FAILED", label: "Failed", tone: "danger" },
@@ -71,16 +83,20 @@ export function isQr(payment: Pick<ZakatPayment, "methodCode">) {
   return payment.methodCode === "ethqr";
 }
 
-/**
- * Payments an admin can settle by hand: PROCESSING Coop payments, and QR payments
- * still waiting or expired (EthQR doesn't report which QR was paid yet).
- */
-export function canResolve(payment: Pick<ZakatPayment, "status" | "methodCode">) {
-  if (payment.status === "PROCESSING") return true;
+/** QR payments still open or expired: EthQR can be asked again ("Check now") or they can be confirmed by hand. */
+export function isOpenQr(payment: Pick<ZakatPayment, "status" | "methodCode">) {
   return isQr(payment) && (payment.status === "AWAITING_PAYMENT" || payment.status === "EXPIRED");
 }
 
-/** Open payments older than 15 minutes can no longer finish, so they show as expired. */
+/** Payments an admin can settle by hand: anything needing checking, and open or expired QR payments. */
+export function canResolve(payment: Pick<ZakatPayment, "status" | "methodCode">) {
+  return payment.status === "PROCESSING" || isOpenQr(payment);
+}
+
+/**
+ * Old Coop-flow payments still open after 15 minutes can no longer finish, so
+ * they show as expired. QR payments carry their own expiry and status.
+ */
 export function displayStatus(payment: Pick<ZakatPayment, "status" | "createdAt">, now: number) {
   const open = payment.status === "AWAITING_CONFIRMATION" || payment.status === "OTP_SENT";
   const status: PaymentStatus = open && now - new Date(payment.createdAt).getTime() > STALE_MS ? "EXPIRED" : payment.status;
