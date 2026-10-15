@@ -11,6 +11,7 @@ import { Panel } from "@/components/dashboard/panel";
 import { RangeSelect } from "@/components/dashboard/range-select";
 import { RequireRole } from "@/components/dashboard/require-role";
 import { TableMessageRow, TableSkeletonRows } from "@/components/dashboard/table-states";
+import { LivestockPricesPanel } from "@/components/zakat/livestock-prices-panel";
 import { PriceStatusPanel } from "@/components/zakat/price-status-panel";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -78,7 +79,7 @@ function Prices() {
     <section className="space-y-6">
       <PageHeader
         title="Prices & nisab"
-        description="Metal prices behind the public Zakat calculator and the nisab it applies. Newest first."
+        description="Gold, silver and livestock prices behind the public Zakat calculator, and the nisab it applies."
         actions={<RangeSelect value={range} onChange={(value) => { setRange(value); setPage(1); }} />}
       />
 
@@ -118,6 +119,8 @@ function Prices() {
           loading={config.isLoading && !c}
         />
       </div>
+
+      <LivestockPricesPanel onChanged={() => config.reload()} />
 
       <Panel title="Gold and silver per gram" description="ETB, from the stored price history">
         {chart.error ? (
