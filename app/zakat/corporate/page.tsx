@@ -31,7 +31,7 @@ const FEATURES = [
     icon: UsersIcon,
     title: "Bulk disbursement",
     description:
-      "Distribute across thousands of Fayda-verified beneficiaries in a single, reconciled settlement.",
+      "Your contribution joins the pool of assessed, branch-approved households and is paid out by bank transfer, fully reconciled.",
   },
   {
     icon: BarChart3Icon,
