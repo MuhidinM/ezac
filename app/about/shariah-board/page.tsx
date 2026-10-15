@@ -41,9 +41,9 @@ const MANDATE = [
   },
   {
     icon: UsersIcon,
-    title: "Independent scholars",
+    title: "Appointed with the Ulama Assembly",
     description:
-      "Composed of qualified Ethiopian and international scholars serving independently.",
+      "Formed together with the Supreme Council's Ulama Assembly. Its first members are nine scholars named under the Commission's establishment regulation.",
   },
 ];
 

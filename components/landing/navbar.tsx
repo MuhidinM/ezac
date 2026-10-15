@@ -45,6 +45,8 @@ const MENU_ITEMS: MenuItem[] = [
   {
     label: "About Us",
     children: [
+      { label: "About the Commission", href: "/about" },
+      { label: "Legal Documents", href: "/about#documents" },
       { label: "Governance & Majlis", href: "/about/governance" },
       { label: "Shari'ah Advisory Board", href: "/about/shariah-board" },
     ],

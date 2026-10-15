@@ -24,19 +24,19 @@ const PILLARS = [
     icon: LandmarkIcon,
     title: "The Majlis",
     description:
-      "The Supreme Council of Islamic Affairs provides religious authority and strategic direction for the Commission.",
+      "The Ethiopian Islamic Affairs Supreme Council established the Commission under Proclamation 1207/2020. The Commission is accountable to it and independent in its professional and administrative work.",
   },
   {
     icon: UsersIcon,
-    title: "Board of Commissioners",
+    title: "Board of Directors",
     description:
-      "An appointed board sets policy, approves budgets, and is accountable for the Commission's mandate.",
+      "25 members serving five-year terms, at most two in a row. The board supervises the Commission, appoints the Commissioner, issues directives and approves the plan and budget.",
   },
   {
     icon: ShieldCheckIcon,
-    title: "Independent oversight",
+    title: "Control committee",
     description:
-      "External auditors and a risk committee review controls, disbursement, and fund integrity.",
+      "An oversight committee is part of the Commission's structure, and every change in the Zakat system is recorded with who made it and when.",
   },
   {
     icon: BarChart3Icon,
@@ -74,12 +74,12 @@ export default function GovernancePage() {
             className="mt-4 text-base leading-relaxed"
             style={{ color: "#6F6F6F" }}
           >
-            The Commission is mandated to collect, safeguard, invest, and
-            distribute Zakat and Waqf in accordance with Shari&apos;ah and
-            Ethiopian law. Every flow of funds is reconciled, independently
-            audited, and
-            reported publicly — so trust is earned through evidence, not
-            assertion.
+            Under its establishment regulation, the Commission collects Zakat
+            in Ethiopia and abroad and distributes it to those entitled,
+            according to Shari&apos;ah and current fatwas, through a system
+            that is transparent, accountable and trustworthy. Funds are
+            reconciled with the bank and reported publicly, so trust is earned
+            through evidence, not assertion.
           </p>
         </div>
       </Section>
@@ -87,7 +87,7 @@ export default function GovernancePage() {
         title="Religious assurance you can rely on"
         body="Our Shari'ah Advisory Board reviews every ruling, product, and disbursement."
         primary={{ label: "Meet the Shari'ah board", href: "/about/shariah-board" }}
-        secondary={{ label: "See our transparency", href: "/transparency/dashboard" }}
+        secondary={{ label: "Read the legal documents", href: "/about#documents" }}
       />
     </SitePage>
   );
