@@ -3,11 +3,13 @@
 import { type ReactNode, useState } from "react";
 import { Braces, Check, Copy, ListTree } from "lucide-react";
 
+import { ScoringDesigner } from "@/components/scoring/scoring-designer";
+
 import { Panel } from "@/components/dashboard/panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { copyToClipboard } from "@/lib/clipboard";
-import type { ScoringConfigVersion } from "@/lib/backoffice/scoring-config";
+import type { ScoringConfigVersion, ScoringSchema } from "@/lib/backoffice/scoring-config";
 import { cn } from "@/lib/utils";
 
 type ScoringConfig = Pick<ScoringConfigVersion, "version" | "name" | "config">;
@@ -19,7 +21,18 @@ function humanize(key: string) {
     .replace(/^\w/, (char) => char.toUpperCase());
 }
 
-export function ConfigViewer({ config, actions }: { config: ScoringConfig; actions?: ReactNode }) {
+export function ConfigViewer({
+  config,
+  schema,
+  baseConfig,
+  actions,
+}: {
+  config: ScoringConfig;
+  /** With a schema the version is shown in the plain-language layout. */
+  schema?: ScoringSchema | null;
+  baseConfig?: Record<string, unknown> | null;
+  actions?: ReactNode;
+}) {
   const [mode, setMode] = useState<"tree" | "json">("tree");
   const [copied, setCopied] = useState(false);
   const json = JSON.stringify(config.config, null, 2);
@@ -33,7 +46,7 @@ export function ConfigViewer({ config, actions }: { config: ScoringConfig; actio
           {actions}
           <div className="inline-flex rounded-lg border border-black/10 bg-white p-0.5">
             <ModeButton active={mode === "tree"} onClick={() => setMode("tree")} icon={ListTree} label="Readable" />
-            <ModeButton active={mode === "json"} onClick={() => setMode("json")} icon={Braces} label="JSON" />
+            <ModeButton active={mode === "json"} onClick={() => setMode("json")} icon={Braces} label="Technical" />
           </div>
           <Button
             variant="outline"
@@ -52,6 +65,8 @@ export function ConfigViewer({ config, actions }: { config: ScoringConfig; actio
         <pre className="max-h-[32rem] overflow-auto rounded-lg bg-[#001539] p-4 font-mono text-xs leading-relaxed text-white/90">
           {json}
         </pre>
+      ) : schema ? (
+        <ScoringDesigner schema={schema} config={config.config} baseConfig={baseConfig} />
       ) : (
         <ConfigTree value={config.config} />
       )}

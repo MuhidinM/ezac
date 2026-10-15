@@ -1,13 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { FlaskConical, Rocket, Save, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Check, FlaskConical, Rocket, Save, Trash2 } from "lucide-react";
 
 import { RiskBadge } from "@/components/backoffice/status-badges";
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { Panel } from "@/components/dashboard/panel";
+import { ScoringDesigner, validateScoring } from "@/components/scoring/scoring-designer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,28 +18,15 @@ import { apiClient } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errors";
 import {
   changedPaths,
-  getPath,
   ruleText,
   setPath,
-  type Band,
-  type SchemaField,
   type ScoringConfigVersion,
   type ScoringPreview,
   type ScoringSchema,
 } from "@/lib/backoffice/scoring-config";
 import { cn } from "@/lib/utils";
 
-function humanize(key: string) {
-  return key.replace(/[_-]+/g, " ").replace(/^\w/, (char) => char.toUpperCase());
-}
-
-function toNumber(raw: string) {
-  if (raw.trim() === "") return 0;
-  const value = Number(raw);
-  return Number.isFinite(value) ? value : 0;
-}
-
-/** Edit a DRAFT: one input per schema field, then save, preview, activate. */
+/** Edit a DRAFT in three steps: change the points, check the impact, activate. */
 export function ConfigEditor({
   draft,
   baseConfig,
@@ -70,14 +58,8 @@ export function ConfigEditor({
   const versionPath = `${apiBase}/${draft.version}`;
   const isDirty = name !== (draft.name ?? "") || JSON.stringify(config) !== JSON.stringify(draft.config);
   const changes = baseConfig ? changedPaths(schema.fields, baseConfig, config) : [];
-
-  const sections = useMemo(() => {
-    const groups = new Map<string, SchemaField[]>();
-    for (const field of schema.fields) {
-      groups.set(field.section, [...(groups.get(field.section) ?? []), field]);
-    }
-    return [...groups.entries()];
-  }, [schema.fields]);
+  const problems = validateScoring(schema, config);
+  const step = isDirty || changes.length === 0 ? 1 : preview ? 3 : 2;
 
   function update(path: string, value: unknown) {
     setConfig((prev) => setPath(prev, path, value));
@@ -85,6 +67,10 @@ export function ConfigEditor({
   }
 
   async function save(): Promise<boolean> {
+    if (problems.length > 0) {
+      setMessage({ tone: "error", text: "Fix the problems listed below before saving." });
+      return false;
+    }
     setIsSaving(true);
     setMessage(null);
     try {
@@ -135,7 +121,7 @@ export function ConfigEditor({
             ) : null}
           </span>
         }
-        description={`Based on v${draft.basedOnVersion ?? "—"}. Only numbers can change; activation applies to new submissions only.`}
+        description={`A copy of v${draft.basedOnVersion ?? "—"} you can change. Nothing affects households until you activate it, and even then only new assessments are scored with it.`}
         actions={
           <>
             <Button variant="ghost" size="sm" className="text-rose-700 hover:text-rose-800" onClick={() => setDeleteOpen(true)}>
@@ -150,7 +136,7 @@ export function ConfigEditor({
               <FlaskConical />
               {isPreviewing ? "Running…" : "Preview impact"}
             </Button>
-            <Button size="sm" onClick={() => setActivateOpen(true)} disabled={isDirty}>
+            <Button size="sm" onClick={() => setActivateOpen(true)} disabled={isDirty || problems.length > 0}>
               <Rocket />
               Activate
             </Button>
@@ -158,9 +144,19 @@ export function ConfigEditor({
         }
       >
         <div className="space-y-4">
+          <Steps current={step} />
           {message ? <InlineAlert tone={message.tone}>{message.text}</InlineAlert> : null}
+          {problems.length > 0 ? (
+            <InlineAlert tone="warning" title="To fix before saving">
+              <ul className="list-disc space-y-0.5 pl-4">
+                {problems.map((problem) => (
+                  <li key={problem}>{problem}</li>
+                ))}
+              </ul>
+            </InlineAlert>
+          ) : null}
           {isDirty ? (
-            <p className="text-xs text-black/50">Save the draft before activating it.</p>
+            <p className="text-xs text-black/50">You have unsaved changes. Save the draft before checking the impact or activating it.</p>
           ) : null}
           <div className="max-w-md">
             <FormField label="Version name" htmlFor="config-name">
@@ -172,61 +168,17 @@ export function ConfigEditor({
 
       {preview ? <PreviewResults preview={preview} /> : null}
 
-      {sections.map(([section, fields]) => (
-        <Panel key={section} title={humanize(section)}>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {fields.map((field) => {
-              const value = getPath(config, field.path);
-              const changed = baseConfig
-                ? JSON.stringify(getPath(baseConfig, field.path)) !== JSON.stringify(value)
-                : false;
-              if (field.type === "bands") {
-                return (
-                  <BandsInput
-                    key={field.path}
-                    field={field}
-                    value={Array.isArray(value) ? (value as Band[]) : []}
-                    changed={changed}
-                    onChange={(next) => update(field.path, next)}
-                  />
-                );
-              }
-              return (
-                <FormField
-                  key={field.path}
-                  label={
-                    <span className="flex items-center gap-1.5">
-                      {field.label}
-                      {changed ? <span className="size-1.5 rounded-full bg-sky-500" title="Changed" /> : null}
-                    </span>
-                  }
-                  htmlFor={field.path}
-                  hint={<code className="text-[11px]">{field.path}</code>}
-                >
-                  <Input
-                    id={field.path}
-                    type="number"
-                    min={field.min ?? 0}
-                    step={field.type === "integer" ? 1 : "any"}
-                    value={typeof value === "number" ? value : ""}
-                    onChange={(event) => update(field.path, toNumber(event.target.value))}
-                    className={cn("bg-white tabular-nums", changed && "border-sky-300")}
-                  />
-                </FormField>
-              );
-            })}
-          </div>
-        </Panel>
-      ))}
+      <ScoringDesigner schema={schema} config={config} baseConfig={baseConfig} onChange={update} />
 
       {schema.rules.length > 0 ? (
-        <Panel title="Validation rules" description="Checked by the server when you save.">
-          <ul className="list-disc space-y-1 pl-5 text-sm text-black/65">
+        <details className="rounded-xl border border-black/[0.08] bg-white p-4">
+          <summary className="cursor-pointer text-sm font-medium text-[#001539]">Rules the system checks when you save</summary>
+          <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-black/65">
             {schema.rules.map((rule, index) => (
               <li key={index}>{ruleText(rule)}</li>
             ))}
           </ul>
-        </Panel>
+        </details>
       ) : null}
 
       <ConfirmDialog
@@ -263,53 +215,31 @@ export function ConfigEditor({
   );
 }
 
-function BandsInput({
-  field,
-  value,
-  changed,
-  onChange,
-}: {
-  field: SchemaField;
-  value: Band[];
-  changed: boolean;
-  onChange: (value: Band[]) => void;
-}) {
-  function set(index: number, position: 0 | 1, raw: string) {
-    onChange(value.map((band, i) => (i === index ? (position === 0 ? [toNumber(raw), band[1]] : [band[0], toNumber(raw)]) : band)));
-  }
+const STEPS = ["Change the points", "Check the impact", "Activate"];
 
+function Steps({ current }: { current: number }) {
   return (
-    <div className={cn("rounded-lg border p-3 sm:col-span-2 lg:col-span-3", changed ? "border-sky-300" : "border-black/[0.08]")}>
-      <p className="text-[13px] font-medium text-[#001539]">{field.label}</p>
-      <p className="text-[11px] text-black/45">
-        <code>{field.path}</code> · bound → points
-      </p>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {value.map((band, index) => (
-          <div key={index} className="flex items-center gap-1.5">
-            <Input
-              type="number"
-              step="any"
-              min={0}
-              aria-label={`${field.label} band ${index + 1} bound`}
-              value={band[0]}
-              onChange={(event) => set(index, 0, event.target.value)}
-              className="bg-white tabular-nums"
-            />
-            <span className="text-black/35">→</span>
-            <Input
-              type="number"
-              step={1}
-              min={0}
-              aria-label={`${field.label} band ${index + 1} points`}
-              value={band[1]}
-              onChange={(event) => set(index, 1, event.target.value)}
-              className="w-20 bg-white tabular-nums"
-            />
-          </div>
-        ))}
-      </div>
-    </div>
+    <ol className="flex flex-wrap items-center gap-2 text-sm">
+      {STEPS.map((label, index) => {
+        const number = index + 1;
+        const done = number < current;
+        const active = number === current;
+        return (
+          <li key={label} className="flex items-center gap-2">
+            <span
+              className={cn(
+                "flex size-6 items-center justify-center rounded-full text-xs font-semibold",
+                done ? "bg-[#007050] text-white" : active ? "bg-[#001539] text-white" : "bg-black/[0.06] text-black/45",
+              )}
+            >
+              {done ? <Check className="size-3.5" /> : number}
+            </span>
+            <span className={cn(active ? "font-medium text-[#001539]" : "text-black/50")}>{label}</span>
+            {number < STEPS.length ? <span className="mx-1 h-px w-6 bg-black/15" /> : null}
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
@@ -317,13 +247,13 @@ function PreviewResults({ preview }: { preview: ScoringPreview }) {
   const transitions = Object.entries(preview.transitions ?? {});
   return (
     <Panel
-      title="Impact preview"
-      description={`Re-scored the ${preview.sampled} most recently scored assessments with this draft. Nothing was saved.`}
+      title="What would change"
+      description={`We re-scored the ${preview.sampled} most recent assessments with this draft to show the effect. Nothing was changed for real.`}
     >
       <div className="space-y-5">
         <div className="grid gap-3 sm:grid-cols-3">
-          <Stat label="Risk band changes" value={`${preview.riskChanged} of ${preview.sampled}`} />
-          <Stat label="Average score now" value={preview.averageOldScore?.toFixed(1) ?? "—"} />
+          <Stat label="Households changing need level" value={`${preview.riskChanged} of ${preview.sampled}`} />
+          <Stat label="Average score today" value={preview.averageOldScore?.toFixed(1) ?? "—"} />
           <Stat label="Average with this draft" value={preview.averageNewScore?.toFixed(1) ?? "—"} />
         </div>
         {transitions.length > 0 ? (

@@ -81,13 +81,13 @@ function ScoringConfigView() {
   return (
     <section className="space-y-6">
       <PageHeader
-        title="Scoring configuration"
-        description="Weights and thresholds that turn an assessment into a score. Changes go through a draft, a preview and an activation; existing scores keep the version they were calculated with."
+        title="Scoring"
+        description="How a household's answers turn into a need score. To change it, make a draft, adjust the points, check the impact, then activate. Scores already given never change."
         actions={
           active ? (
             <Button onClick={() => void createDraft(active)} disabled={isCreating}>
               <CopyPlus />
-              {isCreating ? "Creating…" : "New draft"}
+              {isCreating ? "Creating…" : "Change scoring"}
             </Button>
           ) : null
         }
@@ -191,11 +191,13 @@ function ScoringConfigView() {
           ) : (
             <ConfigViewer
               config={current}
+              schema={schema.data}
+              baseConfig={current.active ? null : (active?.config ?? null)}
               actions={
                 <>
                   <Button variant="outline" size="sm" onClick={() => void createDraft(current)} disabled={isCreating}>
                     <CopyPlus />
-                    Draft from v{current.version}
+                    Make a draft from this
                   </Button>
                   {!current.active ? (
                     <Button size="sm" onClick={() => setRollbackOpen(true)}>

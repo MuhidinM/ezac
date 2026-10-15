@@ -118,7 +118,7 @@ export const NAV_SECTIONS: NavSection[] = [
         audience: ["admin"],
       },
       {
-        title: "Scoring config",
+        title: "Scoring",
         url: "/dashboard/scoring-config",
         icon: SlidersHorizontal,
         audience: ["admin"],
