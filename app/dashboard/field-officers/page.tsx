@@ -96,7 +96,7 @@ function FieldOfficers() {
 
       <PageHeader
         title="Field officers"
-        description="Assessment officers and the branches or regions they cover. Officers only see beneficiaries inside their assignments."
+        description="Assessment officers and the branch each one works in. Officers only see beneficiaries registered in their branch."
         actions={
           <>
             <Button variant="outline" onClick={reload} disabled={isLoading}>
@@ -155,7 +155,7 @@ function FieldOfficers() {
             <TableRow className="bg-black/[0.015]">
               <TableHead className="pl-5">Officer</TableHead>
               <TableHead>Phone</TableHead>
-              <TableHead>Assignments</TableHead>
+              <TableHead>Branch</TableHead>
               <TableHead className="text-right">Open</TableHead>
               <TableHead className="text-right">This month</TableHead>
               <TableHead>Status</TableHead>

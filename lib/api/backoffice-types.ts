@@ -79,8 +79,8 @@ export type CreateFieldOfficerBody = {
   fullName: string;
   phone: string;
   email: string;
-  branchId?: string;
-  region?: string;
+  /** Officers work in exactly one branch. */
+  branchId: string;
 };
 
 export type CreateFieldOfficerResponse = {

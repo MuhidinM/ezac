@@ -2,26 +2,28 @@
 
 import { useState } from "react";
 import { useParams } from "next/navigation";
-import { MapPin, Pencil, Plus, Power, Store } from "lucide-react";
+import { ArrowRightLeft, MapPin, Pencil, Power, Store } from "lucide-react";
 
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { DetailList, Panel } from "@/components/dashboard/panel";
 import { RequireRole } from "@/components/dashboard/require-role";
-import { TableMessageRow } from "@/components/dashboard/table-states";
 import { ResetPasswordButton } from "@/components/dashboard/reset-password-button";
 import { assignmentLabel } from "@/components/field-officers/assignment-badges";
 import { EditOfficerDialog } from "@/components/field-officers/edit-officer-dialog";
 import { OfficerStatsPanel } from "@/components/field-officers/officer-stats";
-import {
-  EMPTY_SCOPE,
-  ScopePicker,
-  scopeBody,
-  type ScopeValue,
-} from "@/components/field-officers/scope-picker";
+import { BranchPicker } from "@/components/field-officers/branch-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -51,10 +53,7 @@ function FieldOfficerDetail() {
 
   const [confirmToggle, setConfirmToggle] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const [scope, setScope] = useState<ScopeValue>(EMPTY_SCOPE);
-  const [assignError, setAssignError] = useState<string | null>(null);
-  const [assignFieldErrors, setAssignFieldErrors] = useState<Record<string, string>>({});
-  const [isAssigning, setIsAssigning] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
   const [busyAssignment, setBusyAssignment] = useState<string | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
 
@@ -85,32 +84,6 @@ function FieldOfficerDetail() {
     mutate({ ...officer, ...updated });
   }
 
-  async function addAssignment() {
-    setAssignError(null);
-    setAssignFieldErrors({});
-    const body = scopeBody(scope);
-    if (!body.branchId && !body.region) {
-      setAssignError(scope.kind === "branch" ? "Select a branch." : "Select a region.");
-      return;
-    }
-    setIsAssigning(true);
-    try {
-      const updated = await apiClient<FieldOfficer>(`${path}/assignments`, {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-      mutate(updated);
-      setScope(EMPTY_SCOPE);
-    } catch (submitError) {
-      setAssignError(errorMessage(submitError, "Failed to add assignment"));
-      if (submitError instanceof ApiError) {
-        setAssignFieldErrors(fieldErrorMap(submitError.errors));
-      }
-    } finally {
-      setIsAssigning(false);
-    }
-  }
-
   async function toggleAssignment(assignment: StaffAssignment) {
     setBusyAssignment(assignment.id);
     setRowError(null);
@@ -128,6 +101,11 @@ function FieldOfficerDetail() {
   }
 
   const assignments = officer.assignments ?? [];
+  const active = assignments.filter((assignment) => assignment.active);
+  const current = active.find((assignment) => assignment.branchId) ?? null;
+  // Officers now cover one branch; older accounts may still have extra or region-wide access.
+  const extra = active.filter((assignment) => assignment !== current);
+  const history = assignments.filter((assignment) => !assignment.active);
 
   return (
     <section className="space-y-6">
@@ -153,7 +131,7 @@ function FieldOfficerDetail() {
             {officer.active ? "Active" : "Inactive"}
           </Badge>
         }
-        description="Field officer account and the areas they can assess."
+        description="Field officer account and the branch they work in."
         actions={
           <>
             <Button variant="outline" onClick={() => setEditOpen(true)}>
@@ -192,80 +170,176 @@ function FieldOfficerDetail() {
       <OfficerStatsPanel officerId={officer.id} />
 
       <Panel
-        title="Assignments"
-        description="Branch assignments cover one branch; region assignments cover every branch in that region."
-        flush
+        title="Branch"
+        description="A field officer works in one branch and only sees beneficiaries registered there."
+        actions={
+          <Button size="sm" variant={current ? "outline" : "default"} onClick={() => setMoveOpen(true)}>
+            <ArrowRightLeft />
+            {current ? "Move to another branch" : "Assign a branch"}
+          </Button>
+        }
       >
-        {rowError ? (
-          <div className="px-5 pt-4">
-            <InlineAlert>{rowError}</InlineAlert>
+        {rowError ? <InlineAlert className="mb-4">{rowError}</InlineAlert> : null}
+        {current ? (
+          <div className="flex items-center gap-3">
+            <span className="flex size-10 items-center justify-center rounded-lg bg-[#007050]/10 text-[#007050]">
+              <Store className="size-5" />
+            </span>
+            <div>
+              <p className="font-medium text-[#001539]">{assignmentLabel(current)}</p>
+              <p className="text-xs text-black/50">Since {formatDateTime(current.createdAt ?? null)}</p>
+            </div>
+          </div>
+        ) : (
+          <InlineAlert tone="warning">No branch yet. This officer can&apos;t see any beneficiaries until you assign one.</InlineAlert>
+        )}
+
+        {extra.length > 0 ? (
+          <div className="mt-5 space-y-3 rounded-lg border border-amber-200 bg-amber-50/50 p-4">
+            <p className="text-sm text-[#001539]">
+              This officer still has access set up before the one-branch rule. Remove it so they only work in{" "}
+              {current ? assignmentLabel(current) : "one branch"}.
+            </p>
+            <ul className="space-y-2">
+              {extra.map((assignment) => (
+                <li key={assignment.id} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="inline-flex items-center gap-2 text-[#001539]">
+                    {assignment.branchId ? <Store className="size-4 text-[#007050]" /> : <MapPin className="size-4 text-[#001539]/70" />}
+                    {assignmentLabel(assignment)}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-rose-700 hover:text-rose-800"
+                    disabled={busyAssignment === assignment.id}
+                    onClick={() => void toggleAssignment(assignment)}
+                  >
+                    Remove access
+                  </Button>
+                </li>
+              ))}
+            </ul>
           </div>
         ) : null}
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-black/[0.015]">
-              <TableHead className="pl-5">Scope</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Added</TableHead>
-              <TableHead className="pr-5 text-right">
-                <span className="sr-only">Actions</span>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {assignments.length === 0 ? (
-              <TableMessageRow colSpan={5}>
-                No assignments yet. This officer can&apos;t see any beneficiaries until you add one.
-              </TableMessageRow>
-            ) : (
-              assignments.map((assignment) => (
-                <TableRow key={assignment.id} className={assignment.active ? undefined : "opacity-60"}>
-                  <TableCell className="pl-5 font-medium text-[#001539]">
-                    <span className="inline-flex items-center gap-2">
-                      {assignment.branchId ? (
-                        <Store className="size-4 text-[#007050]" />
-                      ) : (
-                        <MapPin className="size-4 text-[#001539]/70" />
-                      )}
-                      {assignmentLabel(assignment)}
-                    </span>
-                  </TableCell>
-                  <TableCell>{assignment.branchId ? "Branch" : "Region"}</TableCell>
-                  <TableCell>
-                    <Badge tone={assignment.active ? "success" : "neutral"}>
-                      {assignment.active ? "Active" : "Inactive"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{formatDateTime(assignment.createdAt ?? null)}</TableCell>
-                  <TableCell className="pr-5 text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={busyAssignment === assignment.id}
-                      onClick={() => void toggleAssignment(assignment)}
-                    >
-                      {assignment.active ? "Deactivate" : "Reactivate"}
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
 
-        <div className="space-y-3 border-t border-black/[0.06] bg-black/[0.015] px-5 py-4">
-          <p className="text-sm font-medium text-[#001539]">Add assignment</p>
-          {assignError ? <InlineAlert>{assignError}</InlineAlert> : null}
-          <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
-            <ScopePicker value={scope} onChange={setScope} errors={assignFieldErrors} />
-            <Button onClick={() => void addAssignment()} disabled={isAssigning}>
-              <Plus />
-              {isAssigning ? "Adding…" : "Add"}
-            </Button>
+        {history.length > 0 ? (
+          <div className="mt-5 border-t border-black/[0.06] pt-4">
+            <p className="mb-2 text-xs font-semibold tracking-wide text-black/45 uppercase">Earlier branches</p>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Branch</TableHead>
+                  <TableHead>From</TableHead>
+                  <TableHead>Until</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {history.map((assignment) => (
+                  <TableRow key={assignment.id} className="text-black/60">
+                    <TableCell>{assignmentLabel(assignment)}</TableCell>
+                    <TableCell>{formatDateTime(assignment.createdAt ?? null)}</TableCell>
+                    <TableCell>{formatDateTime(assignment.deactivatedAt ?? null)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
-        </div>
+        ) : null}
       </Panel>
+
+      {moveOpen ? (
+        <MoveBranchDialog
+          officer={officer}
+          current={current}
+          others={extra}
+          onClose={() => setMoveOpen(false)}
+          onMoved={(message) => {
+            setMoveOpen(false);
+            setRowError(message);
+            reload();
+          }}
+        />
+      ) : null}
     </section>
+  );
+}
+
+/**
+ * Moves an officer to one branch: the new branch is added first so they never
+ * lose access in between, then every other active assignment is ended.
+ */
+function MoveBranchDialog({
+  officer,
+  current,
+  others,
+  onClose,
+  onMoved,
+}: {
+  officer: FieldOfficer;
+  current: StaffAssignment | null;
+  others: StaffAssignment[];
+  onClose: () => void;
+  /** Called with an error message when the move only partly worked, else null. */
+  onMoved: (message: string | null) => void;
+}) {
+  const [branchId, setBranchId] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [isSaving, setIsSaving] = useState(false);
+
+  async function move() {
+    setError(null);
+    setFieldErrors({});
+    setIsSaving(true);
+    try {
+      await apiClient<FieldOfficer>(`/api/backoffice/admin/field-officers/${encodeURIComponent(officer.id)}/assignments`, {
+        method: "POST",
+        body: JSON.stringify({ branchId }),
+      });
+    } catch (addError) {
+      setError(errorMessage(addError, "Couldn't assign the branch"));
+      if (addError instanceof ApiError) setFieldErrors(fieldErrorMap(addError.errors));
+      setIsSaving(false);
+      return;
+    }
+    const toEnd = [current, ...others].filter((item): item is StaffAssignment => item !== null);
+    const failed: string[] = [];
+    for (const assignment of toEnd) {
+      try {
+        await apiClient(`/api/backoffice/admin/staff-assignments/${encodeURIComponent(assignment.id)}`, {
+          method: "PATCH",
+          body: JSON.stringify({ active: false }),
+        });
+      } catch {
+        failed.push(assignmentLabel(assignment));
+      }
+    }
+    setIsSaving(false);
+    onMoved(failed.length ? `The new branch was added, but access to ${failed.join(", ")} couldn't be removed. Remove it below.` : null);
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-[#001539]">{current ? "Move to another branch" : "Assign a branch"}</DialogTitle>
+          <DialogDescription>
+            {current
+              ? `${officer.fullName} stops seeing ${assignmentLabel(current)} beneficiaries and starts on the new branch. Assessments they already started stay with them.`
+              : `${officer.fullName} will see beneficiaries registered in this branch.`}
+          </DialogDescription>
+        </DialogHeader>
+        {error ? <InlineAlert>{error}</InlineAlert> : null}
+        <BranchPicker value={branchId} onChange={setBranchId} exclude={current?.branchId ?? null} label="New branch" error={fieldErrors.branchId} />
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={() => void move()} disabled={isSaving || !branchId}>
+            {isSaving ? "Saving…" : current ? "Move" : "Assign"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

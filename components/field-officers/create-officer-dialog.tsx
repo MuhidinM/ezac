@@ -4,12 +4,7 @@ import { type FormEvent, useState } from "react";
 
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
-import {
-  EMPTY_SCOPE,
-  ScopePicker,
-  scopeBody,
-  type ScopeValue,
-} from "@/components/field-officers/scope-picker";
+import { BranchPicker } from "@/components/field-officers/branch-picker";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -38,7 +33,7 @@ export function CreateOfficerDialog({ open, onOpenChange, onCreated }: Props) {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [scope, setScope] = useState<ScopeValue>(EMPTY_SCOPE);
+  const [branchId, setBranchId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -47,7 +42,7 @@ export function CreateOfficerDialog({ open, onOpenChange, onCreated }: Props) {
     setFullName("");
     setPhone("");
     setEmail("");
-    setScope(EMPTY_SCOPE);
+    setBranchId("");
     setError(null);
     setFieldErrors({});
   }
@@ -62,7 +57,7 @@ export function CreateOfficerDialog({ open, onOpenChange, onCreated }: Props) {
       fullName: fullName.trim(),
       phone: normalizePhoneToE164(phone.trim()),
       email: email.trim(),
-      ...scopeBody(scope),
+      branchId,
     };
 
     try {
@@ -94,8 +89,8 @@ export function CreateOfficerDialog({ open, onOpenChange, onCreated }: Props) {
             <DialogTitle className="text-[#001539]">New field officer</DialogTitle>
             <DialogDescription>
               Creates a login for an assessment officer. They sign in with their
-              phone number and can only see beneficiaries in their assigned
-              branch or region.
+              phone number and work in one branch: they only see beneficiaries
+              registered there.
             </DialogDescription>
           </DialogHeader>
 
@@ -148,16 +143,13 @@ export function CreateOfficerDialog({ open, onOpenChange, onCreated }: Props) {
             </FormField>
           </div>
 
-          <div className="space-y-2">
-            <p className="text-[13px] font-medium text-[#001539]">Assignment</p>
-            <ScopePicker value={scope} onChange={setScope} allowNone errors={fieldErrors} />
-          </div>
+          <BranchPicker value={branchId} onChange={setBranchId} error={fieldErrors.branchId} hint="The one branch this officer works in. You can move them later." />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting || !branchId}>
               {isSubmitting ? "Creating…" : "Create officer"}
             </Button>
           </DialogFooter>
