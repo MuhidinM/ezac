@@ -550,7 +550,6 @@ function ResolveForm({ payment, onResolved }: { payment: ZakatPayment; onResolve
 type CertificateResult = {
   valid: boolean;
   certificateId: string;
-  payerName?: string | null;
   amountEtb?: number | null;
   zakatType?: string | null;
   paidAt?: string | null;
@@ -596,9 +595,8 @@ function CertificateCheck() {
               Valid certificate
             </p>
             <DetailList
-              columns={4}
+              columns={3}
               items={[
-                { label: "Payer", value: result.payerName },
                 { label: "Amount", value: formatEtb(result.amountEtb) },
                 { label: "Zakat type", value: result.zakatType?.replace(/_/g, " ") },
                 { label: "Paid", value: formatDateTime(result.paidAt ?? null) },

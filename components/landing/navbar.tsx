@@ -36,8 +36,8 @@ const MENU_ITEMS: MenuItem[] = [
       {
         label: "Live Dashboard",
         href: "/transparency/dashboard",
-        note: "Crucial for Phase 1",
       },
+      { label: "How It Works", href: "/how-it-works" },
       { label: "Impact Stories", href: "/transparency/stories" },
       { label: "Impact Reports", href: "/transparency/reports" },
     ],

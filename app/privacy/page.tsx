@@ -25,13 +25,14 @@ const SECTIONS = [
   {
     heading: "How we use your information",
     paragraphs: [
-      "We use your information to calculate your obligation, process and reconcile payments, verify beneficiaries, issue receipts, and report on impact. We do not sell your personal information.",
+      "We use your information to calculate your obligation, process and reconcile payments, assess households, issue certificates, and report on impact. We do not sell your personal information.",
     ],
   },
   {
-    heading: "Verification & national ID",
+    heading: "Households we support",
     paragraphs: [
-      "Beneficiary verification may use Fayda national ID integration to confirm eligibility and prevent fraud. Identity data is handled under strict access controls and used only for verification and disbursement.",
+      "When a household applies for support, our staff record what is needed to assess it: its members, income, assets, housing and health, and a bank account for payment. This information, the household's score and every decision about it are visible only to the staff who handle the case, and are never published.",
+      "Public figures on this website are totals. An impact story about a family is published only with their consent.",
     ],
   },
   {

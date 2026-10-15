@@ -17,17 +17,17 @@ const ITEMS: TrustItem[] = [
   {
     icon: TrendingUpIcon,
     label: "Live Nisab Pricing",
-    sub: "Refreshed every 60 seconds",
+    sub: "Gold and silver prices updated daily",
   },
   {
     icon: ShieldCheckIcon,
-    label: "Fayda ID Verified",
-    sub: "National ID integration",
+    label: "Assessed Households",
+    sub: "Visited, scored and approved at a branch",
   },
   {
     icon: WalletIcon,
-    label: "Mobile Money & Bank",
-    sub: "Telebirr · CBE · Visa",
+    label: "Pay by QR",
+    sub: "From any Ethiopian bank app",
   },
   {
     icon: LanguagesIcon,
@@ -64,11 +64,11 @@ export function TrustStrip() {
             </h2>
           </div>
           <a
-            href="/about/shariah-board"
+            href="/how-it-works"
             className="hidden text-sm transition-colors hover:text-[#001539] md:inline"
             style={{ color: "#6F6F6F" }}
           >
-            Read the standards →
+            See how it works →
           </a>
         </div>
 

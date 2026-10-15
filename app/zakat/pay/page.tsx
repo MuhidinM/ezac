@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import {
   Building2Icon,
-  CreditCardIcon,
+  QrCodeIcon,
   ReceiptIcon,
-  SmartphoneIcon,
+  ShieldCheckIcon,
 } from "lucide-react";
 import { SitePage } from "@/components/site/site-page";
 import {
@@ -17,33 +17,33 @@ import {
 export const metadata: Metadata = {
   title: "Pay Zakat Now — EZAC",
   description:
-    "Pay your Zakat securely through Telebirr, Cooperative Bank of Oromia, card, or bank transfer — every payment traced to the families it reaches.",
+    "Pay your Zakat by QR code from any Ethiopian bank app, straight into the Commission's account, and get a certificate anyone can verify.",
 };
 
 const CHANNELS = [
   {
-    icon: SmartphoneIcon,
-    title: "Telebirr & mobile money",
+    icon: QrCodeIcon,
+    title: "QR from any bank app",
     description:
-      "Pay instantly from your mobile wallet — the fastest option for donors inside Ethiopia.",
+      "Scan the QR code in the EZAC app with the mobile app of any Ethiopian bank. No card or wallet needed.",
   },
   {
     icon: Building2Icon,
-    title: "Bank transfer",
+    title: "Straight to the Commission",
     description:
-      "Direct settlement through Cooperative Bank of Oromia and other major Ethiopian banks.",
+      "The money goes directly into the Commission's account at Cooperative Bank of Oromia, with no intermediary holding it.",
   },
   {
-    icon: CreditCardIcon,
-    title: "Card payment",
+    icon: ShieldCheckIcon,
+    title: "Confirmed against the bank",
     description:
-      "Visa and Mastercard support for diaspora and online donors giving from anywhere.",
+      "Each payment is matched to the bank's own transaction record before it counts, and one transaction can confirm only one payment.",
   },
   {
     icon: ReceiptIcon,
     title: "Traceable receipt",
     description:
-      "Every payment issues a digital receipt you can follow on the live impact dashboard.",
+      "Every confirmed payment issues a numbered certificate that anyone can verify on the How it works page.",
   },
 ];
 
@@ -53,12 +53,12 @@ const STEPS = [
     body: "Use the Zakat calculator to find the exact amount due across all your assets.",
   },
   {
-    title: "Choose how to pay",
-    body: "Select mobile money, bank transfer, or card — whichever suits you best.",
+    title: "Scan the QR",
+    body: "In the EZAC app, choose the general fund or a cause, then scan the QR code with your bank app. It's valid for 30 minutes.",
   },
   {
-    title: "Confirm and track",
-    body: "Confirm your payment and follow exactly where it goes on the public dashboard.",
+    title: "Get your certificate",
+    body: "The payment is confirmed against the bank's record and you receive a numbered certificate you can verify any time.",
   },
 ];
 
@@ -73,8 +73,8 @@ export default function PayZakatPage() {
       <Section>
         <SectionHeading
           eyebrow="Ways to give"
-          title="Pay through the channel that suits you"
-          intro="All channels are operated on regulated payment infrastructure with full reconciliation."
+          title="Simple, bank-to-bank"
+          intro="Payments run through the national QR payment network and are reconciled with the bank."
         />
         <FeatureGrid items={CHANNELS} columns={2} />
       </Section>

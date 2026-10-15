@@ -10,8 +10,12 @@ export const metadata: Metadata = {
 
 const FAQS = [
   {
+    q: "How is it decided who receives Zakat?",
+    a: "By a published process: registration at a branch, a household assessment, a need score out of 270 points, a decision by the branch supervisor, and payment by head office. Emergencies can be fast-tracked with evidence. The 'How it works' page explains every step.",
+  },
+  {
     q: "What is Nisab and how is it set?",
-    a: "Nisab is the minimum wealth you must hold before Zakat is due. EZAC pegs it to the value of 595g of silver, refreshed from live market rates, because the silver threshold is lower and brings more people into the bracket that benefits the poor.",
+    a: "Nisab is the minimum wealth you must hold before Zakat is due: the value of 85 g of gold or 595 g of silver. The Commission's published rules say which one applies, and the calculator converts it to birr with gold and silver prices updated every morning. The 'How it works' page shows the rules in force today.",
   },
   {
     q: "Do I pay Zakat on gold jewellery I wear?",
@@ -19,11 +23,11 @@ const FAQS = [
   },
   {
     q: "How is my payment kept secure and traceable?",
-    a: "Payments run on regulated infrastructure with Cooperative Bank of Oromia and licensed providers. Every transaction issues a digital receipt and can be followed on the public live dashboard.",
+    a: "You pay by scanning a QR code with any Ethiopian bank app. The money goes straight into the Commission's account at Cooperative Bank of Oromia, the payment is matched to the bank's own record, and you get a numbered certificate anyone can verify on the 'How it works' page.",
   },
   {
     q: "How do you verify that funds reach the right people?",
-    a: "Beneficiaries are validated through Fayda national ID integration, and disbursements are independently audited to reduce fraud and ensure funds reach eligible recipients.",
+    a: "Each household is registered at a branch, checked for duplicates, visited by a field officer and scored against a published points table. The branch supervisor approves it, head office adds it to the pool, and support is paid only to a bank account checked with the bank. Every step is recorded.",
   },
   {
     q: "What is the difference between Zakat and Waqf?",
@@ -31,7 +35,7 @@ const FAQS = [
   },
   {
     q: "Can I give from outside Ethiopia?",
-    a: "Yes. Diaspora donors can pay by Visa or Mastercard, and every gift is traced and reported just like domestic contributions.",
+    a: "Payments currently go through Ethiopian bank apps by QR code. If you live abroad but hold an Ethiopian bank account with a mobile app, you can pay the same way.",
   },
 ];
 

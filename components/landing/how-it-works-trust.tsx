@@ -1,4 +1,4 @@
-import { BadgeCheckIcon, IdCardIcon, LockIcon } from "lucide-react";
+import { BadgeCheckIcon, ClipboardCheckIcon, LockIcon } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 type TrustStep = {
@@ -15,15 +15,15 @@ const TRUST_STEPS: TrustStep[] = [
     icon: BadgeCheckIcon,
   },
   {
-    title: "Fayda Verified Beneficiaries",
+    title: "Assessed, Scored Households",
     description:
-      "Aid disbursement targets validated recipients, reducing fraud and ensuring funds reach the right people.",
-    icon: IdCardIcon,
+      "Every household is visited, scored against a published points table and approved at its branch before head office pays it by bank transfer.",
+    icon: ClipboardCheckIcon,
   },
   {
-    title: "Immutable Audit Logs",
+    title: "Bank-Verified, Audited",
     description:
-      "Critical events are logged with tamper-evident records for transparent and secure accountability.",
+      "Payments in are matched to bank transactions, payouts go only to bank-checked accounts, and every change is logged.",
     icon: LockIcon,
   },
 ];
@@ -93,6 +93,14 @@ export function HowItWorksTrust() {
               </article>
             ))}
           </div>
+        </div>
+        <div className="relative mt-10 text-center">
+          <a
+            href="/how-it-works"
+            className="inline-flex items-center gap-2 rounded-full border border-white/40 px-7 py-3.5 text-sm text-white transition-colors hover:bg-white/10"
+          >
+            See the full process →
+          </a>
         </div>
       </div>
     </section>

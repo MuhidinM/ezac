@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getApiBaseUrl } from "@/lib/api/config";
 
-/** Public zakat certificate check: `{ valid, certificateId, payerName, amountEtb, zakatType, paidAt }`. */
+/** Public zakat certificate check: `{ valid, certificateId, amountEtb, zakatType, paidAt }` (payer name removed). */
 export async function GET(_request: Request, { params }: { params: Promise<{ certificateId: string }> }) {
   const { certificateId } = await params;
   if (!/^[A-Za-z0-9-]{1,64}$/.test(certificateId)) {
@@ -17,7 +17,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cer
     if (!body) {
       return NextResponse.json({ success: false, message: "Couldn't check the certificate." }, { status: upstream.status || 502 });
     }
-    return NextResponse.json(body, { status: upstream.status });
+    // The site never shows who paid; drop the name before it reaches the browser.
+    const envelope = body as { data?: Record<string, unknown> | null };
+    if (envelope.data && typeof envelope.data === "object") delete envelope.data.payerName;
+    return NextResponse.json(envelope, { status: upstream.status });
   } catch {
     return NextResponse.json({ success: false, message: "Couldn't reach the payment service." }, { status: 502 });
   }
