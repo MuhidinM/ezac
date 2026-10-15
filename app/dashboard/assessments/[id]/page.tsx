@@ -169,7 +169,7 @@ function AssessmentDetail() {
             onDone={(updated, message) => onActionDone(message)(updated)}
           />
           <SignOffTimeline assessment={assessment} />
-          <WhitelistPanel beneficiaryId={assessment.beneficiaryId} />
+          <WhitelistPanel beneficiaryId={assessment.beneficiaryId} beneficiaryName={assessment.applicant?.fullName} />
         </div>
       </div>
     </section>

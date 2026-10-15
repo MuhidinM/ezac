@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { RefreshCw } from "lucide-react";
+import { Plus, RefreshCw } from "lucide-react";
 
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { ListPagination } from "@/components/dashboard/list-pagination";
@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { Panel } from "@/components/dashboard/panel";
 import { RequireRole } from "@/components/dashboard/require-role";
 import { WHITELIST_STATUS, WhitelistEntryCard } from "@/components/whitelist/whitelist-entry-card";
+import { WhitelistFormDialog } from "@/components/whitelist/whitelist-form-dialog";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import type { WhitelistEntry, WhitelistStatus } from "@/lib/api/backoffice-types";
@@ -34,6 +35,7 @@ function WhitelistQueue() {
   const [effect, setEffect] = useState("");
   const [page, setPage] = useState(1);
   const [notice, setNotice] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   const params = new URLSearchParams({ status, page: String(page), limit: String(PAGE_SIZE) });
   if (effect) params.set("effect", effect);
@@ -46,16 +48,36 @@ function WhitelistQueue() {
     <section className="space-y-6">
       <PageHeader
         title="Whitelist"
-        description="Requests from field officers and branches to mark a household Fast track (emergency) or Priority (long-term need). Oldest requests first. You can't decide on a request you made."
+        description="Households marked Fast track (emergency) or Priority (long-term need). Field officers and branches send requests for you to decide; you can also add a household directly. It changes the pool order, never the score."
         actions={
-          <Button variant="outline" onClick={reload} disabled={isLoading}>
-            <RefreshCw />
-            Refresh
-          </Button>
+          <>
+            <Button variant="outline" onClick={reload} disabled={isLoading}>
+              <RefreshCw />
+              Refresh
+            </Button>
+            <Button onClick={() => setAddOpen(true)}>
+              <Plus />
+              Add household
+            </Button>
+          </>
         }
       />
 
       {notice ? <InlineAlert tone="success">{notice}</InlineAlert> : null}
+
+      <WhitelistFormDialog
+        key={addOpen ? "open" : "closed"}
+        mode="admin"
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        onSaved={(entry) => {
+          setAddOpen(false);
+          setNotice(`${entry.beneficiaryName ?? "Household"} added to the whitelist.`);
+          setStatus(entry.status);
+          setPage(1);
+          reload();
+        }}
+      />
 
       <Panel flush>
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/[0.06] px-3 pt-2">

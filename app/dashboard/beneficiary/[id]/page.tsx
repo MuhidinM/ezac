@@ -280,7 +280,7 @@ export default function BeneficiaryDetailPage() {
         </div>
 
         <div className="space-y-6">
-          {!isInstitution ? <WhitelistPanel beneficiaryId={beneficiary.id} /> : null}
+          {!isInstitution ? <WhitelistPanel beneficiaryId={beneficiary.id} beneficiaryName={beneficiary.fullName} /> : null}
           {!isInstitution && session?.isStaff ? (
             <LifecyclePanel
               beneficiaryId={beneficiary.id}
