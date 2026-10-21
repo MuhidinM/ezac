@@ -50,7 +50,7 @@ export function EthqrTransactions({ range }: { range: RangeKey }) {
     from: `${from}T00:00:00`,
     to: `${to}T23:59:59`,
   });
-  const { data, error, isLoading } = useResource<EthqrPage>(`/api/payments-admin/ethqr/transactions?${params}`);
+  const { data, error, isLoading } = useResource<EthqrPage>(`/bff/payments-admin/ethqr/transactions?${params}`);
   const rows = data?.content ?? [];
   const columns = [...new Set(rows.flatMap((row) => Object.keys(row)))].slice(0, MAX_COLUMNS);
   const notRegistered = error?.status === 409;

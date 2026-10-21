@@ -47,7 +47,7 @@ export default function BeneficiaryDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { session } = useSession();
   const { data: beneficiary, error, isLoading, reload, mutate } = useResource<BeneficiaryDetail>(
-    `/api/beneficiaries/${encodeURIComponent(id)}`,
+    `/bff/beneficiaries/${encodeURIComponent(id)}`,
   );
 
   const [isEditingInstitution, setIsEditingInstitution] = useState(false);
@@ -104,7 +104,7 @@ export default function BeneficiaryDetailPage() {
             {beneficiary.hasProfilePicture ? (
               // eslint-disable-next-line @next/next/no-img-element -- authenticated BFF image stream
               <img
-                src={`/api/beneficiaries/${beneficiary.id}/profile-picture`}
+                src={`/bff/beneficiaries/${beneficiary.id}/profile-picture`}
                 alt=""
                 className="size-10 rounded-full border border-black/10 object-cover"
               />
@@ -359,7 +359,7 @@ function VerificationDialog({
     setError(null);
     try {
       const updated = await apiClient<BeneficiaryDetail>(
-        `/api/beneficiaries/${beneficiary.id}/verification`,
+        `/bff/beneficiaries/${beneficiary.id}/verification`,
         {
           method: "PATCH",
           body: JSON.stringify({ verificationStatus: action, reason: reason.trim() || undefined }),

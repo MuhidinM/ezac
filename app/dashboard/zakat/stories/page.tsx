@@ -33,7 +33,7 @@ export default function StoriesAdminPage() {
 
 function StoriesAdmin() {
   // Plain array of all states, newest first.
-  const { data, error, isLoading } = useResource<AdminStory[]>("/api/zakat-admin/impact/stories");
+  const { data, error, isLoading } = useResource<AdminStory[]>("/bff/zakat-admin/impact/stories");
   const stories = data ?? [];
 
   return (

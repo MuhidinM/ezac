@@ -25,7 +25,7 @@ export default async function ImpactStoryPage({ params }: { params: Promise<{ id
       <Section>
         <article className="mx-auto max-w-3xl space-y-8">
           {image ? (
-            // eslint-disable-next-line @next/next/no-img-element -- served by the zakat service via /api/media
+            // eslint-disable-next-line @next/next/no-img-element -- served by the zakat service via /bff/media
             <img src={image} alt="" className="aspect-16/9 w-full rounded-3xl object-cover" />
           ) : null}
           {/* Plain text from the admin; line breaks kept, never rendered as HTML. */}

@@ -40,7 +40,7 @@ function WhitelistQueue() {
   const params = new URLSearchParams({ status, page: String(page), limit: String(PAGE_SIZE) });
   if (effect) params.set("effect", effect);
   const { data, error, isLoading, reload } = useResource<PaginatedItems<WhitelistEntry>>(
-    `/api/backoffice/admin/whitelist?${params.toString()}`,
+    `/bff/backoffice/admin/whitelist?${params.toString()}`,
   );
   const rows = data?.items ?? [];
 

@@ -106,7 +106,7 @@ export default function ZakatSettingsPage() {
 }
 
 function PaymentSettingsPanel() {
-  const { data, error, mutate, reload } = useResource<PaymentSettings>("/api/payments-admin/payment-settings");
+  const { data, error, mutate, reload } = useResource<PaymentSettings>("/bff/payments-admin/payment-settings");
   // Keyed on updatedAt so the form re-initialises after a save.
   return (
     <>
@@ -159,7 +159,7 @@ function PaymentSettingsForm({ settings, onSaved }: { settings: PaymentSettings;
     setMessage(null);
     setFieldErrors({});
     try {
-      const saved = await apiClient<PaymentSettings>("/api/payments-admin/payment-settings", {
+      const saved = await apiClient<PaymentSettings>("/bff/payments-admin/payment-settings", {
         method: "PUT",
         body: JSON.stringify({
           creditAccountNumber: account.trim() || null,
@@ -269,7 +269,7 @@ function PaymentSettingsForm({ settings, onSaved }: { settings: PaymentSettings;
 }
 
 function EthqrPanel({ onRegistered }: { onRegistered: () => void }) {
-  const { data, error, mutate } = useResource<EthqrMerchant>("/api/payments-admin/ethqr/merchant");
+  const { data, error, mutate } = useResource<EthqrMerchant>("/bff/payments-admin/ethqr/merchant");
   const [open, setOpen] = useState(false);
   const notRegistered = !data && (error?.status === 404 || error?.status === 409);
 
@@ -340,7 +340,7 @@ function EthqrRegisterDialog({ onClose, onRegistered }: { onClose: () => void; o
     setIsSaving(true);
     try {
       const optional = (value: string) => value.trim() || undefined;
-      const merchant = await apiClient<EthqrMerchant>("/api/payments-admin/ethqr/merchant", {
+      const merchant = await apiClient<EthqrMerchant>("/bff/payments-admin/ethqr/merchant", {
         method: "POST",
         body: JSON.stringify({
           phoneNumber: form.phoneNumber.trim(),
@@ -423,7 +423,7 @@ function EthqrRegisterDialog({ onClose, onRegistered }: { onClose: () => void; o
 }
 
 function HomeFiguresPanel() {
-  const { data, error, mutate } = useResource<HomeAdjustment>("/api/zakat-admin/home/adjustment");
+  const { data, error, mutate } = useResource<HomeAdjustment>("/bff/zakat-admin/home/adjustment");
   return (
     <Panel
       title="Home figures (offline)"
@@ -448,7 +448,7 @@ function HomeFiguresForm({ adjustment, onSaved }: { adjustment: HomeAdjustment; 
     setError(null);
     try {
       onSaved(
-        await apiClient<HomeAdjustment>("/api/zakat-admin/home/adjustment", {
+        await apiClient<HomeAdjustment>("/bff/zakat-admin/home/adjustment", {
           method: "PUT",
           body: JSON.stringify({
             offlineCollectedEtb: Number(collected || 0),
@@ -494,7 +494,7 @@ function HomeFiguresForm({ adjustment, onSaved }: { adjustment: HomeAdjustment; 
 }
 
 function FitrSeasonsPanel() {
-  const { data, error, reload } = useResource<FitrSeason[]>("/api/zakat-admin/zakat-al-fitr");
+  const { data, error, reload } = useResource<FitrSeason[]>("/bff/zakat-admin/zakat-al-fitr");
   const [editing, setEditing] = useState<FitrSeason | "new" | null>(null);
   const seasons = data ?? [];
 
@@ -586,7 +586,7 @@ function FitrSeasonDialog({ season, onClose, onSaved }: { season: FitrSeason | n
     setError(null);
     setFieldErrors({});
     try {
-      await apiClient(`/api/zakat-admin/zakat-al-fitr/${encodeURIComponent(year.trim())}`, {
+      await apiClient(`/bff/zakat-admin/zakat-al-fitr/${encodeURIComponent(year.trim())}`, {
         method: "PUT",
         body: JSON.stringify({ startsOn, dueBy, perPersonAmountEtb: Number(amount), basis: basis.trim() || undefined }),
       });

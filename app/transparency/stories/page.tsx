@@ -36,7 +36,7 @@ export default async function ImpactStoriesPage() {
                 <article key={story.id} className="group relative flex flex-col overflow-hidden rounded-3xl border border-black/5 bg-white shadow-xl shadow-black/5">
                   <div className="aspect-16/10 w-full overflow-hidden bg-[#007050]/[0.06]">
                     {image ? (
-                      // eslint-disable-next-line @next/next/no-img-element -- served by the zakat service via /api/media
+                      // eslint-disable-next-line @next/next/no-img-element -- served by the zakat service via /bff/media
                       <img src={image} alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.02]" loading="lazy" />
                     ) : null}
                   </div>

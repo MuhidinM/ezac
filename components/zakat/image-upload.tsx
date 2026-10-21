@@ -16,7 +16,7 @@ async function upload(file: File): Promise<MediaRef> {
   if (file.size > MAX_IMAGE_BYTES) throw new Error("Images must be 5 MB or smaller.");
   const body = new FormData();
   body.append("file", file);
-  const media = await apiClient<UploadedMedia>("/api/zakat-admin/media", { method: "POST", body });
+  const media = await apiClient<UploadedMedia>("/bff/zakat-admin/media", { method: "POST", body });
   return { id: String(media.id), url: media.url };
 }
 

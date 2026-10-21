@@ -29,7 +29,7 @@ export default function BranchDetailPage() {
 
 function BranchDetail() {
   const { id } = useParams<{ id: string }>();
-  const path = `/api/admin/branches/${encodeURIComponent(id)}`;
+  const path = `/bff/admin/branches/${encodeURIComponent(id)}`;
   const { data: branch, error, isLoading, reload, mutate } = useResource<Branch>(path);
   const [confirmToggle, setConfirmToggle] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -86,7 +86,7 @@ function BranchDetail() {
               Edit
             </Button>
             <ResetPasswordButton
-              path={`/api/backoffice/admin/branches/${encodeURIComponent(branch.id)}/reset-password`}
+              path={`/bff/backoffice/admin/branches/${encodeURIComponent(branch.id)}/reset-password`}
               login={branch.branchPhone ?? ""}
               recipient="branch officer"
             />
@@ -127,7 +127,7 @@ function BranchDetail() {
         listPath={`${path}/codes`}
         generatePath={`${path}/codes`}
         linkBeneficiaries
-        revokeBasePath={`/api/backoffice/admin/branches/${encodeURIComponent(branch.id)}/codes`}
+        revokeBasePath={`/bff/backoffice/admin/branches/${encodeURIComponent(branch.id)}/codes`}
         onGenerated={reload}
       />
     </section>

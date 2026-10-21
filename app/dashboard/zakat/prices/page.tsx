@@ -62,13 +62,13 @@ export default function PricesPage() {
 function Prices() {
   const [range, setRange] = useState<RangeKey>("90d");
   const [page, setPage] = useState(1);
-  const config = useResource<CalculatorConfig>("/api/zakat/calculator-config");
+  const config = useResource<CalculatorConfig>("/bff/zakat/calculator-config");
   const history = useResource<PaginatedItems<PriceRecord>>(
-    `/api/zakat-admin/prices/history?${rangeQuery(range)}&page=${page}&limit=${PAGE_SIZE}`,
+    `/bff/zakat-admin/prices/history?${rangeQuery(range)}&page=${page}&limit=${PAGE_SIZE}`,
   );
   // The chart reads up to 100 points so it isn't limited to the table page.
   const chart = useResource<PaginatedItems<PriceRecord>>(
-    `/api/zakat-admin/prices/history?${rangeQuery(range)}&page=1&limit=100`,
+    `/bff/zakat-admin/prices/history?${rangeQuery(range)}&page=1&limit=100`,
   );
 
   const c = config.data;

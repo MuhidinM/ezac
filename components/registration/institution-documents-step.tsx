@@ -81,7 +81,7 @@ export function InstitutionDocumentsStep() {
 
     try {
       const data = await registerApiFormData<UploadDocumentResponse>(
-        `/api/register/companies/${companyId}/documents`,
+        `/bff/register/companies/${companyId}/documents`,
         formData,
         { "X-Company-Upload-Token": uploadToken },
       );

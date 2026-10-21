@@ -33,7 +33,7 @@ export function ChangePasswordForm() {
     setIsSubmitting(true);
 
     try {
-      await apiClient<unknown>("/api/auth/me/password", {
+      await apiClient<unknown>("/bff/auth/me/password", {
         method: "POST",
         body: JSON.stringify({
           currentPassword,

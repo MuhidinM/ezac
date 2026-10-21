@@ -54,7 +54,7 @@ function Branches() {
   if (region) params.set("region", region);
   if (active) params.set("active", active);
   const { data, error, isLoading, reload } = useResource<PaginatedItems<BranchListItem>>(
-    `/api/backoffice/admin/branches?${params.toString()}`,
+    `/bff/backoffice/admin/branches?${params.toString()}`,
   );
   const rows = data?.items ?? [];
   const query = search || region || active;

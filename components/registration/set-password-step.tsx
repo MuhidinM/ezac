@@ -76,7 +76,7 @@ export function SetPasswordStep({
     setIsSubmitting(true);
 
     try {
-      await registerApiJson<null>("/api/register/set-password", {
+      await registerApiJson<null>("/bff/register/set-password", {
         method: "POST",
         headers: {
           "X-Password-Setup-Token": session.passwordSetupToken,

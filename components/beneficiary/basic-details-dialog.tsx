@@ -154,7 +154,7 @@ export function BasicDetailsDialog({
 
     try {
       const updated = await apiClient<BeneficiaryDetail>(
-        `/api/beneficiaries/${encodeURIComponent(beneficiaryId)}`,
+        `/bff/beneficiaries/${encodeURIComponent(beneficiaryId)}`,
         { method: "PATCH", body: JSON.stringify(changed) },
       );
       onSaved(updated);

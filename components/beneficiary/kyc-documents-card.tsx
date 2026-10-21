@@ -41,7 +41,7 @@ export function KycDocumentsCard({ beneficiaryId }: { beneficiaryId: string }) {
       setError(null);
       try {
         const data = await apiClient<DocumentsResponse>(
-          `/api/beneficiaries/${beneficiaryId}/institution-documents`,
+          `/bff/beneficiaries/${beneficiaryId}/institution-documents`,
         );
         if (!cancelled) setDocuments(normalizeDocuments(data));
       } catch (loadError) {
@@ -96,7 +96,7 @@ export function KycDocumentsCard({ beneficiaryId }: { beneficiaryId: string }) {
               DOCUMENT_LABELS[code] ||
               code.replaceAll("_", " ");
             const uploaded = doc.uploaded !== false;
-            const href = `/api/beneficiaries/${beneficiaryId}/institution-documents/${encodeURIComponent(code)}`;
+            const href = `/bff/beneficiaries/${beneficiaryId}/institution-documents/${encodeURIComponent(code)}`;
 
             return (
               <li

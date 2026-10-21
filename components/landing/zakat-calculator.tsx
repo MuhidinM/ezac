@@ -357,7 +357,7 @@ export function ZakatCalculator() {
 
   useEffect(() => {
     let isMounted = true;
-    fetch("/api/zakat/calculator-config")
+    fetch("/bff/zakat/calculator-config")
       .then(async (response) => {
         const json = (await response.json().catch(() => null)) as {
           success?: boolean;

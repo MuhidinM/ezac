@@ -36,7 +36,7 @@ import { formatDateTime } from "@/lib/beneficiary/format";
 import { ETHIOPIAN_REGIONS } from "@/lib/constants/regions";
 import { cn } from "@/lib/utils";
 
-const API = "/api/backoffice/admin/pool";
+const API = "/bff/backoffice/admin/pool";
 const PAGE_SIZE = 25;
 
 type View = "awaiting" | "pooled";
@@ -127,7 +127,7 @@ function Pool() {
   const path = view === "awaiting" ? `${API}/awaiting` : API;
   const { data, error, isLoading, reload } = useResource<PaginatedItems<PoolEntry>>(`${path}?${params.toString()}`);
   const { data: branches } = useResource<PaginatedItems<BranchListItem>>(
-    showFilters ? "/api/admin/branches?page=1&limit=100" : null,
+    showFilters ? "/bff/admin/branches?page=1&limit=100" : null,
   );
 
   const rows = useMemo(() => data?.items ?? [], [data]);

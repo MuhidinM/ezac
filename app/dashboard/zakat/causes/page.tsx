@@ -46,7 +46,7 @@ export default function CausesAdminPage() {
 function CausesAdmin() {
   const [tab, setTab] = useState<CauseStatus | "ALL">("ALL");
   const { data, error, isLoading } = useResource<PaginatedItems<AdminCause> | AdminCause[]>(
-    `/api/zakat-admin/causes${tab === "ALL" ? "" : `?status=${tab}`}`,
+    `/bff/zakat-admin/causes${tab === "ALL" ? "" : `?status=${tab}`}`,
   );
   const causes = Array.isArray(data) ? data : (data?.items ?? []);
 

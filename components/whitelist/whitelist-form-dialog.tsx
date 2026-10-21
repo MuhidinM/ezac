@@ -28,10 +28,10 @@ import { cn } from "@/lib/utils";
 const ACCEPTED = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
 
 /** ADMIN adds directly (active at once); field officers and branches send a request ADMIN decides on. */
-export const ADMIN_WHITELIST_PATH = "/api/backoffice/admin/whitelist";
+export const ADMIN_WHITELIST_PATH = "/bff/backoffice/admin/whitelist";
 
 export function requestPath(beneficiaryId: string) {
-  return `/api/backoffice/beneficiaries/${encodeURIComponent(beneficiaryId)}/whitelist`;
+  return `/bff/backoffice/beneficiaries/${encodeURIComponent(beneficiaryId)}/whitelist`;
 }
 
 type Picked = { id: string; name: string };
@@ -41,7 +41,7 @@ function BeneficiaryPicker({ value, onChange }: { value: Picked | null; onChange
   const [draft, setDraft] = useState("");
   const [query, setQuery] = useState("");
   const { data, isLoading } = useResource<PaginatedItems<BeneficiaryListItem>>(
-    query.length >= 2 ? `/api/backoffice/beneficiaries?search=${encodeURIComponent(query)}&page=1&limit=8` : null,
+    query.length >= 2 ? `/bff/backoffice/beneficiaries?search=${encodeURIComponent(query)}&page=1&limit=8` : null,
   );
 
   if (value) {

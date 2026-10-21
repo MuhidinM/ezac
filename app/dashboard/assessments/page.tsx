@@ -134,13 +134,13 @@ function AssessmentsView() {
   }
 
   const { data, error, isLoading, reload } = useResource<PaginatedItems<AssessmentListItem>>(
-    `/api/backoffice/assessments?${params.toString()}`,
+    `/bff/backoffice/assessments?${params.toString()}`,
   );
   const { data: branches } = useResource<PaginatedItems<BranchListItem>>(
-    isAdmin && showFilters ? "/api/admin/branches?page=1&limit=100" : null,
+    isAdmin && showFilters ? "/bff/admin/branches?page=1&limit=100" : null,
   );
   const { data: officers } = useResource<PaginatedItems<FieldOfficer>>(
-    isAdmin && showFilters ? "/api/backoffice/admin/field-officers?page=1&limit=100" : null,
+    isAdmin && showFilters ? "/bff/backoffice/admin/field-officers?page=1&limit=100" : null,
   );
 
   const officer = isFieldOfficer(session);

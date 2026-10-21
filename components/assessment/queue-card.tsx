@@ -27,7 +27,7 @@ export function QueueCard({
   icon: LucideIcon;
 }) {
   const { data, error } = useResource<PaginatedItems<unknown>>(
-    countPath ?? `/api/backoffice/assessments?status=${status}&page=1&limit=1`,
+    countPath ?? `/bff/backoffice/assessments?status=${status}&page=1&limit=1`,
   );
   const total = data?.pagination.totalItems;
 

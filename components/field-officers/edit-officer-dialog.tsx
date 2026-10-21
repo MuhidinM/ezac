@@ -50,7 +50,7 @@ export function EditOfficerDialog({
     setFieldErrors({});
     try {
       const updated = await apiClient<FieldOfficer>(
-        `/api/backoffice/admin/field-officers/${encodeURIComponent(officer.id)}`,
+        `/bff/backoffice/admin/field-officers/${encodeURIComponent(officer.id)}`,
         { method: "PATCH", body: JSON.stringify(body) },
       );
       onSaved({ ...officer, ...updated });

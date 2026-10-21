@@ -39,7 +39,7 @@ const etb = new Intl.NumberFormat("en-ET", { maximumFractionDigits: 0 });
  * from the active one with only these prices changed, and activates it.
  */
 export function LivestockPricesPanel({ onChanged }: { onChanged?: () => void }) {
-  const { data, error, mutate } = useResource<RulesVersion>("/api/zakat-admin/calculator-configs/active");
+  const { data, error, mutate } = useResource<RulesVersion>("/bff/zakat-admin/calculator-configs/active");
   return (
     <Panel
       title="Livestock prices"
@@ -81,7 +81,7 @@ function LivestockForm({ active, onSaved }: { active: RulesVersion; onSaved: (ve
     const livestockAverageUnitPriceEtb = Object.fromEntries(ANIMALS.map(({ key }) => [key, Number(prices[key])]));
     const today = new Date().toLocaleDateString("en", { dateStyle: "medium" });
     try {
-      const created = await apiClient<RulesVersion>("/api/zakat-admin/calculator-configs", {
+      const created = await apiClient<RulesVersion>("/bff/zakat-admin/calculator-configs", {
         method: "POST",
         body: JSON.stringify({
           name: (note.trim() || `Livestock prices ${today}`).slice(0, 160),

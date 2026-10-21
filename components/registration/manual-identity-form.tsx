@@ -112,7 +112,7 @@ export function ManualIdentityForm() {
     body.append("data", new Blob([JSON.stringify(data)], { type: "application/json" }));
 
     try {
-      const created = await apiClient<CreateBeneficiaryResponse>("/api/backoffice/staff/beneficiaries", {
+      const created = await apiClient<CreateBeneficiaryResponse>("/bff/backoffice/staff/beneficiaries", {
         method: "POST",
         body,
       });

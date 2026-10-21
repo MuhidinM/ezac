@@ -25,7 +25,7 @@ export const WHITELIST_STATUS: Record<WhitelistStatus, { label: string; tone: Ba
 /** Upstream evidence URL → our authenticated proxy. */
 export function evidenceUrl(contentUrl: string | null | undefined, entryId: string, evidenceId: string) {
   const path = contentUrl?.replace(/^.*\/api\/beneficiaries\/v1\//, "") ?? `whitelist-entries/${entryId}/evidence/${evidenceId}/content`;
-  return `/api/backoffice/${path}`;
+  return `/bff/backoffice/${path}`;
 }
 
 type Decision = "approve" | "reject" | "revoke";
@@ -167,7 +167,7 @@ export function WhitelistEntryCard({
         onConfirm={async () => {
           if (!decision || !copy) return;
           const updated = await apiClient<WhitelistEntry>(
-            `/api/backoffice/admin/whitelist/${encodeURIComponent(entry.id)}/${decision}`,
+            `/bff/backoffice/admin/whitelist/${encodeURIComponent(entry.id)}/${decision}`,
             { method: "POST", body: JSON.stringify(text.trim() ? { [copy.field]: text.trim() } : {}) },
           );
           setText("");

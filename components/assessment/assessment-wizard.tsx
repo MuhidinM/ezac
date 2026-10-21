@@ -38,7 +38,7 @@ import {
 } from "@/lib/backoffice/assessment-steps";
 
 function apiPath(id: string) {
-  return `/api/backoffice/assessments/${encodeURIComponent(id)}`;
+  return `/bff/backoffice/assessments/${encodeURIComponent(id)}`;
 }
 
 function humanMessage(message: string) {

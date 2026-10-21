@@ -21,7 +21,7 @@ import { ApiError, errorMessage, fieldErrorMap } from "@/lib/api/errors";
 import { useResource } from "@/lib/api/use-resource";
 import { type AdminStory, CONTENT_CATEGORIES } from "@/lib/zakat/content";
 
-const API = "/api/zakat-admin/impact/stories";
+const API = "/bff/zakat-admin/impact/stories";
 
 type Form = {
   title: string;
@@ -119,7 +119,7 @@ function StoryForm({
   onChanged?: () => void;
 }) {
   const router = useRouter();
-  const regions = useResource<{ code: string; name: string }[]>("/api/zakat-admin/impact/regions");
+  const regions = useResource<{ code: string; name: string }[]>("/bff/zakat-admin/impact/regions");
   const [form, setForm] = useState<Form>(initial);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});

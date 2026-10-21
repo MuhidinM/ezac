@@ -51,7 +51,7 @@ export function NavUser() {
   const subtitle = session ? roleLabel(session) : "Signed in";
 
   async function onLogout() {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await fetch("/bff/auth/logout", { method: "POST" });
     clearSessionCache();
     router.push("/login");
     router.refresh();

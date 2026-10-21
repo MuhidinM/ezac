@@ -85,7 +85,7 @@ export function StepSubmit({
     };
     try {
       const submitted = await apiClient<Assessment>(
-        `/api/backoffice/assessments/${encodeURIComponent(assessment.id)}/submit`,
+        `/bff/backoffice/assessments/${encodeURIComponent(assessment.id)}/submit`,
         { method: "POST", body: JSON.stringify(body) },
       );
       onSubmitted(submitted);

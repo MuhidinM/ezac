@@ -44,7 +44,7 @@ export function LifecyclePanel({
   canChange: boolean;
   onChanged: (status: LifecycleStatus) => void;
 }) {
-  const path = `/api/backoffice/beneficiaries/${encodeURIComponent(beneficiaryId)}/lifecycle`;
+  const path = `/bff/backoffice/beneficiaries/${encodeURIComponent(beneficiaryId)}/lifecycle`;
   const { data, error, mutate } = useResource<LifecycleHistory>(path);
   const [open, setOpen] = useState(false);
   const [action, setAction] = useState<LifecycleAction | "">("");

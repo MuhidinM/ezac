@@ -19,7 +19,7 @@ export function BranchSelectStep() {
   const router = useRouter();
   // Branches the signed-in user may register into: all active ones for ADMIN,
   // their own for BRANCH, assigned branches and regions for field officers.
-  const { data, error, isLoading, reload } = useResource<StaffMe>("/api/backoffice/staff/me");
+  const { data, error, isLoading, reload } = useResource<StaffMe>("/bff/backoffice/staff/me");
   const [search, setSearch] = useState("");
   const [region, setRegion] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);

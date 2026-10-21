@@ -30,7 +30,7 @@ type RulesVersion = {
 
 type RulesSchema = { fields: SchemaField[]; rules: string[] };
 
-const BASE = "/api/zakat-admin/calculator-configs";
+const BASE = "/bff/zakat-admin/calculator-configs";
 
 export default function CalculatorRulesPage() {
   return (

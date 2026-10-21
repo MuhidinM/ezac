@@ -81,7 +81,7 @@ export function BeneficiaryEditForm({
 
     try {
       const updated = await apiClient<BeneficiaryDetail>(
-        `/api/beneficiaries/${beneficiary.id}`,
+        `/bff/beneficiaries/${beneficiary.id}`,
         {
           method: "PATCH",
           body: JSON.stringify(body),

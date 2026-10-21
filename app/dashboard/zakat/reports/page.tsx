@@ -37,7 +37,7 @@ import { formatBytes } from "@/lib/backoffice/format";
 import { formatDateTime } from "@/lib/beneficiary/format";
 import { mediaSrc } from "@/lib/zakat/content";
 
-const API = "/api/zakat-admin/impact/reports";
+const API = "/bff/zakat-admin/impact/reports";
 const MAX_BYTES = 20 * 1024 * 1024;
 
 type AdminReport = {
@@ -246,7 +246,7 @@ function ReportDialog({
       if (file) {
         const body = new FormData();
         body.append("file", file);
-        const media = await apiClient<{ id: string; url: string }>("/api/zakat-admin/media/documents", {
+        const media = await apiClient<{ id: string; url: string }>("/bff/zakat-admin/media/documents", {
           method: "POST",
           body,
         });

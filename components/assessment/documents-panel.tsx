@@ -17,7 +17,7 @@ const ACCEPTED = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
 const MAX_BYTES = 5 * 1024 * 1024;
 
 export function documentUrl(assessmentId: string, documentId: string, download = false) {
-  return `/api/backoffice/assessments/${encodeURIComponent(assessmentId)}/documents/${encodeURIComponent(documentId)}/content?download=${download}`;
+  return `/bff/backoffice/assessments/${encodeURIComponent(assessmentId)}/documents/${encodeURIComponent(documentId)}/content?download=${download}`;
 }
 
 export function DocumentsList({
@@ -102,7 +102,7 @@ export function DocumentUploader({
     setIsUploading(true);
     try {
       const document = await apiClient<AssessmentDocument>(
-        `/api/backoffice/assessments/${encodeURIComponent(assessmentId)}/documents`,
+        `/bff/backoffice/assessments/${encodeURIComponent(assessmentId)}/documents`,
         { method: "POST", body },
       );
       onUploaded(document);

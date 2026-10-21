@@ -63,7 +63,7 @@ import { formatDateTime } from "@/lib/beneficiary/format";
 import { ETHIOPIAN_REGIONS } from "@/lib/constants/regions";
 import { cn } from "@/lib/utils";
 
-const API = "/api/backoffice/analytics";
+const API = "/bff/backoffice/analytics";
 
 const LIFECYCLE_LABELS: Record<LifecycleStatus, string> = {
   PENDING_ASSESSMENT: "Pending assessment",
@@ -154,7 +154,7 @@ export default function DashboardHomePage() {
       {isAdmin ? (
         <div className="grid gap-4 md:grid-cols-2">
           <QueueCard
-            countPath="/api/backoffice/admin/pool/awaiting?page=1&limit=1"
+            countPath="/bff/backoffice/admin/pool/awaiting?page=1&limit=1"
             href="/dashboard/pool"
             title="Awaiting disbursement pool"
             description="Approved by branches, not yet pooled"

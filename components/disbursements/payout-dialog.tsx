@@ -32,7 +32,7 @@ import {
   RAIL_LABEL,
 } from "@/lib/zakat/disbursements";
 
-const API = "/api/payments-admin/disbursements";
+const API = "/bff/payments-admin/disbursements";
 
 function describeError(error: unknown, fallback: string) {
   if (!(error instanceof ApiError)) return { text: fallback, existingId: null as string | null };

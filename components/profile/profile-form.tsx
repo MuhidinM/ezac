@@ -23,7 +23,7 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export function ProfileForm() {
-  const { data: profile, error, isLoading, reload } = useResource<MeProfile>("/api/auth/me");
+  const { data: profile, error, isLoading, reload } = useResource<MeProfile>("/bff/auth/me");
 
   if (isLoading && !profile) {
     return <div className="h-64 animate-pulse rounded-xl bg-black/[0.04]" />;
@@ -60,7 +60,7 @@ function AccountDetails({ profile, onSaved }: { profile: MeProfile; onSaved: () 
     setMessage(null);
     setIsSaving(true);
     try {
-      await apiClient<MeProfile>("/api/auth/me", {
+      await apiClient<MeProfile>("/bff/auth/me", {
         method: "PATCH",
         body: JSON.stringify({ displayName: displayName.trim(), phone: phone.trim() }),
       });
@@ -135,7 +135,7 @@ function ChangePassword() {
     }
     setIsSaving(true);
     try {
-      await apiClient<unknown>("/api/auth/me/password", {
+      await apiClient<unknown>("/bff/auth/me/password", {
         method: "POST",
         body: JSON.stringify({ currentPassword, newPassword, confirmNewPassword }),
       });

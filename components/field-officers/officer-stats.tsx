@@ -34,7 +34,7 @@ function Metric({ label, value, hint }: { label: string; value: string; hint?: s
 export function OfficerStatsPanel({ officerId }: { officerId: string }) {
   const [range, setRange] = useState<RangeKey>("90d");
   const { data, error, isLoading } = useResource<OfficerStats>(
-    `/api/backoffice/admin/field-officers/${encodeURIComponent(officerId)}/stats?${rangeQuery(range)}`,
+    `/bff/backoffice/admin/field-officers/${encodeURIComponent(officerId)}/stats?${rangeQuery(range)}`,
   );
 
   const statuses = Object.entries(data?.byStatus ?? {}).filter(([, count]) => (count ?? 0) > 0) as [

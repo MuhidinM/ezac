@@ -26,7 +26,7 @@ export function fetchSession(options?: {
     if (inFlight) return inFlight;
   }
 
-  const request = apiClient<SessionInfo>("/api/auth/session")
+  const request = apiClient<SessionInfo>("/bff/auth/session")
     .then((session) => {
       cached = session;
       return session;

@@ -62,7 +62,7 @@ export function CreateOfficerDialog({ open, onOpenChange, onCreated }: Props) {
 
     try {
       const result = await apiClient<CreateFieldOfficerResponse>(
-        "/api/backoffice/admin/field-officers",
+        "/bff/backoffice/admin/field-officers",
         { method: "POST", body: JSON.stringify(body) },
       );
       reset();

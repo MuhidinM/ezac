@@ -22,7 +22,7 @@ export default function EditAssessmentPage() {
 function EditAssessment() {
   const { id } = useParams<{ id: string }>();
   const { data: assessment, error, isLoading, reload } = useResource<Assessment>(
-    `/api/backoffice/assessments/${encodeURIComponent(id)}`,
+    `/bff/backoffice/assessments/${encodeURIComponent(id)}`,
   );
 
   if (isLoading && !assessment) {

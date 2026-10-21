@@ -54,7 +54,7 @@ function Institutions() {
   for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value);
 
   const { data, error, isLoading, reload } = useResource<PaginatedItems<InstitutionListItem>>(
-    `/api/beneficiaries/institutions?${params.toString()}`,
+    `/bff/beneficiaries/institutions?${params.toString()}`,
   );
   const rows = data?.items ?? [];
 

@@ -28,7 +28,7 @@ export function BranchPicker({
   hint?: string;
 }) {
   const { data: branches, isLoading } = useResource<PaginatedItems<BranchListItem>>(
-    "/api/admin/branches?page=1&limit=100",
+    "/bff/admin/branches?page=1&limit=100",
   );
   // Grouped by region so a long branch list stays scannable.
   const byRegion = new Map<string, BranchListItem[]>();

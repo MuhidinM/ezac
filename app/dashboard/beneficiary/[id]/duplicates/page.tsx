@@ -66,9 +66,9 @@ function DuplicateReviewView() {
   const router = useRouter();
   const encodedId = encodeURIComponent(id);
 
-  const { data: beneficiary } = useResource<BeneficiaryDetail>(`/api/beneficiaries/${encodedId}`);
+  const { data: beneficiary } = useResource<BeneficiaryDetail>(`/bff/beneficiaries/${encodedId}`);
   const { data: review, error, isLoading, reload } = useResource<DuplicateReview>(
-    `/api/backoffice/beneficiaries/${encodedId}/duplicate-review`,
+    `/bff/backoffice/beneficiaries/${encodedId}/duplicate-review`,
   );
 
   const [resolution, setResolution] = useState<DuplicateResolution | "">("");
@@ -85,7 +85,7 @@ function DuplicateReviewView() {
     setIsSubmitting(true);
     setSubmitError(null);
     try {
-      await apiClient(`/api/backoffice/beneficiaries/${encodedId}/duplicate-review`, {
+      await apiClient(`/bff/backoffice/beneficiaries/${encodedId}/duplicate-review`, {
         method: "POST",
         body: JSON.stringify({ resolution, note: note.trim() || undefined }),
       });

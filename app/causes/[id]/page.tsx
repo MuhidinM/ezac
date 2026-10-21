@@ -38,7 +38,7 @@ export default async function CausePage({ params }: { params: Promise<{ id: stri
         <div className="mx-auto grid max-w-5xl gap-10 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-8">
             {cover ? (
-              // eslint-disable-next-line @next/next/no-img-element -- served by the zakat service via /api/media
+              // eslint-disable-next-line @next/next/no-img-element -- served by the zakat service via /bff/media
               <img src={cover} alt="" className="aspect-16/9 w-full rounded-3xl object-cover" />
             ) : null}
             {cause.body ? (
@@ -50,7 +50,7 @@ export default async function CausePage({ params }: { params: Promise<{ id: stri
             {gallery.length > 0 ? (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {gallery.map((src) => (
-                  // eslint-disable-next-line @next/next/no-img-element -- served by the zakat service via /api/media
+                  // eslint-disable-next-line @next/next/no-img-element -- served by the zakat service via /bff/media
                   <img key={src} src={src} alt="" className="aspect-square w-full rounded-2xl object-cover" loading="lazy" />
                 ))}
               </div>

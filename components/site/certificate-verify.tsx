@@ -26,7 +26,7 @@ export function CertificateVerify() {
     setError(null);
     setIsChecking(true);
     try {
-      const response = await fetch(`/api/certificates/verify/${encodeURIComponent(id.trim())}`);
+      const response = await fetch(`/bff/certificates/verify/${encodeURIComponent(id.trim())}`);
       const body = (await response.json().catch(() => null)) as { success?: boolean; data?: Result; message?: string } | null;
       if (!response.ok || !body?.success || !body.data) {
         setError(body?.message ?? "Couldn't check the certificate. Try again in a moment.");

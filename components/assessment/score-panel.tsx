@@ -195,7 +195,7 @@ export function SignOffTimeline({ assessment }: { assessment: Assessment }) {
 /** Current and superseded scores, newest first; superseded ones greyed. */
 export function ScoreHistory({ assessmentId }: { assessmentId: string }) {
   const { data, error, isLoading } = useResource<AssessmentScore[]>(
-    `/api/backoffice/assessments/${encodeURIComponent(assessmentId)}/scores`,
+    `/bff/backoffice/assessments/${encodeURIComponent(assessmentId)}/scores`,
   );
   const scores = data ?? [];
 

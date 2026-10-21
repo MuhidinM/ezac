@@ -56,7 +56,7 @@ const etb = new Intl.NumberFormat("en-ET", { maximumFractionDigits: 2 });
 
 /** ADMIN: price health, refresh now and manual entry (WEB-ADMIN-ZAKAT-GUIDE §2). */
 export function PriceStatusPanel({ onChanged }: { onChanged: () => void }) {
-  const { data, error, reload } = useResource<PriceStatus>("/api/zakat-admin/prices/status");
+  const { data, error, reload } = useResource<PriceStatus>("/bff/zakat-admin/prices/status");
   const [refreshOpen, setRefreshOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -155,7 +155,7 @@ export function PriceStatusPanel({ onChanged }: { onChanged: () => void }) {
         description={`This uses 2 of the monthly API requests${data ? ` (${data.budget.used} of ${data.budget.limit} used)` : ""}. If the provider fails, the current prices stay in use.`}
         confirmLabel="Refresh now"
         onConfirm={async () => {
-          const snapshot = await apiClient<PriceSnapshot>("/api/zakat-admin/prices/refresh", { method: "POST" });
+          const snapshot = await apiClient<PriceSnapshot>("/bff/zakat-admin/prices/refresh", { method: "POST" });
           refreshed(`Prices refreshed as of ${formatDateTime(snapshot.pricesAsOf)}.`);
         }}
       />
@@ -198,7 +198,7 @@ function ManualPricesDialog({
     );
     setIsSaving(true);
     try {
-      await apiClient("/api/zakat-admin/prices", {
+      await apiClient("/bff/zakat-admin/prices", {
         method: "POST",
         body: JSON.stringify({
           goldPricePerGramEtb: goldBody,

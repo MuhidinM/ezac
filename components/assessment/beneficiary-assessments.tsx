@@ -42,7 +42,7 @@ export function BeneficiaryAssessments({ beneficiary }: { beneficiary: Beneficia
   const [startError, setStartError] = useState<string | null>(null);
 
   const { data, error, isLoading } = useResource<AssessmentListItem[] | PaginatedItems<AssessmentListItem>>(
-    `/api/backoffice/beneficiaries/${encodeURIComponent(beneficiary.id)}/assessments`,
+    `/bff/backoffice/beneficiaries/${encodeURIComponent(beneficiary.id)}/assessments`,
   );
   const history = Array.isArray(data) ? data : (data?.items ?? []);
 
@@ -61,7 +61,7 @@ export function BeneficiaryAssessments({ beneficiary }: { beneficiary: Beneficia
     setIsStarting(true);
     setStartError(null);
     try {
-      const created = await apiClient<Assessment>("/api/backoffice/assessments", {
+      const created = await apiClient<Assessment>("/bff/backoffice/assessments", {
         method: "POST",
         body: JSON.stringify({ beneficiaryId: beneficiary.id, assessmentDate: todayIso() }),
       });

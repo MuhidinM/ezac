@@ -31,7 +31,7 @@ function weekLabel(week: string) {
 /** BRANCH home: review workload, weekly registrations and officer activity. */
 export function BranchAnalytics() {
   const [range, setRange] = useState<RangeKey>("90d");
-  const { data, error, isLoading } = useResource<BranchHome>(`/api/backoffice/branch/analytics?${rangeQuery(range)}`);
+  const { data, error, isLoading } = useResource<BranchHome>(`/bff/backoffice/branch/analytics?${rangeQuery(range)}`);
   const loading = isLoading && !data;
   const reviewed = data?.reviewedInRange ?? {};
   const totalReviewed = Object.values(reviewed).reduce((sum, value) => sum + (value ?? 0), 0);

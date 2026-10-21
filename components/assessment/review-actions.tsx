@@ -16,7 +16,7 @@ import { useResource } from "@/lib/api/use-resource";
 import { OFFICER_RECOMMENDATION, labelFor } from "@/lib/backoffice/options";
 
 function actionPath(id: string, action: string) {
-  return `/api/backoffice/assessments/${encodeURIComponent(id)}/${action}`;
+  return `/bff/backoffice/assessments/${encodeURIComponent(id)}/${action}`;
 }
 
 type ReviewMode = "return" | BranchDecision;
@@ -168,7 +168,7 @@ export function AssessmentManagement({
   const [reason, setReason] = useState("");
   const [officerId, setOfficerId] = useState("");
   const { data: officers } = useResource<PaginatedItems<FieldOfficer>>(
-    reassignOpen ? "/api/backoffice/admin/field-officers?active=true&page=1&limit=100" : null,
+    reassignOpen ? "/bff/backoffice/admin/field-officers?active=true&page=1&limit=100" : null,
   );
 
   if (!canCancel && !canReassign) return null;

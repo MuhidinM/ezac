@@ -40,7 +40,7 @@ function AssessmentDetail() {
   const [tab, setTab] = useState<TabKey | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const { data: assessment, error, isLoading, reload, mutate } = useResource<Assessment>(
-    `/api/backoffice/assessments/${encodeURIComponent(id)}`,
+    `/bff/backoffice/assessments/${encodeURIComponent(id)}`,
   );
 
   if (isLoading && !assessment) {

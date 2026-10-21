@@ -47,7 +47,7 @@ import {
 } from "@/lib/zakat/payments";
 import { cn } from "@/lib/utils";
 
-const API = "/api/payments-admin/zakat-payments";
+const API = "/bff/payments-admin/zakat-payments";
 const PAGE_SIZE = 20;
 
 export default function PaymentsAdminPage() {
@@ -567,7 +567,7 @@ function CertificateCheck() {
     setResult(null);
     setIsChecking(true);
     try {
-      setResult(await apiClient<CertificateResult>(`/api/certificates/verify/${encodeURIComponent(id.trim())}`));
+      setResult(await apiClient<CertificateResult>(`/bff/certificates/verify/${encodeURIComponent(id.trim())}`));
     } catch (checkError) {
       setError(errorMessage(checkError, "Couldn't check the certificate"));
     } finally {

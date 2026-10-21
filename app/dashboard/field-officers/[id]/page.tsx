@@ -48,7 +48,7 @@ export default function FieldOfficerDetailPage() {
 
 function FieldOfficerDetail() {
   const { id } = useParams<{ id: string }>();
-  const path = `/api/backoffice/admin/field-officers/${encodeURIComponent(id)}`;
+  const path = `/bff/backoffice/admin/field-officers/${encodeURIComponent(id)}`;
   const { data: officer, error, isLoading, reload, mutate } = useResource<FieldOfficer>(path);
 
   const [confirmToggle, setConfirmToggle] = useState(false);
@@ -89,7 +89,7 @@ function FieldOfficerDetail() {
     setRowError(null);
     try {
       await apiClient<StaffAssignment>(
-        `/api/backoffice/admin/staff-assignments/${encodeURIComponent(assignment.id)}`,
+        `/bff/backoffice/admin/staff-assignments/${encodeURIComponent(assignment.id)}`,
         { method: "PATCH", body: JSON.stringify({ active: !assignment.active }) },
       );
       reload();
@@ -292,7 +292,7 @@ function MoveBranchDialog({
     setFieldErrors({});
     setIsSaving(true);
     try {
-      await apiClient<FieldOfficer>(`/api/backoffice/admin/field-officers/${encodeURIComponent(officer.id)}/assignments`, {
+      await apiClient<FieldOfficer>(`/bff/backoffice/admin/field-officers/${encodeURIComponent(officer.id)}/assignments`, {
         method: "POST",
         body: JSON.stringify({ branchId }),
       });
@@ -306,7 +306,7 @@ function MoveBranchDialog({
     const failed: string[] = [];
     for (const assignment of toEnd) {
       try {
-        await apiClient(`/api/backoffice/admin/staff-assignments/${encodeURIComponent(assignment.id)}`, {
+        await apiClient(`/bff/backoffice/admin/staff-assignments/${encodeURIComponent(assignment.id)}`, {
           method: "PATCH",
           body: JSON.stringify({ active: false }),
         });

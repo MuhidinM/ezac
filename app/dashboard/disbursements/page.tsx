@@ -50,7 +50,7 @@ import {
 import { paymentRangeQuery } from "@/lib/zakat/payments";
 import { cn } from "@/lib/utils";
 
-const API = "/api/payments-admin/disbursements";
+const API = "/bff/payments-admin/disbursements";
 const PAGE_SIZE = 20;
 
 export default function DisbursementsPage() {

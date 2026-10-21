@@ -56,7 +56,7 @@ function FieldOfficers() {
   if (active) params.set("active", active);
 
   const { data, error, isLoading, reload } = useResource<PaginatedItems<FieldOfficer>>(
-    `/api/backoffice/admin/field-officers?${params.toString()}`,
+    `/bff/backoffice/admin/field-officers?${params.toString()}`,
   );
 
   function onSearch(event: FormEvent<HTMLFormElement>) {

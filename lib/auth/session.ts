@@ -17,6 +17,7 @@ import {
   getUsernameFromPayload,
   isTokenExpired,
 } from "@/lib/auth/jwt";
+import { readTokens } from "@/lib/auth/tokens";
 
 const BASE_COOKIE_OPTIONS = {
   httpOnly: true,
@@ -88,9 +89,8 @@ async function redeemRefreshToken(refreshToken: string): Promise<AuthTokens | nu
   })
     .then(async (response) => {
       if (!response.ok) return null;
-      const envelope = (await response.json()) as { success?: boolean; data?: AuthTokens };
-      const data = envelope.data;
-      return envelope.success && data?.accessToken ? data : null;
+      const tokens = readTokens(await response.json().catch(() => null));
+      return tokens ? { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, expiresIn: tokens.expiresIn } : null;
     })
     .catch(() => null);
 

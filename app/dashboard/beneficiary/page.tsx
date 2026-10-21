@@ -120,10 +120,10 @@ export default function BeneficiaryPage() {
   }, []);
 
   const { data, error, isLoading, reload } = useResource<PaginatedItems<BeneficiaryListItem>>(
-    `/api/backoffice/beneficiaries?${toQuery(filters, page)}`,
+    `/bff/backoffice/beneficiaries?${toQuery(filters, page)}`,
   );
   const { data: branches } = useResource<PaginatedItems<BranchListItem>>(
-    isAdmin ? "/api/admin/branches?page=1&limit=100" : null,
+    isAdmin ? "/bff/admin/branches?page=1&limit=100" : null,
   );
 
   function update<K extends keyof Filters>(key: K, value: Filters[K]) {

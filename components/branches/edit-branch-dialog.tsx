@@ -62,7 +62,7 @@ export function EditBranchDialog({
     setFieldErrors({});
     try {
       const updated = await apiClient<Branch>(
-        `/api/backoffice/admin/branches/${encodeURIComponent(branch.id)}`,
+        `/bff/backoffice/admin/branches/${encodeURIComponent(branch.id)}`,
         { method: "PATCH", body: JSON.stringify(changed) },
       );
       onSaved(updated);

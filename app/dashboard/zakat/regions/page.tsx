@@ -34,7 +34,7 @@ import { useResource } from "@/lib/api/use-resource";
 import { formatEtb } from "@/lib/backoffice/format";
 import { formatDateTime } from "@/lib/beneficiary/format";
 
-const API = "/api/zakat-admin/impact/regions";
+const API = "/bff/zakat-admin/impact/regions";
 
 type ImpactRegion = {
   code: string;

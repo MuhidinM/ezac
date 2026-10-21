@@ -64,7 +64,7 @@ export function CreateBranchDialog({ open, onOpenChange, onCreated }: Props) {
     if (form.branchEmail.trim()) body.branchEmail = form.branchEmail.trim();
 
     try {
-      const created = await apiClient<BranchCreateResponse>("/api/admin/branches", {
+      const created = await apiClient<BranchCreateResponse>("/bff/admin/branches", {
         method: "POST",
         body: JSON.stringify(body),
       });

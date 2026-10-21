@@ -14,7 +14,7 @@ export function CauseCard({ cause, closed = false }: { cause: PublicCause; close
       <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-black/5 bg-white">
         <div className="relative aspect-16/10 w-full overflow-hidden bg-[#007050]/[0.06]">
           {image ? (
-            // eslint-disable-next-line @next/next/no-img-element -- cause images come from the zakat service via /api/media
+            // eslint-disable-next-line @next/next/no-img-element -- cause images come from the zakat service via /bff/media
             <img src={image} alt="" className="h-full w-full object-cover" loading="lazy" />
           ) : null}
           {cause.badge ? (

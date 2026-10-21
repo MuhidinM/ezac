@@ -25,7 +25,7 @@ import {
 } from "@/lib/backoffice/scoring-config";
 import { cn } from "@/lib/utils";
 
-const API = "/api/backoffice/admin/scoring-configs";
+const API = "/bff/backoffice/admin/scoring-configs";
 
 export default function ScoringConfigPage() {
   return (

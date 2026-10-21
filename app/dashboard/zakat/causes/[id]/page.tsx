@@ -23,7 +23,7 @@ import { formatEtb } from "@/lib/backoffice/format";
 import { formatDateTime } from "@/lib/beneficiary/format";
 import { type AdminCause, CAUSE_BADGES, CONTENT_CATEGORIES } from "@/lib/zakat/content";
 
-const API = "/api/zakat-admin/causes";
+const API = "/bff/zakat-admin/causes";
 
 type Form = {
   title: string;
