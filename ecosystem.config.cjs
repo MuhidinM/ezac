@@ -14,8 +14,9 @@ module.exports = {
         NODE_ENV: "production",
         // The gateway the server-side code calls (login, back office, public figures).
         API_BASE_URL: process.env.API_BASE_URL ?? "https://196.188.249.232",
-        // The UAT gateway's certificate is self-signed; trust it explicitly.
-        NODE_EXTRA_CA_CERTS: process.env.NODE_EXTRA_CA_CERTS ?? "/var/www/ezac/certs/uat-ezac.pem",
+        // The UAT gateway's certificate is self-signed; trust it explicitly. It lives in
+        // certs/ next to this file (ignored by git, so deploys leave it in place).
+        NODE_EXTRA_CA_CERTS: process.env.NODE_EXTRA_CA_CERTS ?? `${__dirname}/certs/uat-ezac.pem`,
       },
     },
   ],
