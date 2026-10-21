@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { safeFileResponse } from "@/lib/api/bff";
 import { getApiBaseUrl } from "@/lib/api/config";
+import { logGatewayUnreachable } from "@/lib/api/network-error";
 import { clearAuthCookies, getAccessToken } from "@/lib/auth/session";
 
 type ProxyOptions = {
@@ -91,7 +92,8 @@ export function createProxy({
         body: hasBody ? await request.arrayBuffer() : undefined,
         cache: "no-store",
       });
-    } catch {
+    } catch (error) {
+      logGatewayUnreachable(label, error);
       return NextResponse.json(
         { success: false, message: "Unable to reach the beneficiary service" },
         { status: 502 },

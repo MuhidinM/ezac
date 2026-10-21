@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getApiBaseUrl } from "@/lib/api/config";
+import { logGatewayUnreachable } from "@/lib/api/network-error";
 
 /**
  * Public calculator config (prices, nisab, rates, livestock tables) from
@@ -27,7 +28,8 @@ export async function GET() {
     return NextResponse.json(body, {
       headers: { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" },
     });
-  } catch {
+  } catch (error) {
+    logGatewayUnreachable("zakat/calculator-config", error);
     return NextResponse.json(
       { success: false, message: "Couldn't reach the Zakat service." },
       { status: 502 },

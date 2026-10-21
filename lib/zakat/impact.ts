@@ -1,4 +1,5 @@
 import { getApiBaseUrl } from "@/lib/api/config";
+import { logGatewayUnreachable } from "@/lib/api/network-error";
 import type { CalculatorConfig } from "@/lib/zakat/calculator-config";
 import type { PublicCause, PublicStory } from "@/lib/zakat/content";
 
@@ -69,7 +70,8 @@ async function getPublic<T>(path: string): Promise<T | null> {
     if (!response.ok) return null;
     const envelope = (await response.json()) as { success?: boolean; data?: T };
     return envelope.success ? (envelope.data ?? null) : null;
-  } catch {
+  } catch (error) {
+    logGatewayUnreachable(`zakat${path}`, error);
     return null;
   }
 }

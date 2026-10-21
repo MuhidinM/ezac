@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getApiBaseUrl } from "@/lib/api/config";
+import { logGatewayUnreachable } from "@/lib/api/network-error";
 import {
   setAuthCookies,
   shouldUseSecureCookies,
@@ -44,7 +45,7 @@ export async function POST(request: Request) {
       cache: "no-store",
     });
   } catch (error) {
-    console.error("[auth] login request failed:", error);
+    logGatewayUnreachable("auth/login", error);
     return NextResponse.json(
       { success: false, message: "Unable to reach authentication service" },
       { status: 502 },

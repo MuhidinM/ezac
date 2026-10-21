@@ -7,6 +7,7 @@
     "dev:uat": "node scripts/with-uat-cert.mjs dev",
     "build": "next build",
     "start": "next start",
+    "start:uat": "node scripts/with-uat-cert.mjs start",
     "lint": "eslint"
   },
   "dependencies": {
