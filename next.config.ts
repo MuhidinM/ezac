@@ -93,8 +93,11 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: "/(.*)", headers: SECURITY_HEADERS },
-      // Images at the top of public/ (logos, backgrounds) and the legal documents.
+      // Images at the top of public/ (logos), the optimized images and social
+      // preview images, and the legal documents.
       { source: "/:file([A-Za-z0-9_.-]+[.](?:png|jpe?g|svg|webp))", headers: PUBLIC_ASSET_CACHE },
+      { source: "/images/:file*", headers: PUBLIC_ASSET_CACHE },
+      { source: "/og/:file*", headers: PUBLIC_ASSET_CACHE },
       { source: "/legal/:file*", headers: PUBLIC_ASSET_CACHE },
     ];
   },

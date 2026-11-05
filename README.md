@@ -38,7 +38,7 @@ set in the process environment wins over the files. See `.env.example` for a tem
 | `API_BASE_URL` | **Required** in production | Server, at runtime | The gateway's address, e.g. `https://gateway.example`. With no value the app logs a startup error and every gateway call fails. The build does not need it. |
 | `NODE_EXTRA_CA_CERTS` | While the gateway uses the UAT self-signed certificate | Node, at process start only | Path to that certificate, e.g. `/var/www/ezac/certs/uat-ezac.pem`. Node reads it before Next loads `.env` files, so on the server `ecosystem.config.cjs` passes it on from the deploy shell or `.env.production`. Remove it once the gateway has a certificate from a public CA. |
 | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Optional | Build (copied into the browser code) | Google Maps key for the impact map on the home page. Without it the map shows a placeholder. Restrict the key to the site's domain in Google Cloud. |
-| `SITE_URL` | Recommended in production | Build and runtime | The exact public origin users open (scheme, host and port), e.g. `https://ezac.gov.et`. Used for absolute URLs in page metadata and for `robots.txt` and `sitemap.xml` (empty without it), and by the cross-site check on `/bff` writes: when nginx rewrites `Host`, this is the only origin allowed to save, so `www`, IP and `http://` addresses must redirect to it. Set it before the build: static pages read it then. |
+| `SITE_URL` | Recommended in production | Build and runtime | The exact public origin users open (scheme, host and port), e.g. `https://ezac.gov.et`. Used for absolute URLs in page metadata, `robots.txt`, `sitemap.xml` and `llms.txt` (without it they use `https://ezaac.com`), and by the cross-site check on `/bff` writes: when nginx rewrites `Host`, this is the only origin allowed to save, so `www`, IP and `http://` addresses must redirect to it. Set it before the build: static pages read it then. |
 | `GIT_SHA` | Optional | Runtime | Release id shown in error and CSP log lines. The deploy workflow passes the commit to `deploy.sh`; pm2 falls back to the checked-out commit. |
 | `ALLOW_INSECURE_AUTH_COOKIES` | Only for a plain-HTTP test host | Runtime | `true` lets sign-in cookies work without HTTPS. Never set it in production. |
 | `TRUST_ROLELESS_ACCOUNTS` | Only if the gateway issues accounts without roles | Runtime | `true` gives accounts with no ADMIN, BRANCH or FIELD_OFFICER role the old default access. Without it they get no portal access. |
@@ -69,6 +69,23 @@ set in the process environment wins over the files. See `.env.example` for a tem
   Security Policy runs in report-only mode; reports arrive at `/bff/csp-report` and are logged.
 - **Logs**: `instrumentation.ts` writes one JSON line per server error (route, release, error digest; no headers,
   cookies or query strings) and a loud line at startup if `API_BASE_URL` is missing or invalid.
+
+## SEO and languages
+
+- **Languages**: the public site is in English (default, plain URLs like `/about`), Amharic (`/am/...`), Afaan
+  Oromoo (`/om/...`) and Arabic (`/ar/...`, right to left). Pages live in `app/[lang]/`; `proxy.ts` serves plain
+  URLs from `/en` and redirects `/en/...` to the plain URL. Strings are in `lib/i18n/dictionaries/<lang>/`, with
+  English as the source the others are typed against. The staff portal is English only.
+- **Page metadata**: each page calls `pageMetadata()` (`lib/seo.ts`) for its title, description, canonical URL,
+  `hreflang` alternates, Open Graph and Twitter card. The default social image is `public/og/ezac-og.png`
+  (1200x630). JSON-LD helpers are in `lib/structured-data.ts`.
+- **Crawler files**: `app/robots.ts` (`/robots.txt`: everything open except `/dashboard`, `/login` and `/bff`),
+  `app/sitemap.ts` (`/sitemap.xml`: every public page in all four languages with `hreflang` alternates, plus the
+  published causes and impact stories, refreshed every 5 minutes) and `app/llms.txt/route.ts` (`/llms.txt`: a
+  plain summary of the site for AI assistants). **When you add a public page, add its path to `PUBLIC_PATHS` in
+  `app/sitemap.ts`**, and to `app/llms.txt/route.ts` if it is a main section.
+- **Icons**: `app/favicon.ico`, `app/icon.svg` (a copy of `public/logo.svg`), `app/apple-icon.png` (180x180) and
+  `app/manifest.ts` (`/manifest.webmanifest`). Next adds the `<link>` tags.
 
 ## Health check
 
