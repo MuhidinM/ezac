@@ -38,6 +38,7 @@ import { useSession } from "@/lib/auth/use-session";
 import { ASNAF } from "@/lib/backoffice/options";
 import { formatBeneficiaryCategory, formatDateTime } from "@/lib/beneficiary/format";
 import { ETHIOPIAN_REGIONS } from "@/lib/constants/regions";
+import { phoneSearchTerm } from "@/lib/registration/phone";
 import { consumeRegistrationSuccessFlag } from "@/lib/registration/session";
 
 const PAGE_SIZE = 20;
@@ -133,7 +134,8 @@ export default function BeneficiaryPage() {
 
   function onSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    update("search", draftSearch.trim());
+    // Phones are stored as +251…, so a local 09… number finds nothing as typed.
+    update("search", phoneSearchTerm(draftSearch));
   }
 
   const activeAdvanced = ADVANCED_KEYS.filter((key) => filters[key]).length;
@@ -314,7 +316,7 @@ export default function BeneficiaryPage() {
                 >
                   <option value="">Any</option>
                   <option value="pending">Pending review</option>
-                  <option value="pending_third_party">Fayda in progress</option>
+                  {/* "Fayda in progress" is not a filter the backend accepts (400). */}
                   <option value="verified">Verified</option>
                   <option value="rejected">Rejected</option>
                 </NativeSelect>

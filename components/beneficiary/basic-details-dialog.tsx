@@ -16,10 +16,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { apiClient } from "@/lib/api/client";
-import { ApiError, errorMessage, fieldErrorMap } from "@/lib/api/errors";
 import type { BankAccount } from "@/lib/api/backoffice-types";
 import type { BeneficiaryDetail } from "@/lib/api/types";
 import { BANKS, MARITAL_STATUS, PRIMARY_LANGUAGE, SEX } from "@/lib/backoffice/options";
+import { ageMismatch, formErrors } from "@/lib/registration/form-errors";
+import { isValidEthiopianPhone, normalizePhoneToE164 } from "@/lib/registration/phone";
 
 /**
  * Section B fields plus the bank account; the assessment refuses to submit
@@ -46,6 +47,35 @@ export type BasicDetails = {
 };
 
 type BankKey = "bankCode" | "bankNameOther" | "bankAccountNumber" | "bankAccountHolderName";
+
+const FIELD_IDS: Record<keyof BasicDetails, string> = {
+  fullName: "bd-name",
+  phone: "bd-phone",
+  dateOfBirth: "bd-dob",
+  estimatedAge: "bd-age",
+  gender: "bd-sex",
+  maritalStatus: "bd-marital",
+  religion: "bd-religion",
+  primaryLanguage: "bd-language",
+  primaryLanguageOther: "bd-language-other",
+  zone: "bd-zone",
+  woreda: "bd-woreda",
+  kebele: "bd-kebele",
+  addressLine: "bd-address",
+  bankCode: "bd-bank",
+  bankNameOther: "bd-bank-other",
+  bankAccountNumber: "bd-account",
+  bankAccountHolderName: "bd-holder",
+};
+
+const FIELD_KEYS = Object.keys(FIELD_IDS) as (keyof BasicDetails)[];
+
+/**
+ * The bank account once the assessment is submitted or the household is
+ * awaiting the pool or pooled: "locked" for everyone but ADMIN, "warn" for
+ * ADMIN, "unchecked" when the assessments could not be read (fail closed).
+ */
+export type BankLock = "locked" | "warn" | "unchecked" | null;
 
 /** A beneficiary detail or an assessment applicant: flat fields plus a nested bank account. */
 type Source = Partial<Record<Exclude<keyof BasicDetails, BankKey>, string | number | null | undefined>> & {
@@ -109,6 +139,8 @@ type Props = {
   onSaved: (updated: BeneficiaryDetail) => void;
   /** Validation errors from an assessment (`beneficiary.*`), shown inline. */
   externalErrors?: Record<string, string>;
+  /** Whether the bank account may still change; see BankLock. */
+  bankLock?: BankLock;
 };
 
 export function BasicDetailsDialog({
@@ -118,7 +150,9 @@ export function BasicDetailsDialog({
   onOpenChange,
   onSaved,
   externalErrors,
+  bankLock = null,
 }: Props) {
+  const bankReadOnly = bankLock === "locked" || bankLock === "unchecked";
   const [details, setDetails] = useState<BasicDetails>(() => fromSource(initial));
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -146,26 +180,49 @@ export function BasicDetailsDialog({
     return fieldErrors[key] ?? externalErrors?.[`beneficiary.${key}`];
   }
 
+  function showFieldErrors(fields: Record<string, string>) {
+    setFieldErrors(fields);
+    const first = FIELD_KEYS.find((key) => fields[key]);
+    // Long dialog: bring the first problem into view.
+    if (first) setTimeout(() => document.getElementById(FIELD_IDS[first])?.focus(), 0);
+  }
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setIsSaving(true);
     setError(null);
     setFieldErrors({});
     // PATCH only what changed: fields the source didn't carry must not be
     // cleared just because the form started them empty.
     const next = toBody(details);
     const before = toBody(fromSource(initial));
-    const changed = Object.fromEntries(
+    const changed: Record<string, unknown> = Object.fromEntries(
       Object.entries(next).filter(
         ([key, value]) => value !== before[key as keyof typeof before],
       ),
     );
+    if (bankReadOnly) {
+      for (const key of ["bankCode", "bankNameOther", "bankAccountNumber", "bankAccountHolderName"]) {
+        delete changed[key];
+      }
+    }
     if (Object.keys(changed).length === 0) {
-      setIsSaving(false);
       onOpenChange(false);
       return;
     }
+    // A local number (09…) is sent as +251…, the form the backend accepts.
+    if (typeof changed.phone === "string" && isValidEthiopianPhone(changed.phone)) {
+      changed.phone = normalizePhoneToE164(changed.phone);
+    }
+    if ("dateOfBirth" in changed || "estimatedAge" in changed) {
+      const mismatch = ageMismatch(details.dateOfBirth, details.estimatedAge);
+      if (mismatch) {
+        setError("Check the highlighted fields.");
+        showFieldErrors({ estimatedAge: mismatch });
+        return;
+      }
+    }
 
+    setIsSaving(true);
     try {
       const updated = await apiClient<BeneficiaryDetail>(
         `/bff/beneficiaries/${encodeURIComponent(beneficiaryId)}`,
@@ -174,8 +231,9 @@ export function BasicDetailsDialog({
       onSaved(updated);
       onOpenChange(false);
     } catch (saveError) {
-      setError(errorMessage(saveError, "Failed to save basic details"));
-      if (saveError instanceof ApiError) setFieldErrors(fieldErrorMap(saveError.errors));
+      const { message, fields } = formErrors(saveError, "Couldn't save the details. Try again.", FIELD_KEYS);
+      setError(message);
+      showFieldErrors(fields);
     } finally {
       setIsSaving(false);
     }
@@ -282,12 +340,33 @@ export function BasicDetailsDialog({
             <div>
               <p className="text-sm font-semibold text-[#001539]">Bank account</p>
               <p className="text-xs text-black/50">
-                Required before the assessment can be submitted. Disbursements go to this account.
+                Payments go to this account. It is needed to submit the assessment.
               </p>
             </div>
+            {bankLock === "locked" ? (
+              <InlineAlert tone="info">
+                The assessment has been submitted, so the bank account is locked. Ask an administrator if it
+                needs to change.
+              </InlineAlert>
+            ) : bankLock === "unchecked" ? (
+              <InlineAlert tone="info">
+                We couldn&apos;t check this household&apos;s assessments, so the bank account can&apos;t be
+                changed right now. Reload the page and try again.
+              </InlineAlert>
+            ) : bankLock === "warn" ? (
+              <InlineAlert tone="warning" title="This household's assessment is already submitted or approved">
+                Payments will go to the new account straight away, and the old one is not kept. Check the new
+                details against the household&apos;s documents before you save.
+              </InlineAlert>
+            ) : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField label="Bank" htmlFor="bd-bank" error={fieldError("bankCode")}>
-                <NativeSelect id="bd-bank" value={details.bankCode} onChange={(e) => set("bankCode", e.target.value)}>
+                <NativeSelect
+                  id="bd-bank"
+                  value={details.bankCode}
+                  onChange={(e) => set("bankCode", e.target.value)}
+                  disabled={bankReadOnly}
+                >
                   <option value="">Select</option>
                   {BANKS.map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
@@ -296,7 +375,12 @@ export function BasicDetailsDialog({
               </FormField>
               {details.bankCode === "other" ? (
                 <FormField label="Bank name" htmlFor="bd-bank-other" required error={fieldError("bankNameOther")}>
-                  <Input id="bd-bank-other" value={details.bankNameOther} onChange={(e) => set("bankNameOther", e.target.value)} />
+                  <Input
+                    id="bd-bank-other"
+                    value={details.bankNameOther}
+                    onChange={(e) => set("bankNameOther", e.target.value)}
+                    disabled={bankReadOnly}
+                  />
                 </FormField>
               ) : null}
               <FormField
@@ -311,6 +395,7 @@ export function BasicDetailsDialog({
                   value={details.bankAccountNumber}
                   onChange={(e) => set("bankAccountNumber", e.target.value)}
                   className="font-mono"
+                  disabled={bankReadOnly}
                 />
               </FormField>
               <FormField label="Account holder name" htmlFor="bd-holder" error={fieldError("bankAccountHolderName")}>
@@ -318,6 +403,7 @@ export function BasicDetailsDialog({
                   id="bd-holder"
                   value={details.bankAccountHolderName}
                   onChange={(e) => set("bankAccountHolderName", e.target.value)}
+                  disabled={bankReadOnly}
                 />
               </FormField>
             </div>

@@ -1,9 +1,9 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { CheckCircle2, CopyCheck, Pencil, XCircle } from "lucide-react";
+import { CheckCircle2, CopyCheck, KeyRound, Pencil, XCircle } from "lucide-react";
 
 import { BeneficiaryAssessments } from "@/components/assessment/beneficiary-assessments";
 import {
@@ -12,7 +12,7 @@ import {
   PoolStatusBadge,
   WhitelistBadge,
 } from "@/components/backoffice/status-badges";
-import { BasicDetailsDialog } from "@/components/beneficiary/basic-details-dialog";
+import { BasicDetailsDialog, type BankLock } from "@/components/beneficiary/basic-details-dialog";
 import { BeneficiaryEditForm } from "@/components/beneficiary/beneficiary-edit-form";
 import { LifecyclePanel } from "@/components/beneficiary/lifecycle-panel";
 import { WhitelistPanel } from "@/components/whitelist/whitelist-panel";
@@ -33,15 +33,21 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import type { AssessmentListItem, AssessmentStatus, PoolStatus } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errors";
-import type { BeneficiaryDetail } from "@/lib/api/types";
+import type { BeneficiaryDetail, PaginatedItems } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
 import { useSession } from "@/lib/auth/use-session";
 import { MARITAL_STATUS, PRIMARY_LANGUAGE, SEX, labelFor } from "@/lib/backoffice/options";
 import { formatBeneficiaryCategory, formatDateTime } from "@/lib/beneficiary/format";
+import { hasPendingPasswordSetup } from "@/lib/registration/session";
 
 type VerificationAction = "verified" | "rejected";
+
+/** Once the branch has the assessment, the payout account is settled. */
+const BANK_LOCKING_ASSESSMENTS: AssessmentStatus[] = ["SUBMITTED", "APPROVED"];
+const BANK_LOCKING_POOL: PoolStatus[] = ["AWAITING_POOL", "POOLED"];
 
 export default function BeneficiaryDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -49,10 +55,27 @@ export default function BeneficiaryDetailPage() {
   const { data: beneficiary, error, isLoading, reload, mutate } = useResource<BeneficiaryDetail>(
     `/bff/beneficiaries/${encodeURIComponent(id)}`,
   );
+  // Assessment history: tells whether the bank account is settled, and its
+  // 403 is how we learn the household is outside the user's branches (the
+  // detail itself is not branch-scoped yet).
+  const { data: assessmentsData, error: assessmentsError } = useResource<
+    AssessmentListItem[] | PaginatedItems<AssessmentListItem>
+  >(
+    beneficiary && beneficiary.beneficiaryType !== "institution"
+      ? `/bff/backoffice/beneficiaries/${encodeURIComponent(beneficiary.id)}/assessments`
+      : null,
+  );
 
   const [isEditingInstitution, setIsEditingInstitution] = useState(false);
   const [basicOpen, setBasicOpen] = useState(false);
   const [verificationAction, setVerificationAction] = useState<VerificationAction | null>(null);
+  const [passwordPending, setPasswordPending] = useState(false);
+
+  useEffect(() => {
+    // The setup token from registration lives in this tab's sessionStorage.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPasswordPending(hasPendingPasswordSetup(id));
+  }, [id]);
 
   if (isLoading && !beneficiary) {
     return <div className="h-72 animate-pulse rounded-xl bg-black/[0.04]" />;
@@ -70,11 +93,42 @@ export default function BeneficiaryDetailPage() {
   }
 
   const isInstitution = beneficiary.beneficiaryType === "institution";
+  const isAdmin = session?.isAdmin ?? false;
   const canVerify =
-    session?.isAdmin &&
+    isAdmin &&
     beneficiary.verificationStatus !== "verified" &&
     beneficiary.verificationStatus !== "rejected";
-  const canEdit = session?.isStaff ?? false;
+
+  // Branch scope: a 403 on the household's assessments means another branch.
+  const outOfScope = assessmentsError?.status === 403;
+  const scopeChecked = isInstitution || isAdmin || assessmentsData !== undefined || !!assessmentsError;
+  const canEdit = (session?.isStaff ?? false) && scopeChecked && !outOfScope;
+
+  // Bank account: settled once the assessment is with the branch or the
+  // household is (about to be) pooled. Only ADMIN may change it then.
+  const assessmentHistory = Array.isArray(assessmentsData) ? assessmentsData : (assessmentsData?.items ?? []);
+  const bankSettled =
+    assessmentHistory.some((item) => BANK_LOCKING_ASSESSMENTS.includes(item.status)) ||
+    (!!beneficiary.poolStatus && BANK_LOCKING_POOL.includes(beneficiary.poolStatus));
+  const bankLock: BankLock = isInstitution
+    ? null
+    : isAdmin
+      ? bankSettled
+        ? "warn"
+        : null
+      : assessmentsData === undefined
+        ? "unchecked"
+        : bankSettled
+          ? "locked"
+          : null;
+  const canEditBank = canEdit && (bankLock === null || bankLock === "warn");
+
+  // Merge: the PATCH answers leave out fields such as the lifecycle and BIN,
+  // so keep what we had, then reload the full record.
+  function applyUpdate(updated: BeneficiaryDetail) {
+    if (beneficiary) mutate({ ...beneficiary, ...updated });
+    reload();
+  }
 
   if (isEditingInstitution) {
     return (
@@ -87,7 +141,7 @@ export default function BeneficiaryDetailPage() {
           beneficiary={beneficiary}
           onCancel={() => setIsEditingInstitution(false)}
           onSaved={(updated) => {
-            mutate(updated);
+            applyUpdate(updated);
             setIsEditingInstitution(false);
           }}
         />
@@ -151,17 +205,43 @@ export default function BeneficiaryDetailPage() {
         }
       />
 
+      {outOfScope ? (
+        <InlineAlert tone="info" title="This household belongs to another branch.">
+          You can view it but not change it.
+        </InlineAlert>
+      ) : null}
+
+      {passwordPending && !outOfScope ? (
+        <InlineAlert
+          tone="warning"
+          title="No login password yet"
+          action={
+            <Button size="sm" variant="outline" asChild>
+              <Link href="/dashboard/register/manual/password">
+                <KeyRound />
+                Set password
+              </Link>
+            </Button>
+          }
+        >
+          Registration stopped before the household&apos;s password was set. You can set it here until you
+          close this browser tab.
+        </InlineAlert>
+      ) : null}
+
       {beneficiary.duplicateStatus === "POTENTIAL" ? (
         <InlineAlert
           tone="warning"
           title="Possible duplicate registration"
           action={
-            <Button size="sm" variant="outline" asChild>
-              <Link href={`/dashboard/beneficiary/${beneficiary.id}/duplicates`}>
-                <CopyCheck />
-                Review
-              </Link>
-            </Button>
+            outOfScope ? null : (
+              <Button size="sm" variant="outline" asChild>
+                <Link href={`/dashboard/beneficiary/${beneficiary.id}/duplicates`}>
+                  <CopyCheck />
+                  Review
+                </Link>
+              </Button>
+            )
           }
         >
           This record matches another beneficiary. Resolve it before starting an assessment.
@@ -209,9 +289,13 @@ export default function BeneficiaryDetailPage() {
           {!isInstitution ? (
             <Panel
               title="Bank account"
-              description="Where disbursements are paid. Required before an assessment can be submitted."
+              description={
+                canEdit && bankLock === "locked"
+                  ? "Where payments are sent. Locked once the assessment is submitted. Only an administrator can change it."
+                  : "Where payments are sent. Needed to submit an assessment and to pay the household."
+              }
               actions={
-                canEdit ? (
+                canEditBank ? (
                   <Button size="sm" variant="ghost" onClick={() => setBasicOpen(true)}>
                     <Pencil />
                     Edit
@@ -231,7 +315,10 @@ export default function BeneficiaryDetailPage() {
                   ]}
                 />
               ) : (
-                <InlineAlert tone="warning">No bank account yet. Add it before submitting an assessment.</InlineAlert>
+                <InlineAlert tone="warning">
+                  No bank account yet. Add it before the assessment is submitted. The household can&apos;t be paid
+                  without one.
+                </InlineAlert>
               )}
             </Panel>
           ) : null}
@@ -274,17 +361,32 @@ export default function BeneficiaryDetailPage() {
 
           {isInstitution ? (
             <KycDocumentsCard beneficiaryId={beneficiary.id} />
+          ) : !scopeChecked ? (
+            <div className="h-40 animate-pulse rounded-xl bg-black/[0.04]" />
+          ) : outOfScope ? (
+            <Panel title="Assessments">
+              <p className="text-sm text-black/45">Only staff of this household&apos;s branch can see its assessments.</p>
+            </Panel>
           ) : (
             <BeneficiaryAssessments beneficiary={beneficiary} />
           )}
         </div>
 
         <div className="space-y-6">
-          {!isInstitution ? <WhitelistPanel beneficiaryId={beneficiary.id} beneficiaryName={beneficiary.fullName} /> : null}
+          {isInstitution ? null : !scopeChecked ? (
+            <div className="h-28 animate-pulse rounded-xl bg-black/[0.04]" />
+          ) : outOfScope ? (
+            <Panel title="Whitelist">
+              <p className="text-sm text-black/45">Only staff of this household&apos;s branch can see its whitelist.</p>
+            </Panel>
+          ) : (
+            <WhitelistPanel beneficiaryId={beneficiary.id} beneficiaryName={beneficiary.fullName} />
+          )}
           {!isInstitution && session?.isStaff ? (
             <LifecyclePanel
               beneficiaryId={beneficiary.id}
-              canChange={session?.isAdmin ?? false}
+              canChange={isAdmin && !outOfScope}
+              poolStatus={beneficiary.poolStatus}
               onChanged={(lifecycleStatus) => mutate({ ...beneficiary, lifecycleStatus })}
             />
           ) : null}
@@ -320,7 +422,8 @@ export default function BeneficiaryDetailPage() {
           initial={beneficiary}
           open={basicOpen}
           onOpenChange={setBasicOpen}
-          onSaved={mutate}
+          onSaved={applyUpdate}
+          bankLock={bankLock}
         />
       ) : null}
 
@@ -328,7 +431,7 @@ export default function BeneficiaryDetailPage() {
         beneficiary={beneficiary}
         action={verificationAction}
         onClose={() => setVerificationAction(null)}
-        onSaved={mutate}
+        onSaved={applyUpdate}
       />
     </section>
   );

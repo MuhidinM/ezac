@@ -27,6 +27,9 @@ const OPTIONS: {
     icon: UserRound,
     href: "/dashboard/register/manual",
   },
+  // While "Individual" is the only option, the branch step skips this page
+  // (FIRST_DETAILS_STEP in lib/registration/constants.ts); point it back here
+  // when a second option returns.
   // "Institution" is hidden until the NGO wizard (components/ngo-registration)
   // submits to the backend: today it only logs the application in the browser
   // and shows a made-up reference number, so the application is lost. Restore

@@ -27,6 +27,15 @@ export function isValidEthiopianPhone(input: string): boolean {
   return /^\+251[79]\d{8}$/.test(normalized);
 }
 
+/**
+ * Search text as the backend stores it: a local mobile number (09… or 07…,
+ * spaces and dashes allowed) becomes +2519…; anything else is unchanged.
+ */
+export function phoneSearchTerm(input: string): string {
+  const compact = input.trim().replace(/[\s-]/g, "");
+  return /^0[79]\d{8}$/.test(compact) ? `${PHONE_PREFIX}${compact.slice(1)}` : input.trim();
+}
+
 export function stripPhonePrefix(input: string): string {
   const digits = input.replace(/\D/g, "");
   if (digits.startsWith("251")) {

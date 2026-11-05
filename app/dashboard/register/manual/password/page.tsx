@@ -1,14 +1,12 @@
 import { SetPasswordStep } from "@/components/registration/set-password-step";
-
-const MANUAL_STEPS = ["Identity", "Password"];
+import { REGISTRATION_STEPS } from "@/lib/registration/constants";
 
 export default function ManualPasswordPage() {
   return (
     <SetPasswordStep
       registrationType="manual"
-      steps={MANUAL_STEPS}
-      currentStep={1}
-      backHref="/dashboard/register/manual"
+      steps={REGISTRATION_STEPS}
+      currentStep={2}
       successHref="/dashboard/beneficiary?registered=1"
     />
   );

@@ -10,11 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { apiClient } from "@/lib/api/client";
-import { ApiError, errorMessage, fieldErrorMap } from "@/lib/api/errors";
 import { ASNAF, MARITAL_STATUS, PRIMARY_LANGUAGE, SEX } from "@/lib/backoffice/options";
+import { REGISTRATION_STEPS } from "@/lib/registration/constants";
+import { ageMismatch, formErrors } from "@/lib/registration/form-errors";
 import { normalizePhoneToE164 } from "@/lib/registration/phone";
 import {
   getSelectedBranch,
+  type SelectedBranch,
   setRegistrationSession,
   setRegistrationSuccessFlag,
 } from "@/lib/registration/session";
@@ -54,11 +56,32 @@ const EMPTY: Form = {
   registrationCode: "",
 };
 
-const STEPS = ["Applicant", "Password"];
+const FIELD_KEYS = Object.keys(EMPTY) as (keyof Form)[];
+
+/** Input id per field, to bring the first problem into view. */
+function fieldId(key: keyof Form) {
+  const ids: Partial<Record<keyof Form, string>> = {
+    fullName: "reg-name",
+    phone: "reg-phone",
+    email: "reg-email",
+    gender: "reg-sex",
+    dateOfBirth: "reg-dob",
+    estimatedAge: "reg-age",
+    maritalStatus: "reg-marital",
+    religion: "reg-religion",
+    primaryLanguage: "reg-language",
+    primaryLanguageOther: "reg-language-other",
+    kebele: "reg-kebele",
+    addressLine: "reg-address",
+    category: "reg-category",
+    registrationCode: "reg-code",
+  };
+  return ids[key];
+}
 
 export function ManualIdentityForm() {
   const router = useRouter();
-  const [branch, setBranch] = useState<{ branchId: string; branchName: string } | null>(null);
+  const [branch, setBranch] = useState<SelectedBranch | null>(null);
   const [form, setForm] = useState<Form>(EMPTY);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -79,12 +102,34 @@ export function ManualIdentityForm() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  function showFieldErrors(fields: Record<string, string>) {
+    setFieldErrors(fields);
+    const first = FIELD_KEYS.find((key) => fields[key]);
+    const id = first ? fieldId(first) : undefined;
+    if (id) setTimeout(() => document.getElementById(id)?.focus(), 0);
+  }
+
+  // The branch had no free codes when it was picked: only a printed code works.
+  const needsPrintedCode = branch?.codesAvailable === 0;
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!branch) return;
-    setIsSubmitting(true);
     setError(null);
     setFieldErrors({});
+
+    const mismatch = ageMismatch(form.dateOfBirth, form.estimatedAge);
+    if (mismatch) {
+      showFieldErrors({ estimatedAge: mismatch });
+      return;
+    }
+    if (needsPrintedCode && !form.registrationCode.trim()) {
+      showFieldErrors({
+        registrationCode: "This branch has no codes left. Enter the printed code from the household's card.",
+      });
+      return;
+    }
+    setIsSubmitting(true);
 
     const text = (value: string) => value.trim() || undefined;
     const data = {
@@ -122,6 +167,8 @@ export function ManualIdentityForm() {
           entityId: created.id,
           passwordSetupToken: created.passwordSetupToken,
           phone: data.phone,
+          fullName: data.fullName,
+          bin: created.bin ?? null,
         });
         router.push("/dashboard/register/manual/password");
       } else {
@@ -129,8 +176,11 @@ export function ManualIdentityForm() {
         router.push(`/dashboard/beneficiary/${created.id}`);
       }
     } catch (submitError) {
-      setError(errorMessage(submitError, "Registration failed"));
-      if (submitError instanceof ApiError) setFieldErrors(fieldErrorMap(submitError.errors));
+      const { message, fields } = formErrors(submitError, "Registration didn't go through. Try again.", FIELD_KEYS);
+      const onForm = FIELD_KEYS.some((key) => fields[key]);
+      // Field problems are listed by the button; anything else goes on top.
+      setError(onForm ? null : message);
+      showFieldErrors(fields);
       setIsSubmitting(false);
     }
   }
@@ -150,19 +200,30 @@ export function ManualIdentityForm() {
       title="Register an individual"
       description="Basic details only. The field officer completes the rest during the household assessment."
       branchName={branch.branchName}
-      steps={STEPS}
-      currentStep={0}
+      steps={REGISTRATION_STEPS}
+      currentStep={1}
       wide
       error={error}
     >
       <form onSubmit={onSubmit} className="space-y-8">
+        {needsPrintedCode ? (
+          <InlineAlert tone="warning" title="This branch has no registration codes left">
+            Enter the printed code from the household&apos;s card. Without one, ask an administrator to generate
+            more codes before you register.
+          </InlineAlert>
+        ) : null}
         <fieldset className="space-y-4">
           <legend className="text-sm font-semibold text-[#001539]">Registration</legend>
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField
               label="Printed registration code"
               htmlFor="reg-code"
-              hint="Optional. Leave empty and the branch's next free code is assigned; it becomes the BIN."
+              required={needsPrintedCode}
+              hint={
+                needsPrintedCode
+                  ? "Required: this branch has no free codes left. The code becomes the BIN."
+                  : "Optional. Leave empty and the branch's next free code is assigned; it becomes the BIN."
+              }
               error={err("registrationCode")}
             >
               <Input
@@ -197,10 +258,10 @@ export function ManualIdentityForm() {
             <FormField label="Full name" htmlFor="reg-name" required error={err("fullName")} className="sm:col-span-2">
               <Input id="reg-name" value={form.fullName} onChange={(e) => set("fullName", e.target.value)} required />
             </FormField>
-            <FormField label="Phone" htmlFor="reg-phone" required hint="Also the login username" error={err("phone")}>
+            <FormField label="Phone" htmlFor="reg-phone" required hint="The household signs in with this number" error={err("phone")}>
               <Input id="reg-phone" type="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+2519…" required />
             </FormField>
-            <FormField label="Email" htmlFor="reg-email" hint="With an email, a login account is created" error={err("email")}>
+            <FormField label="Email" htmlFor="reg-email" hint="Optional" error={err("email")}>
               <Input id="reg-email" type="email" value={form.email} onChange={(e) => set("email", e.target.value)} />
             </FormField>
             <FormField label="Sex" htmlFor="reg-sex" error={err("gender")}>
@@ -262,8 +323,8 @@ export function ManualIdentityForm() {
         ) : null}
 
         <div className="flex flex-wrap justify-between gap-3 border-t border-black/[0.06] pt-6">
-          <Button type="button" variant="outline" onClick={() => router.push("/dashboard/register/type")}>
-            Back
+          <Button type="button" variant="outline" onClick={() => router.push("/dashboard/register")}>
+            Change branch
           </Button>
           <Button type="submit" disabled={isSubmitting}>
             {isSubmitting ? "Registering…" : "Register beneficiary"}

@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/table";
 import type { InstitutionListItem, PaginatedItems, VerificationStatus } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
+import { useSession } from "@/lib/auth/use-session";
 import { formatDateTime } from "@/lib/beneficiary/format";
 
 const PAGE_SIZE = 20;
@@ -46,6 +47,7 @@ export default function InstitutionsPage() {
 
 function Institutions() {
   const router = useRouter();
+  const { session } = useSession();
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState<Filters>({ search: "", verificationStatus: "", kycComplete: "" });
   const [draftSearch, setDraftSearch] = useState("");
@@ -57,6 +59,7 @@ function Institutions() {
     `/bff/beneficiaries/institutions?${params.toString()}`,
   );
   const rows = data?.items ?? [];
+  const hasFilters = Object.values(filters).some(Boolean);
 
   function update<K extends keyof Filters>(key: K, value: Filters[K]) {
     setPage(1);
@@ -72,7 +75,11 @@ function Institutions() {
     <section className="space-y-6">
       <PageHeader
         title="Institution review"
-        description="Registered organisations and their KYC documents. Open one to check documents and verify it."
+        description={
+          session?.isAdmin
+            ? "Registered organisations and their KYC documents. Open one to check its documents and verify it."
+            : "Registered organisations and their KYC documents. Open one to check its documents."
+        }
         actions={
           <Button variant="outline" onClick={reload} disabled={isLoading}>
             <RefreshCw />
@@ -100,7 +107,7 @@ function Institutions() {
             >
               <option value="">All statuses</option>
               <option value="pending">Pending review</option>
-              <option value="pending_third_party">Fayda in progress</option>
+              {/* Institutions don't go through Fayda; the backend refuses that filter. */}
               <option value="verified">Verified</option>
               <option value="rejected">Rejected</option>
             </NativeSelect>
@@ -141,7 +148,11 @@ function Institutions() {
             {isLoading && rows.length === 0 ? (
               <TableSkeletonRows colSpan={5} />
             ) : rows.length === 0 ? (
-              <TableMessageRow colSpan={5}>No institutions match your filters.</TableMessageRow>
+              <TableMessageRow colSpan={5}>
+                {hasFilters
+                  ? "No institutions match your filters."
+                  : "No institutions registered yet. Institutions can't be registered in the portal yet."}
+              </TableMessageRow>
             ) : (
               rows.map((item) => (
                 <TableRow
