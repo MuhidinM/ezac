@@ -32,21 +32,32 @@ const DECISION_PATH: Record<ReviewMode, string> = {
 
 const REVIEW_COPY: Record<
   ReviewMode,
-  { title: string; description: string; confirm: string; required: boolean; placeholder: string; destructive?: boolean }
+  {
+    title: string;
+    description: string;
+    confirm: string;
+    required: boolean;
+    placeholder: string;
+    destructive?: boolean;
+    /** Shown on the page once the decision is recorded. */
+    done: string;
+  }
 > = {
   return: {
     title: "Return for correction",
     description: "The officer gets the assessment back to edit and resubmit. Tell them what to fix.",
     confirm: "Return to officer",
+    done: "Returned to the officer.",
     required: true,
     placeholder: "e.g. Please confirm the kebele with the household",
   },
   APPROVED: {
     title: "Approve household",
-    description: "This is the final decision. The household moves to ADMIN's disbursement pool queue.",
+    description: "This is the final decision. The household moves to the administrator's disbursement pool queue.",
     confirm: "Approve",
     required: false,
     placeholder: "e.g. Verified on site",
+    done: "Approved. The household is now waiting for the disbursement pool.",
   },
   DEFERRED: {
     title: "Defer",
@@ -54,6 +65,7 @@ const REVIEW_COPY: Record<
     confirm: "Defer",
     required: true,
     placeholder: "Why is this deferred?",
+    done: "Deferred. A new assessment can start later.",
   },
   REJECTED: {
     title: "Reject",
@@ -62,6 +74,7 @@ const REVIEW_COPY: Record<
     required: true,
     placeholder: "Why is this rejected?",
     destructive: true,
+    done: "Rejected.",
   },
 };
 
@@ -71,7 +84,7 @@ export function BranchReview({
   onDone,
 }: {
   assessment: Assessment;
-  onDone: (updated: Assessment) => void;
+  onDone: (updated: Assessment, message: string) => void;
 }) {
   const [mode, setMode] = useState<ReviewMode | null>(null);
   const [comment, setComment] = useState("");
@@ -86,7 +99,7 @@ export function BranchReview({
       body: JSON.stringify({ comment: comment.trim() || undefined }),
     });
     setComment("");
-    onDone(updated);
+    onDone(updated, REVIEW_COPY[mode].done);
   }
 
   return (

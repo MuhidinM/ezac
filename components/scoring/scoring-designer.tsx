@@ -45,9 +45,9 @@ function recommendationLabel(value: unknown) {
   return RECOMMENDATIONS.find((item) => item.value === value)?.label ?? humanize(value);
 }
 
-/** The schema's TypeScript type predates text fields (preliminary recommendations). */
+/** Text fields hold the preliminary recommendation for a need level. */
 function isText(field: SchemaField) {
-  return (field.type as string) === "text";
+  return field.type === "text";
 }
 
 /** Only `sections.<name>.max` caps a section; deeper `.max` keys (e.g. the asset value cap) are ordinary values. */

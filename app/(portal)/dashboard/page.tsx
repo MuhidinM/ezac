@@ -52,6 +52,7 @@ import type {
 import { useResource } from "@/lib/api/use-resource";
 import { useSession } from "@/lib/auth/use-session";
 import { rangeQuery, type RangeKey } from "@/lib/backoffice/date-range";
+import { formatDays } from "@/lib/backoffice/format";
 import {
   ASNAF,
   OFFICER_RECOMMENDATION,
@@ -102,9 +103,7 @@ function formatPeriod(period: string, interval: string) {
   ).format(date);
 }
 
-function days(value: number | null | undefined) {
-  return value === null || value === undefined ? "—" : `${value.toFixed(1)} d`;
-}
+const days = formatDays;
 
 function percent(value: number | null | undefined) {
   return value === null || value === undefined ? "—" : `${Math.round(value * 100)}%`;
@@ -333,7 +332,7 @@ function Overview({ scope, range, showAreas }: { scope: string; range: RangeKey;
       <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <Panel
           title="Score distribution"
-          description={distribution.data ? `${distribution.data.scored.toLocaleString()} current scores, by risk band` : undefined}
+          description={distribution.data ? `${distribution.data.scored.toLocaleString()} current scores, by need level` : undefined}
           actions={<AllTime />}
         >
           {distribution.error ? (
@@ -344,7 +343,7 @@ function Overview({ scope, range, showAreas }: { scope: string; range: RangeKey;
             <div className="h-[220px] animate-pulse rounded-lg bg-black/[0.03]" />
           )}
         </Panel>
-        <Panel title="Risk" description="Beneficiaries by current risk band" actions={<AllTime />}>
+        <Panel title="Need level" description="Beneficiaries by current need level" actions={<AllTime />}>
           <BarList
             items={RISK_ITEMS.map((item) => ({
               key: item.key,
@@ -485,7 +484,7 @@ function AreaComparison({ scope }: { scope: string }) {
             <TableHead className="text-right">Under assessment</TableHead>
             <TableHead className="text-right">Submitted</TableHead>
             <TableHead className="text-right">Approved</TableHead>
-            <TableHead className="text-right">High risk</TableHead>
+            <TableHead className="text-right">High need</TableHead>
             <TableHead className={cn("text-right", by === "regions" && "pr-5")}>Avg score</TableHead>
             {by === "branches" ? <TableHead className="pr-5 text-right">Codes left</TableHead> : null}
           </TableRow>

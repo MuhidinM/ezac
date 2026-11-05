@@ -63,11 +63,14 @@ export function WhitelistEntryCard({
   canDecide,
   onChanged,
   compact,
+  hidePoolStatus,
 }: {
   entry: WhitelistEntry;
   canDecide: boolean;
   onChanged: (entry: WhitelistEntry) => void;
   compact?: boolean;
+  /** Leave out the entry's pool badge when it is stale (another row is the live pool row). */
+  hidePoolStatus?: boolean;
 }) {
   const [decision, setDecision] = useState<Decision | null>(null);
   const [text, setText] = useState("");
@@ -79,13 +82,13 @@ export function WhitelistEntryCard({
       <div className="flex flex-wrap items-center gap-1.5">
         <WhitelistBadge effect={entry.effect} />
         <Badge tone={status.tone}>{status.label}</Badge>
-        <PoolStatusBadge status={entry.poolStatus} />
+        {hidePoolStatus ? null : <PoolStatusBadge status={entry.poolStatus} />}
       </div>
 
       <dl className="space-y-2 text-sm">
         <div>
           <dt className="text-xs text-black/45">Reason</dt>
-          <dd className="font-medium text-[#001539]">{labelFor(WHITELIST_REASONS, entry.reasonCode)}</dd>
+          <dd className="font-medium text-navy">{labelFor(WHITELIST_REASONS, entry.reasonCode)}</dd>
         </div>
         {entry.justification ? (
           <div>
@@ -118,7 +121,7 @@ export function WhitelistEntryCard({
                 href={evidenceUrl(file.contentUrl, entry.id, file.id)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-sm text-[#007050] hover:underline"
+                className="inline-flex items-center gap-1.5 text-sm text-brand hover:underline"
               >
                 <FileText className="size-3.5" />
                 {file.fileName ?? "Evidence"}

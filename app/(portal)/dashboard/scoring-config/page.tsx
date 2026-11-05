@@ -110,7 +110,7 @@ function ScoringConfigView() {
             <p className="text-sm text-black/50">{versions.isLoading ? "Loading…" : "No active configuration."}</p>
           )}
         </Panel>
-        <Panel title="Risk bands" description={`Out of ${typeof maxTotal === "number" ? maxTotal : 270} points.`}>
+        <Panel title="Need levels" description={`Out of ${typeof maxTotal === "number" ? maxTotal : 270} points.`}>
           <ul className="space-y-2.5 text-sm">
             <Band tone="bg-rose-500" label="High" range={`${typeof high === "number" ? high : 180} and above`} recommendation="Approve" />
             <Band

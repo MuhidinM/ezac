@@ -22,6 +22,19 @@ import type {
  */
 const ACCESS: AccessOptions = { access: "admin", label: "admin/branches" };
 
+/** Every create field is required; the labels match the New branch form. */
+const REQUIRED_LABELS: Record<keyof CreateBranchBody, string> = {
+  name: "Branch name",
+  region: "Region",
+  zone: "Zone",
+  woreda: "Woreda",
+  branchFullName: "Officer's full name",
+  branchPhone: "Officer's phone",
+  branchEmail: "Officer's email",
+};
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function field(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -46,22 +59,29 @@ export async function POST(request: Request) {
   return withStaffAccess(async (accessToken) => {
     const body = (await readJsonBody<Partial<Record<keyof CreateBranchBody, unknown>> | null>(request)) ?? {};
 
-    const payload: CreateBranchBody = {
+    // The backend rejects a blank email, so it is required here too.
+    const payload: Required<CreateBranchBody> = {
       name: field(body.name),
       region: field(body.region),
       zone: field(body.zone),
       woreda: field(body.woreda),
       branchPhone: field(body.branchPhone),
       branchFullName: field(body.branchFullName),
+      branchEmail: field(body.branchEmail),
     };
 
-    if (Object.values(payload).some((value) => !value)) {
-      throw new ApiError("Required branch fields are missing", 400);
+    const missing = (Object.keys(REQUIRED_LABELS) as (keyof CreateBranchBody)[]).filter((key) => !payload[key]);
+    if (missing.length > 0) {
+      throw new ApiError(
+        `Fill in ${missing.map((key) => REQUIRED_LABELS[key].toLowerCase()).join(", ")}.`,
+        400,
+        missing.map((key) => ({ field: key, message: `Enter the ${REQUIRED_LABELS[key].toLowerCase()}.` })),
+      );
     }
-
-    const branchEmail = field(body.branchEmail);
-    if (branchEmail) {
-      payload.branchEmail = branchEmail;
+    if (!EMAIL.test(payload.branchEmail)) {
+      throw new ApiError("Enter a valid email address for the branch officer.", 400, [
+        { field: "branchEmail", message: "Enter a valid email address, e.g. name@example.com." },
+      ]);
     }
 
     return gatewayRequest<BranchCreateResponse>("/api/beneficiaries/v1/admin/branches", {

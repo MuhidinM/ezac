@@ -12,12 +12,13 @@ import {
   PoolStatusBadge,
   WhitelistBadge,
 } from "@/components/backoffice/status-badges";
-import { BasicDetailsDialog, type BankLock } from "@/components/beneficiary/basic-details-dialog";
+import { BasicDetailsDialog, bankLockFor, type BankLock } from "@/components/beneficiary/basic-details-dialog";
 import { BeneficiaryEditForm } from "@/components/beneficiary/beneficiary-edit-form";
 import { LifecyclePanel } from "@/components/beneficiary/lifecycle-panel";
 import { WhitelistPanel } from "@/components/whitelist/whitelist-panel";
 import { KycDocumentsCard } from "@/components/beneficiary/kyc-documents-card";
 import { VerificationStatusBadge } from "@/components/beneficiary/verification-status-badge";
+import { useBreadcrumbLabel } from "@/components/dashboard/dashboard-header";
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -33,7 +34,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import type { AssessmentListItem, AssessmentStatus, PoolStatus } from "@/lib/api/backoffice-types";
+import type { Assessment, AssessmentListItem, PoolStatus } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errors";
 import type { BeneficiaryDetail, PaginatedItems } from "@/lib/api/types";
@@ -45,9 +46,11 @@ import { hasPendingPasswordSetup } from "@/lib/registration/session";
 
 type VerificationAction = "verified" | "rejected";
 
-/** Once the branch has the assessment, the payout account is settled. */
-const BANK_LOCKING_ASSESSMENTS: AssessmentStatus[] = ["SUBMITTED", "APPROVED"];
-const BANK_LOCKING_POOL: PoolStatus[] = ["AWAITING_POOL", "POOLED"];
+/** The most recently changed APPROVED assessment: the one that carries the household's pool status. */
+function latestApproved(items: AssessmentListItem[]) {
+  const when = (item: AssessmentListItem) => item.updatedAt ?? item.submittedAt ?? item.createdAt ?? "";
+  return items.filter((item) => item.status === "APPROVED").sort((a, b) => when(b).localeCompare(when(a)))[0] ?? null;
+}
 
 export default function BeneficiaryDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -65,6 +68,14 @@ export default function BeneficiaryDetailPage() {
       ? `/bff/backoffice/beneficiaries/${encodeURIComponent(beneficiary.id)}/assessments`
       : null,
   );
+  const assessmentHistory = Array.isArray(assessmentsData) ? assessmentsData : assessmentsData?.items;
+  // The detail GET has no pool status yet; the latest approved assessment carries it.
+  const approved = beneficiary?.poolStatus ? null : latestApproved(assessmentHistory ?? []);
+  const { data: approvedAssessment } = useResource<Assessment>(
+    approved ? `/bff/backoffice/assessments/${encodeURIComponent(approved.id)}` : null,
+  );
+  const poolStatus: PoolStatus | null = beneficiary?.poolStatus ?? approvedAssessment?.pool?.status ?? null;
+  useBreadcrumbLabel(beneficiary?.fullName);
 
   const [isEditingInstitution, setIsEditingInstitution] = useState(false);
   const [basicOpen, setBasicOpen] = useState(false);
@@ -106,21 +117,9 @@ export default function BeneficiaryDetailPage() {
 
   // Bank account: settled once the assessment is with the branch or the
   // household is (about to be) pooled. Only ADMIN may change it then.
-  const assessmentHistory = Array.isArray(assessmentsData) ? assessmentsData : (assessmentsData?.items ?? []);
-  const bankSettled =
-    assessmentHistory.some((item) => BANK_LOCKING_ASSESSMENTS.includes(item.status)) ||
-    (!!beneficiary.poolStatus && BANK_LOCKING_POOL.includes(beneficiary.poolStatus));
   const bankLock: BankLock = isInstitution
     ? null
-    : isAdmin
-      ? bankSettled
-        ? "warn"
-        : null
-      : assessmentsData === undefined
-        ? "unchecked"
-        : bankSettled
-          ? "locked"
-          : null;
+    : bankLockFor({ isAdmin, assessments: assessmentHistory, poolStatus });
   const canEditBank = canEdit && (bankLock === null || bankLock === "warn");
 
   // Merge: the PATCH answers leave out fields such as the lifecycle and BIN,
@@ -170,7 +169,7 @@ export default function BeneficiaryDetailPage() {
           <div className="flex flex-wrap items-center gap-1.5">
             <VerificationStatusBadge status={beneficiary.verificationStatus} />
             <LifecycleBadge status={beneficiary.lifecycleStatus} />
-            <PoolStatusBadge status={beneficiary.poolStatus} />
+            <PoolStatusBadge status={poolStatus} />
             <WhitelistBadge effect={beneficiary.whitelistEffect} />
             <DuplicateBadge status={beneficiary.duplicateStatus} />
             <Badge tone="neutral" className="capitalize">
@@ -380,13 +379,17 @@ export default function BeneficiaryDetailPage() {
               <p className="text-sm text-black/45">Only staff of this household&apos;s branch can see its whitelist.</p>
             </Panel>
           ) : (
-            <WhitelistPanel beneficiaryId={beneficiary.id} beneficiaryName={beneficiary.fullName} />
+            <WhitelistPanel
+              beneficiaryId={beneficiary.id}
+              beneficiaryName={beneficiary.fullName}
+              household={{ ...beneficiary, poolStatus }}
+            />
           )}
           {!isInstitution && session?.isStaff ? (
             <LifecyclePanel
               beneficiaryId={beneficiary.id}
               canChange={isAdmin && !outOfScope}
-              poolStatus={beneficiary.poolStatus}
+              poolStatus={poolStatus}
               onChanged={(lifecycleStatus) => mutate({ ...beneficiary, lifecycleStatus })}
             />
           ) : null}

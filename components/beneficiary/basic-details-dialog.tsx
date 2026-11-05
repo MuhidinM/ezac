@@ -16,7 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { apiClient } from "@/lib/api/client";
-import type { BankAccount } from "@/lib/api/backoffice-types";
+import type { AssessmentStatus, BankAccount, PoolStatus } from "@/lib/api/backoffice-types";
 import type { BeneficiaryDetail } from "@/lib/api/types";
 import { BANKS, MARITAL_STATUS, PRIMARY_LANGUAGE, SEX } from "@/lib/backoffice/options";
 import { ageMismatch, formErrors } from "@/lib/registration/form-errors";
@@ -76,6 +76,32 @@ const FIELD_KEYS = Object.keys(FIELD_IDS) as (keyof BasicDetails)[];
  * ADMIN, "unchecked" when the assessments could not be read (fail closed).
  */
 export type BankLock = "locked" | "warn" | "unchecked" | null;
+
+/** Once the branch has an assessment, or has approved one, the payout account is settled. */
+const BANK_LOCKING_ASSESSMENTS: AssessmentStatus[] = ["SUBMITTED", "APPROVED"];
+const BANK_LOCKING_POOL: PoolStatus[] = ["AWAITING_POOL", "POOLED"];
+
+/**
+ * The BankLock for a household. `assessments` is its assessment history:
+ * undefined while it loads or when it can't be read, which locks the account
+ * for everyone but ADMIN.
+ */
+export function bankLockFor({
+  isAdmin,
+  assessments,
+  poolStatus,
+}: {
+  isAdmin: boolean;
+  assessments: { status: AssessmentStatus }[] | undefined;
+  poolStatus?: PoolStatus | null;
+}): BankLock {
+  const settled =
+    (assessments ?? []).some((item) => BANK_LOCKING_ASSESSMENTS.includes(item.status)) ||
+    (!!poolStatus && BANK_LOCKING_POOL.includes(poolStatus));
+  if (isAdmin) return settled ? "warn" : null;
+  if (assessments === undefined) return "unchecked";
+  return settled ? "locked" : null;
+}
 
 /** A beneficiary detail or an assessment applicant: flat fields plus a nested bank account. */
 type Source = Partial<Record<Exclude<keyof BasicDetails, BankKey>, string | number | null | undefined>> & {
@@ -157,6 +183,10 @@ export function BasicDetailsDialog({
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
+  // The phone is the household's sign-in: a change needs a second Save after the warning.
+  const [phoneWarned, setPhoneWarned] = useState(false);
+  const storedPhone = initial.phone == null ? "" : String(initial.phone).trim();
+  const showPhoneWarning = phoneWarned && !!storedPhone && details.phone.trim() !== storedPhone;
 
   // Start from the stored record every time the dialog opens. Parents open it
   // by setting `open`, which never calls onOpenChange, and the component stays
@@ -169,6 +199,7 @@ export function BasicDetailsDialog({
       setDetails(fromSource(initial));
       setError(null);
       setFieldErrors({});
+      setPhoneWarned(false);
     }
   }
 
@@ -221,6 +252,12 @@ export function BasicDetailsDialog({
         return;
       }
     }
+    // Changing an existing phone changes how the household signs in: warn first.
+    const phoneChanged = "phone" in changed && !!before.phone && changed.phone !== before.phone;
+    if (phoneChanged && !phoneWarned) {
+      setPhoneWarned(true);
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -257,7 +294,12 @@ export function BasicDetailsDialog({
             <FormField label="Full name" htmlFor="bd-name" error={fieldError("fullName")} className="sm:col-span-2">
               <Input id="bd-name" value={details.fullName} onChange={(e) => set("fullName", e.target.value)} />
             </FormField>
-            <FormField label="Phone" htmlFor="bd-phone" error={fieldError("phone")}>
+            <FormField
+              label="Phone"
+              htmlFor="bd-phone"
+              hint="The household signs in with this number"
+              error={fieldError("phone")}
+            >
               <Input id="bd-phone" type="tel" value={details.phone} onChange={(e) => set("phone", e.target.value)} />
             </FormField>
             <FormField label="Sex" htmlFor="bd-sex" error={fieldError("gender")}>
@@ -345,8 +387,8 @@ export function BasicDetailsDialog({
             </div>
             {bankLock === "locked" ? (
               <InlineAlert tone="info">
-                The assessment has been submitted, so the bank account is locked. Ask an administrator if it
-                needs to change.
+                This household has an assessment that is submitted or approved, so the bank account is locked.
+                Ask an administrator if it needs to change.
               </InlineAlert>
             ) : bankLock === "unchecked" ? (
               <InlineAlert tone="info">
@@ -409,12 +451,19 @@ export function BasicDetailsDialog({
             </div>
           </fieldset>
 
+          {showPhoneWarning ? (
+            <InlineAlert tone="warning" title="The phone number is also the household's sign-in">
+              Only change it if the household has a new number, and tell them before you save. Select Save with
+              the new phone to confirm.
+            </InlineAlert>
+          ) : null}
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={isSaving}>
-              {isSaving ? "Saving…" : "Save details"}
+              {isSaving ? "Saving…" : showPhoneWarning ? "Save with the new phone" : "Save details"}
             </Button>
           </DialogFooter>
         </form>

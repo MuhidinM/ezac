@@ -220,7 +220,7 @@ export function WhitelistFormDialog({
             <DialogDescription>
               {isAdmin
                 ? "Active straight away. It changes the pool order, never the score."
-                : "ADMIN reviews the request. You can't decide on your own request."}
+                : "An administrator reviews the request. You can't decide on your own request."}
             </DialogDescription>
           </DialogHeader>
           {error ? <InlineAlert>{error}</InlineAlert> : null}

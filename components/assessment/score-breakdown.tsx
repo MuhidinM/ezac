@@ -3,7 +3,7 @@ import type { AssessmentScore } from "@/lib/api/backoffice-types";
 import { OFFICER_RECOMMENDATION, labelFor } from "@/lib/backoffice/options";
 import { cn } from "@/lib/utils";
 
-/** Composite score, risk and system recommendation. */
+/** Composite score, need level and system recommendation. */
 export function ScoreHeadline({
   score,
   caption,
@@ -20,7 +20,7 @@ export function ScoreHeadline({
         </div>
       </div>
       <dl className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
-        <dt className="text-black/50">Risk</dt>
+        <dt className="text-black/50">Need</dt>
         <dd>
           <RiskBadge risk={score.riskCategory} />
         </dd>

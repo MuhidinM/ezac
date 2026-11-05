@@ -56,7 +56,7 @@ export function RiskBadge({ risk }: { risk?: RiskCategory | null }) {
   return (
     <Badge tone={meta.tone}>
       <span className={cn("size-1.5 rounded-full", meta.bar)} />
-      {meta.label} risk
+      {meta.label} need
     </Badge>
   );
 }

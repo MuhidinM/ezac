@@ -21,7 +21,7 @@ export type ScoringConfigVersion = {
 export type SchemaField = {
   /** Dot path into config, e.g. `sections.income.zero`. */
   path: string;
-  type: "integer" | "number" | "bands";
+  type: "integer" | "number" | "bands" | "text";
   label: string;
   section: string;
   min?: number | null;

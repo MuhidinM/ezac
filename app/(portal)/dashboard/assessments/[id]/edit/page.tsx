@@ -3,13 +3,14 @@
 import { useParams } from "next/navigation";
 
 import { AssessmentLocked, AssessmentWizard } from "@/components/assessment/assessment-wizard";
+import { useBreadcrumbLabel } from "@/components/dashboard/dashboard-header";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { RequireRole } from "@/components/dashboard/require-role";
 import { Button } from "@/components/ui/button";
 import type { Assessment } from "@/lib/api/backoffice-types";
 import { useResource } from "@/lib/api/use-resource";
-import { isEditable } from "@/lib/backoffice/assessment-steps";
+import { assessmentCrumb, isEditable } from "@/lib/backoffice/assessment-steps";
 
 export default function EditAssessmentPage() {
   return (
@@ -24,6 +25,8 @@ function EditAssessment() {
   const { data: assessment, error, isLoading, reload } = useResource<Assessment>(
     `/bff/backoffice/assessments/${encodeURIComponent(id)}`,
   );
+  // The record crumb (one up from "Edit") shows the household and assessment number.
+  useBreadcrumbLabel(assessmentCrumb(assessment), `/dashboard/assessments/${id}`);
 
   if (isLoading && !assessment) {
     return (

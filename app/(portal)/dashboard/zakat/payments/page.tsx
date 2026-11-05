@@ -4,6 +4,7 @@ import { type FormEvent, useState } from "react";
 import { BadgeCheck, CircleAlert, Copy, RefreshCw, ScanSearch, Search } from "lucide-react";
 
 import { StatTile } from "@/components/charts/stat-tile";
+import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { ListPagination } from "@/components/dashboard/list-pagination";
@@ -457,24 +458,31 @@ function ResolveForm({ payment, onResolved }: { payment: ZakatPayment; onResolve
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [isSaving, setIsSaving] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const paid = outcome === "SUCCEEDED";
+  const donor = payment.payerFullName?.trim() || "the donor";
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+  // There's no undo, so the form only opens a confirm step that restates the outcome.
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setFieldErrors({});
-    setIsSaving(true);
+    setConfirming(true);
+  }
+
+  async function resolve() {
     try {
       const next = await apiClient<ZakatPayment>(`${API}/${encodeURIComponent(payment.paymentId)}/resolve`, {
         method: "POST",
         body: JSON.stringify({
           status: outcome,
-          ...(outcome === "SUCCEEDED" ? { providerReference: reference.trim() } : {}),
+          ...(paid ? { providerReference: reference.trim() } : {}),
           note: note.trim(),
         }),
       });
       onResolved(next);
     } catch (resolveError) {
+      // Shown on the form, next to the fields, once the confirm step closes.
       const usedBy =
         resolveError instanceof ApiError && resolveError.status === 409
           ? (resolveError.data as { paymentId?: string } | null)?.paymentId
@@ -485,12 +493,11 @@ function ResolveForm({ payment, onResolved }: { payment: ZakatPayment; onResolve
           : errorMessage(resolveError, "Couldn't settle the payment"),
       );
       if (resolveError instanceof ApiError) setFieldErrors(fieldErrorMap(resolveError.errors));
-    } finally {
-      setIsSaving(false);
     }
   }
 
   return (
+    <>
     <form onSubmit={onSubmit} className="space-y-4 rounded-xl border border-amber-200 bg-amber-50/50 p-4">
       <div>
         <p className="text-sm font-semibold text-[#001539]">{qr ? "Confirm this QR payment" : "Settle this payment"}</p>
@@ -537,7 +544,7 @@ function ResolveForm({ payment, onResolved }: { payment: ZakatPayment; onResolve
           </button>
         ))}
       </div>
-      {outcome === "SUCCEEDED" ? (
+      {paid ? (
         <FormField label="Bank reference" htmlFor="resolve-ref" required error={fieldErrors.providerReference}>
           <Input id="resolve-ref" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="FT…" required className="font-mono" />
         </FormField>
@@ -546,11 +553,36 @@ function ResolveForm({ payment, onResolved }: { payment: ZakatPayment; onResolve
         <Textarea id="resolve-note" rows={2} maxLength={1000} value={note} onChange={(e) => setNote(e.target.value)} required />
       </FormField>
       <div className="flex justify-end">
-        <Button type="submit" disabled={isSaving || !outcome || !note.trim() || (outcome === "SUCCEEDED" && !reference.trim())}>
-          {isSaving ? "Saving…" : qr ? "Record" : "Settle payment"}
+        <Button type="submit" disabled={confirming || !outcome || !note.trim() || (paid && !reference.trim())}>
+          {qr ? "Record" : "Settle payment"}
         </Button>
       </div>
     </form>
+
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={paid ? "Mark this payment as paid?" : "Mark this payment as not paid?"}
+        description={
+          paid ? (
+            <>
+              {formatEtb(payment.amountEtb)} from {donor}, bank reference{" "}
+              <span className="font-mono">{reference.trim()}</span>. This issues a Zakat certificate that the public
+              certificate check shows as genuine. Only do this if the bank confirmed the money arrived. This can&apos;t
+              be undone.
+            </>
+          ) : (
+            <>
+              {formatEtb(payment.amountEtb)} from {donor}. The payment is closed as unpaid and no certificate is
+              issued. Only do this if the bank confirmed no money arrived. This can&apos;t be undone.
+            </>
+          )
+        }
+        confirmLabel={paid ? "Mark as paid" : "Mark as not paid"}
+        destructive={!paid}
+        onConfirm={resolve}
+      />
+    </>
   );
 }
 

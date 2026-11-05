@@ -33,6 +33,7 @@ import type { PoolEntry } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
 import type { BranchListItem, PaginatedItems, VerificationStatus } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
+import { useScoreMax } from "@/lib/backoffice/score-max";
 import { ASNAF } from "@/lib/backoffice/options";
 import { formatDateTime } from "@/lib/beneficiary/format";
 import { ETHIOPIAN_REGIONS } from "@/lib/constants/regions";
@@ -42,7 +43,6 @@ import type { Disbursement } from "@/lib/zakat/disbursements";
 const API = "/bff/backoffice/admin/pool";
 const PAYOUTS_API = "/bff/payments-admin/disbursements";
 const PAGE_SIZE = 25;
-const SCORE_MAX = 270;
 
 type View = "awaiting" | "pooled";
 type RowAction = "decline" | "send-back" | "remove";
@@ -74,12 +74,12 @@ const EMPTY: Filters = {
 };
 
 /** Checked here so a bad range never reaches the server, which answers with a raw validation message. */
-function checkFilters(filters: Filters) {
+function checkFilters(filters: Filters, scoreMax: number) {
   const errors: { score?: string; approved?: string } = {};
   const scores = [filters.scoreMin, filters.scoreMax].map((value) => (value.trim() === "" ? null : Number(value)));
   const [min, max] = scores;
-  if (scores.some((value) => value !== null && (!Number.isFinite(value) || value < 0 || value > SCORE_MAX))) {
-    errors.score = `Enter scores from 0 to ${SCORE_MAX}. The score filter isn't applied until then.`;
+  if (scores.some((value) => value !== null && (!Number.isFinite(value) || value < 0 || value > scoreMax))) {
+    errors.score = `Enter scores from 0 to ${scoreMax}. The score filter isn't applied until then.`;
   } else if (min !== null && max !== null && min > max) {
     errors.score = "The lowest score can't be above the highest. The score filter isn't applied until you fix it.";
   }
@@ -208,7 +208,9 @@ function Pool() {
   const [paying, setPaying] = useState<PoolEntry | null>(null);
   const [reason, setReason] = useState("");
 
-  const filterErrors = checkFilters(filters);
+  // The active scoring config's maximum; 270 until it is known.
+  const scoreMax = useScoreMax();
+  const filterErrors = checkFilters(filters, scoreMax);
   const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
   for (const [key, value] of Object.entries(filters)) {
     if (!value) continue;
@@ -373,7 +375,7 @@ function Pool() {
                 ))}
               </NativeSelect>
             </FormField>
-            <FormField label="Risk" htmlFor="p-risk">
+            <FormField label="Need" htmlFor="p-risk">
               <NativeSelect id="p-risk" value={filters.riskCategory} onChange={(e) => update("riskCategory", e.target.value)}>
                 <option value="">Any</option>
                 <option value="HIGH">High</option>
@@ -389,11 +391,11 @@ function Pool() {
                 ))}
               </NativeSelect>
             </FormField>
-            <FormField label={`Score (0–${SCORE_MAX})`} htmlFor="p-min" error={filterErrors.score}>
+            <FormField label={`Score (0–${scoreMax})`} htmlFor="p-min" error={filterErrors.score}>
               <div className="flex items-center gap-2">
-                <Input id="p-min" type="number" min={0} max={SCORE_MAX} placeholder="Min" value={filters.scoreMin} onChange={(e) => update("scoreMin", e.target.value)} aria-invalid={filterErrors.score ? true : undefined} className="bg-white" />
+                <Input id="p-min" type="number" min={0} max={scoreMax} placeholder="Min" value={filters.scoreMin} onChange={(e) => update("scoreMin", e.target.value)} aria-invalid={filterErrors.score ? true : undefined} className="bg-white" />
                 <span className="text-black/40">–</span>
-                <Input type="number" min={0} max={SCORE_MAX} placeholder="Max" aria-label="Maximum score" value={filters.scoreMax} onChange={(e) => update("scoreMax", e.target.value)} aria-invalid={filterErrors.score ? true : undefined} className="bg-white" />
+                <Input type="number" min={0} max={scoreMax} placeholder="Max" aria-label="Maximum score" value={filters.scoreMax} onChange={(e) => update("scoreMax", e.target.value)} aria-invalid={filterErrors.score ? true : undefined} className="bg-white" />
               </div>
             </FormField>
             <FormField label="Approved between" htmlFor="p-from" className="lg:col-span-2" error={filterErrors.approved}>

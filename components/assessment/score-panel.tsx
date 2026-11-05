@@ -233,7 +233,7 @@ export function ScoreHistory({ assessmentId }: { assessmentId: string }) {
           <TableRow className="bg-black/[0.015]">
             <TableHead className="pl-5">Calculated</TableHead>
             <TableHead>Score</TableHead>
-            <TableHead>Risk</TableHead>
+            <TableHead>Need</TableHead>
             <TableHead>Recommendation</TableHead>
             <TableHead>Config</TableHead>
             <TableHead className="pr-5">Status</TableHead>

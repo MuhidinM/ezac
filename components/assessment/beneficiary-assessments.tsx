@@ -107,7 +107,7 @@ export function BeneficiaryAssessments({ beneficiary }: { beneficiary: Beneficia
             <TableHead className="pl-5">Date</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Score</TableHead>
-            <TableHead className="pr-5">Risk</TableHead>
+            <TableHead className="pr-5">Need</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>

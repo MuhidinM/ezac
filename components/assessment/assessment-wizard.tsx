@@ -17,25 +17,28 @@ import { StepVerification } from "@/components/assessment/steps/step-verificatio
 import { StepVulnerability } from "@/components/assessment/steps/step-vulnerability";
 import { StepWellbeing } from "@/components/assessment/steps/step-wellbeing";
 import { AssessmentStatusBadge } from "@/components/backoffice/status-badges";
-import { BasicDetailsDialog } from "@/components/beneficiary/basic-details-dialog";
+import { BasicDetailsDialog, bankLockFor } from "@/components/beneficiary/basic-details-dialog";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Button } from "@/components/ui/button";
 import type {
   Assessment,
   AssessmentDocument,
+  AssessmentListItem,
   AssessmentValidation,
 } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
 import { ApiError, fieldErrorMap } from "@/lib/api/errors";
-import type { BeneficiaryDetail } from "@/lib/api/types";
+import type { BeneficiaryDetail, PaginatedItems } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
+import { useSession } from "@/lib/auth/use-session";
 import {
   STEPS,
   assessmentBeneficiaryId,
   draftFromAssessment,
   firstIncompleteStep,
   isStepComplete,
+  issueText,
   reviewInfo,
   stepBody,
   stepForField,
@@ -51,10 +54,6 @@ function apiPath(id: string) {
   return `/bff/backoffice/assessments/${encodeURIComponent(id)}`;
 }
 
-function humanMessage(message: string) {
-  return message === "required" ? "Required" : message;
-}
-
 export function AssessmentWizard({ initial }: { initial: Assessment }) {
   const router = useRouter();
   const path = apiPath(initial.id);
@@ -63,6 +62,16 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
   const { data: beneficiary, mutate: setBeneficiary } = useResource<BeneficiaryDetail>(
     beneficiaryId ? `/bff/beneficiaries/${encodeURIComponent(beneficiaryId)}` : null,
   );
+  // The household's other assessments: an approved one settles the bank account.
+  const { session } = useSession();
+  const { data: history } = useResource<AssessmentListItem[] | PaginatedItems<AssessmentListItem>>(
+    beneficiaryId ? `/bff/backoffice/beneficiaries/${encodeURIComponent(beneficiaryId)}/assessments` : null,
+  );
+  const bankLock = bankLockFor({
+    isAdmin: session?.isAdmin ?? false,
+    assessments: Array.isArray(history) ? history : history?.items,
+    poolStatus: beneficiary?.poolStatus ?? initial.pool?.status,
+  });
 
   const [assessment, setAssessment] = useState(initial);
   const [draft, setDraft] = useState<AssessmentDraft>(() => draftFromAssessment(initial));
@@ -230,7 +239,7 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
   const validationErrors = useMemo(() => {
     if (!showValidation || !validation) return {};
     return Object.fromEntries(
-      (validation.errors ?? []).map((issue) => [issue.field, humanMessage(issue.message)]),
+      (validation.errors ?? []).map((issue) => [issue.field, issueText(issue.message)]),
     );
   }, [showValidation, validation]);
 
@@ -394,6 +403,7 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
             void refreshApplicant();
           }}
           externalErrors={validationErrors}
+          bankLock={bankLock}
         />
       ) : null}
     </section>

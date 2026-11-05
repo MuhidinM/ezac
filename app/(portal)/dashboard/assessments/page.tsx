@@ -156,9 +156,21 @@ function AssessmentsView() {
       setPage(1);
     }
   }
-  const [filters, setFilters] = useState<Filters>(EMPTY);
+  // A `?officerId=` link (from a field officer's page) starts filtered to that officer.
+  // Only ADMIN has the officer filter, so only ADMIN takes it from the link.
+  const linkedOfficer = isAdmin ? (searchParams.get("officerId") ?? "") : "";
+  const [filters, setFilters] = useState<Filters>(() => ({ ...EMPTY, officerId: linkedOfficer }));
   const [draftSearch, setDraftSearch] = useState("");
-  const [showFilters, setShowFilters] = useState(false);
+  const [showFilters, setShowFilters] = useState(() => !!linkedOfficer);
+  const [seenOfficer, setSeenOfficer] = useState(linkedOfficer);
+  if (linkedOfficer !== seenOfficer) {
+    setSeenOfficer(linkedOfficer);
+    if (linkedOfficer) {
+      setFilters((prev) => ({ ...prev, officerId: linkedOfficer }));
+      setShowFilters(true);
+      setPage(1);
+    }
+  }
 
   const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
   if (status) params.set("status", status);
@@ -306,7 +318,7 @@ function AssessmentsView() {
 
           {showFilters ? (
             <div className="grid gap-3 rounded-lg bg-black/[0.02] p-3 sm:grid-cols-2 lg:grid-cols-4">
-              <FormField label="Risk" htmlFor="a-risk">
+              <FormField label="Need" htmlFor="a-risk">
                 <NativeSelect id="a-risk" value={filters.riskCategory} onChange={(e) => update("riskCategory", e.target.value)}>
                   <option value="">Any</option>
                   <option value="HIGH">High</option>
@@ -342,6 +354,9 @@ function AssessmentsView() {
                   <FormField label="Field officer" htmlFor="a-officer">
                     <NativeSelect id="a-officer" value={filters.officerId} onChange={(e) => update("officerId", e.target.value)}>
                       <option value="">Any</option>
+                      {filters.officerId && !officers?.items.some((item) => item.id === filters.officerId) ? (
+                        <option value={filters.officerId}>{officers ? "Officer from the link" : "Loading…"}</option>
+                      ) : null}
                       {officers?.items.map((item) => (
                         <option key={item.id} value={item.id}>{officerLabel(item)}</option>
                       ))}
@@ -365,7 +380,7 @@ function AssessmentsView() {
               <TableHead className="pl-5">Beneficiary</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Score</TableHead>
-              <TableHead>Risk</TableHead>
+              <TableHead>Need</TableHead>
               <TableHead>
                 <span className="inline-flex items-center gap-1">
                   Assessment date

@@ -6,6 +6,7 @@ import { Lock, Send } from "lucide-react";
 
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { FormField } from "@/components/dashboard/form-field";
+import { useBreadcrumbLabel } from "@/components/dashboard/dashboard-header";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { DetailList, Panel } from "@/components/dashboard/panel";
@@ -112,6 +113,7 @@ function CauseEditor() {
   const isNew = params.id === "new";
   const { data: cause, error, mutate } = useResource<AdminCause>(isNew ? null : `${API}/${encodeURIComponent(params.id)}`);
   const [notice, setNotice] = useState<string | null>(null);
+  useBreadcrumbLabel(isNew ? "New cause" : cause?.title);
 
   if (isNew) return <CauseForm initial={EMPTY} notice={null} onNotice={setNotice} />;
   if (error) return <InlineAlert>{error.message}</InlineAlert>;

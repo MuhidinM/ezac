@@ -186,8 +186,8 @@ function FieldOfficerDetail() {
               value:
                 officer.openAssessments != null && officer.openAssessments > 0 ? (
                   <Link
-                    href={`/dashboard/assessments?officerId=${encodeURIComponent(officer.id)}`}
-                    className="text-[#007050] hover:underline"
+                    href={`/dashboard/assessments?status=${encodeURIComponent("DRAFT,RETURNED")}&officerId=${encodeURIComponent(officer.id)}`}
+                    className="text-brand hover:underline"
                   >
                     {officer.openAssessments}
                   </Link>

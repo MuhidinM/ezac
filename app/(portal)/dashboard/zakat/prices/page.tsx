@@ -148,7 +148,7 @@ function Prices() {
     <section className="space-y-6">
       <PageHeader
         title="Prices & nisab"
-        description="Gold, silver and livestock prices behind the public Zakat calculator, and the nisab it applies."
+        description="Gold and silver prices behind the public Zakat calculator and the nisab it applies, plus the average livestock prices shown on the public How it works page."
         actions={<RangeSelect value={range} onChange={(value) => { setRange(value); setPage(1); }} />}
       />
 

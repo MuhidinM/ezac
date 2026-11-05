@@ -162,24 +162,28 @@ function Disbursements() {
       ) : null}
       {summary.error ? <InlineAlert>{summary.error.message}</InlineAlert> : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile
-          label="Paid out"
-          value={s ? formatEtb(s.succeededAmountEtb) : "—"}
-          hint={
-            s?.paidByFund?.length
-              ? s.paidByFund.map((row) => `${fundLabel(row.fund)} ${formatEtb(row.amountEtb)}`).join(" · ")
-              : "In this period"
-          }
-          loading={summary.isLoading && !s}
-        />
-        <StatTile label="Households paid" value={s ? s.succeededCount.toLocaleString("en") : "—"} hint={s ? `of ${s.totalCount.toLocaleString("en")} payouts` : undefined} loading={summary.isLoading && !s} />
-        <StatTile
-          label="Average payout"
-          value={s && s.succeededCount > 0 ? formatEtb(Math.round(s.succeededAmountEtb / s.succeededCount)) : "—"}
-          loading={summary.isLoading && !s}
-        />
-        <StatTile label="Needs checking" value={s ? s.needsChecking.toLocaleString("en") : "—"} hint="Waiting on the bank" loading={summary.isLoading && !s} />
+      {/* The summary has no fund or bank filter, so the tiles always cover both. */}
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-muted-ink">All funds and banks, in this period</p>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatTile
+            label="Paid out"
+            value={s ? formatEtb(s.succeededAmountEtb) : "—"}
+            hint={
+              s?.paidByFund?.length
+                ? s.paidByFund.map((row) => `${fundLabel(row.fund)} ${formatEtb(row.amountEtb)}`).join(" · ")
+                : "In this period"
+            }
+            loading={summary.isLoading && !s}
+          />
+          <StatTile label="Households paid" value={s ? s.succeededCount.toLocaleString("en") : "—"} hint={s ? `of ${s.totalCount.toLocaleString("en")} payouts` : undefined} loading={summary.isLoading && !s} />
+          <StatTile
+            label="Average payout"
+            value={s && s.succeededCount > 0 ? formatEtb(Math.round(s.succeededAmountEtb / s.succeededCount)) : "—"}
+            loading={summary.isLoading && !s}
+          />
+          <StatTile label="Needs checking" value={s ? s.needsChecking.toLocaleString("en") : "—"} hint="Waiting on the bank" loading={summary.isLoading && !s} />
+        </div>
       </div>
 
       <FundAccountsPanel />
@@ -197,7 +201,8 @@ function Disbursements() {
             >
               <option value="">All statuses</option>
               {DISBURSEMENT_STATUSES.map((item) => {
-                const count = s?.byStatus.find((row) => row.status === item.value)?.count;
+                // The counts cover all funds and banks, so they'd mislead next to a fund or bank filter.
+                const count = rail || fund ? null : s?.byStatus.find((row) => row.status === item.value)?.count;
                 return (
                   <option key={item.value} value={item.value}>
                     {item.label}

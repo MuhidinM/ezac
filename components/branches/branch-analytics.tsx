@@ -20,6 +20,7 @@ import {
 import type { BranchHome } from "@/lib/api/backoffice-types";
 import { useResource } from "@/lib/api/use-resource";
 import { rangeQuery, type RangeKey } from "@/lib/backoffice/date-range";
+import { formatDays } from "@/lib/backoffice/format";
 
 function weekLabel(week: string) {
   const date = new Date(`${week.slice(0, 10)}T00:00:00`);
@@ -62,7 +63,7 @@ export function BranchAnalytics() {
         />
         <StatTile
           label="Review time"
-          value={data?.medianReviewDays != null ? `${data.medianReviewDays.toFixed(1)} d` : "—"}
+          value={formatDays(data?.medianReviewDays)}
           hint="Median, submission to decision"
           icon={Timer}
           loading={loading}

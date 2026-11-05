@@ -6,6 +6,7 @@ import { Archive, Send } from "lucide-react";
 
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { FormField } from "@/components/dashboard/form-field";
+import { useBreadcrumbLabel } from "@/components/dashboard/dashboard-header";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Panel } from "@/components/dashboard/panel";
@@ -87,6 +88,7 @@ function StoryEditor() {
   // No single-story admin endpoint; the list is small and unpaginated.
   const { data, error, reload } = useResource<AdminStory[]>(isNew ? null : API);
   const [notice, setNotice] = useState<string | null>(null);
+  useBreadcrumbLabel(isNew ? "New story" : data?.find((item) => item.id === params.id)?.title);
 
   if (isNew) return <StoryForm initial={EMPTY} notice={null} onNotice={setNotice} />;
   if (error) return <InlineAlert>{error.message}</InlineAlert>;

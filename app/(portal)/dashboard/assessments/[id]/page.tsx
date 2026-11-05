@@ -11,6 +11,7 @@ import { AssessmentManagement, BranchReview } from "@/components/assessment/revi
 import { ScoreHistory, ScorePanel, SignOffTimeline } from "@/components/assessment/score-panel";
 import { WhitelistPanel } from "@/components/whitelist/whitelist-panel";
 import { AssessmentStatusBadge, PoolStatusBadge } from "@/components/backoffice/status-badges";
+import { useBreadcrumbLabel } from "@/components/dashboard/dashboard-header";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { isFieldOfficer } from "@/components/dashboard/nav-config";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -20,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import type { Assessment } from "@/lib/api/backoffice-types";
 import { useResource } from "@/lib/api/use-resource";
 import { useSession } from "@/lib/auth/use-session";
-import { assessmentBeneficiaryId, isEditable, reviewInfo } from "@/lib/backoffice/assessment-steps";
+import { assessmentBeneficiaryId, assessmentCrumb, isEditable, reviewInfo } from "@/lib/backoffice/assessment-steps";
 import { formatDate } from "@/lib/backoffice/format";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +43,7 @@ function AssessmentDetail() {
   const { data: assessment, error, isLoading, reload, mutate } = useResource<Assessment>(
     `/bff/backoffice/assessments/${encodeURIComponent(id)}`,
   );
+  useBreadcrumbLabel(assessmentCrumb(assessment));
 
   if (isLoading && !assessment) {
     return <div className="h-96 animate-pulse rounded-xl bg-black/[0.04]" />;
@@ -98,12 +100,13 @@ function AssessmentDetail() {
         }
         description={
           <>
+            {assessment.assessmentNumber ? `Assessment ${assessment.assessmentNumber} · ` : ""}
             Household assessment of {formatDate(assessment.assessmentInfo?.assessmentDate)}
             {assessment.applicant?.bin ? ` · BIN ${assessment.applicant.bin}` : ""}
             {session?.isBranch || !beneficiaryId ? null : (
               <>
                 {" · "}
-                <Link href={`/dashboard/beneficiary/${beneficiaryId}`} className="text-[#007050] hover:underline">
+                <Link href={`/dashboard/beneficiary/${beneficiaryId}`} className="text-brand hover:underline">
                   View beneficiary
                 </Link>
               </>
@@ -142,8 +145,8 @@ function AssessmentDetail() {
                 className={cn(
                   "-mb-px shrink-0 border-b-2 px-3 py-2.5 text-sm whitespace-nowrap transition",
                   activeTab === item.key
-                    ? "border-[#007050] font-medium text-[#001539]"
-                    : "border-transparent text-black/55 hover:text-[#001539]",
+                    ? "border-brand font-medium text-navy"
+                    : "border-transparent text-black/55 hover:text-navy",
                 )}
               >
                 {item.label}
@@ -162,7 +165,7 @@ function AssessmentDetail() {
 
         <div className="space-y-6">
           {canReview ? (
-            <BranchReview assessment={assessment} onDone={onActionDone("Decision recorded.")} />
+            <BranchReview assessment={assessment} onDone={(updated, message) => onActionDone(message)(updated)} />
           ) : null}
           <AssessmentManagement
             assessment={assessment}
@@ -172,7 +175,11 @@ function AssessmentDetail() {
           />
           <SignOffTimeline assessment={assessment} />
           {beneficiaryId ? (
-            <WhitelistPanel beneficiaryId={beneficiaryId} beneficiaryName={assessment.applicant?.fullName} />
+            <WhitelistPanel
+              beneficiaryId={beneficiaryId}
+              beneficiaryName={assessment.applicant?.fullName}
+              livePoolStatus={assessment.pool?.status}
+            />
           ) : null}
         </div>
       </div>

@@ -34,9 +34,11 @@ type Animal = (typeof ANIMALS)[number]["key"];
 const etb = new Intl.NumberFormat("en-ET", { maximumFractionDigits: 0 });
 
 /**
- * Average livestock prices the calculator uses to value animals due as zakat.
- * They live in the versioned calculator rules, so saving creates a new version
- * from the active one with only these prices changed, and activates it.
+ * Average livestock prices. The calculator works out livestock zakat in
+ * animals, not birr, so these prices change no one's amount: the public
+ * "How it works" page lists them as a guide to each animal's value. They live
+ * in the versioned calculator rules, so saving creates a new version from the
+ * active one with only these prices changed, and activates it.
  */
 export function LivestockPricesPanel({ onChanged }: { onChanged?: () => void }) {
   const { data, error, mutate } = useResource<RulesVersion>("/bff/zakat-admin/calculator-configs/active");
@@ -45,7 +47,7 @@ export function LivestockPricesPanel({ onChanged }: { onChanged?: () => void }) 
   return (
     <Panel
       title="Livestock prices"
-      description="Average price per animal, used by the calculator to show the value of livestock zakat. Saving publishes a new calculator rules version."
+      description="Average price per animal. Livestock zakat is worked out in animals, so these prices don't change any amount; the public How it works page lists them as a guide to each animal's value. Saving publishes a new calculator rules version."
     >
       {error ? <InlineAlert>{error.message}</InlineAlert> : null}
       {notice ? (
@@ -59,7 +61,7 @@ export function LivestockPricesPanel({ onChanged }: { onChanged?: () => void }) 
           active={data}
           onEdit={() => setNotice(null)}
           onSaved={(next) => {
-            setNotice(`Saved as calculator rules v${next.version}. The public calculator uses the new prices now.`);
+            setNotice(`Saved as calculator rules v${next.version}. The public How it works page shows the new prices now.`);
             mutate(next);
             onChanged?.();
           }}
@@ -129,7 +131,7 @@ function LivestockForm({
             hint={current?.[key] != null ? `Now ETB ${etb.format(current[key])}` : undefined}
           >
             <div className="relative">
-              <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-xs text-black/45">ETB</span>
+              <span className="pointer-events-none absolute top-1/2 start-3 -translate-y-1/2 text-xs text-black/45">ETB</span>
               <Input
                 id={`livestock-${key}`}
                 type="number"
@@ -141,7 +143,7 @@ function LivestockForm({
                   setPrices((prev) => ({ ...prev, [key]: event.target.value }));
                 }}
                 required
-                className="pl-11 tabular-nums"
+                className="ps-11 tabular-nums"
               />
             </div>
           </FormField>

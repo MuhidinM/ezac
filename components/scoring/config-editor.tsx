@@ -283,7 +283,7 @@ function PreviewResults({ preview }: { preview: ScoringPreview }) {
                 <th className="px-3 py-2 font-medium">Assessment</th>
                 <th className="px-3 py-2 text-right font-medium">Now</th>
                 <th className="px-3 py-2 text-right font-medium">Draft</th>
-                <th className="px-3 py-2 font-medium">Risk</th>
+                <th className="px-3 py-2 font-medium">Need</th>
               </tr>
             </thead>
             <tbody>

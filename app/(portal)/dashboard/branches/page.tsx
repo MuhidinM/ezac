@@ -4,7 +4,7 @@ import { type FormEvent, Suspense, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus, RefreshCw, Search, X } from "lucide-react";
 
-import { CodeStatsInline } from "@/components/branches/code-stats";
+import { CodeStatsInline, CodeStatsLegend } from "@/components/branches/code-stats";
 import { CreateBranchDialog } from "@/components/branches/create-branch-form";
 import { CredentialsOnceDialog } from "@/components/branches/credentials-once-dialog";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
@@ -232,6 +232,8 @@ function Branches() {
             )}
           </TableBody>
         </Table>
+
+        {rows.length > 0 ? <CodeStatsLegend className="border-t border-black/[0.06] px-5 py-3" /> : null}
 
         <ListPagination
           page={page}

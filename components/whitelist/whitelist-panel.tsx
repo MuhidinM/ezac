@@ -8,11 +8,11 @@ import { Panel } from "@/components/dashboard/panel";
 import { WhitelistEntryCard } from "@/components/whitelist/whitelist-entry-card";
 import { requestPath, WhitelistFormDialog } from "@/components/whitelist/whitelist-form-dialog";
 import { Button } from "@/components/ui/button";
-import type { BeneficiaryWhitelist } from "@/lib/api/backoffice-types";
+import type { BeneficiaryWhitelist, PoolStatus, WhitelistEntry } from "@/lib/api/backoffice-types";
 import type { BeneficiaryDetail } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
 import { useSession } from "@/lib/auth/use-session";
-import { whitelistBlockedReason, type HouseholdState } from "@/lib/backoffice/assessment-steps";
+import { isLivePoolStatus, whitelistBlockedReason, type HouseholdState } from "@/lib/backoffice/assessment-steps";
 import { cn } from "@/lib/utils";
 
 /**
@@ -22,15 +22,21 @@ import { cn } from "@/lib/utils";
  * `household` (verification, lifecycle and duplicate status) hides Request
  * and Add for households the backend refuses. Without it, staff load it here;
  * BRANCH can't read beneficiary records, so for them the backend decides.
+ *
+ * `livePoolStatus` (an assessment's pool status) and the household's own pool
+ * status tell whether an assessment row is the household's live pool row; a
+ * declined or removed fast-track entry then doesn't show its old pool badge.
  */
 export function WhitelistPanel({
   beneficiaryId,
   beneficiaryName,
   household,
+  livePoolStatus,
 }: {
   beneficiaryId: string;
   beneficiaryName?: string | null;
   household?: HouseholdState | null;
+  livePoolStatus?: PoolStatus | null;
 }) {
   const { session } = useSession();
   const { data, error, reload } = useResource<BeneficiaryWhitelist>(requestPath(beneficiaryId));
@@ -46,7 +52,12 @@ export function WhitelistPanel({
   const mayAsk = canDecide || isFieldOfficer(session) || (session?.isBranch ?? false);
   // Only offer a new entry once we know there isn't one already.
   const loaded = !!data && !error;
-  const blockedReason = whitelistBlockedReason(household === undefined ? loadedHousehold : household);
+  const householdState = household === undefined ? loadedHousehold : household;
+  const blockedReason = whitelistBlockedReason(householdState);
+  const pooledElsewhere = isLivePoolStatus(livePoolStatus) || isLivePoolStatus(householdState?.poolStatus);
+  // An entry's Pool declined / Removed from pool is stale once another row is the live one.
+  const stalePool = (entry: WhitelistEntry) =>
+    pooledElsewhere && (entry.poolStatus === "DECLINED" || entry.poolStatus === "REMOVED");
   const canOpenForm = mayAsk && loaded && !data.current && !blockedReason;
   const canAdd = canDecide && canOpenForm;
   const canRequest = !canDecide && canOpenForm;
@@ -73,7 +84,12 @@ export function WhitelistPanel({
           </Button>
         </div>
       ) : data?.current ? (
-        <WhitelistEntryCard entry={data.current} canDecide={canDecide} onChanged={() => reload()} />
+        <WhitelistEntryCard
+          entry={data.current}
+          canDecide={canDecide}
+          onChanged={() => reload()}
+          hidePoolStatus={stalePool(data.current)}
+        />
       ) : data ? (
         <p className="text-sm text-black/45">Not whitelisted.</p>
       ) : (
@@ -89,7 +105,7 @@ export function WhitelistPanel({
           <button
             type="button"
             onClick={() => setShowHistory((value) => !value)}
-            className="inline-flex items-center gap-1 text-xs font-medium text-black/55 hover:text-[#001539]"
+            className="inline-flex items-center gap-1 text-xs font-medium text-black/55 hover:text-navy"
             aria-expanded={showHistory}
           >
             <ChevronDown className={cn("size-3.5 transition", showHistory && "rotate-180")} />
@@ -99,7 +115,13 @@ export function WhitelistPanel({
             <ul className="mt-3 space-y-4">
               {history.map((entry) => (
                 <li key={entry.id} className="border-l-2 border-black/10 pl-3">
-                  <WhitelistEntryCard entry={entry} canDecide={false} onChanged={() => reload()} compact />
+                  <WhitelistEntryCard
+                    entry={entry}
+                    canDecide={false}
+                    onChanged={() => reload()}
+                    hidePoolStatus={stalePool(entry)}
+                    compact
+                  />
                 </li>
               ))}
             </ul>

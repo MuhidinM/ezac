@@ -36,6 +36,7 @@ import type { BeneficiaryListItem, BranchListItem, PaginatedItems } from "@/lib/
 import { useResource } from "@/lib/api/use-resource";
 import { useSession } from "@/lib/auth/use-session";
 import { ASNAF } from "@/lib/backoffice/options";
+import { useScoreMax } from "@/lib/backoffice/score-max";
 import { formatBeneficiaryCategory, formatDateTime } from "@/lib/beneficiary/format";
 import { ETHIOPIAN_REGIONS } from "@/lib/constants/regions";
 import { phoneSearchTerm } from "@/lib/registration/phone";
@@ -126,6 +127,8 @@ export default function BeneficiaryPage() {
   const { data: branches } = useResource<PaginatedItems<BranchListItem>>(
     isAdmin ? "/bff/admin/branches?page=1&limit=100" : null,
   );
+  // The active scoring config's maximum, read once the score filter is shown.
+  const scoreMax = useScoreMax(showAdvanced);
 
   function update<K extends keyof Filters>(key: K, value: Filters[K]) {
     setPage(1);
@@ -146,7 +149,7 @@ export default function BeneficiaryPage() {
     <section className="space-y-6">
       <PageHeader
         title="Beneficiaries"
-        description="Registered applicants with their lifecycle stage, latest means-test score and risk."
+        description="Registered applicants with their lifecycle stage, latest means-test score and need level."
         actions={
           <>
             <Button variant="outline" onClick={reload} disabled={isLoading}>
@@ -195,14 +198,14 @@ export default function BeneficiaryPage() {
             </div>
             <div className="min-w-36 flex-1">
               <NativeSelect
-                aria-label="Risk"
+                aria-label="Need"
                 value={filters.riskCategory}
                 onChange={(event) => update("riskCategory", event.target.value)}
               >
-                <option value="">Any risk</option>
-                <option value="HIGH">High risk</option>
-                <option value="MEDIUM">Medium risk</option>
-                <option value="LOW">Low risk</option>
+                <option value="">Any need level</option>
+                <option value="HIGH">High need</option>
+                <option value="MEDIUM">Medium need</option>
+                <option value="LOW">Low need</option>
               </NativeSelect>
             </div>
             <Button type="submit" variant="secondary">
@@ -267,13 +270,13 @@ export default function BeneficiaryPage() {
                   <option value="not_assessed">Not assessed yet</option>
                 </NativeSelect>
               </FormField>
-              <FormField label="Score range (0–270)" htmlFor="f-min">
+              <FormField label={`Score range (0–${scoreMax})`} htmlFor="f-min">
                 <div className="flex items-center gap-2">
                   <Input
                     id="f-min"
                     type="number"
                     min={0}
-                    max={270}
+                    max={scoreMax}
                     inputMode="numeric"
                     placeholder="Min"
                     value={filters.minScore}
@@ -284,7 +287,7 @@ export default function BeneficiaryPage() {
                   <Input
                     type="number"
                     min={0}
-                    max={270}
+                    max={scoreMax}
                     inputMode="numeric"
                     placeholder="Max"
                     aria-label="Maximum score"
@@ -392,7 +395,7 @@ export default function BeneficiaryPage() {
               <TableHead>Category</TableHead>
               <TableHead>Lifecycle</TableHead>
               <TableHead>Score</TableHead>
-              <TableHead>Risk</TableHead>
+              <TableHead>Need</TableHead>
               <TableHead>Assessment</TableHead>
               <TableHead className="pr-5">Verification</TableHead>
             </TableRow>

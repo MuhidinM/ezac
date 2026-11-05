@@ -15,7 +15,14 @@ import type {
 } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
 import { ApiError, errorMessage, fieldErrorMap } from "@/lib/api/errors";
-import { STEPS, recommendationReasonOf, stepForField, type StepId } from "@/lib/backoffice/assessment-steps";
+import {
+  STEPS,
+  fieldLabel,
+  issueText,
+  recommendationReasonOf,
+  stepForField,
+  type StepId,
+} from "@/lib/backoffice/assessment-steps";
 import { OFFICER_RECOMMENDATION } from "@/lib/backoffice/options";
 
 const MIN_DISAGREE_REASON = 20;
@@ -170,7 +177,8 @@ export function StepSubmit({
                       <ul className="mt-1 space-y-0.5 text-sm text-black/60">
                         {issues.map((issue) => (
                           <li key={issue.field}>
-                            <code className="text-xs text-black/45">{issue.field}</code> — {issue.message}
+                            <span className="font-medium text-black/75">{fieldLabel(issue.field)}:</span>{" "}
+                            {issueText(issue.message)}
                           </li>
                         ))}
                       </ul>

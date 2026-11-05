@@ -15,6 +15,17 @@ export function formatDate(value: string | null | undefined) {
   return new Intl.DateTimeFormat("en-ET", { dateStyle: "medium" }).format(date);
 }
 
+/**
+ * A turnaround in days ("2.5 d"). Under a day it reads in hours ("7 h"), so a
+ * same-day median doesn't show as "0.0 d".
+ */
+export function formatDays(value: number | null | undefined) {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+  if (value >= 1) return `${value.toFixed(1)} d`;
+  const hours = value * 24;
+  return hours < 1 ? "Under 1 h" : `${Math.round(hours)} h`;
+}
+
 export function formatBytes(bytes: number | null | undefined) {
   if (!bytes) return "";
   if (bytes < 1024) return `${bytes} B`;
