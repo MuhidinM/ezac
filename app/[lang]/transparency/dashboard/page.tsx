@@ -1,35 +1,43 @@
 import type { Metadata } from "next";
 
 import { ImpactMapTeaser } from "@/components/landing/impact-map-teaser";
+import { JsonLd } from "@/components/seo/json-ld";
 import { CtaBand, Section, SectionHeading } from "@/components/site/sections";
 import { SitePage } from "@/components/site/site-page";
 import { ASNAF, labelFor } from "@/lib/backoffice/options";
+import { format } from "@/lib/i18n/messages";
+import { getDictionary, localeFromParam } from "@/lib/i18n/server";
+import { pageMetadata } from "@/lib/seo";
+import { breadcrumbJsonLd } from "@/lib/structured-data";
 import {
   formatCount,
+  formatDateTime,
   formatEtbCompact,
+  formatMonth,
+  formatPercent,
   getHomeSummary,
   getImpactRegions,
   getImpactSummary,
   getImpactTimeseries,
 } from "@/lib/zakat/impact";
 
-export const metadata: Metadata = {
-  title: "Live Dashboard — EZAC",
-  description:
-    "Published figures on Zakat collected, families supported, and funds distributed across Ethiopia.",
-};
+export async function generateMetadata({ params }: PageProps<"/[lang]/transparency/dashboard">): Promise<Metadata> {
+  const locale = localeFromParam((await params).lang);
+  const { meta } = (await getDictionary(locale)).transparency.dashboard;
+  return pageMetadata({ locale, path: "/transparency/dashboard", ...meta });
+}
 
 // Figures come from zakat-engine and refresh every 5 minutes.
 export const revalidate = 300;
 
-const monthFormat = new Intl.DateTimeFormat("en", { month: "short", year: "numeric" });
+export default async function LiveDashboardPage({ params }: PageProps<"/[lang]/transparency/dashboard">) {
+  const locale = localeFromParam((await params).lang);
+  const dictionary = await getDictionary(locale);
+  const { transparency } = dictionary;
+  const t = transparency.dashboard;
+  const asnafLabels: Record<string, string> = transparency.asnaf;
+  const dash = transparency.notPublished;
 
-function monthLabel(period: string) {
-  const date = new Date(`${period}-01T00:00:00`);
-  return Number.isNaN(date.getTime()) ? period : monthFormat.format(date);
-}
-
-export default async function LiveDashboardPage() {
   const [home, impact, regions, series] = await Promise.all([
     getHomeSummary(),
     getImpactSummary(),
@@ -38,19 +46,19 @@ export default async function LiveDashboardPage() {
   ]);
 
   const month = home?.currentMonth ?? null;
-  const stats = [
-    { value: formatEtbCompact(home?.totalCollectedEtb), label: "Zakat collected (all time)" },
+  const stats: { value: string | null; label: string; trend?: number | null }[] = [
+    { value: formatEtbCompact(home?.totalCollectedEtb, locale), label: t.stats.totalCollected },
     {
-      value: formatEtbCompact(month?.collectedEtb),
-      label: "Collected this month",
+      value: formatEtbCompact(month?.collectedEtb, locale),
+      label: t.stats.collectedThisMonth,
       trend: month?.changePercent ?? null,
     },
-    { value: formatCount(home?.totalBeneficiariesSupported), label: "Families supported" },
-    { value: formatEtbCompact(impact?.distributedFundsEtb), label: "Funds distributed" },
-    { value: formatCount(impact?.livesTouched), label: "Lives touched" },
-    { value: formatCount(impact?.activeProjects), label: "Active projects" },
+    { value: formatCount(home?.totalBeneficiariesSupported, locale), label: t.stats.familiesSupported },
+    { value: formatEtbCompact(impact?.distributedFundsEtb, locale), label: t.stats.fundsDistributed },
+    { value: formatCount(impact?.livesTouched, locale), label: t.stats.livesTouched },
+    { value: formatCount(impact?.activeProjects, locale), label: t.stats.activeProjects },
   ];
-  const asOf = impact?.asOf ?? home?.asOf;
+  const asOf = formatDateTime(impact?.asOf ?? home?.asOf, locale);
   const asnaf = (impact?.beneficiariesByAsnaf ?? []).filter((row) => row.count > 0).sort((a, b) => b.count - a.count);
   const maxAsnaf = Math.max(1, ...asnaf.map((row) => row.count));
   const points = (series?.points ?? []).filter((point) => point.collectedEtb !== null || point.disbursedEtb !== null);
@@ -62,38 +70,27 @@ export default async function LiveDashboardPage() {
     (region) => (region.beneficiaries ?? 0) > 0 || (region.distributedFundsEtb ?? 0) > 0 || (region.activeProjects ?? 0) > 0,
   );
   const regionRows = [...(regionsWithData.length > 0 ? (regions ?? []) : [])].sort(
-    (a, b) => (b.beneficiaries ?? 0) - (a.beneficiaries ?? 0) || a.name.localeCompare(b.name),
+    (a, b) => (b.beneficiaries ?? 0) - (a.beneficiaries ?? 0) || a.name.localeCompare(b.name, locale),
   );
 
   return (
-    <SitePage
-      eyebrow="Transparency & Impact"
-      title="Live"
-      accent="dashboard"
-      intro="Public and traceable. Follow Zakat collection and distribution across Ethiopia, figures published as they are recorded."
-    >
+    <SitePage {...t.header}>
       <Section>
         <SectionHeading
-          eyebrow="At a glance"
-          title="The numbers"
-          intro={
-            asOf
-              ? `Published figures as of ${new Date(asOf).toLocaleString("en", { dateStyle: "medium", timeStyle: "short" })}.`
-              : "Published figures. A dash means the figure hasn't been published yet."
-          }
+          eyebrow={t.glance.eyebrow}
+          title={t.glance.title}
+          intro={asOf ? format(t.glance.asOf, { date: asOf }) : t.glance.noDate}
         />
         <div className="mt-12 grid grid-cols-2 gap-4 lg:grid-cols-3">
           {stats.map((stat) => (
             <div key={stat.label} className="rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
-              <p className="font-serif-display text-3xl sm:text-4xl" style={{ color: "#007050", letterSpacing: "-1px" }}>
-                {stat.value ?? "—"}
-              </p>
-              <p className="mt-2 text-xs tracking-[0.12em] uppercase" style={{ color: "#6F6F6F" }}>
-                {stat.label}
-              </p>
-              {"trend" in stat && stat.trend != null ? (
-                <p className="mt-1 text-xs tabular-nums" style={{ color: stat.trend >= 0 ? "#007050" : "#b4532a" }}>
-                  {stat.trend >= 0 ? "▲" : "▼"} {Math.abs(stat.trend)}% vs last month
+              <p className="font-serif-display text-3xl tracking-[-1px] text-brand sm:text-4xl">{stat.value ?? dash}</p>
+              <p className="mt-2 text-xs tracking-[0.12em] text-muted-ink uppercase">{stat.label}</p>
+              {stat.trend != null ? (
+                <p className={`mt-1 text-xs tabular-nums ${stat.trend >= 0 ? "text-brand" : "text-accent-ink"}`}>
+                  <span aria-hidden="true">{stat.trend >= 0 ? "▲" : "▼"} </span>
+                  <span className="sr-only">{stat.trend >= 0 ? t.trendUp : t.trendDown} </span>
+                  {format(t.trend, { percent: formatPercent(Math.abs(stat.trend) / 100, locale) })}
                 </p>
               ) : null}
             </div>
@@ -103,18 +100,16 @@ export default async function LiveDashboardPage() {
         {points.length > 0 ? (
           <div className="mt-12 rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm font-medium" style={{ color: "#001539" }}>
-                {showDisbursed ? "Zakat collected and distributed per month" : "Zakat collected per month"}
-              </p>
+              <h3 className="text-sm font-medium text-navy">{showDisbursed ? t.monthly.titleBoth : t.monthly.titleCollected}</h3>
               {showDisbursed ? (
-                <div className="flex gap-4 text-xs" style={{ color: "#6F6F6F" }}>
+                <div className="flex gap-4 text-xs text-muted-ink" aria-hidden="true">
                   <span className="inline-flex items-center gap-1.5">
-                    <span className="size-2.5 rounded-sm" style={{ backgroundColor: "#007050" }} />
-                    Collected
+                    <span className="size-2.5 rounded-sm bg-brand" />
+                    {t.monthly.collected}
                   </span>
                   <span className="inline-flex items-center gap-1.5">
-                    <span className="size-2.5 rounded-sm" style={{ backgroundColor: "#eb6834" }} />
-                    Distributed
+                    <span className="size-2.5 rounded-sm bg-accent-fill" />
+                    {t.monthly.distributed}
                   </span>
                 </div>
               ) : null}
@@ -122,28 +117,28 @@ export default async function LiveDashboardPage() {
             <ul className="mt-5 space-y-3">
               {points.map((point) => (
                 <li key={point.period} className="grid grid-cols-[6rem_minmax(0,1fr)_7rem] items-center gap-x-3 gap-y-1 text-sm">
-                  <span className={showDisbursed ? "row-span-2" : undefined} style={{ color: "#6F6F6F" }}>
-                    {monthLabel(point.period)}
-                  </span>
-                  <span className="h-2.5">
+                  <span className={`text-muted-ink ${showDisbursed ? "row-span-2" : ""}`}>{formatMonth(point.period, locale)}</span>
+                  <span className="h-2.5" aria-hidden="true">
                     <span
-                      className="block h-full rounded-r-[4px]"
-                      style={{ width: `${((point.collectedEtb ?? 0) / maxMonthly) * 100}%`, backgroundColor: "#007050" }}
+                      className="block h-full rounded-e-[4px] bg-brand"
+                      style={{ width: `${((point.collectedEtb ?? 0) / maxMonthly) * 100}%` }}
                     />
                   </span>
-                  <span className="text-right tabular-nums" style={{ color: "#001539" }}>
-                    {formatEtbCompact(point.collectedEtb) ?? "—"}
+                  <span className="text-end text-navy tabular-nums">
+                    {showDisbursed ? <span className="sr-only">{t.monthly.collected}: </span> : null}
+                    {formatEtbCompact(point.collectedEtb, locale) ?? dash}
                   </span>
                   {showDisbursed ? (
                     <>
-                      <span className="h-2.5">
+                      <span className="h-2.5" aria-hidden="true">
                         <span
-                          className="block h-full rounded-r-[4px]"
-                          style={{ width: `${((point.disbursedEtb ?? 0) / maxMonthly) * 100}%`, backgroundColor: "#eb6834" }}
+                          className="block h-full rounded-e-[4px] bg-accent-fill"
+                          style={{ width: `${((point.disbursedEtb ?? 0) / maxMonthly) * 100}%` }}
                         />
                       </span>
-                      <span className="text-right text-xs tabular-nums" style={{ color: "#6F6F6F" }}>
-                        {formatEtbCompact(point.disbursedEtb) ?? "—"}
+                      <span className="text-end text-xs text-muted-ink tabular-nums">
+                        <span className="sr-only">{t.monthly.distributed}: </span>
+                        {formatEtbCompact(point.disbursedEtb, locale) ?? dash}
                       </span>
                     </>
                   ) : null}
@@ -155,22 +150,15 @@ export default async function LiveDashboardPage() {
 
         {asnaf.length > 0 ? (
           <div className="mt-12 rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
-            <p className="text-sm font-medium" style={{ color: "#001539" }}>
-              Families supported, by eligible category (asnaf)
-            </p>
+            <h3 className="text-sm font-medium text-navy">{t.asnafTitle}</h3>
             <ul className="mt-5 space-y-2">
               {asnaf.map((row) => (
                 <li key={row.asnaf} className="grid grid-cols-[minmax(8rem,12rem)_minmax(0,1fr)_4rem] items-center gap-3 text-sm">
-                  <span style={{ color: "#6F6F6F" }}>{labelFor(ASNAF, row.asnaf)}</span>
-                  <span className="h-2.5">
-                    <span
-                      className="block h-full rounded-r-[4px]"
-                      style={{ width: `${(row.count / maxAsnaf) * 100}%`, backgroundColor: "#e18f35" }}
-                    />
+                  <span className="text-muted-ink">{asnafLabels[row.asnaf] ?? labelFor(ASNAF, row.asnaf)}</span>
+                  <span className="h-2.5" aria-hidden="true">
+                    <span className="block h-full rounded-e-[4px] bg-accent-fill" style={{ width: `${(row.count / maxAsnaf) * 100}%` }} />
                   </span>
-                  <span className="text-right tabular-nums" style={{ color: "#001539" }}>
-                    {formatCount(row.count)}
-                  </span>
+                  <span className="text-end text-navy tabular-nums">{formatCount(row.count, locale)}</span>
                 </li>
               ))}
             </ul>
@@ -180,23 +168,32 @@ export default async function LiveDashboardPage() {
         {regionRows.length > 0 ? (
           <div className="mt-12 overflow-x-auto rounded-2xl border border-black/5 bg-white shadow-sm">
             <table className="w-full min-w-[520px] text-sm">
+              <caption className="sr-only">{t.regions.caption}</caption>
               <thead>
-                <tr className="border-b border-black/5 text-left text-xs tracking-[0.12em] uppercase" style={{ color: "#6F6F6F" }}>
-                  <th className="px-6 py-4 font-medium">Region</th>
-                  <th className="px-6 py-4 text-right font-medium">Beneficiaries</th>
-                  <th className="px-6 py-4 text-right font-medium">Funds distributed</th>
-                  <th className="px-6 py-4 text-right font-medium">Active projects</th>
+                <tr className="border-b border-black/5 text-start text-xs tracking-[0.12em] text-muted-ink uppercase">
+                  <th scope="col" className="px-6 py-4 text-start font-medium">
+                    {t.regions.region}
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-end font-medium">
+                    {t.regions.beneficiaries}
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-end font-medium">
+                    {t.regions.fundsDistributed}
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-end font-medium">
+                    {t.regions.activeProjects}
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {regionRows.map((region) => (
                   <tr key={region.code} className="border-b border-black/5 last:border-0">
-                    <td className="px-6 py-3 font-medium" style={{ color: "#001539" }}>
+                    <th scope="row" className="px-6 py-3 text-start font-medium text-navy">
                       {region.name}
-                    </td>
-                    <td className="px-6 py-3 text-right tabular-nums">{formatCount(region.beneficiaries) ?? "—"}</td>
-                    <td className="px-6 py-3 text-right tabular-nums">{formatEtbCompact(region.distributedFundsEtb) ?? "—"}</td>
-                    <td className="px-6 py-3 text-right tabular-nums">{formatCount(region.activeProjects) ?? "—"}</td>
+                    </th>
+                    <td className="px-6 py-3 text-end tabular-nums">{formatCount(region.beneficiaries, locale) ?? dash}</td>
+                    <td className="px-6 py-3 text-end tabular-nums">{formatEtbCompact(region.distributedFundsEtb, locale) ?? dash}</td>
+                    <td className="px-6 py-3 text-end tabular-nums">{formatCount(region.activeProjects, locale) ?? dash}</td>
                   </tr>
                 ))}
               </tbody>
@@ -204,12 +201,18 @@ export default async function LiveDashboardPage() {
           </div>
         ) : null}
       </Section>
-      <ImpactMapTeaser regions={regions ?? []} />
+      <ImpactMapTeaser regions={regions ?? []} t={dictionary.home.impactMap} />
       <CtaBand
-        title="Want the detail behind the numbers?"
-        body="Download published impact reports or get in touch with our transparency office."
-        primary={{ label: "View impact reports", href: "/transparency/reports" }}
-        secondary={{ label: "Contact us", href: "/contact" }}
+        title={t.cta.title}
+        body={t.cta.body}
+        primary={{ label: t.cta.primary, href: "/transparency/reports", title: t.cta.primaryTitle }}
+        secondary={{ label: t.cta.secondary, href: "/contact", title: t.cta.secondaryTitle }}
+      />
+      <JsonLd
+        data={breadcrumbJsonLd(locale, [
+          { name: transparency.breadcrumbs.home, path: "/" },
+          { name: transparency.breadcrumbs.dashboard, path: "/transparency/dashboard" },
+        ])}
       />
     </SitePage>
   );

@@ -19,6 +19,12 @@ type SparklesProps = {
   options?: ComponentProps<typeof Particles>["options"]
 }
 
+/**
+ * A tsparticles canvas. Heavy (about 100 kB of script and a constant
+ * animation loop): load it with next/dynamic ({ ssr: false }) and only render
+ * it once the page is idle, on larger screens, without reduced motion (see
+ * components/landing/partners-sponsors.tsx).
+ */
 export function Sparkles({
   className,
   size = 1,
@@ -55,7 +61,8 @@ export function Sparkles({
       enable: false,
       zIndex: 1,
     },
-    fpsLimit: 120,
+    // Decoration: 60 fps is plenty and halves the work on high-refresh screens.
+    fpsLimit: 60,
     particles: {
       color: {
         value: color,
@@ -93,5 +100,11 @@ export function Sparkles({
     detectRetina: true,
   }
 
-  return isReady && <Particles id={id} options={{ ...defaultOptions, ...options }} className={className} />
+  if (!isReady) return null
+  // Decorative: keep the canvas away from screen readers.
+  return (
+    <div aria-hidden="true" className={className}>
+      <Particles id={id} options={{ ...defaultOptions, ...options }} className="absolute inset-0" />
+    </div>
+  )
 }

@@ -7,121 +7,83 @@ import {
   ShieldCheckIcon,
   SmartphoneIcon,
 } from "lucide-react";
+
+import { JsonLd } from "@/components/seo/json-ld";
+import { CtaBand, FeatureGrid, Section, SectionHeading, StepList } from "@/components/site/sections";
 import { SitePage } from "@/components/site/site-page";
 import { CITIZEN_APP_DOWNLOAD_URL } from "@/lib/constants/app-download";
-import {
-  CtaBand,
-  FeatureGrid,
-  Section,
-  SectionHeading,
-  StepList,
-} from "@/components/site/sections";
+import { localizedPath } from "@/lib/i18n/config";
+import { getDictionary, localeFromParam } from "@/lib/i18n/server";
+import { pageMetadata } from "@/lib/seo";
+import { breadcrumbJsonLd } from "@/lib/structured-data";
 
-export const metadata: Metadata = {
-  title: "Pay Zakat Now — EZAC",
-  description:
-    "Pay your Zakat by QR code from any Ethiopian bank app, straight into the Commission's account, and get a certificate anyone can verify.",
-};
+const PATH = "/zakat/pay";
 
-const CHANNELS = [
-  {
-    icon: QrCodeIcon,
-    title: "QR from any bank app",
-    description:
-      "Scan the QR code in the EZAC app with the mobile app of any Ethiopian bank. No card or wallet needed.",
-  },
-  {
-    icon: Building2Icon,
-    title: "Straight to the Commission",
-    description:
-      "The money goes directly into the Commission's account at Cooperative Bank of Oromia, with no intermediary holding it.",
-  },
-  {
-    icon: ShieldCheckIcon,
-    title: "Confirmed against the bank",
-    description:
-      "Each payment is matched to the bank's own transaction record before it counts, and one transaction can confirm only one payment.",
-  },
-  {
-    icon: ReceiptIcon,
-    title: "Traceable receipt",
-    description:
-      "Every confirmed payment issues a numbered certificate that anyone can verify on the How it works page.",
-  },
-];
+/** Paired by position with giving.pay.channels.items. */
+const CHANNEL_ICONS = [QrCodeIcon, Building2Icon, ShieldCheckIcon, ReceiptIcon];
 
-const STEPS = [
-  {
-    title: "Calculate your obligation",
-    body: "Use the Zakat calculator to find the exact amount due across all your assets.",
-  },
-  {
-    title: "Scan the QR",
-    body: "In the EZAC app, choose the general fund or a cause, then scan the QR code with your bank app. It's valid for 30 minutes.",
-  },
-  {
-    title: "Get your certificate",
-    body: "The payment is confirmed against the bank's record and you receive a numbered certificate you can verify any time.",
-  },
-];
+export async function generateMetadata({ params }: PageProps<"/[lang]/zakat/pay">): Promise<Metadata> {
+  const locale = localeFromParam((await params).lang);
+  const { giving } = await getDictionary(locale);
+  return pageMetadata({ locale, path: PATH, ...giving.pay.meta });
+}
 
-export default function PayZakatPage() {
+export default async function PayZakatPage({ params }: PageProps<"/[lang]/zakat/pay">) {
+  const locale = localeFromParam((await params).lang);
+  const { giving } = await getDictionary(locale);
+  const t = giving.pay;
+  const primary = { label: t.cta.primary, href: localizedPath(locale, "/zakat/calculator"), title: t.cta.primaryTitle };
+  const secondary = {
+    label: t.cta.secondary,
+    href: localizedPath(locale, "/transparency/dashboard"),
+    title: t.cta.secondaryTitle,
+  };
+
   return (
-    <SitePage
-      eyebrow="Zakat"
-      title="Pay Zakat"
-      accent="now"
-      intro="Settle your obligation in a few taps through trusted, audited channels — with every birr traced from your hand to the families and futures it builds."
-    >
-      <Section>
-        <SectionHeading
-          eyebrow="Ways to give"
-          title="Simple, bank-to-bank"
-          intro="Payments run through the national QR payment network and are reconciled with the bank."
-        />
-        <FeatureGrid items={CHANNELS} columns={2} />
-      </Section>
-      <Section muted>
-        <SectionHeading eyebrow="How it works" title="Three simple steps" />
-        <StepList steps={STEPS} />
-      </Section>
-      {/* The calculator's "Proceed to Pay Zakat" lands here: give people the app itself. */}
-      <Section>
-        <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 rounded-3xl border border-black/5 bg-white p-8 text-center shadow-sm sm:p-10">
-          <span
-            className="inline-flex h-12 w-12 items-center justify-center rounded-full"
-            style={{ backgroundColor: "rgba(0,112,80,0.1)" }}
-          >
-            <SmartphoneIcon className="h-6 w-6" style={{ color: "#007050" }} />
-          </span>
-          <div>
-            <h2 className="font-serif-display text-3xl sm:text-4xl" style={{ color: "#001539", letterSpacing: "-1px" }}>
-              Get the EZAC app
-            </h2>
-            <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed" style={{ color: "#6F6F6F" }}>
-              You pay in the EZAC app. It is available for Android phones only, as
-              a direct download (APK file) rather than from an app store.
-            </p>
+    <>
+      <SitePage eyebrow={t.hero.eyebrow} title={t.hero.title} accent={t.hero.accent} intro={t.hero.intro}>
+        <Section>
+          <SectionHeading eyebrow={t.channels.eyebrow} title={t.channels.title} intro={t.channels.intro} />
+          <FeatureGrid
+            items={t.channels.items.map((item, index) => ({ ...item, icon: CHANNEL_ICONS[index] }))}
+            columns={2}
+          />
+        </Section>
+        <Section muted>
+          <SectionHeading eyebrow={t.steps.eyebrow} title={t.steps.title} intro={t.steps.intro} />
+          <StepList steps={t.steps.items} />
+        </Section>
+        {/* The calculator's "Proceed to Pay Zakat" lands here: give people the app itself. */}
+        <Section>
+          <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 rounded-3xl border border-black/5 bg-white p-8 text-center shadow-sm sm:p-10">
+            <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand/10">
+              <SmartphoneIcon className="h-6 w-6 text-brand" aria-hidden="true" />
+            </span>
+            <div>
+              <h2 className="font-serif-display text-3xl tracking-[-1px] text-navy sm:text-4xl">{t.app.title}</h2>
+              <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-muted-ink">{t.app.body}</p>
+            </div>
+            <a
+              href={CITIZEN_APP_DOWNLOAD_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={t.app.downloadTitle}
+              className="inline-flex items-center gap-2 rounded-full bg-brand px-7 py-3.5 text-sm font-medium text-white transition-transform duration-300 hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+            >
+              <DownloadIcon className="h-4 w-4" aria-hidden="true" />
+              {t.app.download}
+              <span className="sr-only">{t.app.downloadNote}</span>
+            </a>
           </div>
-          <a
-            href={CITIZEN_APP_DOWNLOAD_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-sm font-medium text-white transition-transform duration-300 hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007050] focus-visible:ring-offset-2"
-            style={{ backgroundColor: "#007050" }}
-          >
-            <DownloadIcon className="h-4 w-4" />
-            Download the Android app
-            <span className="sr-only">(APK file, opens in a new tab)</span>
-          </a>
-        </div>
-      </Section>
-      <CtaBand
-        title="Know your number first"
-        body="Work out exactly what you owe, then pay with confidence."
-        primary={{ label: "Open the calculator", href: "/zakat/calculator" }}
-        secondary={{ label: "See where it goes", href: "/transparency/dashboard" }}
+        </Section>
+        <CtaBand title={t.cta.title} body={t.cta.body} primary={primary} secondary={secondary} />
+      </SitePage>
+      <JsonLd
+        data={breadcrumbJsonLd(locale, [
+          { name: giving.breadcrumbs.home, path: "/" },
+          { name: t.breadcrumb, path: PATH },
+        ])}
       />
-    </SitePage>
+    </>
   );
 }

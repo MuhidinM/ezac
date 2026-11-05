@@ -13,6 +13,8 @@ type SitePageProps = {
 /**
  * Shared chrome for every interior page: the fixed Navbar, a branded light
  * header (readable under the transparent nav), the page body, and SiteFooter.
+ * The navbar and footer read their strings from the language context, so the
+ * page only passes its own heading text (already in its language).
  */
 export function SitePage({
   eyebrow,
@@ -27,39 +29,24 @@ export function SitePage({
       {/* The page heading belongs to the main content, so "Skip to content" (#main) lands on it. */}
       <main id="main" tabIndex={-1} className="outline-none">
         <header className="relative overflow-hidden border-b border-black/5 bg-white">
-          {/* eslint-disable-next-line @next/next/no-img-element -- decorative brand watermark served as a static asset */}
-          <img
-            src="/bg2.png"
-            alt=""
+          {/* Decorative brand watermark: a CSS background, so it isn't an image without a description. */}
+          <div
             aria-hidden="true"
-            className="pointer-events-none absolute -top-16 -right-24 z-0 h-[150%] w-auto max-w-none select-none opacity-[0.05]"
+            className="pointer-events-none absolute -top-16 -end-24 z-0 aspect-[900/1245] h-[150%] bg-[url(/images/bg2.webp)] bg-contain bg-no-repeat opacity-[0.05] select-none"
           />
           <div className="relative z-10 mx-auto max-w-4xl px-6 pt-36 pb-16 text-center sm:px-8 sm:pt-40 sm:pb-20">
-            <p
-              className="text-[10px] uppercase tracking-[0.18em]"
-              style={{ color: "#007050" }}
-            >
-              {eyebrow}
-            </p>
-            <h1
-              className="font-serif-display mt-3 text-4xl sm:text-5xl md:text-6xl"
-              style={{ color: "#001539", lineHeight: 1, letterSpacing: "-1.5px" }}
-            >
+            <p className="text-xs uppercase tracking-[0.16em] text-brand">{eyebrow}</p>
+            <h1 className="font-serif-display mt-3 text-4xl leading-none tracking-[-1.5px] text-navy sm:text-5xl md:text-6xl">
               {title}
               {accent && (
                 <>
                   {" "}
-                  <span className="italic" style={{ color: "#e18f35" }}>
-                    {accent}
-                  </span>
+                  <span className="italic text-accent-ink">{accent}</span>
                 </>
               )}
             </h1>
             {intro && (
-              <p
-                className="mx-auto mt-6 max-w-2xl text-base leading-relaxed sm:text-lg"
-                style={{ color: "#6F6F6F" }}
-              >
+              <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-muted-ink sm:text-lg">
                 {intro}
               </p>
             )}

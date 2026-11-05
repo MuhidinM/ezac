@@ -1,73 +1,47 @@
 import type { Metadata } from "next";
-import {
-  CoinsIcon,
-  HeartHandshakeIcon,
-  InfinityIcon,
-  MoonIcon,
-} from "lucide-react";
+import { CoinsIcon, HeartHandshakeIcon, InfinityIcon, MoonIcon } from "lucide-react";
+
+import { JsonLd } from "@/components/seo/json-ld";
+import { CtaBand, FeatureGrid, Section, SectionHeading } from "@/components/site/sections";
 import { SitePage } from "@/components/site/site-page";
-import {
-  CtaBand,
-  FeatureGrid,
-  Section,
-  SectionHeading,
-} from "@/components/site/sections";
+import { localizedPath } from "@/lib/i18n/config";
+import { getDictionary, localeFromParam } from "@/lib/i18n/server";
+import { pageMetadata } from "@/lib/seo";
+import { breadcrumbJsonLd } from "@/lib/structured-data";
 
-export const metadata: Metadata = {
-  title: "Donate — EZAC",
-  description:
-    "Give Zakat, Sadaqah, Zakat al-Fitr, or endow a Waqf — securely, transparently, and traceably through EZAC.",
-};
+const PATH = "/donate";
 
-const WAYS = [
-  {
-    icon: CoinsIcon,
-    title: "Zakat",
-    description:
-      "Fulfil your obligation precisely. Calculate what's due, then pay through a trusted channel.",
-  },
-  {
-    icon: HeartHandshakeIcon,
-    title: "Sadaqah",
-    description:
-      "Give voluntary charity, any amount, any time — directed to the causes that move you.",
-  },
-  {
-    icon: MoonIcon,
-    title: "Zakat al-Fitr",
-    description:
-      "Pay the per-person Fitr charity before Eid, distributed to families in time for the day.",
-  },
-  {
-    icon: InfinityIcon,
-    title: "Waqf endowment",
-    description:
-      "Make a perpetual gift whose returns support the community for generations.",
-  },
-];
+/** Paired by position with giving.donate.ways.items. */
+const WAY_ICONS = [CoinsIcon, HeartHandshakeIcon, MoonIcon, InfinityIcon];
 
-export default function DonatePage() {
+export async function generateMetadata({ params }: PageProps<"/[lang]/donate">): Promise<Metadata> {
+  const locale = localeFromParam((await params).lang);
+  const { giving } = await getDictionary(locale);
+  return pageMetadata({ locale, path: PATH, ...giving.donate.meta });
+}
+
+export default async function DonatePage({ params }: PageProps<"/[lang]/donate">) {
+  const locale = localeFromParam((await params).lang);
+  const { giving } = await getDictionary(locale);
+  const t = giving.donate;
+  const primary = { label: t.cta.primary, href: localizedPath(locale, "/zakat/calculator"), title: t.cta.primaryTitle };
+  const secondary = { label: t.cta.secondary, href: localizedPath(locale, "/causes"), title: t.cta.secondaryTitle };
+
   return (
-    <SitePage
-      eyebrow="Give"
-      title="Donate"
-      accent="now"
-      intro="Choose how you'd like to give. Every contribution — obligatory or voluntary — is traced from your hand to the families and futures it builds."
-    >
-      <Section>
-        <SectionHeading
-          eyebrow="Ways to give"
-          title="Pick the giving that fits"
-          intro="All gifts are processed through audited, regulated payment channels."
-        />
-        <FeatureGrid items={WAYS} columns={2} />
-      </Section>
-      <CtaBand
-        title="Ready to give?"
-        body="Start with your Zakat obligation, or choose one of the causes open right now."
-        primary={{ label: "Calculate & pay Zakat", href: "/zakat/calculator" }}
-        secondary={{ label: "See open causes", href: "/causes" }}
+    <>
+      <SitePage eyebrow={t.hero.eyebrow} title={t.hero.title} accent={t.hero.accent} intro={t.hero.intro}>
+        <Section>
+          <SectionHeading eyebrow={t.ways.eyebrow} title={t.ways.title} intro={t.ways.intro} />
+          <FeatureGrid items={t.ways.items.map((item, index) => ({ ...item, icon: WAY_ICONS[index] }))} columns={2} />
+        </Section>
+        <CtaBand title={t.cta.title} body={t.cta.body} primary={primary} secondary={secondary} />
+      </SitePage>
+      <JsonLd
+        data={breadcrumbJsonLd(locale, [
+          { name: giving.breadcrumbs.home, path: "/" },
+          { name: t.breadcrumb, path: PATH },
+        ])}
       />
-    </SitePage>
+    </>
   );
 }

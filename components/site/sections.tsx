@@ -1,21 +1,23 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { ArrowRightIcon } from "lucide-react";
+
+import { LocalizedLink } from "@/lib/i18n/client";
 
 export function Section({
   children,
   className = "",
   muted = false,
+  id,
 }: {
   children: ReactNode;
   className?: string;
   muted?: boolean;
+  /** Anchor for in-page links ("/about#documents"). */
+  id?: string;
 }) {
   return (
-    <section
-      className={`w-full ${muted ? "bg-[#ececec]" : "bg-white"}`}
-    >
+    <section id={id} className={`w-full ${muted ? "bg-surface-muted" : "bg-white"}`}>
       <div className={`mx-auto max-w-6xl px-6 py-16 sm:px-8 sm:py-20 ${className}`}>
         {children}
       </div>
@@ -27,35 +29,21 @@ export function SectionHeading({
   eyebrow,
   title,
   intro,
+  id,
 }: {
   eyebrow?: string;
   title: string;
   intro?: string;
+  /** Lets the section point at its heading (aria-labelledby). */
+  id?: string;
 }) {
   return (
     <div className="mx-auto max-w-2xl text-center">
-      {eyebrow && (
-        <p
-          className="text-[10px] uppercase tracking-[0.18em]"
-          style={{ color: "#007050" }}
-        >
-          {eyebrow}
-        </p>
-      )}
-      <h2
-        className="font-serif-display mt-3 text-3xl sm:text-4xl"
-        style={{ color: "#001539", letterSpacing: "-1px" }}
-      >
+      {eyebrow && <p className="text-xs uppercase tracking-[0.16em] text-brand">{eyebrow}</p>}
+      <h2 id={id} className="font-serif-display mt-3 text-3xl tracking-[-1px] text-navy sm:text-4xl">
         {title}
       </h2>
-      {intro && (
-        <p
-          className="mx-auto mt-4 max-w-xl text-base leading-relaxed"
-          style={{ color: "#6F6F6F" }}
-        >
-          {intro}
-        </p>
-      )}
+      {intro && <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-muted-ink">{intro}</p>}
     </div>
   );
 }
@@ -70,66 +58,38 @@ export function FeatureGrid({
   items,
   columns = 3,
 }: {
-  items: FeatureItem[];
+  items: readonly FeatureItem[];
   columns?: 2 | 3;
 }) {
   const cols = columns === 2 ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3";
   return (
     <div className={`mt-12 grid grid-cols-1 gap-5 ${cols}`}>
       {items.map(({ icon: Icon, title, description }) => (
-        <div
-          key={title}
-          className="rounded-2xl border border-black/5 bg-white p-6 shadow-sm"
-        >
+        <div key={title} className="rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
           {Icon && (
-            <span
-              className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-full"
-              style={{ backgroundColor: "rgba(0,112,80,0.1)" }}
-            >
-              <Icon className="h-5 w-5" style={{ color: "#007050" }} />
+            <span className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand/10">
+              <Icon aria-hidden="true" className="h-5 w-5 text-brand" />
             </span>
           )}
-          <h3
-            className="font-serif-display text-xl"
-            style={{ color: "#001539", letterSpacing: "-0.3px" }}
-          >
-            {title}
-          </h3>
-          <p
-            className="mt-2 text-sm leading-relaxed"
-            style={{ color: "#6F6F6F" }}
-          >
-            {description}
-          </p>
+          <h3 className="font-serif-display text-xl tracking-[-0.3px] text-navy">{title}</h3>
+          <p className="mt-2 text-sm leading-relaxed text-muted-ink">{description}</p>
         </div>
       ))}
     </div>
   );
 }
 
-export function StepList({ steps }: { steps: { title: string; body: string }[] }) {
+export function StepList({ steps }: { steps: readonly { title: string; body: string }[] }) {
   return (
     <ol className="mt-12 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
       {steps.map((step, i) => (
-        <li
-          key={step.title}
-          className="rounded-2xl border border-black/5 bg-white p-6 shadow-sm"
-        >
-          <span
-            className="font-serif-display text-3xl"
-            style={{ color: "#e18f35" }}
-          >
+        <li key={step.title} className="rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
+          {/* The list already numbers the steps for screen readers. */}
+          <span aria-hidden="true" className="font-serif-display text-3xl text-accent-ink">
             {String(i + 1).padStart(2, "0")}
           </span>
-          <h3
-            className="mt-3 text-base font-medium"
-            style={{ color: "#001539" }}
-          >
-            {step.title}
-          </h3>
-          <p className="mt-2 text-sm leading-relaxed" style={{ color: "#6F6F6F" }}>
-            {step.body}
-          </p>
+          <h3 className="mt-3 text-base font-medium text-navy">{step.title}</h3>
+          <p className="mt-2 text-sm leading-relaxed text-muted-ink">{step.body}</p>
         </li>
       ))}
     </ol>
@@ -139,7 +99,7 @@ export function StepList({ steps }: { steps: { title: string; body: string }[] }
 export function FaqAccordion({
   items,
 }: {
-  items: { q: string; a: string }[];
+  items: readonly { q: string; a: string }[];
 }) {
   return (
     <div className="mx-auto mt-12 max-w-3xl space-y-3">
@@ -148,21 +108,13 @@ export function FaqAccordion({
           key={q}
           className="group rounded-2xl border border-black/10 bg-white p-5 [&_summary::-webkit-details-marker]:hidden"
         >
-          <summary
-            className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-medium"
-            style={{ color: "#001539" }}
-          >
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-sm text-sm font-medium text-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-4">
             {q}
-            <span
-              className="transition-transform duration-200 group-open:rotate-45"
-              style={{ color: "#007050" }}
-            >
+            <span aria-hidden="true" className="text-brand transition-transform duration-200 group-open:rotate-45">
               +
             </span>
           </summary>
-          <p className="mt-3 text-sm leading-relaxed" style={{ color: "#6F6F6F" }}>
-            {a}
-          </p>
+          <p className="mt-3 text-sm leading-relaxed text-muted-ink">{a}</p>
         </details>
       ))}
     </div>
@@ -172,24 +124,15 @@ export function FaqAccordion({
 export function LegalProse({
   sections,
 }: {
-  sections: { heading: string; paragraphs: string[] }[];
+  sections: readonly { heading: string; paragraphs: readonly string[] }[];
 }) {
   return (
     <div className="mx-auto max-w-3xl space-y-8">
       {sections.map(({ heading, paragraphs }) => (
         <div key={heading}>
-          <h2
-            className="font-serif-display text-2xl"
-            style={{ color: "#001539", letterSpacing: "-0.5px" }}
-          >
-            {heading}
-          </h2>
+          <h2 className="font-serif-display text-2xl tracking-[-0.5px] text-navy">{heading}</h2>
           {paragraphs.map((p, i) => (
-            <p
-              key={i}
-              className="mt-3 text-sm leading-relaxed"
-              style={{ color: "#6F6F6F" }}
-            >
+            <p key={i} className="mt-3 text-sm leading-relaxed text-muted-ink">
               {p}
             </p>
           ))}
@@ -199,6 +142,14 @@ export function LegalProse({
   );
 }
 
+type CtaLink = {
+  label: string;
+  /** A public path ("/zakat/pay"); it is put in the visitor's language here. */
+  href: string;
+  /** Link tooltip: where the link goes or what it does. */
+  title?: string;
+};
+
 export function CtaBand({
   title,
   body,
@@ -207,50 +158,36 @@ export function CtaBand({
 }: {
   title: string;
   body?: string;
-  primary: { label: string; href: string };
-  secondary?: { label: string; href: string };
+  primary: CtaLink;
+  secondary?: CtaLink;
 }) {
   return (
-    <section className="relative w-full overflow-hidden bg-[#007050]">
-      {/* eslint-disable-next-line @next/next/no-img-element -- decorative brand watermark served as a static asset */}
-      <img
-        src="/bg.png"
-        alt=""
+    <section className="relative w-full overflow-hidden bg-brand">
+      {/* Decorative brand watermark: a CSS background, so it isn't an image without a description. */}
+      <div
         aria-hidden="true"
-        className="pointer-events-none absolute top-1/2 right-[-20%] z-0 h-[180%] w-auto max-w-none -translate-y-1/2 select-none opacity-50"
+        className="pointer-events-none absolute top-1/2 -end-[20%] z-0 aspect-[1200/1038] h-[180%] -translate-y-1/2 bg-[url(/images/bg.webp)] bg-contain bg-no-repeat opacity-50 select-none"
       />
       <div className="relative z-10 mx-auto max-w-4xl px-6 py-16 text-center sm:px-8 sm:py-20">
-        <h2
-          className="font-serif-display text-3xl sm:text-4xl"
-          style={{ color: "#FFFFFF", letterSpacing: "-0.8px" }}
-        >
-          {title}
-        </h2>
-        {body && (
-          <p
-            className="mx-auto mt-4 max-w-xl text-base leading-relaxed"
-            style={{ color: "rgba(255,255,255,0.82)" }}
-          >
-            {body}
-          </p>
-        )}
+        <h2 className="font-serif-display text-3xl tracking-[-0.8px] text-white sm:text-4xl">{title}</h2>
+        {body && <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-white/80">{body}</p>}
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <Link
+          <LocalizedLink
             href={primary.href}
-            className="inline-flex items-center gap-2 rounded-full bg-white px-7 py-3.5 text-sm font-medium transition-transform duration-300 hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#007050]"
-            style={{ color: "#007050" }}
+            title={primary.title}
+            className="inline-flex items-center gap-2 rounded-full bg-white px-7 py-3.5 text-sm font-medium text-brand transition-transform duration-300 hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand"
           >
             {primary.label}
-            <ArrowRightIcon className="h-4 w-4" />
-          </Link>
+            <ArrowRightIcon aria-hidden="true" className="h-4 w-4 rtl:-scale-x-100" />
+          </LocalizedLink>
           {secondary && (
-            <Link
+            <LocalizedLink
               href={secondary.href}
-              className="inline-flex items-center gap-2 rounded-full border border-white/40 px-7 py-3.5 text-sm transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#007050]"
-              style={{ color: "#FFFFFF" }}
+              title={secondary.title}
+              className="inline-flex items-center gap-2 rounded-full border border-white/40 px-7 py-3.5 text-sm text-white transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand"
             >
               {secondary.label}
-            </Link>
+            </LocalizedLink>
           )}
         </div>
       </div>

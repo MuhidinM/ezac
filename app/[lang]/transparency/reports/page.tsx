@@ -1,86 +1,98 @@
 import type { Metadata } from "next";
-import { FileTextIcon, DownloadIcon } from "lucide-react";
-import { SitePage } from "@/components/site/site-page";
-import { Section, SectionHeading, CtaBand } from "@/components/site/sections";
-import { mediaSrc } from "@/lib/zakat/content";
-import { getImpactReports } from "@/lib/zakat/impact";
+import { DownloadIcon, FileTextIcon } from "lucide-react";
 
-export const metadata: Metadata = {
-  title: "Impact Reports — EZAC",
-  description:
-    "Audited quarterly and annual reports detailing how Zakat and Waqf funds were collected, invested, and disbursed.",
-};
+import { JsonLd } from "@/components/seo/json-ld";
+import { CtaBand, Section, SectionHeading } from "@/components/site/sections";
+import { SitePage } from "@/components/site/site-page";
+import { INTL_LOCALE, type Locale } from "@/lib/i18n/config";
+import { format } from "@/lib/i18n/messages";
+import { getDictionary, localeFromParam } from "@/lib/i18n/server";
+import { pageMetadata } from "@/lib/seo";
+import { breadcrumbJsonLd } from "@/lib/structured-data";
+import { mediaSrc } from "@/lib/zakat/content";
+import { formatDate, getImpactReports } from "@/lib/zakat/impact";
+
+export async function generateMetadata({ params }: PageProps<"/[lang]/transparency/reports">): Promise<Metadata> {
+  const locale = localeFromParam((await params).lang);
+  const { meta } = (await getDictionary(locale)).transparency.reports;
+  return pageMetadata({ locale, path: "/transparency/reports", ...meta });
+}
 
 // Published reports from zakat-engine, refreshed every 5 minutes.
 export const revalidate = 300;
 
-function fileSize(bytes: number | null) {
+/** "1.2 MB" or "640 kB" in the page's language; null when the size isn't known. */
+function fileSize(bytes: number | null, locale: Locale) {
   if (!bytes) return null;
-  return bytes > 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`;
+  const megabytes = bytes > 1024 * 1024;
+  return new Intl.NumberFormat(INTL_LOCALE[locale], {
+    style: "unit",
+    unit: megabytes ? "megabyte" : "kilobyte",
+    maximumFractionDigits: megabytes ? 1 : 0,
+  }).format(megabytes ? bytes / (1024 * 1024) : bytes / 1024);
 }
 
-export default async function ImpactReportsPage() {
+export default async function ImpactReportsPage({ params }: PageProps<"/[lang]/transparency/reports">) {
+  const locale = localeFromParam((await params).lang);
+  const { transparency } = await getDictionary(locale);
+  const t = transparency.reports;
   // null means none published; an outage throws, so ISR keeps the last good list.
   const reports = (await getImpactReports()) ?? [];
 
   return (
-    <SitePage
-      eyebrow="Transparency & Impact"
-      title="Impact"
-      accent="reports"
-      intro="Audited, downloadable reports detailing exactly how funds were collected, invested, and distributed — published on a regular cycle."
-    >
+    <SitePage {...t.header}>
       <Section>
-        <SectionHeading
-          eyebrow="Library"
-          title="Published reports"
-          intro="Each report is reviewed before release."
-        />
+        <SectionHeading {...t.library} />
         <div className="mx-auto mt-12 max-w-3xl space-y-3">
           {reports.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-black/15 p-10 text-center text-sm" style={{ color: "#6F6F6F" }}>
-              No reports have been published yet.
-            </p>
+            <p className="rounded-2xl border border-dashed border-black/15 p-10 text-center text-sm text-muted-ink">{t.empty}</p>
           ) : null}
-          {reports.map((r) => (
-            <a
-              key={r.id}
-              href={mediaSrc(r.fileUrl) ?? r.fileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-4 rounded-2xl border border-black/10 bg-white p-5 transition hover:border-black/20"
-            >
-              <span
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
-                style={{ backgroundColor: "rgba(0,112,80,0.1)" }}
+          {reports.map((report) => {
+            const size = fileSize(report.sizeBytes, locale);
+            const published = formatDate(report.publishedAt, locale);
+            const details = report.summary ?? (published ? format(t.published, { date: published }) : null);
+            return (
+              <a
+                key={report.id}
+                href={mediaSrc(report.fileUrl) ?? report.fileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={format(t.linkTitle, { title: report.title })}
+                className="flex items-center gap-4 rounded-2xl border border-black/10 bg-white p-5 transition hover:border-black/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
               >
-                <FileTextIcon className="h-5 w-5" style={{ color: "#007050" }} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium" style={{ color: "#001539" }}>
-                  {r.title}
-                </p>
-                <p className="mt-0.5 text-xs" style={{ color: "#6F6F6F" }}>
-                  {r.period ? <span style={{ color: "#e18f35" }}>{r.period}</span> : null}
-                  {r.period && (r.summary || r.publishedAt) ? " · " : null}
-                  {r.summary ?? (r.publishedAt ? `Published ${new Date(r.publishedAt).toLocaleDateString("en", { dateStyle: "medium" })}` : null)}
-                </p>
-              </div>
-              <span
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-black/10 px-3 py-1.5 text-xs"
-                style={{ color: "#001539" }}
-              >
-                <DownloadIcon className="h-3.5 w-3.5" />
-                PDF{fileSize(r.sizeBytes) ? ` · ${fileSize(r.sizeBytes)}` : ""}
-              </span>
-            </a>
-          ))}
+                <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-brand/10">
+                  <FileTextIcon className="size-5 text-brand" aria-hidden="true" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium text-navy">{report.title}</span>
+                  {report.period || details ? (
+                    <span className="mt-0.5 block text-xs text-muted-ink">
+                      {report.period ? <span className="text-accent-ink">{report.period}</span> : null}
+                      {report.period && details ? " · " : null}
+                      {details}
+                    </span>
+                  ) : null}
+                </span>
+                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-black/10 px-3 py-1.5 text-xs text-navy">
+                  <DownloadIcon className="size-3.5" aria-hidden="true" />
+                  {size ? format(t.fileWithSize, { size }) : t.file}
+                </span>
+                <span className="sr-only">{t.newTab}</span>
+              </a>
+            );
+          })}
         </div>
       </Section>
       <CtaBand
-        title="See the live picture"
-        body="Reports are point-in-time. For continuous figures, follow the live dashboard."
-        primary={{ label: "Open the live dashboard", href: "/transparency/dashboard" }}
+        title={t.cta.title}
+        body={t.cta.body}
+        primary={{ label: t.cta.primary, href: "/transparency/dashboard", title: t.cta.primaryTitle }}
+      />
+      <JsonLd
+        data={breadcrumbJsonLd(locale, [
+          { name: transparency.breadcrumbs.home, path: "/" },
+          { name: transparency.breadcrumbs.reports, path: "/transparency/reports" },
+        ])}
       />
     </SitePage>
   );

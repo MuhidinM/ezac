@@ -1,97 +1,58 @@
 import type { Metadata } from "next";
-import {
-  BadgeCheckIcon,
-  BarChart3Icon,
-  ScaleIcon,
-  UsersIcon,
-} from "lucide-react";
+import { BadgeCheckIcon, BarChart3Icon, ScaleIcon, UsersIcon } from "lucide-react";
+
+import { JsonLd } from "@/components/seo/json-ld";
+import { CtaBand, FeatureGrid, Section, SectionHeading, StepList } from "@/components/site/sections";
 import { SitePage } from "@/components/site/site-page";
-import {
-  CtaBand,
-  FeatureGrid,
-  Section,
-  SectionHeading,
-  StepList,
-} from "@/components/site/sections";
+import { localizedPath } from "@/lib/i18n/config";
+import { getDictionary, localeFromParam } from "@/lib/i18n/server";
+import { pageMetadata } from "@/lib/seo";
+import { breadcrumbJsonLd } from "@/lib/structured-data";
 
-export const metadata: Metadata = {
-  title: "Corporate Zakat — EZAC",
-  description:
-    "Asset-level Zakat calculation, audited disbursement, and board-ready impact reporting for companies and institutions.",
-};
+const PATH = "/zakat/corporate";
 
-const FEATURES = [
-  {
-    icon: ScaleIcon,
-    title: "Audited calculation",
-    description:
-      "Company assets assessed to recognised standards, with working papers your auditors can rely on.",
-  },
-  {
-    icon: UsersIcon,
-    title: "Bulk disbursement",
-    description:
-      "Your contribution joins the pool of assessed, branch-approved households and is paid out by bank transfer, fully reconciled.",
-  },
-  {
-    icon: BarChart3Icon,
-    title: "Impact reporting",
-    description:
-      "Board-ready and CSR reports that tie every birr to measurable, verifiable outcomes.",
-  },
-  {
-    icon: BadgeCheckIcon,
-    title: "Shari'ah review",
-    description:
-      "Every assessment is reviewed and certified by the EZAC Shari'ah Advisory Board.",
-  },
-];
+/** Paired by position with giving.corporate.features.items. */
+const FEATURE_ICONS = [ScaleIcon, UsersIcon, BarChart3Icon, BadgeCheckIcon];
 
-const STEPS = [
-  {
-    title: "Engage our corporate desk",
-    body: "Tell us about your organisation, sector, and reporting requirements.",
-  },
-  {
-    title: "Submit financials",
-    body: "Share the disclosures needed to assess zakatable assets securely.",
-  },
-  {
-    title: "Review & certify",
-    body: "We compute, the Shari'ah board reviews, and you receive a certified figure.",
-  },
-  {
-    title: "Disburse & report",
-    body: "Funds are distributed to verified causes and reported back to your board.",
-  },
-];
+export async function generateMetadata({ params }: PageProps<"/[lang]/zakat/corporate">): Promise<Metadata> {
+  const locale = localeFromParam((await params).lang);
+  const { giving } = await getDictionary(locale);
+  return pageMetadata({ locale, path: PATH, ...giving.corporate.meta });
+}
 
-export default function CorporateZakatPage() {
+export default async function CorporateZakatPage({ params }: PageProps<"/[lang]/zakat/corporate">) {
+  const locale = localeFromParam((await params).lang);
+  const { giving } = await getDictionary(locale);
+  const t = giving.corporate;
+  const primary = { label: t.cta.primary, href: localizedPath(locale, "/contact"), title: t.cta.primaryTitle };
+  const secondary = {
+    label: t.cta.secondary,
+    href: localizedPath(locale, "/zakat/calculator"),
+    title: t.cta.secondaryTitle,
+  };
+
   return (
-    <SitePage
-      eyebrow="Zakat"
-      title="Corporate"
-      accent="Zakat"
-      intro="A managed service for companies and institutions — accurate assessment, compliant disbursement, and transparent reporting at scale."
-    >
-      <Section>
-        <SectionHeading
-          eyebrow="What you get"
-          title="Built for organisations"
-          intro="From a single ledger to a nationwide CSR programme, corporate Zakat is handled end to end."
-        />
-        <FeatureGrid items={FEATURES} columns={2} />
-      </Section>
-      <Section muted>
-        <SectionHeading eyebrow="The process" title="From engagement to impact" />
-        <StepList steps={STEPS} />
-      </Section>
-      <CtaBand
-        title="Discuss your corporate Zakat"
-        body="Our corporate desk will scope assessment, disbursement, and reporting around your needs."
-        primary={{ label: "Contact the corporate desk", href: "/contact" }}
-        secondary={{ label: "Estimate with the calculator", href: "/zakat/calculator" }}
+    <>
+      <SitePage eyebrow={t.hero.eyebrow} title={t.hero.title} accent={t.hero.accent} intro={t.hero.intro}>
+        <Section>
+          <SectionHeading eyebrow={t.features.eyebrow} title={t.features.title} intro={t.features.intro} />
+          <FeatureGrid
+            items={t.features.items.map((item, index) => ({ ...item, icon: FEATURE_ICONS[index] }))}
+            columns={2}
+          />
+        </Section>
+        <Section muted>
+          <SectionHeading eyebrow={t.process.eyebrow} title={t.process.title} intro={t.process.intro} />
+          <StepList steps={t.process.items} />
+        </Section>
+        <CtaBand title={t.cta.title} body={t.cta.body} primary={primary} secondary={secondary} />
+      </SitePage>
+      <JsonLd
+        data={breadcrumbJsonLd(locale, [
+          { name: giving.breadcrumbs.home, path: "/" },
+          { name: t.breadcrumb, path: PATH },
+        ])}
       />
-    </SitePage>
+    </>
   );
 }

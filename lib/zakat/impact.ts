@@ -1,6 +1,7 @@
 import { cache } from "react";
 
 import { getApiBaseUrl } from "@/lib/api/config";
+import { INTL_LOCALE, type Locale } from "@/lib/i18n/config";
 import { logGatewayUnreachable } from "@/lib/api/network-error";
 import type { CalculatorConfig } from "@/lib/zakat/calculator-config";
 import type { PublicCause, PublicStory } from "@/lib/zakat/content";
@@ -201,14 +202,99 @@ export const getStories = (page = 1, limit = 24) =>
 /** One story; null means it doesn't exist or isn't public (a real 404). */
 export const getStory = (id: string) => getPublic<PublicStory>(`/impact/stories/${encodeURIComponent(id)}`);
 
-const etb = new Intl.NumberFormat("en-ET", { notation: "compact", maximumFractionDigits: 1 });
-const count = new Intl.NumberFormat("en-ET");
+/*
+ * Formatting for public figures. Every helper takes the page's language
+ * (default English) and formats with INTL_LOCALE, so amounts and dates read
+ * naturally in each language: "ETB 1.8M" (en), "1.8 مليون ETB" (ar). Each
+ * returns null when the figure isn't published yet; pages show a dash.
+ */
 
-/** "ETB 1.8M", or null when the figure isn't published yet. */
-export function formatEtbCompact(value: number | null | undefined) {
-  return value === null || value === undefined ? null : `ETB ${etb.format(value)}`;
+const numberFormats = new Map<string, Intl.NumberFormat>();
+const dateFormats = new Map<string, Intl.DateTimeFormat>();
+
+function numberFormat(locale: Locale, name: string, options: Intl.NumberFormatOptions) {
+  const key = `${locale}:${name}`;
+  let format = numberFormats.get(key);
+  if (!format) {
+    format = new Intl.NumberFormat(INTL_LOCALE[locale], options);
+    numberFormats.set(key, format);
+  }
+  return format;
 }
 
-export function formatCount(value: number | null | undefined) {
-  return value === null || value === undefined ? null : count.format(value);
+function dateFormat(locale: Locale, name: string, options: Intl.DateTimeFormatOptions) {
+  const key = `${locale}:${name}`;
+  let format = dateFormats.get(key);
+  if (!format) {
+    format = new Intl.DateTimeFormat(INTL_LOCALE[locale], options);
+    dateFormats.set(key, format);
+  }
+  return format;
+}
+
+const isMissing = (value: number | null | undefined): value is null | undefined =>
+  value === null || value === undefined || !Number.isFinite(value);
+
+/** "ETB 1.8M", or null when the figure isn't published yet. */
+export function formatEtbCompact(value: number | null | undefined, locale: Locale = "en") {
+  return isMissing(value)
+    ? null
+    : numberFormat(locale, "etbCompact", {
+        style: "currency",
+        currency: "ETB",
+        currencyDisplay: "code",
+        notation: "compact",
+        maximumFractionDigits: 1,
+      }).format(value);
+}
+
+/** "ETB 612,345" (whole birr), or null when the figure isn't published yet. */
+export function formatEtb(value: number | null | undefined, locale: Locale = "en") {
+  return isMissing(value)
+    ? null
+    : numberFormat(locale, "etb", {
+        style: "currency",
+        currency: "ETB",
+        currencyDisplay: "code",
+        maximumFractionDigits: 0,
+      }).format(Math.round(value));
+}
+
+/** "12,345", or null when the figure isn't published yet. */
+export function formatCount(value: number | null | undefined, locale: Locale = "en") {
+  return isMissing(value) ? null : numberFormat(locale, "count", {}).format(value);
+}
+
+/** A rate as a percentage: 0.025 -> "2.5%". */
+export function formatPercent(rate: number, locale: Locale = "en") {
+  return numberFormat(locale, "percent", { style: "percent", maximumFractionDigits: 2 }).format(rate);
+}
+
+/**
+ * The calendar date of an ISO date or timestamp, as sent: "2026-03-04" or
+ * "2026-03-04T08:00:00Z" -> "4 Mar 2026" (en, medium). null when missing or
+ * unreadable.
+ */
+export function formatDate(value: string | null | undefined, locale: Locale = "en", style: "medium" | "long" = "medium") {
+  const match = value ? /^(\d{4})-(\d{2})-(\d{2})/.exec(value) : null;
+  if (!match) return null;
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  if (Number.isNaN(date.getTime())) return null;
+  return dateFormat(locale, `date-${style}`, { dateStyle: style, timeZone: "UTC" }).format(date);
+}
+
+/** A timestamp in Addis Ababa time: "5 Nov 2026, 15:04" (en). null when missing or unreadable. */
+export function formatDateTime(value: string | null | undefined, locale: Locale = "en") {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return null;
+  return dateFormat(locale, "datetime", { dateStyle: "medium", timeStyle: "short", timeZone: "Africa/Addis_Ababa" }).format(date);
+}
+
+/** A "YYYY-MM" period as a short month: "2026-03" -> "Mar 2026" (en). Unreadable periods are returned as sent. */
+export function formatMonth(period: string, locale: Locale = "en") {
+  const match = /^(\d{4})-(\d{2})/.exec(period);
+  if (!match) return period;
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1));
+  if (Number.isNaN(date.getTime())) return period;
+  return dateFormat(locale, "month", { month: "short", year: "numeric", timeZone: "UTC" }).format(date);
 }

@@ -1,93 +1,68 @@
 import type { Metadata } from "next";
-import {
-  BarChart3Icon,
-  LandmarkIcon,
-  ShieldCheckIcon,
-  UsersIcon,
-} from "lucide-react";
+import Link from "next/link";
+import { BarChart3Icon, LandmarkIcon, ShieldCheckIcon, UsersIcon } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+
+import { JsonLd } from "@/components/seo/json-ld";
 import { SitePage } from "@/components/site/site-page";
-import {
-  CtaBand,
-  FeatureGrid,
-  Section,
-  SectionHeading,
-} from "@/components/site/sections";
+import { CtaBand, FeatureGrid, Section, SectionHeading } from "@/components/site/sections";
+import { localizedPath } from "@/lib/i18n/config";
+import { getDictionary, localeFromParam } from "@/lib/i18n/server";
+import { pageMetadata } from "@/lib/seo";
+import { breadcrumbJsonLd } from "@/lib/structured-data";
 
-export const metadata: Metadata = {
-  title: "Governance & Majlis — EZAC",
-  description:
-    "How the Ethiopian Zakat & Awqaf Commission is governed — the Majlis, oversight structure, and accountability framework.",
-};
+export async function generateMetadata({ params }: PageProps<"/[lang]/about/governance">): Promise<Metadata> {
+  const locale = localeFromParam((await params).lang);
+  const { meta } = (await getDictionary(locale)).about.governance;
+  return pageMetadata({ locale, path: "/about/governance", ...meta });
+}
 
-const PILLARS = [
-  {
-    icon: LandmarkIcon,
-    title: "The Majlis",
-    description:
-      "The Ethiopian Islamic Affairs Supreme Council established the Commission under Proclamation 1207/2020. The Commission is accountable to it and independent in its professional and administrative work.",
-  },
-  {
-    icon: UsersIcon,
-    title: "Board of Directors",
-    description:
-      "25 members serving five-year terms, at most two in a row. The board supervises the Commission, appoints the Commissioner, issues directives and approves the plan and budget.",
-  },
-  {
-    icon: ShieldCheckIcon,
-    title: "Control committee",
-    description:
-      "An oversight committee is part of the Commission's structure, and every change in the Zakat system is recorded with who made it and when.",
-  },
-  {
-    icon: BarChart3Icon,
-    title: "Public accountability",
-    description:
-      "Audited figures and impact reports are published openly so the public can hold us to account.",
-  },
-];
+/** Icons for the structure cards, in the dictionary's order. */
+const PILLAR_ICONS: LucideIcon[] = [LandmarkIcon, UsersIcon, ShieldCheckIcon, BarChart3Icon];
 
-export default function GovernancePage() {
+export default async function GovernancePage({ params }: PageProps<"/[lang]/about/governance">) {
+  const locale = localeFromParam((await params).lang);
+  const dictionary = await getDictionary(locale);
+  const t = dictionary.about.governance;
+  const crumbs = dictionary.about.breadcrumbs;
+
+  const pillars = t.structure.items.map((item, index) => ({ ...item, icon: PILLAR_ICONS[index] }));
+
   return (
-    <SitePage
-      eyebrow="About Us"
-      title="Governance &"
-      accent="Majlis"
-      intro="EZAC operates under clear religious and institutional governance — combining the authority of the Majlis with modern, audited oversight."
-    >
+    <SitePage eyebrow={t.header.eyebrow} title={t.header.title} accent={t.header.accent} intro={t.header.intro}>
+      <JsonLd
+        data={breadcrumbJsonLd(locale, [
+          { name: crumbs.home, path: "/" },
+          { name: crumbs.about, path: "/about" },
+          { name: crumbs.governance, path: "/about/governance" },
+        ])}
+      />
       <Section>
-        <SectionHeading
-          eyebrow="Structure"
-          title="How EZAC is governed"
-          intro="Authority, accountability, and transparency are built into every layer."
-        />
-        <FeatureGrid items={PILLARS} columns={2} />
+        <SectionHeading eyebrow={t.structure.eyebrow} title={t.structure.title} intro={t.structure.intro} />
+        <FeatureGrid items={pillars} columns={2} />
       </Section>
       <Section muted>
         <div className="mx-auto max-w-3xl text-center">
-          <h2
-            className="font-serif-display text-2xl sm:text-3xl"
-            style={{ color: "#001539", letterSpacing: "-0.5px" }}
-          >
-            Mandate &amp; accountability
-          </h2>
-          <p
-            className="mt-4 text-base leading-relaxed"
-            style={{ color: "#6F6F6F" }}
-          >
-            Under its establishment regulation, the Commission collects Zakat
-            in Ethiopia and abroad and distributes it to those entitled,
-            according to Shari&apos;ah and current fatwas, through a system
-            that is transparent, accountable and trustworthy. Funds are
-            reconciled with the bank and reported publicly, so trust is earned
-            through evidence, not assertion.
+          <h2 className="font-serif-display text-2xl tracking-[-0.5px] text-navy sm:text-3xl">{t.mandate.title}</h2>
+          <p className="mt-4 text-base leading-relaxed text-muted-ink">{t.mandate.body}</p>
+          <p className="mt-4 text-sm leading-relaxed text-muted-ink">
+            {t.mandate.source.before}
+            <Link
+              href={localizedPath(locale, "/about#zakat-commission-regulation")}
+              title={t.mandate.sourceTitle}
+              className="text-brand underline decoration-brand/40 underline-offset-2 hover:decoration-brand focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            >
+              {t.mandate.source.link}
+            </Link>
+            {t.mandate.source.after}
           </p>
         </div>
       </Section>
       <CtaBand
-        title="Religious assurance you can rely on"
-        body="Our Shari'ah Advisory Board reviews every ruling, product, and disbursement."
-        primary={{ label: "Meet the Shari'ah board", href: "/about/shariah-board" }}
-        secondary={{ label: "Read the legal documents", href: "/about#documents" }}
+        title={t.cta.title}
+        body={t.cta.body}
+        primary={{ label: t.cta.primary, href: "/about/shariah-board", title: t.cta.primaryTitle }}
+        secondary={{ label: t.cta.secondary, href: "/about#documents", title: t.cta.secondaryTitle }}
       />
     </SitePage>
   );

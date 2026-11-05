@@ -1,93 +1,85 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRightIcon, HandCoinsIcon, InfinityIcon, UsersIcon } from "lucide-react";
-import { SitePage } from "@/components/site/site-page";
-import { CtaBand, FeatureGrid, Section, SectionHeading } from "@/components/site/sections";
 
-export const metadata: Metadata = {
-  title: "Waqf Crowdfunding — EZAC",
-  description:
-    "How Waqf crowdfunding will let many people fund one lasting project together. Projects will be listed here once the Commission publishes them.",
-};
+import { JsonLd } from "@/components/seo/json-ld";
+import { CtaBand, FeatureGrid, Section, SectionHeading } from "@/components/site/sections";
+import { SitePage } from "@/components/site/site-page";
+import { localizedPath } from "@/lib/i18n/config";
+import { getDictionary, localeFromParam } from "@/lib/i18n/server";
+import { pageMetadata } from "@/lib/seo";
+import { breadcrumbJsonLd } from "@/lib/structured-data";
+
+const PATH = "/waqf/crowdfunding";
 
 // No projects are published yet. When they are, list real records from the
 // zakat service here; never stand-in campaigns, figures or certification tags.
-const HOW_IT_WORKS = [
-  {
-    icon: UsersIcon,
-    title: "Many givers, one project",
-    description:
-      "Each person gives what they can toward a single Waqf project, so together they can fund something no one could fund alone.",
-  },
-  {
-    icon: InfinityIcon,
-    title: "The principal is kept",
-    description:
-      "A Waqf is not spent. The endowed asset is kept, and only what it earns or provides goes to the cause.",
-  },
-  {
-    icon: HandCoinsIcon,
-    title: "Lasting benefit",
-    description:
-      "Once a project is funded, it keeps serving the community for years after the last gift.",
-  },
-];
 
-const NEXT_STEPS = [
-  {
-    href: "/causes",
-    title: "Give to an open Zakat cause",
-    body: "See the causes accepting Zakat right now, with their goals and what has been raised.",
-  },
-  {
-    href: "/contact",
-    title: "Talk to our team",
-    body: "Ask about endowing a Waqf or about upcoming projects.",
-  },
-];
+/** Paired by position with giving.waqf.crowdfunding.howItWorks.items. */
+const HOW_IT_WORKS_ICONS = [UsersIcon, InfinityIcon, HandCoinsIcon];
 
-export default function WaqfCrowdfundingPage() {
+export async function generateMetadata({ params }: PageProps<"/[lang]/waqf/crowdfunding">): Promise<Metadata> {
+  const locale = localeFromParam((await params).lang);
+  const { giving } = await getDictionary(locale);
+  return pageMetadata({ locale, path: PATH, ...giving.waqf.crowdfunding.meta });
+}
+
+export default async function WaqfCrowdfundingPage({ params }: PageProps<"/[lang]/waqf/crowdfunding">) {
+  const locale = localeFromParam((await params).lang);
+  const { giving } = await getDictionary(locale);
+  const t = giving.waqf.crowdfunding;
+  const nextSteps = [
+    { href: localizedPath(locale, "/causes"), ...t.projects.causes },
+    { href: localizedPath(locale, "/contact"), ...t.projects.contact },
+  ];
+  const primary = {
+    label: t.cta.primary,
+    href: localizedPath(locale, "/waqf/register-asset"),
+    title: t.cta.primaryTitle,
+  };
+  const secondary = {
+    label: t.cta.secondary,
+    href: localizedPath(locale, "/waqf/investments"),
+    title: t.cta.secondaryTitle,
+  };
+
   return (
-    <SitePage
-      eyebrow="Waqf"
-      title="Waqf"
-      accent="crowdfunding"
-      intro="Waqf crowdfunding will let many people fund one lasting endowment together, such as a water point or a school, that keeps giving long after it is funded."
-    >
-      <Section>
-        <SectionHeading
-          eyebrow="Projects"
-          title="No projects are listed yet"
-          intro="Waqf projects will be listed here once the Commission publishes them. Until then, nothing can be funded on this page."
-        />
-        <div className="mx-auto mt-10 grid max-w-3xl gap-4 sm:grid-cols-2">
-          {NEXT_STEPS.map((step) => (
-            <Link
-              key={step.href}
-              href={step.href}
-              className="group rounded-2xl border border-black/5 bg-white p-6 shadow-sm transition hover:border-[#007050] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007050] focus-visible:ring-offset-2"
-            >
-              <p className="flex items-center justify-between gap-3 font-medium" style={{ color: "#001539" }}>
-                {step.title}
-                <ArrowRightIcon className="h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: "#007050" }} />
-              </p>
-              <p className="mt-2 text-sm leading-relaxed" style={{ color: "#6F6F6F" }}>
-                {step.body}
-              </p>
-            </Link>
-          ))}
-        </div>
-      </Section>
-      <Section muted>
-        <SectionHeading eyebrow="How it will work" title="Lasting projects, funded together" />
-        <FeatureGrid items={HOW_IT_WORKS} />
-      </Section>
-      <CtaBand
-        title="Have an asset to endow?"
-        body="Property, cash or shares can become a lasting Waqf. Our team will guide you through each step."
-        primary={{ label: "Register a Waqf asset", href: "/waqf/register-asset" }}
-        secondary={{ label: "Explore Waqf investments", href: "/waqf/investments" }}
+    <>
+      <SitePage eyebrow={t.hero.eyebrow} title={t.hero.title} accent={t.hero.accent} intro={t.hero.intro}>
+        <Section>
+          <SectionHeading eyebrow={t.projects.eyebrow} title={t.projects.title} intro={t.projects.intro} />
+          <div className="mx-auto mt-10 grid max-w-3xl gap-4 sm:grid-cols-2">
+            {nextSteps.map((step) => (
+              <Link
+                key={step.href}
+                href={step.href}
+                title={step.linkTitle}
+                className="group rounded-2xl border border-black/5 bg-white p-6 shadow-sm transition hover:border-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+              >
+                <span className="flex items-center justify-between gap-3 font-medium text-navy">
+                  {step.title}
+                  <ArrowRightIcon
+                    className="h-4 w-4 shrink-0 text-brand transition-transform group-hover:translate-x-0.5 rtl:-scale-x-100 rtl:group-hover:-translate-x-0.5"
+                    aria-hidden="true"
+                  />
+                </span>
+                <span className="mt-2 block text-sm leading-relaxed text-muted-ink">{step.body}</span>
+              </Link>
+            ))}
+          </div>
+        </Section>
+        <Section muted>
+          <SectionHeading eyebrow={t.howItWorks.eyebrow} title={t.howItWorks.title} intro={t.howItWorks.intro} />
+          <FeatureGrid items={t.howItWorks.items.map((item, index) => ({ ...item, icon: HOW_IT_WORKS_ICONS[index] }))} />
+        </Section>
+        <CtaBand title={t.cta.title} body={t.cta.body} primary={primary} secondary={secondary} />
+      </SitePage>
+      <JsonLd
+        data={breadcrumbJsonLd(locale, [
+          { name: giving.breadcrumbs.home, path: "/" },
+          { name: t.breadcrumb, path: PATH },
+        ])}
       />
-    </SitePage>
+    </>
   );
 }

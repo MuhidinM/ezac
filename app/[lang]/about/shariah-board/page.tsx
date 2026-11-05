@@ -1,91 +1,53 @@
 import type { Metadata } from "next";
-import {
-  BadgeCheckIcon,
-  BookOpenIcon,
-  ScaleIcon,
-  UsersIcon,
-} from "lucide-react";
+import { BadgeCheckIcon, BookOpenIcon, ScaleIcon, UsersIcon } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+
+import { JsonLd } from "@/components/seo/json-ld";
 import { SitePage } from "@/components/site/site-page";
-import {
-  CtaBand,
-  FeatureGrid,
-  Section,
-  SectionHeading,
-  StepList,
-} from "@/components/site/sections";
+import { CtaBand, FeatureGrid, Section, SectionHeading, StepList } from "@/components/site/sections";
+import { getDictionary, localeFromParam } from "@/lib/i18n/server";
+import { pageMetadata } from "@/lib/seo";
+import { breadcrumbJsonLd } from "@/lib/structured-data";
 
-export const metadata: Metadata = {
-  title: "Shari'ah Advisory Board — EZAC",
-  description:
-    "The scholars and mandate behind every EZAC ruling, product, and disbursement — ensuring full Shari'ah compliance.",
-};
+export async function generateMetadata({ params }: PageProps<"/[lang]/about/shariah-board">): Promise<Metadata> {
+  const locale = localeFromParam((await params).lang);
+  const { meta } = (await getDictionary(locale)).about.shariahBoard;
+  return pageMetadata({ locale, path: "/about/shariah-board", ...meta });
+}
 
-const MANDATE = [
-  {
-    icon: BookOpenIcon,
-    title: "Rulings & fatwas",
-    description:
-      "Issues authoritative guidance on Zakat, Waqf, and contemporary financial questions.",
-  },
-  {
-    icon: BadgeCheckIcon,
-    title: "Product certification",
-    description:
-      "Reviews and certifies every calculator rule, Waqf structure, and investment product.",
-  },
-  {
-    icon: ScaleIcon,
-    title: "Disbursement review",
-    description:
-      "Confirms that funds reach only eligible categories of beneficiaries under Shari'ah.",
-  },
-  {
-    icon: UsersIcon,
-    title: "Appointed with the Ulama Assembly",
-    description:
-      "Formed together with the Supreme Council's Ulama Assembly. Its first members are nine scholars named under the Commission's establishment regulation.",
-  },
-];
+/** Icons for the mandate cards, in the dictionary's order. */
+const MANDATE_ICONS: LucideIcon[] = [BookOpenIcon, BadgeCheckIcon, ScaleIcon, UsersIcon];
 
-const PROCESS = [
-  {
-    title: "Review",
-    body: "Each product, rule, or disbursement policy is submitted to the board for study.",
-  },
-  {
-    title: "Deliberate",
-    body: "Scholars assess it against Qur'an, Sunnah, and established fiqh.",
-  },
-  {
-    title: "Certify",
-    body: "Approved items receive a documented Shari'ah opinion before going live.",
-  },
-];
+export default async function ShariahBoardPage({ params }: PageProps<"/[lang]/about/shariah-board">) {
+  const locale = localeFromParam((await params).lang);
+  const dictionary = await getDictionary(locale);
+  const t = dictionary.about.shariahBoard;
+  const crumbs = dictionary.about.breadcrumbs;
 
-export default function ShariahBoardPage() {
+  const mandate = t.mandate.items.map((item, index) => ({ ...item, icon: MANDATE_ICONS[index] }));
+
   return (
-    <SitePage
-      eyebrow="About Us"
-      title="Shari'ah Advisory"
-      accent="Board"
-      intro="An independent body of scholars that safeguards the religious integrity of everything EZAC does — from the calculator's rulings to how funds are distributed."
-    >
+    <SitePage eyebrow={t.header.eyebrow} title={t.header.title} accent={t.header.accent} intro={t.header.intro}>
+      <JsonLd
+        data={breadcrumbJsonLd(locale, [
+          { name: crumbs.home, path: "/" },
+          { name: crumbs.about, path: "/about" },
+          { name: crumbs.shariahBoard, path: "/about/shariah-board" },
+        ])}
+      />
       <Section>
-        <SectionHeading eyebrow="Mandate" title="What the board oversees" />
-        <FeatureGrid items={MANDATE} columns={2} />
+        <SectionHeading eyebrow={t.mandate.eyebrow} title={t.mandate.title} />
+        <FeatureGrid items={mandate} columns={2} />
       </Section>
       <Section muted>
-        <SectionHeading
-          eyebrow="Assurance process"
-          title="How compliance is certified"
-        />
-        <StepList steps={PROCESS} />
+        <SectionHeading eyebrow={t.process.eyebrow} title={t.process.title} />
+        <StepList steps={t.process.steps} />
       </Section>
       <CtaBand
-        title="Read the rulings"
-        body="Explore the fatwas and Islamic rulings on Zakat that guide the Commission."
-        primary={{ label: "View fatwas & rulings", href: "/fatwas" }}
-        secondary={{ label: "About our governance", href: "/about/governance" }}
+        title={t.cta.title}
+        body={t.cta.body}
+        primary={{ label: t.cta.primary, href: "/fatwas", title: t.cta.primaryTitle }}
+        secondary={{ label: t.cta.secondary, href: "/about/governance", title: t.cta.secondaryTitle }}
       />
     </SitePage>
   );

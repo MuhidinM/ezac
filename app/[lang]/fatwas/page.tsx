@@ -1,23 +1,30 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { SitePage } from "@/components/site/site-page";
-import { Section, SectionHeading, FaqAccordion, CtaBand } from "@/components/site/sections";
-import { readCalculatorConfig } from "@/components/landing/read-calculator-config";
-import { MIXED_IRRIGATION_RATE, RIKAZ_RATE, type CalculatorConfig } from "@/lib/zakat/calculator-config";
-import { getCalculatorConfig } from "@/lib/zakat/impact";
 
-export const metadata: Metadata = {
-  title: "Fatwas & Islamic Rulings on Zakat — EZAC",
-  description:
-    "Authoritative rulings from the EZAC Shari'ah Advisory Board on Zakat, Waqf, and contemporary financial questions.",
-};
+import { readCalculatorConfig } from "@/components/landing/read-calculator-config";
+import { JsonLd } from "@/components/seo/json-ld";
+import { CtaBand, FaqAccordion, Section, SectionHeading } from "@/components/site/sections";
+import { SitePage } from "@/components/site/site-page";
+import { INTL_LOCALE, type Locale, localizedPath } from "@/lib/i18n/config";
+import { format } from "@/lib/i18n/messages";
+import { type Dictionary, getDictionary, localeFromParam } from "@/lib/i18n/server";
+import { pageMetadata } from "@/lib/seo";
+import { breadcrumbJsonLd } from "@/lib/structured-data";
+import { MIXED_IRRIGATION_RATE, RIKAZ_RATE, type CalculatorConfig } from "@/lib/zakat/calculator-config";
+import { formatPercent, getCalculatorConfig } from "@/lib/zakat/impact";
+
+export async function generateMetadata({ params }: PageProps<"/[lang]/fatwas">): Promise<Metadata> {
+  const locale = localeFromParam((await params).lang);
+  const { meta } = (await getDictionary(locale)).transparency.fatwas;
+  return pageMetadata({ locale, path: "/fatwas", ...meta });
+}
 
 // The figures below come from the rules version the calculator applies, refreshed
 // every 5 minutes, so this page can't contradict the calculator.
 export const revalidate = 300;
 
-const pct = (rate: number) => `${+(rate * 100).toFixed(2)}%`;
-const number = new Intl.NumberFormat("en-ET", { maximumFractionDigits: 1 });
+/** The wealth rate used in the answers when today's rules can't be loaded. */
+const FALLBACK_WEALTH_RATE = 0.025;
 
 /**
  * Rule figures are read from the live config. When it can't be loaded (gateway
@@ -25,82 +32,88 @@ const number = new Intl.NumberFormat("en-ET", { maximumFractionDigits: 1 });
  * and point to How it works, rather than state a threshold the calculator may
  * not apply.
  */
-function rulings(config: CalculatorConfig | null) {
-  const rate = config ? pct(config.wealth.rate) : "2.5%";
+function rulings(config: CalculatorConfig | null, t: Dictionary["transparency"]["fatwas"], locale: Locale) {
+  const grams = new Intl.NumberFormat(INTL_LOCALE[locale], { maximumFractionDigits: 1 });
+  const pct = (rate: number) => formatPercent(rate, locale);
+  const rate = pct(config ? config.wealth.rate : FALLBACK_WEALTH_RATE);
+  const { assets, nisab, ushr, business, rikaz, debts } = t.rulings;
   return [
+    { q: assets.q, a: assets.a },
     {
-      q: "On which assets is Zakat obligatory?",
-      a: "Zakat is due on cash and savings, gold and silver, trade goods, agricultural produce, livestock, and certain modern assets such as tradable shares — once each meets its Nisab and, where required, a full lunar year (Hawl).",
-    },
-    {
-      q: "Is the Nisab based on gold or silver?",
+      q: nisab.q,
       a: config
-        ? `Nisab is the value of ${number.format(config.nisab.goldGrams)} g of gold or ${number.format(config.nisab.silverGrams)} g of silver. The rules in force today use the ${config.nisab.basis} standard: ${number.format(config.nisab.basis === "gold" ? config.nisab.goldGrams : config.nisab.silverGrams)} g of ${config.nisab.basis}, which the calculator converts to birr at the day's price.`
-        : "Nisab is the value of a set weight of gold or of silver. The Commission's published rules say which one applies, and the calculator converts it to birr at the day's price. The 'How it works' page shows the rules in force today.",
+        ? format(nisab.aLive, {
+            goldGrams: grams.format(config.nisab.goldGrams),
+            silverGrams: grams.format(config.nisab.silverGrams),
+            basis: t.basis[config.nisab.basis],
+            basisGrams: grams.format(config.nisab.basis === "gold" ? config.nisab.goldGrams : config.nisab.silverGrams),
+          })
+        : nisab.a,
     },
     {
-      q: "When is agricultural Zakat (Ushr) paid?",
+      q: ushr.q,
       a: config
-        ? `Ushr is due on the day of harvest, with no Hawl required: ${pct(config.crops.rainFedRate)} for rain-fed produce, ${pct(MIXED_IRRIGATION_RATE)} for mixed irrigation, and ${pct(config.crops.irrigatedRate)} for artificially irrigated crops, once the harvest reaches ${number.format(config.crops.nisabKg)} kg.`
-        : "Ushr is due on the day of harvest, with no Hawl required. The rate is higher for rain-fed produce than for irrigated crops, and it applies once the harvest reaches the crop Nisab. The 'How it works' page shows the rates in force today.",
+        ? format(ushr.aLive, {
+            rainFed: pct(config.crops.rainFedRate),
+            mixed: pct(MIXED_IRRIGATION_RATE),
+            irrigated: pct(config.crops.irrigatedRate),
+            nisabKg: grams.format(config.crops.nisabKg),
+          })
+        : ushr.a,
     },
-    {
-      q: "How is Zakat on business assets calculated?",
-      a: `Trade goods bought with the intention of resale — inventory, business cash, and receivables, less short-term payables — are assessed at ${rate}. Fixed assets such as machinery, vehicles, and premises are exempt.`,
-    },
-    {
-      q: "What is the ruling on Rikaz and mined minerals?",
-      a: `Rikaz (buried treasure) owes ${pct(RIKAZ_RATE)} immediately on discovery, with no Nisab or Hawl. Extracted minerals owe ${rate} once they reach the Nisab value.`,
-    },
-    {
-      q: "Can long-term debts be deducted before Zakat?",
-      a: "Only short-term debts due within the lunar year, and the next twelve months of long-term loan payments, may be deducted. Deducting full long-term debt would unduly keep payers below Nisab.",
-    },
+    { q: business.q, a: format(business.a, { rate }) },
+    { q: rikaz.q, a: format(rikaz.a, { rikazRate: pct(RIKAZ_RATE), rate }) },
+    { q: debts.q, a: debts.a },
   ];
 }
 
-export default async function FatwasPage() {
+export default async function FatwasPage({ params }: PageProps<"/[lang]/fatwas">) {
+  const locale = localeFromParam((await params).lang);
+  const { transparency } = await getDictionary(locale);
+  const t = transparency.fatwas;
   // null means no prices are published yet. The catch keeps this page up during
   // an outage too: its wording without figures is still correct, unlike an empty
   // figure on the other pages, so it may be cached for the 5-minute window.
   const config = readCalculatorConfig(await getCalculatorConfig().catch(() => null));
 
   return (
-    <SitePage
-      eyebrow="Knowledge"
-      title="Fatwas & Islamic"
-      accent="rulings"
-      intro="Guidance issued by the EZAC Shari'ah Advisory Board. These rulings underpin the calculator's logic and the Commission's disbursement policy."
-    >
+    <SitePage {...t.header}>
       <Section>
-        <SectionHeading
-          eyebrow="Rulings"
-          title="Zakat rulings, explained"
-          intro="Each ruling reflects the considered opinion of qualified scholars."
-        />
-        <FaqAccordion items={rulings(config)} />
-        <p className="mx-auto mt-6 max-w-3xl text-center text-xs" style={{ color: "#6F6F6F" }}>
+        <SectionHeading {...t.heading} />
+        <FaqAccordion items={rulings(config, t, locale)} />
+        <p className="mx-auto mt-6 max-w-3xl text-center text-xs text-muted-ink">
           {config ? (
-            <>
-              Figures on this page come from the rules the calculator applies today
-              {config.configVersion > 0 ? ` (version ${config.configVersion})` : ""}.
-            </>
+            config.configVersion > 0 ? (
+              format(t.figuresLiveVersion, { version: config.configVersion })
+            ) : (
+              t.figuresLive
+            )
           ) : (
             <>
-              Today&apos;s figures could not be loaded. See{" "}
-              <Link href="/how-it-works" className="underline underline-offset-2" style={{ color: "#007050" }}>
-                How it works
-              </Link>{" "}
-              for the rules in force.
+              {t.figuresMissing.before}
+              <Link
+                href={localizedPath(locale, "/how-it-works")}
+                title={t.figuresMissing.linkTitle}
+                className="text-brand underline underline-offset-2 focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+              >
+                {t.figuresMissing.link}
+              </Link>
+              {t.figuresMissing.after}
             </>
           )}
         </p>
       </Section>
       <CtaBand
-        title="Put the rulings into practice"
-        body="The calculator applies each of these rulings automatically across your assets."
-        primary={{ label: "Open the calculator", href: "/zakat/calculator" }}
-        secondary={{ label: "Meet the Shari'ah board", href: "/about/shariah-board" }}
+        title={t.cta.title}
+        body={t.cta.body}
+        primary={{ label: t.cta.primary, href: "/zakat/calculator", title: t.cta.primaryTitle }}
+        secondary={{ label: t.cta.secondary, href: "/about/shariah-board", title: t.cta.secondaryTitle }}
+      />
+      <JsonLd
+        data={breadcrumbJsonLd(locale, [
+          { name: transparency.breadcrumbs.home, path: "/" },
+          { name: transparency.breadcrumbs.fatwas, path: "/fatwas" },
+        ])}
       />
     </SitePage>
   );

@@ -1,92 +1,58 @@
 import type { Metadata } from "next";
-import {
-  Building2Icon,
-  CoinsIcon,
-  LeafIcon,
-  TrendingUpIcon,
-} from "lucide-react";
+import { Building2Icon, CoinsIcon, LeafIcon, TrendingUpIcon } from "lucide-react";
+
+import { JsonLd } from "@/components/seo/json-ld";
+import { CtaBand, FeatureGrid, Section, SectionHeading, StepList } from "@/components/site/sections";
 import { SitePage } from "@/components/site/site-page";
-import {
-  CtaBand,
-  FeatureGrid,
-  Section,
-  SectionHeading,
-  StepList,
-} from "@/components/site/sections";
+import { localizedPath } from "@/lib/i18n/config";
+import { getDictionary, localeFromParam } from "@/lib/i18n/server";
+import { pageMetadata } from "@/lib/seo";
+import { breadcrumbJsonLd } from "@/lib/structured-data";
 
-export const metadata: Metadata = {
-  title: "Register a Waqf Asset — EZAC",
-  description:
-    "Endow property, cash, shares, or agricultural land as a perpetual Waqf — registered, documented, and managed under EZAC governance.",
-};
+const PATH = "/waqf/register-asset";
 
-const ASSET_TYPES = [
-  {
-    icon: Building2Icon,
-    title: "Property & real estate",
-    description:
-      "Buildings and land whose rental income perpetually supports designated causes.",
-  },
-  {
-    icon: CoinsIcon,
-    title: "Cash Waqf",
-    description:
-      "Monetary endowments pooled and invested, with only the returns disbursed.",
-  },
-  {
-    icon: TrendingUpIcon,
-    title: "Shares & securities",
-    description:
-      "Shari'ah-compliant equities and sukuk dedicated as a lasting endowment.",
-  },
-  {
-    icon: LeafIcon,
-    title: "Agricultural land",
-    description:
-      "Farmland whose harvest or lease income funds community programmes.",
-  },
-];
+/** Paired by position with giving.waqf.registerAsset.assets.items. */
+const ASSET_ICONS = [Building2Icon, CoinsIcon, TrendingUpIcon, LeafIcon];
 
-const STEPS = [
-  {
-    title: "Declare your intent",
-    body: "Tell us the asset you wish to endow and the causes you want it to serve.",
-  },
-  {
-    title: "Document & verify",
-    body: "We verify ownership and prepare the Waqf deed with Shari'ah oversight.",
-  },
-  {
-    title: "Endow & manage",
-    body: "The asset is registered as Waqf and professionally managed on your behalf.",
-  },
-];
+export async function generateMetadata({ params }: PageProps<"/[lang]/waqf/register-asset">): Promise<Metadata> {
+  const locale = localeFromParam((await params).lang);
+  const { giving } = await getDictionary(locale);
+  return pageMetadata({ locale, path: PATH, ...giving.waqf.registerAsset.meta });
+}
 
-export default function RegisterWaqfAssetPage() {
+export default async function RegisterWaqfAssetPage({ params }: PageProps<"/[lang]/waqf/register-asset">) {
+  const locale = localeFromParam((await params).lang);
+  const { giving } = await getDictionary(locale);
+  const t = giving.waqf.registerAsset;
+  const primary = { label: t.cta.primary, href: localizedPath(locale, "/contact"), title: t.cta.primaryTitle };
+  const secondary = {
+    label: t.cta.secondary,
+    href: localizedPath(locale, "/waqf/investments"),
+    title: t.cta.secondaryTitle,
+  };
+
   return (
-    <SitePage
-      eyebrow="Waqf"
-      title="Register a Waqf"
-      accent="asset"
-      intro="Dedicate property, cash, shares, or land as a perpetual endowment. We handle documentation, Shari'ah review, and ongoing management so your gift gives forever."
-    >
-      <Section>
-        <SectionHeading
-          eyebrow="What you can endow"
-          title="Assets that qualify as Waqf"
-        />
-        <FeatureGrid items={ASSET_TYPES} columns={2} />
-      </Section>
-      <Section muted>
-        <SectionHeading eyebrow="The process" title="From intent to endowment" />
-        <StepList steps={STEPS} />
-      </Section>
-      <CtaBand
-        title="Start your Waqf registration"
-        body="Registration starts with a conversation: contact our endowment team and we'll guide you through each step."
-        primary={{ label: "Begin registration", href: "/contact" }}
-        secondary={{ label: "How Waqf investments work", href: "/waqf/investments" }}
+    <>
+      <SitePage eyebrow={t.hero.eyebrow} title={t.hero.title} accent={t.hero.accent} intro={t.hero.intro}>
+        <Section>
+          <SectionHeading eyebrow={t.assets.eyebrow} title={t.assets.title} intro={t.assets.intro} />
+          <FeatureGrid
+            items={t.assets.items.map((item, index) => ({ ...item, icon: ASSET_ICONS[index] }))}
+            columns={2}
+          />
+        </Section>
+        <Section muted>
+          <SectionHeading eyebrow={t.process.eyebrow} title={t.process.title} />
+          <StepList steps={t.process.items} />
+        </Section>
+        <CtaBand title={t.cta.title} body={t.cta.body} primary={primary} secondary={secondary} />
+      </SitePage>
+      <JsonLd
+        data={breadcrumbJsonLd(locale, [
+          { name: giving.breadcrumbs.home, path: "/" },
+          { name: t.breadcrumb, path: PATH },
+        ])}
       />
-    </SitePage>
+    </>
   );
 }

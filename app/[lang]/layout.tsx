@@ -54,7 +54,7 @@ export default async function PublicRootLayout({ children, params }: LayoutProps
         {/* First stop for keyboard users: jumps past the navigation to the page's <main id="main">. */}
         <a
           href="#main"
-          className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:start-3 focus:z-[100] focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-[#001539] focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-[#007050]"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:start-3 focus:z-[100] focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-navy focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-brand"
         >
           {common.skipToContent}
         </a>

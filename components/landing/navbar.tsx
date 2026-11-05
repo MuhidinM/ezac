@@ -3,8 +3,9 @@
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDownIcon, GlobeIcon, MenuIcon } from "lucide-react";
+import { ChevronDownIcon, MenuIcon, XIcon } from "lucide-react";
 
+import { LanguageList, LanguageSwitcher } from "@/components/site/language-switcher";
 import {
   Sheet,
   SheetClose,
@@ -15,58 +16,54 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { splitLocale } from "@/lib/i18n/config";
+import { useI18n } from "@/lib/i18n/client";
+import type { Dictionary } from "@/lib/i18n/dictionaries/en";
 
-type MenuItem = {
-  label: string;
-  children: {
-    label: string;
-    href: string;
-    note?: string;
-  }[];
-};
+type NavStrings = Dictionary["common"]["nav"];
+type LinkKey = keyof NavStrings["links"];
+type GroupKey = keyof NavStrings["groups"];
 
-const MENU_ITEMS: MenuItem[] = [
+/** Where each menu entry goes; the labels and tooltips live in common.nav. */
+const MENU: { group: GroupKey; links: { key: LinkKey; href: string }[] }[] = [
   {
-    label: "Zakat",
-    children: [
-      { label: "Zakat Calculator", href: "/zakat/calculator" },
-      { label: "Pay Zakat Now", href: "/zakat/pay" },
-      { label: "Causes", href: "/causes" },
-      { label: "Corporate Zakat", href: "/zakat/corporate" },
+    group: "zakat",
+    links: [
+      { key: "calculator", href: "/zakat/calculator" },
+      { key: "pay", href: "/zakat/pay" },
+      { key: "causes", href: "/causes" },
+      { key: "corporate", href: "/zakat/corporate" },
     ],
   },
   {
-    label: "Waqf",
-    children: [
-      { label: "Waqf Crowdfunding", href: "/waqf/crowdfunding" },
-      { label: "Waqf Investments", href: "/waqf/investments" },
-      { label: "Register a Waqf Asset", href: "/waqf/register-asset" },
+    group: "waqf",
+    links: [
+      { key: "waqfCrowdfunding", href: "/waqf/crowdfunding" },
+      { key: "waqfInvestments", href: "/waqf/investments" },
+      { key: "waqfRegister", href: "/waqf/register-asset" },
     ],
   },
   {
-    label: "Transparency & Impact",
-    children: [
-      {
-        label: "Live Dashboard",
-        href: "/transparency/dashboard",
-      },
-      { label: "How It Works", href: "/how-it-works" },
-      { label: "Impact Stories", href: "/transparency/stories" },
-      { label: "Impact Reports", href: "/transparency/reports" },
+    group: "transparency",
+    links: [
+      { key: "dashboard", href: "/transparency/dashboard" },
+      { key: "howItWorks", href: "/how-it-works" },
+      { key: "stories", href: "/transparency/stories" },
+      { key: "reports", href: "/transparency/reports" },
     ],
   },
   {
-    label: "About Us",
-    children: [
-      { label: "About the Commission", href: "/about" },
-      { label: "Legal Documents", href: "/about#documents" },
-      { label: "Governance & Majlis", href: "/about/governance" },
-      { label: "Shari'ah Advisory Board", href: "/about/shariah-board" },
+    group: "about",
+    links: [
+      { key: "about", href: "/about" },
+      { key: "documents", href: "/about#documents" },
+      { key: "governance", href: "/about/governance" },
+      { key: "shariahBoard", href: "/about/shariah-board" },
     ],
   },
 ];
 
-const LANGUAGES = ["EN", "AM", "OR", "AR"];
+const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2";
 
 /**
  * One desktop dropdown, built as a disclosure: hover or the button opens it,
@@ -75,16 +72,19 @@ const LANGUAGES = ["EN", "AM", "OR", "AR"];
  * out of the tab order instead of being tabbed through unseen.
  */
 function DropdownGroup({
-  item,
+  label,
+  links,
   isOpen,
   setOpen,
-  pathname,
+  currentPath,
 }: {
-  item: MenuItem;
+  label: string;
+  links: { key: LinkKey; href: string }[];
   isOpen: boolean;
   setOpen: (open: boolean) => void;
-  pathname: string;
+  currentPath: string;
 }) {
+  const { common, href } = useI18n();
   const panelId = useId();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -110,10 +110,7 @@ function DropdownGroup({
       <button
         ref={buttonRef}
         type="button"
-        className="flex items-center gap-1 rounded-sm text-sm transition-colors hover:text-[#001539] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007050] focus-visible:ring-offset-2"
-        style={{
-          color: isOpen ? "#001539" : "#6F6F6F",
-        }}
+        className={`flex items-center gap-1 rounded-sm text-sm transition-colors hover:text-navy ${FOCUS_RING} ${isOpen ? "text-navy" : "text-muted-ink"}`}
         onClick={() => setOpen(!isOpen)}
         onKeyDown={(event) => {
           if (event.key === "ArrowDown") {
@@ -126,8 +123,9 @@ function DropdownGroup({
         aria-expanded={isOpen}
         aria-controls={panelId}
       >
-        {item.label}
+        {label}
         <ChevronDownIcon
+          aria-hidden="true"
           className={`h-3.5 w-3.5 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
         />
       </button>
@@ -135,27 +133,19 @@ function DropdownGroup({
       <div
         id={panelId}
         ref={panelRef}
-        className={`absolute left-0 top-full min-w-[240px] pt-3 transition-all duration-200 ${isOpen ? "visible pointer-events-auto translate-y-0 opacity-100" : "invisible pointer-events-none -translate-y-1 opacity-0"}`}
+        className={`absolute start-0 top-full min-w-[240px] pt-3 transition-all duration-200 ${isOpen ? "visible pointer-events-auto translate-y-0 opacity-100" : "invisible pointer-events-none -translate-y-1 opacity-0"}`}
       >
         <div className="overflow-hidden rounded-xl border border-black/5 bg-white py-2 shadow-lg shadow-black/5">
-          {item.children.map((child) => (
+          {links.map((link) => (
             <Link
-              key={child.label}
-              href={child.href}
+              key={link.key}
+              href={href(link.href)}
+              title={common.nav.links[link.key].title}
               onClick={() => setOpen(false)}
-              aria-current={child.href === pathname ? "page" : undefined}
-              className="flex flex-col px-4 py-2.5 text-sm transition-colors hover:bg-black/[0.03] focus-visible:bg-black/[0.05] focus-visible:outline-none"
-              style={{ color: "#001539" }}
+              aria-current={link.href === currentPath ? "page" : undefined}
+              className="flex flex-col px-4 py-2.5 text-sm text-navy transition-colors hover:bg-black/[0.03] focus-visible:bg-black/[0.05] focus-visible:outline-none aria-[current=page]:font-medium"
             >
-              <span>{child.label}</span>
-              {child.note && (
-                <span
-                  className="mt-0.5 text-xs"
-                  style={{ color: "#6F6F6F" }}
-                >
-                  {child.note}
-                </span>
-              )}
+              {common.nav.links[link.key].label}
             </Link>
           ))}
         </div>
@@ -165,10 +155,11 @@ function DropdownGroup({
 }
 
 export function Navbar() {
-  const pathname = usePathname();
+  const { common, href, dir } = useI18n();
+  const nav = common.nav;
+  // Compare without the language prefix: "/am/about" is the About page.
+  const currentPath = splitLocale(usePathname() || "/").path;
   const [openIndex, setOpenIndex] = useState<number | null>(null);
-  const [activeLang, setActiveLang] = useState("EN");
-  const [langOpen, setLangOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -183,62 +174,52 @@ export function Navbar() {
 
   return (
     <nav
-      aria-label="Main"
-      className={`fixed inset-x-0 top-0 z-30 transition-all duration-500 ease-out ${scrolled ? "px-3" : ""}`}
-      style={{
-        paddingTop: scrolled ? "12px" : "0px",
-      }}
+      aria-label={nav.ariaLabel}
+      className={`fixed inset-x-0 top-0 z-30 transition-all duration-500 ease-out ${scrolled ? "px-3 pt-3" : "pt-0"}`}
     >
       {/* Below sm the bar drops the tagline and tightens its padding so the
           logo, Donate and the menu button fit on a 320px screen. */}
       <div
         className={`mx-auto flex items-center justify-between gap-3 transition-all duration-500 ease-out sm:gap-6 ${scrolled ? "max-w-5xl rounded-full border border-black/5 bg-white/80 px-4 py-2.5 shadow-lg shadow-black/5 backdrop-blur-xl sm:px-5" : "max-w-7xl bg-transparent px-4 py-5 sm:px-8 sm:py-6"}`}
       >
+        {/* No aria-label: the visible "EZAC" text names the link, so speech
+            users can say what they see. */}
         <Link
-          href="/"
-          aria-label="EZAC home"
-          className="flex shrink-0 items-center gap-2 rounded-sm leading-none transition-all duration-500 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007050] focus-visible:ring-offset-2 sm:gap-3"
+          href={href("/")}
+          title={nav.home.title}
+          className={`flex shrink-0 items-center gap-2 rounded-sm leading-none transition-all duration-500 ease-out sm:gap-3 ${FOCUS_RING}`}
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- brand mark served as a static asset */}
           <img
             src="/logo.svg"
-            alt=""
+            alt={common.site.logoAlt}
+            width={44}
+            height={44}
             className={`w-auto transition-all duration-500 ease-out ${scrolled ? "h-8" : "h-9 sm:h-11"}`}
           />
           {scrolled ? (
-            <span
-              className="font-serif-display text-xl tracking-tight sm:text-2xl"
-              style={{ color: "#001539" }}
-            >
-              EZAC
+            <span className="font-serif-display text-xl tracking-tight text-navy sm:text-2xl">
+              {common.site.name}
             </span>
           ) : (
-            <span className="flex min-w-0 max-w-[220px] flex-col">
-              <span
-                className="font-serif-display text-xl tracking-tight"
-                style={{ color: "#001539", lineHeight: 1.1 }}
-              >
-                EZAC
+            <span className="flex min-w-0 max-w-[240px] flex-col">
+              <span className="font-serif-display text-xl leading-[1.1] tracking-tight text-navy">
+                {common.site.name}
               </span>
-              <span
-                className="hidden text-[10px] uppercase tracking-[0.18em] sm:block"
-                style={{
-                  color: "#6F6F6F",
-                  lineHeight: 1.4,
-                }}
-              >
-                Ethiopian Zakat &amp; Awqaf Commission
+              <span className="hidden text-xs uppercase leading-snug tracking-[0.12em] text-muted-ink sm:block">
+                {nav.home.tagline}
               </span>
             </span>
           )}
         </Link>
 
         <ul className="hidden items-center gap-7 lg:flex">
-          {MENU_ITEMS.map((item, idx) => (
+          {MENU.map((item, idx) => (
             <DropdownGroup
-              key={item.label}
-              item={item}
-              pathname={pathname}
+              key={item.group}
+              label={nav.groups[item.group]}
+              links={item.links}
+              currentPath={currentPath}
               isOpen={openIndex === idx}
               setOpen={(open) =>
                 setOpenIndex((current) => (open ? idx : current === idx ? null : current))
@@ -248,124 +229,75 @@ export function Navbar() {
         </ul>
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-5">
-          <div
-            className="relative hidden md:block"
-            onMouseEnter={() => setLangOpen(true)}
-            onMouseLeave={() => setLangOpen(false)}
-          >
-            <button
-              type="button"
-              onClick={() => setLangOpen((v) => !v)}
-              className="flex items-center gap-1.5 text-xs transition-colors hover:text-[#001539]"
-              style={{ color: "#6F6F6F" }}
-              aria-haspopup="true"
-              aria-expanded={langOpen}
-            >
-              <GlobeIcon className="h-3.5 w-3.5" />
-              <span style={{ color: "#001539", fontWeight: 500 }}>
-                {activeLang}
-              </span>
-              <ChevronDownIcon
-                className={`h-3 w-3 transition-transform duration-200 ${langOpen ? "rotate-180" : ""}`}
-              />
-            </button>
+          <LanguageSwitcher className="hidden md:flex" />
 
-            {/* `invisible` keeps the closed list out of the tab order. */}
-            <div
-              className={`absolute right-0 top-full min-w-[140px] pt-3 transition-all duration-200 ${langOpen ? "visible pointer-events-auto translate-y-0 opacity-100" : "invisible pointer-events-none -translate-y-1 opacity-0"}`}
-            >
-              <div className="overflow-hidden rounded-xl border border-black/5 bg-white py-1.5 shadow-lg shadow-black/5">
-                {LANGUAGES.map((lang) => (
-                  <button
-                    key={lang}
-                    type="button"
-                    onClick={() => {
-                      setActiveLang(lang);
-                      setLangOpen(false);
-                    }}
-                    className="flex w-full items-center justify-between px-4 py-2 text-left text-xs transition-colors hover:bg-black/[0.03]"
-                    style={{
-                      color: activeLang === lang ? "#001539" : "#6F6F6F",
-                      fontWeight: activeLang === lang ? 500 : 400,
-                    }}
-                  >
-                    <span>{lang}</span>
-                    {activeLang === lang && (
-                      <span
-                        className="h-1.5 w-1.5 rounded-full"
-                        style={{ backgroundColor: "#007050" }}
-                      />
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
+          {/* The staff portal is English only and not localized. */}
           <Link
             href="/login"
-            className="hidden text-sm transition-colors hover:text-[#001539] md:inline"
-            style={{ color: "#6F6F6F" }}
+            title={nav.staffSignIn.title}
+            className={`hidden rounded-sm text-sm text-muted-ink transition-colors hover:text-navy md:inline ${FOCUS_RING}`}
           >
-            Staff sign-in
+            {nav.staffSignIn.label}
           </Link>
 
           <Link
-            href="/donate"
-            className="whitespace-nowrap rounded-full px-3.5 py-2 text-xs transition-transform duration-300 hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007050] focus-visible:ring-offset-2 sm:px-6 sm:py-2.5 sm:text-sm"
-            style={{
-              backgroundColor: "#007050",
-              color: "#FFFFFF",
-            }}
+            href={href("/donate")}
+            title={nav.donate.title}
+            className={`whitespace-nowrap rounded-full bg-brand px-3.5 py-2 text-xs text-white transition-transform duration-300 hover:scale-[1.03] sm:px-6 sm:py-2.5 sm:text-sm ${FOCUS_RING}`}
           >
-            Donate Now
+            {nav.donate.label}
           </Link>
 
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetTrigger asChild>
               <button
                 type="button"
-                aria-label="Open menu"
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white/70 transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007050] focus-visible:ring-offset-2 lg:hidden"
-                style={{ color: "#001539" }}
+                aria-label={nav.openMenu}
+                title={nav.openMenu}
+                className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white/70 text-navy transition-colors hover:bg-white lg:hidden ${FOCUS_RING}`}
               >
-                <MenuIcon className="h-4 w-4" />
+                <MenuIcon aria-hidden="true" className="h-4 w-4" />
               </button>
             </SheetTrigger>
+            {/* The panel slides in from the end side: right in English, left in Arabic. */}
             <SheetContent
-              side="right"
+              side={dir === "rtl" ? "left" : "right"}
+              showCloseButton={false}
               className="gap-0 overflow-y-auto bg-white p-0"
             >
-              <SheetHeader className="border-b border-black/5 px-6 py-5">
-                <SheetTitle className="font-serif-display text-2xl" style={{ color: "#001539" }}>
-                  Menu
+              <SheetHeader className="flex-row items-center justify-between gap-4 border-b border-black/5 px-6 py-5">
+                <SheetTitle className="font-serif-display text-2xl text-navy">
+                  {nav.menuTitle}
                 </SheetTitle>
-                <SheetDescription className="sr-only">
-                  Pages on the EZAC website
-                </SheetDescription>
+                <SheetDescription className="sr-only">{nav.menuDescription}</SheetDescription>
+                <SheetClose asChild>
+                  <button
+                    type="button"
+                    aria-label={nav.closeMenu}
+                    title={nav.closeMenu}
+                    className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-black/10 text-navy transition-colors hover:bg-black/[0.03] ${FOCUS_RING}`}
+                  >
+                    <XIcon aria-hidden="true" className="h-4 w-4" />
+                  </button>
+                </SheetClose>
               </SheetHeader>
 
-              <nav aria-label="Main menu" className="flex flex-col gap-6 px-6 py-5">
-                {MENU_ITEMS.map((item) => (
-                  <div key={item.label}>
-                    <p
-                      className="text-[10px] uppercase tracking-[0.18em]"
-                      style={{ color: "#007050" }}
-                    >
-                      {item.label}
-                    </p>
+              <nav aria-label={nav.mobileAriaLabel} className="flex flex-col gap-6 px-6 py-5">
+                {MENU.map((item) => (
+                  <div key={item.group}>
+                    <p className="text-xs uppercase tracking-[0.16em] text-brand">{nav.groups[item.group]}</p>
                     <ul className="mt-2">
-                      {item.children.map((child) => (
-                        <li key={child.href}>
+                      {item.links.map((link) => (
+                        <li key={link.key}>
                           {/* SheetClose closes the menu as the link navigates. */}
                           <SheetClose asChild>
                             <Link
-                              href={child.href}
-                              aria-current={child.href === pathname ? "page" : undefined}
-                              className="-mx-2 block rounded-lg px-2 py-2.5 text-sm transition-colors hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007050]"
-                              style={{ color: "#001539" }}
+                              href={href(link.href)}
+                              title={nav.links[link.key].title}
+                              aria-current={link.href === currentPath ? "page" : undefined}
+                              className="-mx-2 block rounded-lg px-2 py-2.5 text-sm text-navy transition-colors hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand aria-[current=page]:font-medium"
                             >
-                              {child.label}
+                              {nav.links[link.key].label}
                             </Link>
                           </SheetClose>
                         </li>
@@ -375,23 +307,27 @@ export function Navbar() {
                 ))}
               </nav>
 
+              <div className="border-t border-black/5 px-6 py-5">
+                <LanguageList />
+              </div>
+
               <SheetFooter className="gap-3 border-t border-black/5 px-6 py-5">
                 <SheetClose asChild>
                   <Link
-                    href="/donate"
-                    className="inline-flex w-full items-center justify-center rounded-full py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007050] focus-visible:ring-offset-2"
-                    style={{ backgroundColor: "#007050", color: "#FFFFFF" }}
+                    href={href("/donate")}
+                    title={nav.donate.title}
+                    className={`inline-flex w-full items-center justify-center rounded-full bg-brand py-3 text-sm text-white ${FOCUS_RING}`}
                   >
-                    Donate Now
+                    {nav.donate.label}
                   </Link>
                 </SheetClose>
                 <SheetClose asChild>
                   <Link
                     href="/login"
-                    className="inline-flex w-full items-center justify-center rounded-full border border-black/10 py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007050]"
-                    style={{ color: "#001539" }}
+                    title={nav.staffSignIn.title}
+                    className="inline-flex w-full items-center justify-center rounded-full border border-black/10 py-3 text-sm text-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                   >
-                    Staff sign-in
+                    {nav.staffSignIn.label}
                   </Link>
                 </SheetClose>
               </SheetFooter>

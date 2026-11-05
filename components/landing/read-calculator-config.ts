@@ -25,7 +25,7 @@ const isRate = (value: unknown): value is number => isPositive(value) && value <
 function readRow(value: unknown): LivestockRow | null {
   if (!isObj(value) || !isNonNegative(value.min) || typeof value.due !== "string") return null;
   const row: LivestockRow = { min: value.min, due: value.due };
-  // JSON sends "no upper bound" as null; livestockDue() only treats undefined as open-ended.
+  // JSON sends "no upper bound" as null; the checked row leaves max out instead.
   if (value.max != null) {
     if (!isNonNegative(value.max)) return null;
     row.max = value.max;

@@ -1,64 +1,35 @@
 import type { Metadata } from "next";
+
+import { JsonLd } from "@/components/seo/json-ld";
 import { SitePage } from "@/components/site/site-page";
-import { Section, LegalProse } from "@/components/site/sections";
+import { LegalProse, Section } from "@/components/site/sections";
+import { getDictionary, localeFromParam } from "@/lib/i18n/server";
+import { pageMetadata } from "@/lib/seo";
+import { breadcrumbJsonLd } from "@/lib/structured-data";
 
-export const metadata: Metadata = {
-  title: "Privacy Policy — EZAC",
-  description:
-    "How the Ethiopian Zakat & Awqaf Commission collects, uses, and protects your personal and financial information.",
-};
+export async function generateMetadata({ params }: PageProps<"/[lang]/privacy">): Promise<Metadata> {
+  const locale = localeFromParam((await params).lang);
+  const { meta } = (await getDictionary(locale)).about.privacy;
+  return pageMetadata({ locale, path: "/privacy", ...meta });
+}
 
-const SECTIONS = [
-  {
-    heading: "Overview",
-    paragraphs: [
-      "The Ethiopian Zakat & Awqaf Commission (“EZAC”, “we”) is committed to protecting your privacy. This policy explains what information we collect, how we use it, and the choices you have. It applies to our website, calculator, and donation services.",
-    ],
-  },
-  {
-    heading: "Information we collect",
-    paragraphs: [
-      "We collect information you provide directly — such as your name, contact details, and the figures you enter to calculate or pay Zakat. Where you make a payment, our regulated payment partners process your transaction details on our behalf.",
-      "We also collect limited technical information, such as device and usage data, to operate and secure the service.",
-    ],
-  },
-  {
-    heading: "How we use your information",
-    paragraphs: [
-      "We use your information to calculate your obligation, process and reconcile payments, assess households, issue certificates, and report on impact. We do not sell your personal information.",
-    ],
-  },
-  {
-    heading: "Households we support",
-    paragraphs: [
-      "When a household applies for support, our staff record what is needed to assess it: its members, income, assets, housing and health, and a bank account for payment. This information, the household's score and every decision about it are visible only to the staff who handle the case, and are never published.",
-      "Public figures on this website are totals. An impact story about a family is published only with their consent.",
-    ],
-  },
-  {
-    heading: "Data security & retention",
-    paragraphs: [
-      "We apply technical and organisational safeguards to protect your data, and retain it only as long as necessary for the purposes above or as required by law and audit obligations.",
-    ],
-  },
-  {
-    heading: "Your rights & contact",
-    paragraphs: [
-      "You may request access to, correction of, or deletion of your personal information, subject to legal and audit requirements. To exercise these rights or ask questions about this policy, please contact our support team.",
-    ],
-  },
-];
+/** The policy text is a template awaiting legal review: its wording lives in the "about" dictionary, unchanged. */
+export default async function PrivacyPage({ params }: PageProps<"/[lang]/privacy">) {
+  const locale = localeFromParam((await params).lang);
+  const dictionary = await getDictionary(locale);
+  const t = dictionary.about.privacy;
+  const crumbs = dictionary.about.breadcrumbs;
 
-export default function PrivacyPage() {
   return (
-    <SitePage
-      eyebrow="Legal"
-      title="Privacy"
-      accent="policy"
-      intro="How we collect, use, and protect your personal and financial information across EZAC services."
-    >
+    <SitePage eyebrow={t.header.eyebrow} title={t.header.title} accent={t.header.accent} intro={t.header.intro}>
+      <JsonLd
+        data={breadcrumbJsonLd(locale, [
+          { name: crumbs.home, path: "/" },
+          { name: crumbs.privacy, path: "/privacy" },
+        ])}
+      />
       <Section>
-        <LegalProse sections={SECTIONS} />
+        <LegalProse sections={t.sections} />
       </Section>
     </SitePage>
   );

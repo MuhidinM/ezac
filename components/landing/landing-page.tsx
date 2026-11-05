@@ -1,43 +1,47 @@
+import type { Locale } from "@/lib/i18n/config";
+import type { Dictionary } from "@/lib/i18n/dictionaries/en";
+import { getImpactRegions } from "@/lib/zakat/impact";
+
+import { FeaturedCauses } from "./featured-causes";
 import { Hero } from "./hero";
+import { HowItWorksTrust } from "./how-it-works-trust";
+import { ImpactMapTeaser } from "./impact-map-teaser";
 import { Navbar } from "./navbar";
+import { PartnersSponsors } from "./partners-sponsors";
+import { SiteFooter } from "./site-footer";
 import { TransparencyTicker } from "./transparency-ticker";
 import { TrustStrip } from "./trust-strip";
 import { VideoBackground } from "./video-background";
-import { FeaturedCauses } from "./featured-causes";
-import { HowItWorksTrust } from "./how-it-works-trust";
-import { getImpactRegions } from "@/lib/zakat/impact";
-
-import { ImpactMapTeaser } from "./impact-map-teaser";
-import { PartnersSponsors } from "./partners-sponsors";
-import { SiteFooter } from "./site-footer";
 import { ZakatCalculator } from "./zakat-calculator";
 
-export async function LandingPage() {
+/** The home page. Each section gets its slice of the dictionary in the visitor's language. */
+export async function LandingPage({ locale, dict }: { locale: Locale; dict: Dictionary }) {
   const regions = await getImpactRegions();
+  const { home } = dict;
+
   return (
     <div className="relative w-full overflow-x-hidden bg-white">
       {/* The navbar is position: fixed, so it can sit outside <main> without moving. */}
       <Navbar />
-      {/* id="main" is the target of the skip link in app/layout.tsx. */}
+      {/* id="main" is the target of the skip link in app/[lang]/layout.tsx. */}
       <main id="main" tabIndex={-1} className="outline-none">
         <div className="relative min-h-screen w-full overflow-hidden">
           <VideoBackground />
-          {/* eslint-disable-next-line @next/next/no-img-element -- decorative brand watermark served as a static asset */}
-          <img
-            src="/bg2.png"
-            alt=""
+          {/* Decorative brand watermark: a CSS background, so it is neither an
+              image without a description nor the page's largest image. */}
+          <div
             aria-hidden="true"
-            className="pointer-events-none absolute -right-24 bottom-0 z-0 h-[70vh] w-auto select-none opacity-[0.05]"
+            className="pointer-events-none absolute -end-24 bottom-0 z-0 aspect-[900/1245] h-[70vh] bg-[url(/images/bg2.webp)] bg-contain bg-bottom bg-no-repeat opacity-[0.05] select-none"
           />
-          <Hero />
+          <Hero t={home.hero} newTab={dict.common.newTab} locale={locale} />
         </div>
-        <TrustStrip />
-        <TransparencyTicker />
-        <ZakatCalculator />
-        <FeaturedCauses />
-        <HowItWorksTrust />
-        <ImpactMapTeaser regions={regions ?? []} />
-        <PartnersSponsors />
+        <TrustStrip t={home.trustStrip} locale={locale} />
+        <TransparencyTicker t={home.ticker} locale={locale} />
+        <ZakatCalculator t={dict.calculator} />
+        <FeaturedCauses t={home.causes} locale={locale} />
+        <HowItWorksTrust t={home.howItWorks} locale={locale} />
+        <ImpactMapTeaser regions={regions ?? []} t={home.impactMap} />
+        <PartnersSponsors t={home.partners} />
       </main>
       <SiteFooter />
     </div>

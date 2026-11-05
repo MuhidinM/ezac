@@ -7,16 +7,22 @@
 /*
  * EZAC brand colours as utilities (text-navy, bg-brand, text-accent-ink, …).
  * Use these instead of hex literals. Contrast on white: navy 18:1, brand 6.1:1,
- * accent-ink 4.95:1, muted 5:1 (all pass WCAG AA for body text). The bright
- * accent (#e18f35) is only 2.6:1 on white: use it for fills, borders and text
- * on navy (7:1), and accent-ink for orange text on light backgrounds.
+ * accent-ink 4.95:1, muted-ink 5.7:1 (all pass WCAG AA for body text). The
+ * bright accent (#e18f35) is only 2.6:1 on white: use it for fills, borders
+ * and text on navy (7:1), and accent-ink for orange text on light backgrounds.
+ * muted-ink stays above 4.5:1 on the grey section background (surface-muted).
+ *
+ * The brand names are muted-ink and accent-fill, not muted and accent: shadcn
+ * maps --color-muted and --color-accent to its own light greys in
+ * `@theme inline` below, so `text-muted` and `bg-accent` are not brand colours.
  */
 @theme {
   --color-navy: #001539;
   --color-brand: #007050;
-  --color-accent: #e18f35;
   --color-accent-ink: #a85d12;
-  --color-muted: #6f6f6f;
+  --color-accent-fill: #e18f35;
+  --color-muted-ink: #666666;
+  --color-surface-muted: #ececec;
 }
 
 @theme inline {
@@ -346,6 +352,32 @@
   100% {
     transform: translateX(-50%);
   }
+}
+
+/* Right-to-left pages lay a marquee row out from the right edge, so it has to
+   scroll the other way to stay seamless (used as rtl:animate-[marquee-rtl_…]). */
+@keyframes marquee-rtl {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(50%);
+  }
+}
+
+/* The display serif has no Ethiopic or Arabic letters: those fall through to
+   the Noto fonts, where the tight Latin tracking runs letters together (and
+   breaks Arabic joins) and a synthesized italic slants the script. */
+html:lang(am) .font-serif-display,
+html:lang(ar) .font-serif-display {
+  letter-spacing: normal;
+}
+
+html:lang(am) .font-serif-display .italic,
+html:lang(ar) .font-serif-display .italic,
+html:lang(am) .font-serif-display.italic,
+html:lang(ar) .font-serif-display.italic {
+  font-style: normal;
 }
 
 .animate-marquee {

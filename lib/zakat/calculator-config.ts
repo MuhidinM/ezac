@@ -47,18 +47,16 @@ export type CalculatorConfig = {
 export const MIXED_IRRIGATION_RATE = 0.075;
 export const RIKAZ_RATE = 0.2;
 
-const KIND_LABELS: Record<string, string> = {
-  sheep: "Sheep",
-  bint_makhad: "Bint Makhad (1yr female)",
-  bint_labun: "Bint Labun (2yr female)",
-  hiqqah: "Hiqqah (3yr female)",
-  jadhaah: "Jadh'ah (4yr female)",
-  tabi: "Tabi' (1yr calf)",
-  musinnah: "Musinnah (2yr cow)",
-};
+/**
+ * Livestock Zakat due: the animals by kind (labelled by the caller, in the
+ * visitor's language, from calculator.livestock.kinds), or the service's own
+ * wording for a table row that carries no items. null when nothing is due.
+ */
+export type LivestockDue = { items: LivestockDueItem[] } | { text: string } | null;
 
-function formatItems(items: LivestockDueItem[]) {
-  return items.map((item) => `${item.count} ${KIND_LABELS[item.kind] ?? item.kind}`).join(" + ");
+function dueItems(items: LivestockDueItem[]): LivestockDue {
+  const due = items.filter((item) => item.count > 0);
+  return due.length > 0 ? { items: due } : null;
 }
 
 /** ETB per gram for a metal at a karat; silver and missing karats scale by purity. */
@@ -83,38 +81,35 @@ function bestSplit(count: number, a: number, b: number) {
   return best;
 }
 
-/** In-kind livestock Zakat from the config tables; "No Zakat" below the minimum. */
+/** In-kind livestock Zakat from the config tables; null below the minimum. */
 export function livestockDue(
   livestock: CalculatorConfig["livestock"],
   mode: "sheepGoat" | "cattle" | "camels",
   count: number,
-): string {
+): LivestockDue {
   if (mode === "cattle") {
     const { minimum, tabiPer, musinnahPer } = livestock.cattle;
-    if (count < minimum) return "No Zakat";
+    if (count < minimum) return null;
     const split = bestSplit(count, tabiPer, musinnahPer);
-    return formatItems(
-      [
-        { kind: "musinnah", count: split.b },
-        { kind: "tabi", count: split.a },
-      ].filter((item) => item.count > 0),
-    );
+    return dueItems([
+      { kind: "musinnah", count: split.b },
+      { kind: "tabi", count: split.a },
+    ]);
   }
 
   const rows = mode === "sheepGoat" ? livestock.sheepGoats : livestock.camels;
   // JSON sends an open upper bound as null, not undefined.
   const row = rows.find((item) => count >= item.min && (item.max == null || count <= item.max));
-  if (!row) return "No Zakat";
-  if (row.dueItems?.length) return formatItems(row.dueItems);
-  if (row.perHundred) return formatItems([{ kind: "sheep", count: Math.floor(count / 100) * row.perHundred }]);
+  if (!row) return null;
+  if (row.dueItems?.length) return dueItems(row.dueItems);
+  if (row.perHundred) return dueItems([{ kind: "sheep", count: Math.floor(count / 100) * row.perHundred }]);
   if (row.bintLabunPer && row.hiqqahPer) {
     const split = bestSplit(count, row.bintLabunPer, row.hiqqahPer);
-    return formatItems(
-      [
-        { kind: "bint_labun", count: split.a },
-        { kind: "hiqqah", count: split.b },
-      ].filter((item) => item.count > 0),
-    );
+    return dueItems([
+      { kind: "bint_labun", count: split.a },
+      { kind: "hiqqah", count: split.b },
+    ]);
   }
-  return row.due;
+  // A row whose wording is "No Zakat" meant nothing due when this returned plain text.
+  return row.due.trim() && !/^no zakat$/i.test(row.due.trim()) ? { text: row.due } : null;
 }
