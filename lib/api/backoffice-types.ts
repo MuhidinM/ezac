@@ -22,6 +22,8 @@ export type FieldOfficer = {
   phone: string | null;
   email: string | null;
   username?: string | null;
+  /** Sign-in account id; matches an assessment's `assessmentOfficerSub`. */
+  keycloakSub?: string | null;
   active: boolean;
   assignments: StaffAssignment[];
   createdAt?: string | null;
@@ -327,6 +329,8 @@ export type AssessmentApplicant = {
   dateOfBirth?: string | null;
   estimatedAge?: number | null;
   bankAccount?: BankAccount | null;
+  /** The detail endpoint sends `sex`; `gender` is the beneficiary record's name for it. */
+  sex?: string | null;
   gender?: string | null;
   maritalStatus?: string | null;
   religion?: string | null;
@@ -356,14 +360,25 @@ export type AssessmentSignOffs = {
 export type Assessment = Partial<AssessmentSections> & {
   id: string;
   assessmentNumber?: string | null;
-  beneficiaryId: string;
+  /**
+   * The detail endpoint sends this only as `applicant.beneficiaryId`; read it
+   * with `assessmentBeneficiaryId()`.
+   */
+  beneficiaryId?: string | null;
   status: AssessmentStatus;
   applicant?: AssessmentApplicant | null;
+  /**
+   * Section M as the detail endpoint returns it (top level). Writes still go
+   * in `vulnerability.vulnerabilities`; `draftFromAssessment` reads both.
+   */
+  vulnerabilities?: string[] | null;
   assessmentInfo?: AssessmentSections["assessmentInfo"] & {
     region?: string | null;
     zone?: string | null;
     woreda?: string | null;
     kebele?: string | null;
+    /** What the detail endpoint sends; `officerSub` is the older name. */
+    assessmentOfficerSub?: string | null;
     officerSub?: string | null;
     officerName?: string | null;
     supervisorSub?: string | null;
@@ -375,6 +390,8 @@ export type Assessment = Partial<AssessmentSections> & {
   warningAcknowledgements?: Record<string, string> | null;
   recommendation?: {
     officerRecommendation?: OfficerRecommendation | null;
+    /** What the detail endpoint sends; read with `recommendationReasonOf()`. */
+    reason?: string | null;
     recommendationReason?: string | null;
     systemRecommendation?: OfficerRecommendation | null;
   } | null;

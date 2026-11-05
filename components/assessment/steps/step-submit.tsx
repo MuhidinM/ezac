@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowRight, CheckCircle2, Send, TriangleAlert } from "lucide-react";
 
 import { FieldSection, SelectField, TextAreaField } from "@/components/assessment/fields";
@@ -15,10 +15,52 @@ import type {
 } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
 import { ApiError, errorMessage, fieldErrorMap } from "@/lib/api/errors";
-import { STEPS, stepForField, type StepId } from "@/lib/backoffice/assessment-steps";
+import { STEPS, recommendationReasonOf, stepForField, type StepId } from "@/lib/backoffice/assessment-steps";
 import { OFFICER_RECOMMENDATION } from "@/lib/backoffice/options";
 
 const MIN_DISAGREE_REASON = 20;
+
+/**
+ * The recommendation, reason and warning comments aren't part of the draft
+ * (they are sent with the submission), so they are kept for this tab to
+ * survive moving between steps and reloading.
+ */
+type SubmitInputs = {
+  recommendation: OfficerRecommendation | null;
+  reason: string;
+  acknowledgements: Record<string, string>;
+};
+
+function storageKey(assessmentId: string) {
+  return `ezac_assessment_submit_${assessmentId}`;
+}
+
+function readSubmitInputs(assessmentId: string): Partial<SubmitInputs> | null {
+  try {
+    const raw = window.sessionStorage.getItem(storageKey(assessmentId));
+    const value = raw ? (JSON.parse(raw) as unknown) : null;
+    return value && typeof value === "object" ? (value as Partial<SubmitInputs>) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSubmitInputs(assessmentId: string, inputs: SubmitInputs) {
+  try {
+    window.sessionStorage.setItem(storageKey(assessmentId), JSON.stringify(inputs));
+  } catch {
+    // Storage blocked: the inputs just don't survive a reload.
+  }
+}
+
+/** Forget the kept inputs (after submitting, or when the session ends). */
+export function clearSubmitInputs(assessmentId: string) {
+  try {
+    window.sessionStorage.removeItem(storageKey(assessmentId));
+  } catch {
+    // Nothing was kept.
+  }
+}
 
 export function StepSubmit({
   assessment,
@@ -38,16 +80,25 @@ export function StepSubmit({
   const preview = validation?.scorePreview ?? null;
   const systemRecommendation = preview?.preliminaryRecommendation ?? null;
 
+  // What this tab kept wins over what was last submitted (a returned assessment).
+  const [kept] = useState(() => readSubmitInputs(assessment.id));
   const [recommendation, setRecommendation] = useState<OfficerRecommendation | null>(
-    assessment.recommendation?.officerRecommendation ?? null,
+    kept?.recommendation ?? assessment.recommendation?.officerRecommendation ?? null,
   );
-  const [reason, setReason] = useState(assessment.recommendation?.recommendationReason ?? "");
-  const [acknowledgements, setAcknowledgements] = useState<Record<string, string>>(
-    assessment.warningAcknowledgements ?? {},
+  const [reason, setReason] = useState(
+    (typeof kept?.reason === "string" && kept.reason) || (recommendationReasonOf(assessment) ?? ""),
   );
+  const [acknowledgements, setAcknowledgements] = useState<Record<string, string>>(() => ({
+    ...assessment.warningAcknowledgements,
+    ...kept?.acknowledgements,
+  }));
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    writeSubmitInputs(assessment.id, { recommendation, reason, acknowledgements });
+  }, [assessment.id, recommendation, reason, acknowledgements]);
 
   if (isValidating && !validation) {
     return <div className="h-64 animate-pulse rounded-xl bg-black/[0.04]" />;
@@ -88,6 +139,7 @@ export function StepSubmit({
         `/bff/backoffice/assessments/${encodeURIComponent(assessment.id)}/submit`,
         { method: "POST", body: JSON.stringify(body) },
       );
+      clearSubmitInputs(assessment.id);
       onSubmitted(submitted);
     } catch (submitError) {
       setError(errorMessage(submitError, "Submission failed"));

@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import type { Assessment } from "@/lib/api/backoffice-types";
 import { useResource } from "@/lib/api/use-resource";
 import { useSession } from "@/lib/auth/use-session";
-import { isEditable } from "@/lib/backoffice/assessment-steps";
+import { assessmentBeneficiaryId, isEditable, reviewInfo } from "@/lib/backoffice/assessment-steps";
 import { formatDate } from "@/lib/backoffice/format";
 import { cn } from "@/lib/utils";
 
@@ -59,6 +59,8 @@ function AssessmentDetail() {
   }
 
   const name = assessment.applicant?.fullName ?? "Beneficiary";
+  const beneficiaryId = assessmentBeneficiaryId(assessment);
+  const review = reviewInfo(assessment);
   const canEdit = isFieldOfficer(session) && isEditable(assessment.status);
   const canReview = (session?.isBranch ?? false) && assessment.status === "SUBMITTED";
   const canCancel = assessment.status === "DRAFT" && ((session?.isAdmin ?? false) || isFieldOfficer(session));
@@ -98,10 +100,10 @@ function AssessmentDetail() {
           <>
             Household assessment of {formatDate(assessment.assessmentInfo?.assessmentDate)}
             {assessment.applicant?.bin ? ` · BIN ${assessment.applicant.bin}` : ""}
-            {session?.isBranch ? null : (
+            {session?.isBranch || !beneficiaryId ? null : (
               <>
                 {" · "}
-                <Link href={`/dashboard/beneficiary/${assessment.beneficiaryId}`} className="text-[#007050] hover:underline">
+                <Link href={`/dashboard/beneficiary/${beneficiaryId}`} className="text-[#007050] hover:underline">
                   View beneficiary
                 </Link>
               </>
@@ -121,9 +123,9 @@ function AssessmentDetail() {
       />
 
       {notice ? <InlineAlert tone="success">{notice}</InlineAlert> : null}
-      {assessment.status === "RETURNED" && assessment.signOffs?.reviewComment ? (
-        <InlineAlert tone="warning" title="Returned for correction">
-          {assessment.signOffs.reviewComment}
+      {assessment.status === "RETURNED" && review.comment ? (
+        <InlineAlert tone="warning" title={review.byHeadOffice ? "Sent back by head office" : "Returned for correction"}>
+          {review.comment}
         </InlineAlert>
       ) : null}
 
@@ -169,7 +171,9 @@ function AssessmentDetail() {
             onDone={(updated, message) => onActionDone(message)(updated)}
           />
           <SignOffTimeline assessment={assessment} />
-          <WhitelistPanel beneficiaryId={assessment.beneficiaryId} beneficiaryName={assessment.applicant?.fullName} />
+          {beneficiaryId ? (
+            <WhitelistPanel beneficiaryId={beneficiaryId} beneficiaryName={assessment.applicant?.fullName} />
+          ) : null}
         </div>
       </div>
     </section>

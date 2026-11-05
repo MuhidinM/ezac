@@ -9,23 +9,47 @@ import { WhitelistEntryCard } from "@/components/whitelist/whitelist-entry-card"
 import { requestPath, WhitelistFormDialog } from "@/components/whitelist/whitelist-form-dialog";
 import { Button } from "@/components/ui/button";
 import type { BeneficiaryWhitelist } from "@/lib/api/backoffice-types";
+import type { BeneficiaryDetail } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
 import { useSession } from "@/lib/auth/use-session";
+import { whitelistBlockedReason, type HouseholdState } from "@/lib/backoffice/assessment-steps";
 import { cn } from "@/lib/utils";
 
 /**
  * Whitelist state for one household. FIELD_OFFICER / BRANCH request it and
  * ADMIN decides; ADMIN can also add it directly. It never changes the score.
+ *
+ * `household` (verification, lifecycle and duplicate status) hides Request
+ * and Add for households the backend refuses. Without it, staff load it here;
+ * BRANCH can't read beneficiary records, so for them the backend decides.
  */
-export function WhitelistPanel({ beneficiaryId, beneficiaryName }: { beneficiaryId: string; beneficiaryName?: string | null }) {
+export function WhitelistPanel({
+  beneficiaryId,
+  beneficiaryName,
+  household,
+}: {
+  beneficiaryId: string;
+  beneficiaryName?: string | null;
+  household?: HouseholdState | null;
+}) {
   const { session } = useSession();
   const { data, error, reload } = useResource<BeneficiaryWhitelist>(requestPath(beneficiaryId));
+  const { data: loadedHousehold } = useResource<BeneficiaryDetail>(
+    household === undefined && session?.isStaff
+      ? `/bff/beneficiaries/${encodeURIComponent(beneficiaryId)}`
+      : null,
+  );
   const [formOpen, setFormOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
   const canDecide = session?.isAdmin ?? false;
-  const canRequest = (isFieldOfficer(session) || (session?.isBranch ?? false)) && !data?.current;
-  const canAdd = canDecide && !data?.current;
+  const mayAsk = canDecide || isFieldOfficer(session) || (session?.isBranch ?? false);
+  // Only offer a new entry once we know there isn't one already.
+  const loaded = !!data && !error;
+  const blockedReason = whitelistBlockedReason(household === undefined ? loadedHousehold : household);
+  const canOpenForm = mayAsk && loaded && !data.current && !blockedReason;
+  const canAdd = canDecide && canOpenForm;
+  const canRequest = !canDecide && canOpenForm;
   const history = (data?.history ?? []).filter((entry) => entry.id !== data?.current?.id);
 
   return (
@@ -42,12 +66,23 @@ export function WhitelistPanel({ beneficiaryId, beneficiaryName }: { beneficiary
       }
     >
       {error ? (
-        <p className="text-sm text-black/45">{error.message}</p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-black/55">
+          <span>Couldn&apos;t load the whitelist status. {error.message}</span>
+          <Button size="sm" variant="ghost" onClick={reload}>
+            Try again
+          </Button>
+        </div>
       ) : data?.current ? (
         <WhitelistEntryCard entry={data.current} canDecide={canDecide} onChanged={() => reload()} />
-      ) : (
+      ) : data ? (
         <p className="text-sm text-black/45">Not whitelisted.</p>
+      ) : (
+        <div className="h-5 w-32 animate-pulse rounded bg-black/[0.05]" role="status" aria-label="Loading" />
       )}
+
+      {mayAsk && loaded && !data.current && blockedReason ? (
+        <p className="mt-2 text-xs text-black/55">{blockedReason}</p>
+      ) : null}
 
       {history.length > 0 ? (
         <div className="mt-4 border-t border-black/[0.06] pt-3">
@@ -85,4 +120,3 @@ export function WhitelistPanel({ beneficiaryId, beneficiaryName }: { beneficiary
     </Panel>
   );
 }
-

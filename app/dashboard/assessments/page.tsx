@@ -1,8 +1,8 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { type FormEvent, Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowDownUp, RefreshCw, Search, SlidersHorizontal, X } from "lucide-react";
 
 import {
@@ -36,6 +36,7 @@ import { useSession } from "@/lib/auth/use-session";
 import { isEditable } from "@/lib/backoffice/assessment-steps";
 import { formatDate } from "@/lib/backoffice/format";
 import { formatDateTime } from "@/lib/beneficiary/format";
+import { isValidEthiopianPhone, normalizePhoneToE164 } from "@/lib/registration/phone";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 20;
@@ -85,12 +86,33 @@ function defaultStatus(session: SessionInfo | null) {
   return "";
 }
 
+/** A `?status=` link (e.g. from an Overview card) opens that tab, if it is one. */
+function linkedStatus(value: string | null) {
+  if (value === null) return null;
+  return TABS.find((tab) => tab.status === value)?.status ?? null;
+}
+
+/** Phone numbers are stored as +251…; a local 09… search would match nothing. */
+function searchTerm(input: string) {
+  const term = input.trim();
+  return /^[+\d\s()-]+$/.test(term) && isValidEthiopianPhone(term) ? normalizePhoneToE164(term) : term;
+}
+
+/** Officer filter label; the branch tells officers with the same name apart. */
+function officerLabel(officer: FieldOfficer) {
+  const places = officer.assignments
+    ?.filter((item) => item.active)
+    .map((item) => item.branchName ?? item.region)
+    .filter(Boolean);
+  return places?.length ? `${officer.fullName} — ${places.join(", ")}` : officer.fullName;
+}
+
 function pageCopy(session: SessionInfo | null) {
   if (session?.isBranch) {
     return {
       title: "Review queue",
       description:
-        "Assessments submitted by field officers in your branch. Your decision is final: approve, return, defer or reject.",
+        "Assessments submitted by field officers in your branch. Approve, defer or reject to decide, or return one to the officer for corrections.",
     };
   }
   if (session?.isAdmin) {
@@ -101,14 +123,17 @@ function pageCopy(session: SessionInfo | null) {
   }
   return {
     title: "Assessments",
-    description: "Assessments in your assigned branches and regions. Open ones are drafts and returns waiting for you.",
+    description: "Assessments in your branch. Open ones are drafts and returns waiting for you.",
   };
 }
 
 export default function AssessmentsPage() {
   return (
     <RequireRole audience={["hq", "branch"]}>
-      <AssessmentsView />
+      {/* useSearchParams needs a Suspense boundary. */}
+      <Suspense>
+        <AssessmentsView />
+      </Suspense>
     </RequireRole>
   );
 }
@@ -116,10 +141,21 @@ export default function AssessmentsPage() {
 function AssessmentsView() {
   const { session } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const isAdmin = session?.isAdmin ?? false;
+  const linked = linkedStatus(searchParams.get("status"));
   // RequireRole only renders once the session is known, so this is stable.
-  const [status, setStatus] = useState(() => defaultStatus(session));
+  const [status, setStatus] = useState(() => linked ?? defaultStatus(session));
   const [page, setPage] = useState(1);
+  // A new ?status= link while this page is open switches the tab too.
+  const [seenLinked, setSeenLinked] = useState(linked);
+  if (linked !== seenLinked) {
+    setSeenLinked(linked);
+    if (linked !== null) {
+      setStatus(linked);
+      setPage(1);
+    }
+  }
   const [filters, setFilters] = useState<Filters>(EMPTY);
   const [draftSearch, setDraftSearch] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -158,7 +194,7 @@ function AssessmentsView() {
 
   function onSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    update("search", draftSearch.trim());
+    update("search", searchTerm(draftSearch));
   }
 
   function href(item: AssessmentListItem) {
@@ -307,7 +343,7 @@ function AssessmentsView() {
                     <NativeSelect id="a-officer" value={filters.officerId} onChange={(e) => update("officerId", e.target.value)}>
                       <option value="">Any</option>
                       {officers?.items.map((item) => (
-                        <option key={item.id} value={item.id}>{item.fullName}</option>
+                        <option key={item.id} value={item.id}>{officerLabel(item)}</option>
                       ))}
                     </NativeSelect>
                   </FormField>

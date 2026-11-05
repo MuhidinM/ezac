@@ -9,12 +9,13 @@ import { useResource } from "@/lib/api/use-resource";
 
 /**
  * A count linking to a queue: assessments in `status`, or the paginated list
- * at `countPath` (its `totalItems`).
+ * at `countPath` (its `totalItems`). Without `href` it opens the Assessments
+ * list on that status's tab.
  */
 export function QueueCard({
   status,
   countPath,
-  href = "/dashboard/assessments",
+  href = status ? `/dashboard/assessments?status=${encodeURIComponent(status)}` : "/dashboard/assessments",
   title,
   description,
   icon: Icon,

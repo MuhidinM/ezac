@@ -1,9 +1,33 @@
 import { Pencil, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import type { AssessmentApplicant } from "@/lib/api/backoffice-types";
+import type { Assessment, AssessmentApplicant } from "@/lib/api/backoffice-types";
+import type { BeneficiaryDetail } from "@/lib/api/types";
 import { MARITAL_STATUS, PRIMARY_LANGUAGE, SEX, labelFor } from "@/lib/backoffice/options";
 import { formatDate } from "@/lib/backoffice/format";
+
+/**
+ * The applicant with every section B field filled where we know it. The
+ * assessment's `applicant` sends `sex` (not `gender`) and no location, so
+ * those come from the beneficiary record, then from the assessment's own
+ * location.
+ */
+export function applicantDetails(
+  assessment: Assessment,
+  beneficiary?: BeneficiaryDetail | null,
+): AssessmentApplicant {
+  const applicant = assessment.applicant ?? {};
+  const info = assessment.assessmentInfo;
+  return {
+    ...applicant,
+    gender: applicant.gender || applicant.sex || beneficiary?.gender || null,
+    region: applicant.region || beneficiary?.region || info?.region || null,
+    zone: applicant.zone || beneficiary?.zone || info?.zone || null,
+    woreda: applicant.woreda || beneficiary?.woreda || info?.woreda || null,
+    kebele: applicant.kebele || beneficiary?.kebele || info?.kebele || null,
+    addressLine: applicant.addressLine || beneficiary?.addressLine || null,
+  };
+}
 
 /** Section B, read-only at the top of every step. */
 export function ApplicantCard({
@@ -16,9 +40,11 @@ export function ApplicantCard({
   missingCount?: number;
 }) {
   const a = applicant ?? {};
+  const sex = a.gender || a.sex;
   const language =
     a.primaryLanguage === "other" ? a.primaryLanguageOther : a.primaryLanguage ? labelFor(PRIMARY_LANGUAGE, a.primaryLanguage) : null;
   const age = a.dateOfBirth ? formatDate(a.dateOfBirth) : a.estimatedAge != null ? `≈ ${a.estimatedAge} yrs` : null;
+  const kebele = a.kebele ? (/^\d+$/.test(a.kebele) ? `Kebele ${a.kebele}` : a.kebele) : null;
 
   const items = [
     { label: "BIN", value: a.bin },
@@ -29,12 +55,12 @@ export function ApplicantCard({
         ? `${a.bankAccount.bankName ?? a.bankAccount.bankCode ?? ""} · ${a.bankAccount.accountNumber}`
         : null,
     },
-    { label: "Sex", value: a.gender ? labelFor(SEX, a.gender) : null },
+    { label: "Sex", value: sex ? labelFor(SEX, sex) : null },
     { label: "Born", value: age },
     { label: "Marital status", value: a.maritalStatus ? labelFor(MARITAL_STATUS, a.maritalStatus) : null },
     { label: "Religion", value: a.religion },
     { label: "Language", value: language },
-    { label: "Location", value: [a.kebele, a.woreda, a.zone, a.region].filter(Boolean).join(", ") || null },
+    { label: "Location", value: [kebele, a.woreda, a.zone, a.region].filter(Boolean).join(", ") || null },
   ];
 
   return (
@@ -68,7 +94,9 @@ export function ApplicantCard({
         {items.map((item) => (
           <div key={item.label} className="min-w-0">
             <dt className="text-[11px] font-medium text-black/45">{item.label}</dt>
-            <dd className="truncate text-sm text-[#001539]">{item.value || "—"}</dd>
+            <dd className="truncate text-sm text-[#001539]" title={item.value ? String(item.value) : undefined}>
+              {item.value || "—"}
+            </dd>
           </div>
         ))}
       </dl>

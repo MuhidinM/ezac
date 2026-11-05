@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Check, Circle, MessageSquareWarning } from "lucide-react";
 
 import { ScoreBreakdown, ScoreHeadline, flagText } from "@/components/assessment/score-breakdown";
@@ -17,6 +18,7 @@ import {
 } from "@/components/ui/table";
 import type { Assessment, AssessmentScore } from "@/lib/api/backoffice-types";
 import { useResource } from "@/lib/api/use-resource";
+import { recommendationReasonOf, reviewInfo, reviewerName } from "@/lib/backoffice/assessment-steps";
 import { OFFICER_RECOMMENDATION, labelFor } from "@/lib/backoffice/options";
 import { formatDateTime } from "@/lib/beneficiary/format";
 import { cn } from "@/lib/utils";
@@ -99,12 +101,23 @@ export function ScorePanel({ assessment }: { assessment: Assessment }) {
   );
 }
 
+type TimelineEvent = {
+  done: boolean;
+  title: string;
+  who?: string | null;
+  when?: string | null;
+  body?: ReactNode;
+};
+
 /** Submitted → reviewed → decided, with comments. */
 export function SignOffTimeline({ assessment }: { assessment: Assessment }) {
   const s = assessment.signOffs ?? {};
   const recommendation = assessment.recommendation;
+  const reason = recommendationReasonOf(assessment);
+  const review = reviewInfo(assessment);
+  const cancelled = assessment.status === "CANCELLED";
 
-  const events = [
+  const flow: TimelineEvent[] = [
     {
       done: !!s.submittedAt,
       title: "Submitted by field officer",
@@ -113,7 +126,7 @@ export function SignOffTimeline({ assessment }: { assessment: Assessment }) {
       body: recommendation?.officerRecommendation ? (
         <>
           Recommended <strong>{labelFor(OFFICER_RECOMMENDATION, recommendation.officerRecommendation)}</strong>
-          {recommendation.recommendationReason ? ` — ${recommendation.recommendationReason}` : ""}
+          {reason ? ` — ${reason}` : ""}
         </>
       ) : null,
     },
@@ -121,13 +134,15 @@ export function SignOffTimeline({ assessment }: { assessment: Assessment }) {
       done: !!s.reviewedAt,
       title:
         assessment.status === "RETURNED"
-          ? "Returned by branch"
+          ? review.byHeadOffice
+            ? "Sent back by head office"
+            : "Returned by branch"
           : assessment.status === "APPROVED" || assessment.status === "REJECTED" || assessment.status === "DEFERRED"
             ? `Branch decision: ${ASSESSMENT_STATUS[assessment.status].label.toLowerCase()}`
             : "Branch decision",
-      who: s.reviewedByName ?? assessment.assessmentInfo?.supervisorName,
+      who: reviewerName(assessment),
       when: s.reviewedAt,
-      body: s.reviewComment,
+      body: review.comment,
     },
     ...(assessment.status === "APPROVED"
       ? [
@@ -136,25 +151,36 @@ export function SignOffTimeline({ assessment }: { assessment: Assessment }) {
             title:
               assessment.pool && assessment.pool.status !== "AWAITING_POOL"
                 ? POOL_STATUS[assessment.pool.status].label
-                : "Disbursement pool",
+                : "Awaiting pool",
             who: assessment.pool?.changedByName,
             when: assessment.pool?.status !== "AWAITING_POOL" ? assessment.pool?.changedAt : null,
             body: assessment.pool?.reason,
           },
         ]
       : []),
-    ...(s.cancelledAt
-      ? [
-          {
-            done: true,
-            title: "Cancelled",
-            who: s.cancelledByName,
-            when: s.cancelledAt,
-            body: s.cancelReason,
-          },
-        ]
-      : []),
   ];
+
+  // A cancelled assessment goes no further: show what happened, not steps that never will.
+  const events: TimelineEvent[] = cancelled
+    ? [
+        {
+          done: !!assessment.createdAt,
+          title: "Started by field officer",
+          who: assessment.assessmentInfo?.officerName,
+          when: assessment.createdAt,
+        },
+        ...flow.filter((event) => event.done),
+      ]
+    : flow;
+  if (s.cancelledAt) {
+    events.push({
+      done: true,
+      title: "Cancelled",
+      who: s.cancelledByName,
+      when: s.cancelledAt,
+      body: s.cancelReason,
+    });
+  }
 
   return (
     <Panel title="Sign-off">

@@ -29,7 +29,7 @@ import { errorMessage } from "@/lib/api/errors";
 import type { BeneficiaryDetail, PaginatedItems } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
 import { useSession } from "@/lib/auth/use-session";
-import { isEditable } from "@/lib/backoffice/assessment-steps";
+import { assessmentBlockedReason, isEditable } from "@/lib/backoffice/assessment-steps";
 import { formatDate, todayIso } from "@/lib/backoffice/format";
 
 const CLOSED: AssessmentStatus[] = ["APPROVED", "DEFERRED", "REJECTED", "CANCELLED"];
@@ -48,14 +48,7 @@ export function BeneficiaryAssessments({ beneficiary }: { beneficiary: Beneficia
 
   const officer = isFieldOfficer(session);
   const open = history.find((item) => !CLOSED.includes(item.status));
-  const blockedReason =
-    beneficiary.beneficiaryType !== "individual"
-      ? "Only individuals are assessed."
-      : beneficiary.duplicateStatus === "CONFIRMED_DUPLICATE"
-        ? "Confirmed duplicates can't be assessed."
-        : beneficiary.duplicateStatus === "POTENTIAL"
-          ? "Resolve the possible duplicate first."
-          : null;
+  const blockedReason = assessmentBlockedReason(beneficiary);
 
   async function start() {
     setIsStarting(true);
@@ -82,9 +75,10 @@ export function BeneficiaryAssessments({ beneficiary }: { beneficiary: Beneficia
         </Link>
       </Button>
     );
-  } else if (officer && !open) {
+  } else if (officer && !open && !blockedReason) {
+    // A blocked household gets no Start button; the panel says why instead.
     action = (
-      <Button size="sm" onClick={() => void start()} disabled={isStarting || !!blockedReason || isLoading}>
+      <Button size="sm" onClick={() => void start()} disabled={isStarting || isLoading}>
         <ClipboardPlus />
         {isStarting ? "Starting…" : history.length > 0 ? "Start reassessment" : "Start assessment"}
       </Button>
@@ -129,7 +123,14 @@ export function BeneficiaryAssessments({ beneficiary }: { beneficiary: Beneficia
                 onClick={() => router.push(`/dashboard/assessments/${item.id}`)}
               >
                 <TableCell className="pl-5 font-medium text-[#001539]">
-                  {formatDate(item.assessmentDate ?? item.createdAt)}
+                  {/* The link makes the row reachable by keyboard; the row click is a mouse shortcut. */}
+                  <Link
+                    href={`/dashboard/assessments/${item.id}`}
+                    onClick={(event) => event.stopPropagation()}
+                    className="hover:underline"
+                  >
+                    {formatDate(item.assessmentDate ?? item.createdAt)}
+                  </Link>
                 </TableCell>
                 <TableCell>
                   <AssessmentStatusBadge status={item.status} />
