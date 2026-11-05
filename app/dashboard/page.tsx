@@ -29,6 +29,7 @@ import { isFieldOfficer } from "@/components/dashboard/nav-config";
 import { Panel } from "@/components/dashboard/panel";
 import { RangeSelect } from "@/components/dashboard/range-select";
 import { TableMessageRow } from "@/components/dashboard/table-states";
+import { Badge } from "@/components/ui/badge";
 import { NativeSelect } from "@/components/ui/native-select";
 import {
   Table,
@@ -265,7 +266,7 @@ function Overview({ scope, range, showAreas }: { scope: string; range: RangeKey;
         <StatTile
           label="Average score"
           value={o?.assessments.averageScore != null ? o.assessments.averageScore.toFixed(1) : "—"}
-          hint="Current scores, out of 270"
+          hint={distribution.data?.max ? `Current scores, out of ${distribution.data.max}` : "Current scores"}
           icon={Gauge}
           loading={loading}
         />
@@ -333,6 +334,7 @@ function Overview({ scope, range, showAreas }: { scope: string; range: RangeKey;
         <Panel
           title="Score distribution"
           description={distribution.data ? `${distribution.data.scored.toLocaleString()} current scores, by risk band` : undefined}
+          actions={<AllTime />}
         >
           {distribution.error ? (
             <InlineAlert>{distribution.error.message}</InlineAlert>
@@ -342,7 +344,7 @@ function Overview({ scope, range, showAreas }: { scope: string; range: RangeKey;
             <div className="h-[220px] animate-pulse rounded-lg bg-black/[0.03]" />
           )}
         </Panel>
-        <Panel title="Risk" description="Beneficiaries by current risk band">
+        <Panel title="Risk" description="Beneficiaries by current risk band" actions={<AllTime />}>
           <BarList
             items={RISK_ITEMS.map((item) => ({
               key: item.key,
@@ -355,14 +357,14 @@ function Overview({ scope, range, showAreas }: { scope: string; range: RangeKey;
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Panel title="Lifecycle" description="Where beneficiaries are now">
+        <Panel title="Lifecycle" description="Where beneficiaries are now" actions={<AllTime />}>
           <BarList
             items={Object.entries(o?.beneficiaries.byLifecycle ?? {})
               .map(([key, value]) => ({ key, label: LIFECYCLE_LABELS[key as LifecycleStatus] ?? key, value: value ?? 0 }))
               .sort((a, b) => b.value - a.value)}
           />
         </Panel>
-        <Panel title="Assessments" description="By current status">
+        <Panel title="Assessments" description="By current status" actions={<AllTime />}>
           <BarList
             color="#001539"
             items={Object.entries(o?.assessments.byStatus ?? {})
@@ -377,12 +379,13 @@ function Overview({ scope, range, showAreas }: { scope: string; range: RangeKey;
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <BreakdownPanel title="Asnaf" description="From registration" data={asnaf.data} error={asnaf.error?.message} />
+        <BreakdownPanel title="Asnaf" description="From registration" data={asnaf.data} error={asnaf.error?.message} allTime />
         <BreakdownPanel
           title="Vulnerabilities"
           description="From current assessments; a household can count more than once"
           data={vulnerability.data}
           error={vulnerability.error?.message}
+          allTime
         />
       </div>
 
@@ -391,20 +394,35 @@ function Overview({ scope, range, showAreas }: { scope: string; range: RangeKey;
   );
 }
 
+/**
+ * Marks a panel whose numbers don't follow the date range: the backend
+ * computes them over all time, whatever range is picked.
+ */
+function AllTime() {
+  return (
+    <Badge tone="neutral" title="Not limited to the date range above">
+      All time
+    </Badge>
+  );
+}
+
 function BreakdownPanel({
   title,
   description,
   data,
   error,
+  allTime,
 }: {
   title: string;
   description: string;
   data?: AnalyticsBreakdown;
   error?: string;
+  /** The numbers ignore the date range. */
+  allTime?: boolean;
 }) {
   const labels = BREAKDOWN_LABELS[data?.by ?? ""] ?? [];
   return (
-    <Panel title={title} description={description}>
+    <Panel title={title} description={description} actions={allTime ? <AllTime /> : undefined}>
       {error ? (
         <InlineAlert>{error}</InlineAlert>
       ) : (
@@ -432,22 +450,25 @@ function AreaComparison({ scope }: { scope: string }) {
       description="Workload and outcomes per branch or region"
       flush
       actions={
-        <div className="inline-flex rounded-lg border border-black/10 bg-white p-0.5">
-          {(["branches", "regions"] as const).map((key) => (
-            <button
-              key={key}
-              type="button"
-              aria-pressed={by === key}
-              onClick={() => setBy(key)}
-              className={cn(
-                "rounded-md px-3 py-1 text-xs capitalize transition",
-                by === key ? "bg-[#001539] text-white" : "text-black/60 hover:text-[#001539]",
-              )}
-            >
-              {key}
-            </button>
-          ))}
-        </div>
+        <>
+          <AllTime />
+          <div className="inline-flex rounded-lg border border-black/10 bg-white p-0.5">
+            {(["branches", "regions"] as const).map((key) => (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={by === key}
+                onClick={() => setBy(key)}
+                className={cn(
+                  "rounded-md px-3 py-1 text-xs capitalize transition",
+                  by === key ? "bg-[#001539] text-white" : "text-black/60 hover:text-[#001539]",
+                )}
+              >
+                {key}
+              </button>
+            ))}
+          </div>
+        </>
       }
     >
       {error ? (
@@ -472,7 +493,7 @@ function AreaComparison({ scope }: { scope: string }) {
         <TableBody>
           {rows.length === 0 ? (
             <TableMessageRow colSpan={by === "branches" ? 9 : 8}>
-              {isLoading ? "Loading…" : "No data for this period."}
+              {isLoading ? "Loading…" : "No data yet."}
             </TableMessageRow>
           ) : (
             rows.map((row) => (
@@ -494,7 +515,7 @@ function AreaComparison({ scope }: { scope: string }) {
                 <TableCell className="text-right tabular-nums">{row.approved.toLocaleString()}</TableCell>
                 <TableCell className="text-right tabular-nums">{row.highRisk.toLocaleString()}</TableCell>
                 <TableCell className={cn("text-right tabular-nums", by === "regions" && "pr-5")}>
-                  {row.averageScore != null ? row.averageScore.toFixed(0) : "—"}
+                  {row.averageScore != null ? row.averageScore.toFixed(1) : "—"}
                 </TableCell>
                 {by === "branches" ? (
                   <TableCell

@@ -19,7 +19,7 @@ import { apiClient } from "@/lib/api/client";
 import { ApiError, errorMessage, fieldErrorMap } from "@/lib/api/errors";
 import type { BranchCreateResponse, CreateBranchBody } from "@/lib/api/types";
 import { ETHIOPIAN_REGIONS } from "@/lib/constants/regions";
-import { normalizePhoneToE164 } from "@/lib/registration/phone";
+import { isValidEthiopianPhone, normalizePhoneToE164 } from "@/lib/registration/phone";
 
 type Props = {
   open: boolean;
@@ -51,6 +51,12 @@ export function CreateBranchDialog({ open, onOpenChange, onCreated }: Props) {
     event.preventDefault();
     setError(null);
     setFieldErrors({});
+
+    // The phone becomes the officer's login, so refuse anything that isn't a mobile number.
+    if (!isValidEthiopianPhone(form.branchPhone.trim())) {
+      setFieldErrors({ branchPhone: "Enter an Ethiopian mobile number, e.g. +251911223344." });
+      return;
+    }
     setIsSubmitting(true);
 
     const body: CreateBranchBody = {
@@ -60,8 +66,8 @@ export function CreateBranchDialog({ open, onOpenChange, onCreated }: Props) {
       woreda: form.woreda.trim(),
       branchPhone: normalizePhoneToE164(form.branchPhone.trim()),
       branchFullName: form.branchFullName.trim(),
+      branchEmail: form.branchEmail.trim(),
     };
-    if (form.branchEmail.trim()) body.branchEmail = form.branchEmail.trim();
 
     try {
       const created = await apiClient<BranchCreateResponse>("/bff/admin/branches", {
@@ -119,11 +125,25 @@ export function CreateBranchDialog({ open, onOpenChange, onCreated }: Props) {
               <FormField label="Full name" htmlFor="b-officer" required error={fieldErrors.branchFullName} className="sm:col-span-2">
                 <Input id="b-officer" value={form.branchFullName} onChange={(e) => set("branchFullName", e.target.value)} required />
               </FormField>
-              <FormField label="Phone (login)" htmlFor="b-phone" required error={fieldErrors.branchPhone}>
-                <Input id="b-phone" type="tel" value={form.branchPhone} onChange={(e) => set("branchPhone", e.target.value)} placeholder="+2519…" required />
+              <FormField
+                label="Phone (login)"
+                htmlFor="b-phone"
+                required
+                hint="Ethiopian mobile, e.g. +251911223344"
+                error={fieldErrors.branchPhone}
+              >
+                <Input
+                  id="b-phone"
+                  type="tel"
+                  value={form.branchPhone}
+                  onChange={(e) => set("branchPhone", e.target.value)}
+                  placeholder="+2519…"
+                  required
+                  aria-invalid={fieldErrors.branchPhone ? true : undefined}
+                />
               </FormField>
-              <FormField label="Email" htmlFor="b-email" error={fieldErrors.branchEmail}>
-                <Input id="b-email" type="email" value={form.branchEmail} onChange={(e) => set("branchEmail", e.target.value)} />
+              <FormField label="Email" htmlFor="b-email" required error={fieldErrors.branchEmail}>
+                <Input id="b-email" type="email" value={form.branchEmail} onChange={(e) => set("branchEmail", e.target.value)} required />
               </FormField>
             </div>
           </div>

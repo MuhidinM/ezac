@@ -207,7 +207,7 @@ export function isActivePath(pathname: string, url: string) {
     : pathname === url || pathname.startsWith(`${url}/`);
 }
 
-/** Breadcrumb labels for dashboard path segments. */
+/** Breadcrumb labels for dashboard path segments; they match the sidebar names. */
 export const SEGMENT_LABELS: Record<string, string> = {
   beneficiary: "Beneficiaries",
   institutions: "Institution review",
@@ -215,18 +215,16 @@ export const SEGMENT_LABELS: Record<string, string> = {
   branch: "My branch",
   register: "Register beneficiary",
   profile: "Profile",
-  donations: "Donations",
-  reports: "Reports",
   household: "Household",
   institution: "Institution",
   documents: "Documents",
-  manual: "Manual entry",
+  manual: "Register an individual",
   password: "Set password",
   type: "Beneficiary type",
   assessments: "Assessments",
   "field-officers": "Field officers",
   edit: "Edit",
-  "scoring-config": "Scoring config",
+  "scoring-config": "Scoring",
   duplicates: "Duplicate review",
   zakat: "Zakat",
   pool: "Disbursement pool",
@@ -235,6 +233,21 @@ export const SEGMENT_LABELS: Record<string, string> = {
   prices: "Prices & nisab",
   settings: "Settings",
 };
+
+/** Labels that depend on the folder above, keyed `<parent>/<segment>`. */
+export const SECTION_SEGMENT_LABELS: Record<string, string> = {
+  "zakat/payments": "Zakat payments",
+  "zakat/prices": "Prices & nisab",
+  "zakat/rules": "Calculator rules",
+  "zakat/causes": "Causes",
+  "zakat/regions": "Impact regions",
+  "zakat/stories": "Impact stories",
+  "zakat/reports": "Impact reports",
+  "zakat/settings": "Zakat settings",
+};
+
+/** Folders with no page of their own; their crumb is plain text, not a link. */
+export const UNLINKED_SEGMENTS = new Set(["/dashboard/zakat"]);
 
 export function roleLabel(session: SessionInfo): string {
   if (session.isAdmin) return "Administrator";

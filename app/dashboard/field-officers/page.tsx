@@ -1,8 +1,8 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Plus, RefreshCw, Search } from "lucide-react";
+import { type FormEvent, Suspense, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Plus, RefreshCw, Search, X } from "lucide-react";
 
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { ListPagination } from "@/components/dashboard/list-pagination";
@@ -37,17 +37,26 @@ const PAGE_SIZE = 20;
 export default function FieldOfficersPage() {
   return (
     <RequireRole audience={["admin"]}>
-      <FieldOfficers />
+      {/* useSearchParams needs a Suspense boundary. */}
+      <Suspense>
+        <FieldOfficers />
+      </Suspense>
     </RequireRole>
   );
 }
 
+type Filters = { page: number; search: string; active: "" | "true" | "false" };
+
 function FieldOfficers() {
   const router = useRouter();
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
-  const [draftSearch, setDraftSearch] = useState("");
-  const [active, setActive] = useState<"" | "true" | "false">("");
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  // Filters live in the address so Back, reload and shared links keep them.
+  const page = Math.max(1, Number(searchParams.get("page")) || 1);
+  const search = searchParams.get("search") ?? "";
+  const activeParam = searchParams.get("active");
+  const active: Filters["active"] = activeParam === "true" || activeParam === "false" ? activeParam : "";
+  const [draftSearch, setDraftSearch] = useState(search);
   const [createOpen, setCreateOpen] = useState(false);
   const [created, setCreated] = useState<CreateFieldOfficerResponse | null>(null);
 
@@ -59,10 +68,24 @@ function FieldOfficers() {
     `/bff/backoffice/admin/field-officers?${params.toString()}`,
   );
 
+  function setFilters(next: Partial<Filters>) {
+    const merged: Filters = { page, search, active, ...next };
+    const address = new URLSearchParams();
+    if (merged.search) address.set("search", merged.search);
+    if (merged.active) address.set("active", merged.active);
+    if (merged.page > 1) address.set("page", String(merged.page));
+    const qs = address.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
+
   function onSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setPage(1);
-    setSearch(draftSearch.trim());
+    setFilters({ page: 1, search: draftSearch.trim() });
+  }
+
+  function clearFilters() {
+    setDraftSearch("");
+    setFilters({ page: 1, search: "", active: "" });
   }
 
   const rows = data?.items ?? [];
@@ -129,10 +152,7 @@ function FieldOfficers() {
             <NativeSelect
               aria-label="Status"
               value={active}
-              onChange={(event) => {
-                setPage(1);
-                setActive(event.target.value as typeof active);
-              }}
+              onChange={(event) => setFilters({ page: 1, active: event.target.value as Filters["active"] })}
             >
               <option value="">All statuses</option>
               <option value="true">Active</option>
@@ -142,6 +162,12 @@ function FieldOfficers() {
           <Button type="submit" variant="secondary">
             Search
           </Button>
+          {search || active || draftSearch ? (
+            <Button type="button" variant="ghost" onClick={clearFilters}>
+              <X />
+              Clear
+            </Button>
+          ) : null}
         </form>
 
         {error ? (
@@ -208,7 +234,7 @@ function FieldOfficers() {
           totalItems={data?.pagination.totalItems ?? 0}
           totalPages={data?.pagination.totalPages ?? 1}
           disabled={isLoading}
-          onPageChange={setPage}
+          onPageChange={(next) => setFilters({ page: next })}
         />
       </Panel>
     </section>

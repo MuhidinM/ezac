@@ -35,7 +35,7 @@ export function ResetPasswordButton({
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         title="Reset password?"
-        description={`A new temporary password is generated. The ${recipient}'s current sessions end and they must change the password at their next login.`}
+        description={`A new temporary password is generated and the old one stops working at once. If the ${recipient} is signed in right now, that session can keep working for up to 5 minutes before it ends.`}
         confirmLabel="Reset password"
         onConfirm={async () => {
           setResult(await apiClient<PasswordResetResponse>(path, { method: "POST" }));

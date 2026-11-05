@@ -21,7 +21,7 @@ import type {
 } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
 import { ApiError, errorMessage, fieldErrorMap } from "@/lib/api/errors";
-import { normalizePhoneToE164 } from "@/lib/registration/phone";
+import { isValidEthiopianPhone, normalizePhoneToE164 } from "@/lib/registration/phone";
 
 type Props = {
   open: boolean;
@@ -51,6 +51,12 @@ export function CreateOfficerDialog({ open, onOpenChange, onCreated }: Props) {
     event.preventDefault();
     setError(null);
     setFieldErrors({});
+
+    // The phone becomes the officer's login, so refuse anything that isn't a mobile number.
+    if (!isValidEthiopianPhone(phone.trim())) {
+      setFieldErrors({ phone: "Enter an Ethiopian mobile number, e.g. +251911223344." });
+      return;
+    }
     setIsSubmitting(true);
 
     const body: CreateFieldOfficerBody = {
@@ -125,6 +131,7 @@ export function CreateOfficerDialog({ open, onOpenChange, onCreated }: Props) {
                 onChange={(event) => setPhone(event.target.value)}
                 placeholder="+2519…"
                 required
+                aria-invalid={fieldErrors.phone ? true : undefined}
               />
             </FormField>
             <FormField

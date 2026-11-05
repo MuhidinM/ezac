@@ -94,17 +94,17 @@ export function EditBranchDialog({
           </DialogHeader>
           {error ? <InlineAlert>{error}</InlineAlert> : null}
           <div className="grid gap-4 sm:grid-cols-2">
-            <FormField label="Branch name" htmlFor="eb-name" error={fieldErrors.name} className="sm:col-span-2">
+            <FormField label="Branch name" htmlFor="eb-name" required error={fieldErrors.name} className="sm:col-span-2">
               <Input id="eb-name" value={form.name} onChange={(e) => set("name", e.target.value)} required />
             </FormField>
-            <FormField label="Zone" htmlFor="eb-zone" error={fieldErrors.zone}>
-              <Input id="eb-zone" value={form.zone} onChange={(e) => set("zone", e.target.value)} />
+            <FormField label="Zone" htmlFor="eb-zone" required error={fieldErrors.zone}>
+              <Input id="eb-zone" value={form.zone} onChange={(e) => set("zone", e.target.value)} required />
             </FormField>
-            <FormField label="Woreda" htmlFor="eb-woreda" error={fieldErrors.woreda}>
-              <Input id="eb-woreda" value={form.woreda} onChange={(e) => set("woreda", e.target.value)} />
+            <FormField label="Woreda" htmlFor="eb-woreda" required error={fieldErrors.woreda}>
+              <Input id="eb-woreda" value={form.woreda} onChange={(e) => set("woreda", e.target.value)} required />
             </FormField>
-            <FormField label="Officer full name" htmlFor="eb-officer" error={fieldErrors.officerFullName}>
-              <Input id="eb-officer" value={form.officerFullName} onChange={(e) => set("officerFullName", e.target.value)} />
+            <FormField label="Officer full name" htmlFor="eb-officer" required error={fieldErrors.officerFullName}>
+              <Input id="eb-officer" value={form.officerFullName} onChange={(e) => set("officerFullName", e.target.value)} required />
             </FormField>
             <FormField label="Officer email" htmlFor="eb-email" error={fieldErrors.officerEmail}>
               <Input id="eb-email" type="email" value={form.officerEmail} onChange={(e) => set("officerEmail", e.target.value)} />

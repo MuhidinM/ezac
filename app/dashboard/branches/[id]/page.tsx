@@ -9,6 +9,7 @@ import { CodeStatTiles } from "@/components/branches/code-stats";
 import { EditBranchDialog } from "@/components/branches/edit-branch-dialog";
 import { ResetPasswordButton } from "@/components/dashboard/reset-password-button";
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
+import { useBreadcrumbLabel } from "@/components/dashboard/dashboard-header";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { DetailList, Panel } from "@/components/dashboard/panel";
@@ -33,18 +34,22 @@ function BranchDetail() {
   const path = `/bff/admin/branches/${encodeURIComponent(id)}`;
   const { data: branch, error, isLoading, reload, mutate } = useResource<Branch>(path);
   const [confirmToggle, setConfirmToggle] = useState(false);
+  // The status when the dialog opened, so its text doesn't flip while it closes.
+  const [wasActive, setWasActive] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
+  useBreadcrumbLabel(branch?.name);
 
   if (isLoading && !branch) {
     return <div className="h-72 animate-pulse rounded-xl bg-black/[0.04]" />;
   }
 
   if (!branch) {
+    const missing = error?.status === 404;
     return (
       <section className="space-y-6">
         <PageHeader title="Branch" back={{ href: "/dashboard/branches", label: "Branches" }} />
-        <InlineAlert action={<Button variant="outline" size="sm" onClick={reload}>Retry</Button>}>
-          {error?.message ?? "Branch not found"}
+        <InlineAlert action={missing ? undefined : <Button variant="outline" size="sm" onClick={reload}>Retry</Button>}>
+          {missing ? "This branch doesn't exist. Check the link, or find the branch in the list." : (error?.message ?? "Branch not found")}
         </InlineAlert>
       </section>
     );
@@ -66,14 +71,14 @@ function BranchDetail() {
       <ConfirmDialog
         open={confirmToggle}
         onOpenChange={setConfirmToggle}
-        title={branch.active ? "Deactivate branch?" : "Activate branch?"}
+        title={wasActive ? "Deactivate branch?" : "Activate branch?"}
         description={
-          branch.active
-            ? "The branch officer can no longer sign in to the branch portal and its codes can't be used for new registrations."
-            : "The branch officer regains access and its available codes can be used again."
+          wasActive
+            ? "The branch is marked inactive and you can't generate new codes for it. For now this doesn't stop the branch officer signing in: to stop their access, also reset their password. To stop its unused codes being used, revoke them below."
+            : "The branch is marked active again and you can generate codes for it."
         }
-        confirmLabel={branch.active ? "Deactivate" : "Activate"}
-        destructive={branch.active}
+        confirmLabel={wasActive ? "Deactivate" : "Activate"}
+        destructive={wasActive}
         onConfirm={toggleActive}
       />
 
@@ -93,7 +98,13 @@ function BranchDetail() {
               login={contact.phone ?? ""}
               recipient="branch officer"
             />
-            <Button variant="outline" onClick={() => setConfirmToggle(true)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setWasActive(branch.active);
+                setConfirmToggle(true);
+              }}
+            >
               <Power />
               {branch.active ? "Deactivate" : "Activate"}
             </Button>
@@ -128,9 +139,11 @@ function BranchDetail() {
 
       <BranchCodesPanel
         listPath={`${path}/codes`}
-        generatePath={`${path}/codes`}
+        generatePath={branch.active ? `${path}/codes` : undefined}
+        generateBlockedNote={branch.active ? undefined : "This branch is inactive. Activate it to generate new codes."}
         linkBeneficiaries
         revokeBasePath={`/bff/backoffice/admin/branches/${encodeURIComponent(branch.id)}/codes`}
+        availableCount={branch.codeStats?.available ?? null}
         onGenerated={reload}
       />
     </section>

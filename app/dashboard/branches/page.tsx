@@ -1,8 +1,8 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Plus, RefreshCw, Search } from "lucide-react";
+import { type FormEvent, Suspense, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Plus, RefreshCw, Search, X } from "lucide-react";
 
 import { CodeStatsInline } from "@/components/branches/code-stats";
 import { CreateBranchDialog } from "@/components/branches/create-branch-form";
@@ -35,18 +35,27 @@ const PAGE_SIZE = 20;
 export default function BranchesPage() {
   return (
     <RequireRole audience={["admin"]}>
-      <Branches />
+      {/* useSearchParams needs a Suspense boundary. */}
+      <Suspense>
+        <Branches />
+      </Suspense>
     </RequireRole>
   );
 }
 
+type Filters = { page: number; search: string; region: string; active: "" | "true" | "false" };
+
 function Branches() {
   const router = useRouter();
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
-  const [draftSearch, setDraftSearch] = useState("");
-  const [region, setRegion] = useState("");
-  const [active, setActive] = useState<"" | "true" | "false">("");
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  // Filters live in the address so Back, reload and shared links keep them.
+  const page = Math.max(1, Number(searchParams.get("page")) || 1);
+  const search = searchParams.get("search") ?? "";
+  const region = searchParams.get("region") ?? "";
+  const activeParam = searchParams.get("active");
+  const active: Filters["active"] = activeParam === "true" || activeParam === "false" ? activeParam : "";
+  const [draftSearch, setDraftSearch] = useState(search);
   const [createOpen, setCreateOpen] = useState(false);
   const [credentials, setCredentials] = useState<BranchCreateResponse | null>(null);
 
@@ -60,10 +69,25 @@ function Branches() {
   const rows = data?.items ?? [];
   const query = search || region || active;
 
+  function setFilters(next: Partial<Filters>) {
+    const merged: Filters = { page, search, region, active, ...next };
+    const address = new URLSearchParams();
+    if (merged.search) address.set("search", merged.search);
+    if (merged.region) address.set("region", merged.region);
+    if (merged.active) address.set("active", merged.active);
+    if (merged.page > 1) address.set("page", String(merged.page));
+    const qs = address.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
+
   function onSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setPage(1);
-    setSearch(draftSearch.trim());
+    setFilters({ page: 1, search: draftSearch.trim() });
+  }
+
+  function clearFilters() {
+    setDraftSearch("");
+    setFilters({ page: 1, search: "", region: "", active: "" });
   }
 
   return (
@@ -115,7 +139,7 @@ function Branches() {
             <Input
               value={draftSearch}
               onChange={(event) => setDraftSearch(event.target.value)}
-              placeholder="Search name, location or phone"
+              placeholder="Search name or location"
               className="bg-white pl-9"
             />
           </div>
@@ -123,10 +147,7 @@ function Branches() {
             <NativeSelect
               aria-label="Region"
               value={region}
-              onChange={(event) => {
-                setPage(1);
-                setRegion(event.target.value);
-              }}
+              onChange={(event) => setFilters({ page: 1, region: event.target.value })}
             >
               <option value="">All regions</option>
               {ETHIOPIAN_REGIONS.map((item) => (
@@ -140,10 +161,7 @@ function Branches() {
             <NativeSelect
               aria-label="Status"
               value={active}
-              onChange={(event) => {
-                setPage(1);
-                setActive(event.target.value as typeof active);
-              }}
+              onChange={(event) => setFilters({ page: 1, active: event.target.value as Filters["active"] })}
             >
               <option value="">All statuses</option>
               <option value="true">Active</option>
@@ -153,6 +171,12 @@ function Branches() {
           <Button type="submit" variant="secondary">
             Search
           </Button>
+          {query || draftSearch ? (
+            <Button type="button" variant="ghost" onClick={clearFilters}>
+              <X />
+              Clear
+            </Button>
+          ) : null}
         </form>
 
         {error ? (
@@ -215,7 +239,7 @@ function Branches() {
           totalItems={data?.pagination.totalItems ?? 0}
           totalPages={data?.pagination.totalPages ?? 1}
           disabled={isLoading}
-          onPageChange={setPage}
+          onPageChange={(next) => setFilters({ page: next })}
         />
       </Panel>
     </section>

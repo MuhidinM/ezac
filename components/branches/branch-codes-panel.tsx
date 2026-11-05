@@ -2,7 +2,7 @@
 
 import { type FormEvent, useState } from "react";
 import Link from "next/link";
-import { Ban, Check, Copy, Download, Plus, RefreshCw } from "lucide-react";
+import { Ban, Check, Copy, Download, Plus, RefreshCw, X } from "lucide-react";
 
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -60,6 +60,12 @@ const TABS: { status: RegistrationCodeStatus | ""; label: string }[] = [
   { status: "REVOKED", label: "Revoked" },
 ];
 
+/** The beneficiary's name when the backend sends it, else their record number. */
+function beneficiaryLabel(item: RegistrationCodeItem) {
+  const name = (item as RegistrationCodeItem & { beneficiaryName?: string | null }).beneficiaryName?.trim();
+  return name || `#${item.beneficiaryId}`;
+}
+
 type Props = {
   /** API path that returns PaginatedItems<RegistrationCodeItem> */
   listPath: string;
@@ -67,13 +73,25 @@ type Props = {
   generatePath?: string;
   /** Link consumed codes to beneficiary profiles (HQ staff only). */
   linkBeneficiaries?: boolean;
+  /** Shown in place of the generate action when codes can't be generated (e.g. inactive branch). */
+  generateBlockedNote?: string;
   /** Admin codes path; enables single and bulk revoke. */
   revokeBasePath?: string;
+  /** Unused codes right now; turns off "Revoke available" at 0 and names the count. */
+  availableCount?: number | null;
   /** Called after codes are generated successfully */
   onGenerated?: (codes: string[]) => void;
 };
 
-export function BranchCodesPanel({ listPath, generatePath, linkBeneficiaries, revokeBasePath, onGenerated }: Props) {
+export function BranchCodesPanel({
+  listPath,
+  generatePath,
+  generateBlockedNote,
+  linkBeneficiaries,
+  revokeBasePath,
+  availableCount,
+  onGenerated,
+}: Props) {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<RegistrationCodeStatus | "">("");
   const [generateOpen, setGenerateOpen] = useState(false);
@@ -82,6 +100,8 @@ export function BranchCodesPanel({ listPath, generatePath, linkBeneficiaries, re
   // null = closed, "all" = every available code, otherwise one code.
   const [revokeTarget, setRevokeTarget] = useState<RegistrationCodeItem | "all" | null>(null);
   const [revokeReason, setRevokeReason] = useState("");
+  // Count when the bulk dialog opened, so the title doesn't change while it closes.
+  const [revokeAllCount, setRevokeAllCount] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
@@ -117,6 +137,9 @@ export function BranchCodesPanel({ listPath, generatePath, linkBeneficiaries, re
                   .txt
                 </a>
               </Button>
+              <Button variant="ghost" size="sm" aria-label="Close the list of new codes" onClick={() => setGenerated(null)}>
+                <X />
+              </Button>
             </div>
           }
         >
@@ -135,9 +158,18 @@ export function BranchCodesPanel({ listPath, generatePath, linkBeneficiaries, re
               Refresh
             </Button>
             {revokeBasePath ? (
-              <Button variant="ghost" size="sm" className="text-rose-700 hover:text-rose-800" onClick={() => setRevokeTarget("all")}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-rose-700 hover:text-rose-800"
+                onClick={() => {
+                  setRevokeAllCount(availableCount ?? null);
+                  setRevokeTarget("all");
+                }}
+                disabled={availableCount === 0}
+              >
                 <Ban />
-                Revoke available
+                Revoke available{availableCount != null ? ` (${availableCount})` : ""}
               </Button>
             ) : null}
             {generatePath ? (
@@ -149,6 +181,9 @@ export function BranchCodesPanel({ listPath, generatePath, linkBeneficiaries, re
           </>
         }
       >
+        {!generatePath && generateBlockedNote ? (
+          <p className="border-b border-black/[0.06] px-5 py-3 text-sm text-black/60">{generateBlockedNote}</p>
+        ) : null}
         <div className="flex gap-1 overflow-x-auto border-b border-black/[0.06] px-3" role="tablist">
           {TABS.map((tab) => (
             <button
@@ -219,10 +254,10 @@ export function BranchCodesPanel({ listPath, generatePath, linkBeneficiaries, re
                     {item.beneficiaryId ? (
                       linkBeneficiaries ? (
                         <Link href={`/dashboard/beneficiary/${item.beneficiaryId}`} className="text-[#007050] hover:underline">
-                          #{item.beneficiaryId}
+                          {beneficiaryLabel(item)}
                         </Link>
                       ) : (
-                        <span className="tabular-nums">#{item.beneficiaryId}</span>
+                        <span className="tabular-nums">{beneficiaryLabel(item)}</span>
                       )
                     ) : (
                       <span className="text-black/40">—</span>
@@ -259,7 +294,13 @@ export function BranchCodesPanel({ listPath, generatePath, linkBeneficiaries, re
         <ConfirmDialog
           open={revokeTarget !== null}
           onOpenChange={(open) => (open ? null : setRevokeTarget(null))}
-          title={revokeTarget === "all" ? "Revoke every available code?" : `Revoke ${revokeTarget ? revokeTarget.code : "code"}?`}
+          title={
+            revokeTarget === "all"
+              ? revokeAllCount != null
+                ? `Revoke ${revokeAllCount === 1 ? "the 1 available code" : `all ${revokeAllCount} available codes`}?`
+                : "Revoke every available code?"
+              : `Revoke ${revokeTarget ? revokeTarget.code : "code"}?`
+          }
           description={
             revokeTarget === "all"
               ? "All unused codes of this branch stop working immediately. Used codes are not affected."
@@ -284,6 +325,8 @@ export function BranchCodesPanel({ listPath, generatePath, linkBeneficiaries, re
               setNotice(`${revokeTarget.code} revoked.`);
             }
             setRevokeReason("");
+            // The banner of new codes may list codes that are now revoked.
+            setGenerated(null);
             reload();
             onGenerated?.([]);
           }}

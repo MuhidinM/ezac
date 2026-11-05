@@ -47,12 +47,8 @@ function ScoringConfigView() {
 
   const list = [...(versions.data ?? [])].sort((a, b) => b.version - a.version);
   const active = list.find((item) => item.active) ?? null;
-  const current =
-    list.find((item) => item.version === selected) ??
-    list.find((item) => item.status === "DRAFT") ??
-    active ??
-    list[0] ??
-    null;
+  // Open on the live version; a draft shows once someone picks or creates it.
+  const current = list.find((item) => item.version === selected) ?? active ?? list[0] ?? null;
   const base = current?.basedOnVersion != null ? list.find((item) => item.version === current.basedOnVersion) : null;
 
   async function createDraft(from: ScoringConfigVersion) {
@@ -145,7 +141,7 @@ function ScoringConfigView() {
                     <span className="block text-sm font-semibold text-[#001539] tabular-nums">v{item.version}</span>
                     <span className="block truncate text-xs text-black/55">{item.name ?? "Untitled"}</span>
                     <span className="block text-[11px] text-black/40">
-                      {item.createdByName ?? ""} {item.createdAt ? `· ${formatDateTime(item.createdAt)}` : ""}
+                      {[item.createdByName, item.createdAt ? formatDateTime(item.createdAt) : null].filter(Boolean).join(" · ")}
                     </span>
                   </span>
                   {item.active ? (

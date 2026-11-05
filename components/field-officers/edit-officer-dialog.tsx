@@ -56,7 +56,11 @@ export function EditOfficerDialog({
       onSaved({ ...officer, ...updated });
       onOpenChange(false);
     } catch (saveError) {
-      setError(errorMessage(saveError, "Failed to update officer"));
+      setError(
+        saveError instanceof ApiError && saveError.status >= 500
+          ? "The changes couldn't be saved because of a problem on the server, and nothing was changed. If this keeps happening, tell the system team."
+          : errorMessage(saveError, "Failed to update officer"),
+      );
       if (saveError instanceof ApiError) setFieldErrors(fieldErrorMap(saveError.errors));
     } finally {
       setIsSaving(false);
@@ -86,8 +90,8 @@ export function EditOfficerDialog({
           <FormField label="Full name" htmlFor="eo-name" required error={fieldErrors.fullName}>
             <Input id="eo-name" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
           </FormField>
-          <FormField label="Email" htmlFor="eo-email" error={fieldErrors.email}>
-            <Input id="eo-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <FormField label="Email" htmlFor="eo-email" required error={fieldErrors.email}>
+            <Input id="eo-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </FormField>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

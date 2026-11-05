@@ -8,14 +8,14 @@ import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { Panel } from "@/components/dashboard/panel";
-import { ScoringDesigner, validateScoring } from "@/components/scoring/scoring-designer";
+import { ScoringDesigner, describeScoringPaths, validateScoring } from "@/components/scoring/scoring-designer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { RiskCategory } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
-import { errorMessage } from "@/lib/api/errors";
+import { ApiError, errorMessage } from "@/lib/api/errors";
 import {
   changedPaths,
   ruleText,
@@ -61,6 +61,16 @@ export function ConfigEditor({
   const problems = validateScoring(schema, config);
   const step = isDirty || changes.length === 0 ? 1 : preview ? 3 : 2;
 
+  /** The server's message, with field paths and per-field errors in plain words. */
+  function scoringError(error: unknown, fallback: string) {
+    const fields = error instanceof ApiError ? error.errors : [];
+    const text =
+      fields.length > 0
+        ? fields.map((item) => `${item.field}: ${item.message}`).join(" ")
+        : errorMessage(error, fallback);
+    return describeScoringPaths(schema, text);
+  }
+
   function update(path: string, value: unknown) {
     setConfig((prev) => setPath(prev, path, value));
     setPreview(null);
@@ -82,7 +92,7 @@ export function ConfigEditor({
       setMessage({ tone: "success", text: "Draft saved." });
       return true;
     } catch (saveError) {
-      setMessage({ tone: "error", text: errorMessage(saveError, "Couldn't save the draft") });
+      setMessage({ tone: "error", text: scoringError(saveError, "Couldn't save the draft") });
       return false;
     } finally {
       setIsSaving(false);
@@ -101,7 +111,7 @@ export function ConfigEditor({
         }),
       );
     } catch (previewError) {
-      setMessage({ tone: "error", text: errorMessage(previewError, "Preview failed") });
+      setMessage({ tone: "error", text: scoringError(previewError, "Preview failed") });
     } finally {
       setIsPreviewing(false);
     }
