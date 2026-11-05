@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api/client";
 import type { Branch } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
+import { branchContact } from "@/lib/branches/contact";
 
 export default function BranchDetailPage() {
   return (
@@ -48,6 +49,8 @@ function BranchDetail() {
       </section>
     );
   }
+
+  const contact = branchContact(branch);
 
   async function toggleActive() {
     if (!branch) return;
@@ -87,7 +90,7 @@ function BranchDetail() {
             </Button>
             <ResetPasswordButton
               path={`/bff/backoffice/admin/branches/${encodeURIComponent(branch.id)}/reset-password`}
-              login={branch.branchPhone ?? ""}
+              login={contact.phone ?? ""}
               recipient="branch officer"
             />
             <Button variant="outline" onClick={() => setConfirmToggle(true)}>
@@ -115,9 +118,9 @@ function BranchDetail() {
         <Panel title="Branch officer" description="Signs in to the branch portal with this phone number.">
           <DetailList
             items={[
-              { label: "Full name", value: branch.officerName ?? branch.branchFullName },
-              { label: "Phone (login)", value: branch.branchPhone },
-              { label: "Email", value: branch.branchEmail },
+              { label: "Full name", value: contact.fullName },
+              { label: "Phone (login)", value: contact.phone },
+              { label: "Email", value: contact.email },
             ]}
           />
         </Panel>

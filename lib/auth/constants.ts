@@ -2,6 +2,8 @@ import type { AppRole } from "@/lib/api/types";
 
 export const ACCESS_TOKEN_COOKIE = "ezac_access_token";
 export const REFRESH_TOKEN_COOKIE = "ezac_refresh_token";
+/** Set at login when the account must change its password; the dashboard is closed until it is. */
+export const PASSWORD_CHANGE_COOKIE = "ezac_password_change";
 
 export const STAFF_ROLES = ["ADMIN", "FIELD_OFFICER"] as const;
 export const APP_ROLES = ["ADMIN", "FIELD_OFFICER", "BRANCH"] as const;

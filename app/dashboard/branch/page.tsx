@@ -67,15 +67,26 @@ function BranchPortal() {
 
       <CodeStatTiles stats={profile.codeStats} />
 
-      <Panel title="Location">
-        <DetailList
-          items={[
-            { label: "Region", value: profile.region },
-            { label: "Zone", value: profile.zone },
-            { label: "Woreda", value: profile.woreda },
-          ]}
-        />
-      </Panel>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Panel title="Location">
+          <DetailList
+            items={[
+              { label: "Region", value: profile.region },
+              { label: "Zone", value: profile.zone },
+              { label: "Woreda", value: profile.woreda },
+            ]}
+          />
+        </Panel>
+        <Panel title="Branch officer">
+          <DetailList
+            items={[
+              { label: "Full name", value: profile.fullName },
+              { label: "Phone (login)", value: profile.phone },
+              { label: "Email", value: profile.email },
+            ]}
+          />
+        </Panel>
+      </div>
 
       <BranchCodesPanel listPath="/bff/branch/codes" />
       <p className="text-xs text-black/45">

@@ -14,8 +14,10 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarMenu,
+  SidebarGroup,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSkeleton,
 } from "@/components/ui/sidebar";
 import { useSession } from "@/lib/auth/use-session";
 
@@ -25,7 +27,7 @@ const SECONDARY_ITEMS = [
 ];
 
 export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
-  const { session } = useSession();
+  const { session, isLoading } = useSession();
   const isBranch = session?.isBranch ?? false;
 
   return (
@@ -53,13 +55,26 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        {NAV_SECTIONS.map((section) => (
-          <NavMain
-            key={section.label}
-            label={section.label}
-            items={section.items.filter((item) => canSee(item.audience, session))}
-          />
-        ))}
+        {isLoading ? (
+          // The menu depends on the roles; showing a guess first makes items flash in and out.
+          <SidebarGroup>
+            <SidebarMenu className="gap-0.5">
+              {Array.from({ length: 6 }, (_, index) => (
+                <SidebarMenuItem key={index}>
+                  <SidebarMenuSkeleton showIcon />
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroup>
+        ) : (
+          NAV_SECTIONS.map((section) => (
+            <NavMain
+              key={section.label}
+              label={section.label}
+              items={section.items.filter((item) => canSee(item.audience, session))}
+            />
+          ))
+        )}
         <NavSecondary items={SECONDARY_ITEMS} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border">

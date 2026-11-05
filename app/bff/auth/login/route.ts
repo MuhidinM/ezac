@@ -85,7 +85,7 @@ export async function POST(request: Request) {
       refreshToken: tokens.refreshToken,
       expiresIn: tokens.expiresIn,
     },
-    { secure: shouldUseSecureCookies(request) },
+    { secure: shouldUseSecureCookies(request), passwordChangeRequired: tokens.passwordChangeRequired },
   );
 
   return NextResponse.json({

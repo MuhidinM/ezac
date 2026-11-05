@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
 import { CircleAlert, Clock } from "lucide-react";
 
 import { FormField } from "@/components/dashboard/form-field";
@@ -21,18 +21,27 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { PoolEntry } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
+import { useResource } from "@/lib/api/use-resource";
 import { ApiError, fieldErrorMap } from "@/lib/api/errors";
 import { formatEtb } from "@/lib/backoffice/format";
 import { formatDateTime } from "@/lib/beneficiary/format";
 import {
   type Disbursement,
   disbursementStatus,
+  type Fund,
+  type FundAccounts,
+  FUNDS,
+  fundLabel,
   NAME_CHECK,
   payoutErrorMessage,
   RAIL_LABEL,
 } from "@/lib/zakat/disbursements";
+import { cn, generateId } from "@/lib/utils";
 
 const API = "/bff/payments-admin/disbursements";
+
+/** Confirm errors after which the payout is gone (cancelled or expired): prepare a new one. */
+const PREPARE_AGAIN = new Set(["PAYOUT_EXPIRED", "NOT_POOLED", "FUND_ACCOUNT_NOT_SET"]);
 
 function describeError(error: unknown, fallback: string) {
   if (!(error instanceof ApiError)) return { text: fallback, existingId: null as string | null };
@@ -49,7 +58,8 @@ export function PayoutReview({ payout }: { payout: Disbursement }) {
         <p className="text-xs text-black/50">Amount</p>
         <p className="mt-0.5 text-2xl font-semibold tracking-tight text-[#001539] tabular-nums">{formatEtb(payout.amountEtb)}</p>
         <p className="mt-1 text-xs text-black/50">
-          {RAIL_LABEL[payout.rail] ?? payout.rail} from {payout.debitAccountName ?? "the commission account"}
+          {RAIL_LABEL[payout.rail] ?? payout.rail} from the {fundLabel(payout.fund)} fund
+          {payout.debitAccountName ? `, ${payout.debitAccountName}` : ""}
           {payout.debitAccount ? ` (${payout.debitAccount})` : ""}
         </p>
       </div>
@@ -84,7 +94,12 @@ export function PayoutDialog({
   onFinished: (payout: Disbursement) => void;
 }) {
   const [amount, setAmount] = useState("");
+  const [fund, setFund] = useState<Fund>("ZAKAT");
   const [note, setNote] = useState("");
+  const funds = useResource<FundAccounts>(`${API}/funds`);
+  // One idempotency key per payout: made when the dialog opens and re-sent on every retry of the
+  // same request. A changed request (amount, fund, note) is a different payout and gets a new key.
+  const attempt = useRef<{ body: string; key: string }>({ body: "", key: generateId() });
   const [payout, setPayout] = useState<Disbursement | null>(null);
   const [acknowledged, setAcknowledged] = useState(false);
   const [error, setError] = useState<{ text: string; existingId: string | null } | null>(null);
@@ -101,13 +116,18 @@ export function PayoutDialog({
     setFieldErrors({});
     setIsWorking(true);
     try {
+      const body = {
+        ...(entry.source === "WHITELIST" ? { whitelistEntryId: entry.whitelistEntryId } : { assessmentId: entry.assessmentId }),
+        amountEtb: Number(amount),
+        fund,
+        ...(note.trim() ? { note: note.trim() } : {}),
+      };
+      const signature = JSON.stringify(body);
+      if (attempt.current.body && attempt.current.body !== signature) attempt.current.key = generateId();
+      attempt.current.body = signature;
       const next = await apiClient<Disbursement>(API, {
         method: "POST",
-        body: JSON.stringify({
-          ...(entry.source === "WHITELIST" ? { whitelistEntryId: entry.whitelistEntryId } : { assessmentId: entry.assessmentId }),
-          amountEtb: Number(amount),
-          ...(note.trim() ? { note: note.trim() } : {}),
-        }),
+        body: JSON.stringify({ ...body, idempotencyKey: attempt.current.key }),
       });
       setPayout(next);
     } catch (prepareError) {
@@ -136,6 +156,12 @@ export function PayoutDialog({
       }
     } catch (actError) {
       setError(describeError(actError, action === "confirm" ? "Couldn't send the payout" : "Couldn't cancel the payout"));
+      // Confirming is safe to retry, so keep the review open, unless the payout no longer exists.
+      if (actError instanceof ApiError && actError.code && PREPARE_AGAIN.has(actError.code)) {
+        setPayout(null);
+        setAcknowledged(false);
+        attempt.current = { body: "", key: generateId() };
+      }
     } finally {
       setIsWorking(false);
     }
@@ -185,6 +211,35 @@ export function PayoutDialog({
                 { label: "Branch", value: entry.branchName },
               ]}
             />
+            <FormField label="Pay from" htmlFor="payout-fund-ZAKAT" required error={fieldErrors.fund}>
+              <div role="radiogroup" aria-label="Pay from" className="grid grid-cols-2 gap-2">
+                {FUNDS.map((item) => {
+                  const account = item.value === "ZAKAT" ? funds.data?.zakat : funds.data?.waqf;
+                  const ready = account?.ready ?? false;
+                  return (
+                    <button
+                      key={item.value}
+                      id={`payout-fund-${item.value}`}
+                      type="button"
+                      role="radio"
+                      aria-checked={fund === item.value}
+                      disabled={!!funds.data && !ready}
+                      onClick={() => setFund(item.value)}
+                      className={cn(
+                        "rounded-lg border bg-white p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-50",
+                        fund === item.value ? "border-[#007050] ring-1 ring-[#007050]" : "border-black/10 hover:border-black/20",
+                      )}
+                    >
+                      <span className="block text-sm font-semibold text-[#001539]">{item.label} fund</span>
+                      <span className="mt-0.5 block font-mono text-xs text-black/55">
+                        {funds.data ? (ready ? account?.accountNumber : "No account set") : "…"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </FormField>
+            {funds.error ? <InlineAlert tone="warning">Couldn&apos;t load the fund accounts: {funds.error.message}</InlineAlert> : null}
             <FormField label="Amount (ETB)" htmlFor="payout-amount" required error={fieldErrors.amountEtb}>
               <Input
                 id="payout-amount"
@@ -205,7 +260,10 @@ export function PayoutDialog({
               <Button type="button" variant="outline" onClick={close}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isWorking || !(Number(amount) > 0)}>
+              <Button
+                type="submit"
+                disabled={isWorking || !(Number(amount) > 0) || (funds.data ? !(fund === "ZAKAT" ? funds.data.zakat : funds.data.waqf)?.ready : false)}
+              >
                 {isWorking ? "Looking up the account…" : "Review payout"}
               </Button>
             </DialogFooter>

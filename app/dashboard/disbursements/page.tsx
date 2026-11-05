@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { type FormEvent, Suspense, useState } from "react";
-import { CircleAlert, RefreshCw } from "lucide-react";
+import { CircleAlert, Pencil, RefreshCw, Save } from "lucide-react";
 
 import { StatTile } from "@/components/charts/stat-tile";
 import { PayoutReview } from "@/components/disbursements/payout-dialog";
@@ -17,6 +17,14 @@ import { RequireRole } from "@/components/dashboard/require-role";
 import { TableMessageRow, TableSkeletonRows } from "@/components/dashboard/table-states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -37,11 +45,19 @@ import type { RangeKey } from "@/lib/backoffice/date-range";
 import { formatEtb } from "@/lib/backoffice/format";
 import { formatDateTime } from "@/lib/beneficiary/format";
 import {
+  BANK_CALL_OPERATION,
+  BANK_CALL_OUTCOME,
+  type BankCall,
   type Disbursement,
   DISBURSEMENT_STATUSES,
   type DisbursementStatus,
   type DisbursementSummary,
   disbursementStatus,
+  type Fund,
+  type FundAccount,
+  type FundAccounts,
+  FUNDS,
+  fundLabel,
   NAME_CHECK,
   payoutErrorMessage,
   type Rail,
@@ -71,12 +87,13 @@ function Disbursements() {
   const [range, setRange] = useState<RangeKey>("30d");
   const [status, setStatus] = useState<DisbursementStatus | "">("");
   const [rail, setRail] = useState<Rail | "">("");
+  const [fund, setFund] = useState<Fund | "">("");
   const [page, setPage] = useState(1);
 
   const rangeParams = paymentRangeQuery(range);
   const summary = useResource<DisbursementSummary>(`${API}/summary?${rangeParams}`);
   const list = useResource<PaginatedItems<Disbursement>>(
-    `${API}?${rangeParams}${status ? `&status=${status}` : ""}${rail ? `&rail=${rail}` : ""}&page=${page}&limit=${PAGE_SIZE}`,
+    `${API}?${rangeParams}${status ? `&status=${status}` : ""}${rail ? `&rail=${rail}` : ""}${fund ? `&fund=${fund}` : ""}&page=${page}&limit=${PAGE_SIZE}`,
   );
   const rows = list.data?.items ?? [];
   const s = summary.data;
@@ -95,7 +112,7 @@ function Disbursements() {
     <section className="space-y-6">
       <PageHeader
         title="Payouts"
-        description="Payments from the commission account to pooled households. Coop Bank accounts are paid by internal transfer, other banks by IPS. Start a payout from the disbursement pool."
+        description="Payments from the Zakat or Awqaf fund account to pooled households. Coop Bank accounts are paid by internal transfer, other banks by IPS. Start a payout from the disbursement pool."
         actions={
           <>
             <RangeSelect
@@ -133,7 +150,16 @@ function Disbursements() {
       {summary.error ? <InlineAlert>{summary.error.message}</InlineAlert> : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile label="Paid out" value={s ? formatEtb(s.succeededAmountEtb) : "—"} hint="In this period" loading={summary.isLoading && !s} />
+        <StatTile
+          label="Paid out"
+          value={s ? formatEtb(s.succeededAmountEtb) : "—"}
+          hint={
+            s?.paidByFund?.length
+              ? s.paidByFund.map((row) => `${fundLabel(row.fund)} ${formatEtb(row.amountEtb)}`).join(" · ")
+              : "In this period"
+          }
+          loading={summary.isLoading && !s}
+        />
         <StatTile label="Households paid" value={s ? s.succeededCount.toLocaleString("en") : "—"} hint={s ? `of ${s.totalCount.toLocaleString("en")} payouts` : undefined} loading={summary.isLoading && !s} />
         <StatTile
           label="Average payout"
@@ -142,6 +168,8 @@ function Disbursements() {
         />
         <StatTile label="Needs checking" value={s ? s.needsChecking.toLocaleString("en") : "—"} hint="Waiting on the bank" loading={summary.isLoading && !s} />
       </div>
+
+      <FundAccountsPanel />
 
       <Panel flush>
         <div className="flex flex-wrap items-center gap-2 border-b border-black/[0.06] px-5 py-3">
@@ -178,6 +206,23 @@ function Disbursements() {
               <option value="">All banks</option>
               <option value="COOP">{RAIL_LABEL.COOP}</option>
               <option value="IPS">{RAIL_LABEL.IPS}</option>
+            </NativeSelect>
+          </div>
+          <div className="w-40">
+            <NativeSelect
+              aria-label="Fund"
+              value={fund}
+              onChange={(e) => {
+                setFund(e.target.value as Fund | "");
+                setPage(1);
+              }}
+            >
+              <option value="">All funds</option>
+              {FUNDS.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label} fund
+                </option>
+              ))}
             </NativeSelect>
           </div>
         </div>
@@ -222,7 +267,10 @@ function Disbursements() {
                       <span className="block">{payout.bankName ?? "—"}</span>
                       <span className="block font-mono text-xs text-black/50">{payout.creditAccount}</span>
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{formatEtb(payout.amountEtb)}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatEtb(payout.amountEtb)}
+                      {payout.fund ? <span className="block text-xs text-black/50">{fundLabel(payout.fund)} fund</span> : null}
+                    </TableCell>
                     <TableCell>
                       <span className="flex flex-wrap items-center gap-1.5">
                         <Badge tone={shown.tone}>
@@ -368,10 +416,19 @@ function PayoutSheet({ payoutId, onClose, onChanged }: { payoutId: string | null
                 <DetailList
                   columns={2}
                   items={[
+                    { label: "Fund", value: payout.fund ? `${fundLabel(payout.fund)} fund` : null },
                     { label: "Rail", value: RAIL_LABEL[payout.rail] ?? payout.rail },
                     { label: "Name check", value: NAME_CHECK[payout.nameCheck]?.label },
                     { label: "Message id", value: payout.messageId ? <span className="font-mono">{payout.messageId}</span> : null },
-                    { label: "Bank reference", value: payout.providerReference ? <span className="font-mono">{payout.providerReference}</span> : null },
+                    { label: "Bank reference (FT)", value: payout.providerReference ? <span className="font-mono">{payout.providerReference}</span> : null },
+                    ...(payout.rail === "IPS"
+                      ? [
+                          { label: "IPS transaction id", value: payout.providerTransactionId ? <span className="font-mono text-xs break-all">{payout.providerTransactionId}</span> : null },
+                          { label: "IPS message id", value: payout.providerMessageId ? <span className="font-mono text-xs break-all">{payout.providerMessageId}</span> : null },
+                          { label: "Credited account", value: payout.creditedAccount ? <span className="font-mono">{payout.creditedAccount}</span> : null },
+                          { label: "Settled at the bank", value: formatDateTime(payout.bankSettledAt ?? null) },
+                        ]
+                      : []),
                     { label: "Prepared", value: formatDateTime(payout.createdAt) },
                     { label: "Confirmed", value: formatDateTime(payout.confirmedAt ?? null) },
                     { label: "Paid", value: formatDateTime(payout.paidAt ?? null) },
@@ -383,6 +440,8 @@ function PayoutSheet({ payoutId, onClose, onChanged }: { payoutId: string | null
                   <p className="rounded-lg bg-black/[0.03] p-3 text-sm whitespace-pre-line text-black/70">Settled: {payout.resolutionNote}</p>
                 ) : null}
               </div>
+
+              <BankCalls key={`${payout.disbursementId}-${payout.updatedAt ?? ""}`} payoutId={payout.disbursementId} defaultOpen={payout.status === "PROCESSING"} />
             </>
           ) : null}
         </div>
@@ -427,7 +486,8 @@ function SettleForm({ payout, onSettled }: { payout: Disbursement; onSettled: (p
       <div>
         <p className="text-sm font-semibold text-[#001539]">Settle this payout</p>
         <p className="mt-0.5 text-xs text-black/55">
-          Ask Coop Bank quoting message id <span className="font-mono">{payout.messageId ?? "—"}</span>, then record their answer.
+          Ask Coop Bank quoting message id <span className="font-mono">{payout.messageId ?? "—"}</span>, then record their answer. The
+          bank calls below show what was sent and what came back.
         </p>
       </div>
       {error ? <InlineAlert>{error}</InlineAlert> : null}
@@ -468,5 +528,222 @@ function SettleForm({ payout, onSettled }: { payout: Disbursement; onSettled: (p
         </Button>
       </div>
     </form>
+  );
+}
+
+/** Every call made to the bank for one payout, oldest first. Used when settling a PROCESSING payout. */
+function BankCalls({ payoutId, defaultOpen }: { payoutId: string; defaultOpen: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const { data, error, isLoading } = useResource<BankCall[]>(open ? `${API}/${encodeURIComponent(payoutId)}/bank-calls` : null);
+  const calls = data ?? [];
+
+  return (
+    <div className="space-y-3 border-t border-black/[0.06] pt-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold tracking-wide text-black/45 uppercase">Bank calls</p>
+        <Button variant="ghost" size="sm" onClick={() => setOpen((value) => !value)}>
+          {open ? "Hide" : "Show"}
+        </Button>
+      </div>
+      {open ? (
+        <>
+          {error ? <InlineAlert>{error.message}</InlineAlert> : null}
+          {isLoading && !data ? <p className="text-sm text-black/45">Loading…</p> : null}
+          {data && calls.length === 0 ? <p className="text-sm text-black/45">No calls to the bank yet.</p> : null}
+          <ol className="space-y-2">
+            {calls.map((call) => (
+              <li key={call.callId} className="rounded-lg border border-black/[0.08] p-3 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-[#001539]">{BANK_CALL_OPERATION[call.operation] ?? call.operation}</span>
+                  <Badge tone={BANK_CALL_OUTCOME[call.outcome] ?? "neutral"}>{call.outcome}</Badge>
+                  {call.httpStatus != null ? <span className="font-mono text-xs text-black/50">HTTP {call.httpStatus}</span> : null}
+                  {call.durationMs != null ? <span className="text-xs text-black/50">{call.durationMs} ms</span> : null}
+                  <span className="ml-auto text-xs text-black/50">{formatDateTime(call.at)}</span>
+                </div>
+                {call.messageId ? (
+                  <p className="mt-1 text-xs text-black/55">
+                    Message id <span className="font-mono">{call.messageId}</span>
+                  </p>
+                ) : null}
+                {call.error ? <p className="mt-1 text-xs text-rose-700">{call.error}</p> : null}
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-xs text-black/55">Request and response</summary>
+                  <div className="mt-2 space-y-2">
+                    {call.url ? <p className="font-mono text-xs break-all text-black/55">{call.url}</p> : null}
+                    <JsonBlock label="Request" value={call.request} />
+                    <JsonBlock label="Response" value={call.response} />
+                    {call.correlationId ? (
+                      <p className="text-xs text-black/50">
+                        Correlation id <span className="font-mono">{call.correlationId}</span>
+                      </p>
+                    ) : null}
+                  </div>
+                </details>
+              </li>
+            ))}
+          </ol>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function JsonBlock({ label, value }: { label: string; value: unknown }) {
+  if (value == null || value === "") return null;
+  let text: string;
+  if (typeof value === "string") {
+    try {
+      text = JSON.stringify(JSON.parse(value), null, 2);
+    } catch {
+      text = value;
+    }
+  } else {
+    text = JSON.stringify(value, null, 2);
+  }
+  return (
+    <div>
+      <p className="text-xs font-medium text-black/55">{label}</p>
+      <pre className="mt-1 max-h-60 overflow-auto rounded bg-black/[0.03] p-2 text-xs break-all whitespace-pre-wrap">{text}</pre>
+    </div>
+  );
+}
+
+/** The Zakat and Awqaf accounts payouts are paid from. Each account is looked up with Coop Bank on save. */
+function FundAccountsPanel() {
+  const { data, error, mutate } = useResource<FundAccounts>(`${API}/funds`);
+  const [editing, setEditing] = useState(false);
+  const accounts = data ? [data.zakat, data.waqf] : [];
+
+  return (
+    <Panel
+      title="Fund accounts"
+      description="Payouts are paid from the Zakat or the Awqaf fund, chosen on each payout. A fund with no account can't be paid from."
+      actions={
+        <Button size="sm" variant="outline" onClick={() => setEditing(true)} disabled={!data}>
+          <Pencil />
+          Edit
+        </Button>
+      }
+    >
+      {error ? <InlineAlert>{error.message}</InlineAlert> : null}
+      {!data && !error ? <p className="text-sm text-black/45">Loading…</p> : null}
+      {data ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {accounts.map((account) => (
+            <div key={account.fund} className="rounded-xl border border-black/[0.08] p-4">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-[#001539]">{account.label ?? fundLabel(account.fund)} fund</p>
+                <Badge tone={account.ready ? "success" : "warning"}>{account.ready ? "Ready" : "Not set"}</Badge>
+              </div>
+              <p className="mt-2 font-mono text-sm text-[#001539]">{account.accountNumber ?? "—"}</p>
+              <p className="mt-0.5 text-xs text-black/55">
+                {account.accountName || account.bankHolderName || "No name"}
+                {account.bankHolderName && account.accountName && account.bankHolderName !== account.accountName
+                  ? ` (bank: ${account.bankHolderName})`
+                  : ""}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {data?.updatedAt ? <p className="mt-3 text-xs text-black/45">Last changed {formatDateTime(data.updatedAt)}</p> : null}
+      {editing && data ? (
+        <FundAccountsDialog
+          accounts={data}
+          onClose={() => setEditing(false)}
+          onSaved={(next) => {
+            mutate(next);
+            setEditing(false);
+          }}
+        />
+      ) : null}
+    </Panel>
+  );
+}
+
+function FundAccountsDialog({
+  accounts,
+  onClose,
+  onSaved,
+}: {
+  accounts: FundAccounts;
+  onClose: () => void;
+  onSaved: (accounts: FundAccounts) => void;
+}) {
+  const initial = (account: FundAccount) => ({ accountNumber: account.accountNumber ?? "", accountName: account.accountName ?? "" });
+  const [form, setForm] = useState({ zakat: initial(accounts.zakat), waqf: initial(accounts.waqf) });
+  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [isSaving, setIsSaving] = useState(false);
+
+  function set(fund: "zakat" | "waqf", key: "accountNumber" | "accountName", value: string) {
+    setForm((prev) => ({ ...prev, [fund]: { ...prev[fund], [key]: value } }));
+  }
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setFieldErrors({});
+    setIsSaving(true);
+    try {
+      // Both funds are always sent: a fund left out or with a blank account is cleared.
+      const trim = (value: { accountNumber: string; accountName: string }) => ({
+        accountNumber: value.accountNumber.trim(),
+        accountName: value.accountName.trim(),
+      });
+      const saved = await apiClient<FundAccounts>(`${API}/funds`, {
+        method: "PUT",
+        body: JSON.stringify({ zakat: trim(form.zakat), waqf: trim(form.waqf) }),
+      });
+      onSaved(saved);
+    } catch (saveError) {
+      setError(saveError instanceof ApiError ? payoutErrorMessage(saveError.code, saveError.message) : "Couldn't save the fund accounts");
+      if (saveError instanceof ApiError) setFieldErrors(fieldErrorMap(saveError.errors));
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(value) => !value && onClose()}>
+      <DialogContent className="max-w-lg">
+        <form onSubmit={onSubmit} className="space-y-4">
+          <DialogHeader>
+            <DialogTitle className="text-[#001539]">Fund accounts</DialogTitle>
+            <DialogDescription>
+              Each account is looked up with Coop Bank. Leave a number blank to clear that fund. The name is sent to the bank as the payer
+              name; if blank, the bank&apos;s own name for the account is used.
+            </DialogDescription>
+          </DialogHeader>
+          {error ? <InlineAlert>{error}</InlineAlert> : null}
+          {(["zakat", "waqf"] as const).map((key) => (
+            <fieldset key={key} className="grid gap-3 sm:grid-cols-2">
+              <legend className="mb-2 text-sm font-semibold text-[#001539]">{key === "zakat" ? "Zakat" : "Awqaf"} fund</legend>
+              <FormField label="Account number" htmlFor={`fund-${key}-number`} error={fieldErrors[`${key}.accountNumber`] ?? fieldErrors[key]}>
+                <Input
+                  id={`fund-${key}-number`}
+                  inputMode="numeric"
+                  value={form[key].accountNumber}
+                  onChange={(e) => set(key, "accountNumber", e.target.value)}
+                  className="font-mono"
+                />
+              </FormField>
+              <FormField label="Account name" htmlFor={`fund-${key}-name`} hint="Optional" error={fieldErrors[`${key}.accountName`]}>
+                <Input id={`fund-${key}-name`} value={form[key].accountName} onChange={(e) => set(key, "accountName", e.target.value)} />
+              </FormField>
+            </fieldset>
+          ))}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSaving}>
+              <Save />
+              {isSaving ? "Checking with the bank…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

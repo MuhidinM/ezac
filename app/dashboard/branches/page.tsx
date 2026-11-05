@@ -28,6 +28,7 @@ import {
 import type { BranchCreateResponse, BranchListItem, PaginatedItems } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
 import { ETHIOPIAN_REGIONS } from "@/lib/constants/regions";
+import { branchContact } from "@/lib/branches/contact";
 
 const PAGE_SIZE = 20;
 
@@ -69,7 +70,7 @@ function Branches() {
     <section className="space-y-6">
       {credentials ? (
         <CredentialsOnceDialog
-          login={credentials.branchPhone ?? ""}
+          login={branchContact(credentials).phone ?? ""}
           initialPassword={credentials.initialPassword}
           passwordChangeRequired={credentials.passwordChangeRequired}
           onClose={() => {
@@ -193,8 +194,8 @@ function Branches() {
                     {[item.woreda, item.zone, item.region].filter(Boolean).join(", ") || "—"}
                   </TableCell>
                   <TableCell>
-                    <p className="text-sm text-[#001539]">{item.officerName ?? item.branchFullName ?? "—"}</p>
-                    <p className="text-xs text-black/50 tabular-nums">{item.branchPhone ?? ""}</p>
+                    <p className="text-sm text-[#001539]">{branchContact(item).fullName ?? "—"}</p>
+                    <p className="text-xs text-black/50 tabular-nums">{branchContact(item).phone ?? ""}</p>
                   </TableCell>
                   <TableCell>
                     <CodeStatsInline stats={item.codeStats} />

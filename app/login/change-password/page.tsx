@@ -43,7 +43,7 @@ export default function ChangePasswordPage() {
             Change your password
           </h1>
           <p className="mt-1 text-sm text-black/60">
-            Your account requires a new password before you can continue.
+            You signed in with a temporary password. Choose your own password to continue; you only need to do this once.
           </p>
 
           <Suspense

@@ -1,12 +1,73 @@
 import type { BadgeTone } from "@/components/ui/badge";
 
-/** Payouts from the commission account to pooled households (WEB-ADMIN-ZAKAT-GUIDE §11). */
+/** Payouts from the Zakat or Awqaf fund account to pooled households (WEB-ADMIN-ZAKAT-GUIDE §11). */
 
 export type DisbursementStatus = "AWAITING_CONFIRMATION" | "PROCESSING" | "SUCCEEDED" | "FAILED" | "CANCELLED" | "EXPIRED";
 
 export type NameCheck = "MATCH" | "MISMATCH" | "NOT_CHECKED";
 
 export type Rail = "COOP" | "IPS";
+
+/** The fund a payout is paid from, chosen on each payout. */
+export type Fund = "ZAKAT" | "WAQF";
+
+export const FUNDS: { value: Fund; label: string }[] = [
+  { value: "ZAKAT", label: "Zakat" },
+  { value: "WAQF", label: "Awqaf" },
+];
+
+export function fundLabel(fund: Fund | null | undefined) {
+  return FUNDS.find((item) => item.value === fund)?.label ?? fund ?? "—";
+}
+
+export type FundAccount = {
+  fund: Fund;
+  label: string;
+  accountNumber: string | null;
+  accountName: string | null;
+  /** The name Coop Bank gives for the account; used when accountName is blank. */
+  bankHolderName: string | null;
+  ready: boolean;
+};
+
+export type FundAccounts = {
+  zakat: FundAccount;
+  waqf: FundAccount;
+  updatedBy?: string | null;
+  updatedAt?: string | null;
+};
+
+export type BankCallOperation = "VERIFY_ACCOUNT" | "TRANSFER" | "PUSH_PAYMENT";
+export type BankCallOutcome = "SUCCESS" | "DECLINED" | "UNKNOWN" | "ERROR";
+
+/** One call made to the bank for a payout (account numbers masked). */
+export type BankCall = {
+  callId: string;
+  operation: BankCallOperation;
+  url?: string | null;
+  messageId?: string | null;
+  httpStatus?: number | null;
+  outcome: BankCallOutcome;
+  durationMs?: number | null;
+  request?: unknown;
+  response?: unknown;
+  error?: string | null;
+  correlationId?: string | null;
+  at: string;
+};
+
+export const BANK_CALL_OUTCOME: Record<BankCallOutcome, BadgeTone> = {
+  SUCCESS: "success",
+  DECLINED: "danger",
+  UNKNOWN: "warning",
+  ERROR: "danger",
+};
+
+export const BANK_CALL_OPERATION: Record<BankCallOperation, string> = {
+  VERIFY_ACCOUNT: "Account lookup",
+  TRANSFER: "Coop transfer",
+  PUSH_PAYMENT: "IPS payment",
+};
 
 export type Disbursement = {
   disbursementId: string;
@@ -27,12 +88,19 @@ export type Disbursement = {
   accountHolderName?: string | null;
   verifiedName?: string | null;
   nameCheck: NameCheck;
+  fund?: Fund | null;
   debitAccount?: string | null;
   debitAccountName?: string | null;
   amountEtb: number;
   note?: string | null;
   messageId?: string | null;
+  /** The bank's FT number. */
   providerReference?: string | null;
+  /** IPS payouts only: extra references returned by the bank. */
+  providerTransactionId?: string | null;
+  providerMessageId?: string | null;
+  creditedAccount?: string | null;
+  bankSettledAt?: string | null;
   failureReason?: string | null;
   resolvedBy?: string | null;
   resolutionNote?: string | null;
@@ -55,6 +123,7 @@ export type DisbursementSummary = {
   succeededAmountEtb: number;
   needsChecking: number;
   byStatus: { status: DisbursementStatus; count: number; amountEtb: number }[];
+  paidByFund?: { fund: Fund; count: number; amountEtb: number }[];
 };
 
 export const DISBURSEMENT_STATUSES: { value: DisbursementStatus; label: string; tone: BadgeTone }[] = [
@@ -91,7 +160,9 @@ const ERROR_MESSAGES: Record<string, string> = {
   AMOUNT_OUT_OF_RANGE: "The amount is above the maximum payout.",
   NAME_MISMATCH_NOT_ACKNOWLEDGED: "Tick the box to confirm you checked the names.",
   PAYOUT_EXPIRED: "This payout wasn't confirmed within 15 minutes. Prepare it again.",
-  PAYMENTS_UNAVAILABLE: "The commission account isn't set up. Check Zakat settings.",
+  IDEMPOTENCY_KEY_REUSED: "This payout request was already used for a different payout. Close the dialog and start again.",
+  FUND_ACCOUNT_NOT_SET: "The chosen fund has no account set, or it changed. Set the fund accounts on the Payouts page and prepare again.",
+  PAYMENTS_UNAVAILABLE: "The fund account isn't set up. Set the fund accounts on the Payouts page.",
   BANK_UNAVAILABLE: "The bank can't be reached right now. Try again shortly.",
 };
 

@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { apiClient } from "@/lib/api/client";
 import { ApiError, errorMessage, fieldErrorMap } from "@/lib/api/errors";
 import type { Branch } from "@/lib/api/types";
+import { branchContact } from "@/lib/branches/contact";
 
 /** Edit branch details. Region and the officer's phone (their login) are fixed. */
 export function EditBranchDialog({
@@ -34,8 +35,8 @@ export function EditBranchDialog({
     name: branch.name ?? "",
     zone: branch.zone ?? "",
     woreda: branch.woreda ?? "",
-    officerFullName: branch.officerName ?? branch.branchFullName ?? "",
-    officerEmail: branch.branchEmail ?? "",
+    officerFullName: branchContact(branch).fullName ?? "",
+    officerEmail: branchContact(branch).email ?? "",
   };
   const [form, setForm] = useState(initial);
   const [error, setError] = useState<string | null>(null);
@@ -88,7 +89,7 @@ export function EditBranchDialog({
           <DialogHeader>
             <DialogTitle className="text-[#001539]">Edit branch</DialogTitle>
             <DialogDescription>
-              The region ({branch.region ?? "—"}) and the officer&apos;s login phone ({branch.branchPhone ?? "—"}) can&apos;t be changed.
+              The region ({branch.region ?? "—"}) and the officer&apos;s login phone ({branchContact(branch).phone ?? "—"}) can&apos;t be changed.
             </DialogDescription>
           </DialogHeader>
           {error ? <InlineAlert>{error}</InlineAlert> : null}

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from "@/lib/auth/constants";
+import { ACCESS_TOKEN_COOKIE, PASSWORD_CHANGE_COOKIE, REFRESH_TOKEN_COOKIE } from "@/lib/auth/constants";
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -17,11 +17,18 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // An account with a temporary password can't use the dashboard until it sets its own.
+  if (pathname.startsWith("/dashboard") && request.cookies.get(PASSWORD_CHANGE_COOKIE)?.value) {
+    const changeUrl = new URL("/login/change-password", request.url);
+    changeUrl.searchParams.set("redirect", pathname);
+    return NextResponse.redirect(changeUrl);
+  }
+
   if (pathname === "/login/change-password" && !accessToken) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  if ((pathname === "/login" || pathname === "/login/") && accessToken) {
+  if ((pathname === "/login" || pathname === "/login/") && accessToken && !request.cookies.get(PASSWORD_CHANGE_COOKIE)?.value) {
     const redirectTo = request.nextUrl.searchParams.get("redirect");
     const destination =
       redirectTo && redirectTo.startsWith("/dashboard")

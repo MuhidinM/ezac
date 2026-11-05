@@ -5,6 +5,7 @@ import { getApiBaseUrl } from "@/lib/api/config";
 import type { MeProfile, SessionInfo } from "@/lib/api/types";
 import {
   ACCESS_TOKEN_COOKIE,
+  PASSWORD_CHANGE_COOKIE,
   REFRESH_TOKEN_COOKIE,
   filterAppRoles,
   hasStaffRole,
@@ -47,11 +48,17 @@ export function shouldUseSecureCookies(request: Request): boolean {
 
 export async function setAuthCookies(
   tokens: AuthTokens,
-  options?: { secure?: boolean },
+  options?: { secure?: boolean; passwordChangeRequired?: boolean },
 ): Promise<void> {
   const cookieStore = await cookies();
   const secure = options?.secure ?? false;
   const cookieOptions = { ...BASE_COOKIE_OPTIONS, secure };
+
+  if (options?.passwordChangeRequired) {
+    cookieStore.set(PASSWORD_CHANGE_COOKIE, "1", { ...cookieOptions, maxAge: 60 * 60 * 24 * 7 });
+  } else if (options?.passwordChangeRequired === false) {
+    cookieStore.delete(PASSWORD_CHANGE_COOKIE);
+  }
 
   cookieStore.set(ACCESS_TOKEN_COOKIE, tokens.accessToken, {
     ...cookieOptions,
@@ -68,6 +75,7 @@ export async function clearAuthCookies(): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.delete(ACCESS_TOKEN_COOKIE);
   cookieStore.delete(REFRESH_TOKEN_COOKIE);
+  cookieStore.delete(PASSWORD_CHANGE_COOKIE);
 }
 
 /** Refresh this long before expiry so a request never starts with a dying token. */
