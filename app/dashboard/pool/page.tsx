@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Banknote, CheckCheck, CornerUpLeft, MinusCircle, RefreshCw, SlidersHorizontal, X, XCircle } from "lucide-react";
 
 import { PoolStatusBadge, RiskBadge, ScoreMeter, WhitelistBadge } from "@/components/backoffice/status-badges";
+import { VerificationStatusBadge } from "@/components/beneficiary/verification-status-badge";
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
-import { PayoutDialog } from "@/components/disbursements/payout-dialog";
+import { PayoutDialog, isExpired, useNow } from "@/components/disbursements/payout-dialog";
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { ListPagination } from "@/components/dashboard/list-pagination";
@@ -27,17 +28,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { PoolEntry } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
-import type { BranchListItem, PaginatedItems } from "@/lib/api/types";
+import type { BranchListItem, PaginatedItems, VerificationStatus } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
 import { ASNAF } from "@/lib/backoffice/options";
 import { formatDateTime } from "@/lib/beneficiary/format";
 import { ETHIOPIAN_REGIONS } from "@/lib/constants/regions";
 import { cn } from "@/lib/utils";
+import type { Disbursement } from "@/lib/zakat/disbursements";
 
 const API = "/bff/backoffice/admin/pool";
+const PAYOUTS_API = "/bff/payments-admin/disbursements";
 const PAGE_SIZE = 25;
+const SCORE_MAX = 270;
 
 type View = "awaiting" | "pooled";
 type RowAction = "decline" | "send-back" | "remove";
@@ -68,25 +73,57 @@ const EMPTY: Filters = {
   order: "desc",
 };
 
-const ACTION_COPY: Record<RowAction, { title: string; description: string; confirm: string; destructive?: boolean }> = {
-  decline: {
-    title: "Decline from the pool",
-    description: "The household is not pooled this time and goes back to Assessed. A new assessment can start later.",
-    confirm: "Decline",
-    destructive: true,
-  },
-  "send-back": {
-    title: "Send back to the branch",
-    description: "The assessment becomes Returned so the officer can correct it; after the branch approves again it comes back here.",
-    confirm: "Send back",
-  },
-  remove: {
-    title: "Remove from the pool",
-    description: "The household leaves the disbursement pool and goes back to Assessed.",
-    confirm: "Remove",
-    destructive: true,
-  },
-};
+/** Checked here so a bad range never reaches the server, which answers with a raw validation message. */
+function checkFilters(filters: Filters) {
+  const errors: { score?: string; approved?: string } = {};
+  const scores = [filters.scoreMin, filters.scoreMax].map((value) => (value.trim() === "" ? null : Number(value)));
+  const [min, max] = scores;
+  if (scores.some((value) => value !== null && (!Number.isFinite(value) || value < 0 || value > SCORE_MAX))) {
+    errors.score = `Enter scores from 0 to ${SCORE_MAX}. The score filter isn't applied until then.`;
+  } else if (min !== null && max !== null && min > max) {
+    errors.score = "The lowest score can't be above the highest. The score filter isn't applied until you fix it.";
+  }
+  if (filters.approvedFrom && filters.approvedTo && filters.approvedFrom > filters.approvedTo) {
+    errors.approved = "The start date can't be after the end date. The date filter isn't applied until you fix it.";
+  }
+  return errors;
+}
+
+type ActionCopy = { title: string; description: string; confirm: string; destructive?: boolean };
+
+/** What happens after Decline or Remove differs for a fast-track entry, which has no assessment to fall back to. */
+function actionCopy(kind: RowAction, source: PoolEntry["source"]): ActionCopy {
+  const whitelist = source === "WHITELIST";
+  const afterWhitelist =
+    "Its fast-track entry stays on the whitelist but won't come back to this list. To queue it again, the entry has to be revoked and a new request approved.";
+  const afterAssessment = "To be pooled again it needs a new assessment and branch approval.";
+  switch (kind) {
+    case "decline":
+      return {
+        title: "Decline from the pool",
+        description: whitelist
+          ? `The household is not pooled and goes back to Pending assessment. ${afterWhitelist}`
+          : `The household is not pooled this time and goes back to Assessed. ${afterAssessment}`,
+        confirm: "Decline",
+        destructive: true,
+      };
+    case "send-back":
+      return {
+        title: "Send back to the branch",
+        description: "The assessment becomes Returned so the officer can correct it; after the branch approves again it comes back here.",
+        confirm: "Send back",
+      };
+    case "remove":
+      return {
+        title: "Remove from the pool",
+        description: whitelist
+          ? `The household leaves the disbursement pool and goes back to Pending assessment. ${afterWhitelist}`
+          : `The household leaves the disbursement pool and goes back to Assessed. ${afterAssessment}`,
+        confirm: "Remove",
+        destructive: true,
+      };
+  }
+}
 
 function rowKey(entry: PoolEntry) {
   return entry.source === "WHITELIST" ? `w:${entry.whitelistEntryId}` : `a:${entry.assessmentId}`;
@@ -96,6 +133,57 @@ function actionPath(entry: PoolEntry, action: RowAction) {
   return entry.source === "WHITELIST"
     ? `${API}/whitelist/${encodeURIComponent(entry.whitelistEntryId ?? "")}/${action}`
     : `${API}/${encodeURIComponent(entry.assessmentId ?? "")}/${action}`;
+}
+
+/** undefined: still checking; null: the check failed. */
+type Verification = VerificationStatus | null | undefined;
+
+/**
+ * The verification state of each household on the page. Pool rows don't carry it yet,
+ * so each household is read once per page load. Earlier results stay while a reload runs.
+ */
+function useVerification(page: PaginatedItems<PoolEntry> | undefined) {
+  const [statuses, setStatuses] = useState<Record<string, VerificationStatus | null>>({});
+  useEffect(() => {
+    if (!page?.items.length) return;
+    let cancelled = false;
+    const ids = [...new Set(page.items.map((row) => row.beneficiaryId))];
+    void Promise.all(
+      ids.map((id) =>
+        apiClient<{ verificationStatus?: VerificationStatus | null }>(`/bff/beneficiaries/${encodeURIComponent(id)}`).then(
+          (detail) => [id, detail.verificationStatus ?? null] as const,
+          () => [id, null] as const,
+        ),
+      ),
+    ).then((entries) => {
+      if (!cancelled) setStatuses((prev) => ({ ...prev, ...Object.fromEntries(entries) }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [page]);
+  return (beneficiaryId: string): Verification => statuses[beneficiaryId];
+}
+
+/** Why a row can't be pooled, or null when it can. */
+function poolBlock(entry: PoolEntry, verification: Verification) {
+  if (verification === undefined) return "Checking whether the household is verified…";
+  const reasons: string[] = [];
+  if (verification === null) reasons.push("Couldn't check whether the household is verified. Refresh to try again.");
+  else if (verification !== "verified") reasons.push("Not verified yet. Verify the household before pooling it.");
+  if (!entry.bankAccount?.accountNumber) reasons.push("No bank account on file. Add one before pooling.");
+  return reasons.length ? reasons.join(" ") : null;
+}
+
+/** The prepared or needs-checking payout of a pooled row, if any. */
+function openPayoutOf(entry: PoolEntry, payouts: Disbursement[]) {
+  return (
+    payouts.find((payout) =>
+      entry.source === "WHITELIST"
+        ? payout.whitelistEntryId != null && String(payout.whitelistEntryId) === String(entry.whitelistEntryId)
+        : payout.assessmentId != null && String(payout.assessmentId) === String(entry.assessmentId),
+    ) ?? null
+  );
 }
 
 export default function PoolPage() {
@@ -114,14 +202,19 @@ function Pool() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [poolOpen, setPoolOpen] = useState(false);
+  // The rows the open "Pool" dialog is about, fixed when it opens so a reload can't empty it.
+  const [poolTargets, setPoolTargets] = useState<PoolEntry[]>([]);
   const [action, setAction] = useState<{ entry: PoolEntry; kind: RowAction } | null>(null);
   const [paying, setPaying] = useState<PoolEntry | null>(null);
   const [reason, setReason] = useState("");
 
+  const filterErrors = checkFilters(filters);
   const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
   for (const [key, value] of Object.entries(filters)) {
     if (!value) continue;
     if ((key === "sort" && value === "priority") || (key === "order" && value === "desc")) continue;
+    if (filterErrors.score && (key === "scoreMin" || key === "scoreMax")) continue;
+    if (filterErrors.approved && (key === "approvedFrom" || key === "approvedTo")) continue;
     params.set(key, value);
   }
   const path = view === "awaiting" ? `${API}/awaiting` : API;
@@ -129,13 +222,36 @@ function Pool() {
   const { data: branches } = useResource<PaginatedItems<BranchListItem>>(
     showFilters ? "/bff/admin/branches?page=1&limit=100" : null,
   );
+  const verificationOf = useVerification(data);
+
+  // Open payouts, so a pooled row can point to its payout instead of offering Pay again. The pool
+  // rows don't say this yet. `from` is set wide so an old payout that needs checking still shows.
+  const openPayoutsQuery = `from=${encodeURIComponent("2020-01-01T00:00:00+03:00")}&page=1&limit=100`;
+  const preparedPayouts = useResource<PaginatedItems<Disbursement>>(
+    view === "pooled" ? `${PAYOUTS_API}?status=AWAITING_CONFIRMATION&${openPayoutsQuery}` : null,
+  );
+  const checkingPayouts = useResource<PaginatedItems<Disbursement>>(
+    view === "pooled" ? `${PAYOUTS_API}?status=PROCESSING&${openPayoutsQuery}` : null,
+  );
+  const now = useNow(30_000);
+  const openPayouts = [
+    ...(preparedPayouts.data?.items ?? []).filter((payout) => !isExpired(payout, now)),
+    ...(checkingPayouts.data?.items ?? []),
+  ];
 
   const rows = useMemo(() => data?.items ?? [], [data]);
-  const selectedRows = rows.filter((row) => selected.has(rowKey(row)));
-  const allSelected = rows.length > 0 && selectedRows.length === rows.length;
+  const selectable = view === "awaiting" ? rows.filter((row) => !poolBlock(row, verificationOf(row.beneficiaryId))) : [];
+  const selectedRows = selectable.filter((row) => selected.has(rowKey(row)));
+  const allSelected = selectable.length > 0 && selectedRows.length === selectable.length;
   const activeFilters = (["branchId", "region", "riskCategory", "scoreMin", "scoreMax", "asnaf", "approvedFrom", "approvedTo"] as const).filter(
     (key) => filters[key],
   ).length;
+
+  function reloadAll() {
+    reload();
+    preparedPayouts.reload();
+    checkingPayouts.reload();
+  }
 
   function update<K extends keyof Filters>(key: K, value: Filters[K]) {
     setPage(1);
@@ -161,13 +277,15 @@ function Pool() {
     });
   }
 
+  const actionText = action ? actionCopy(action.kind, action.entry.source) : null;
+
   return (
     <section className="space-y-6">
       <PageHeader
         title="Disbursement pool"
         description="Branch-approved households and fast-track whitelist entries wait here. Pool them to make them active for the next disbursement; fast track comes first, then priority, then the highest score."
         actions={
-          <Button variant="outline" onClick={reload} disabled={isLoading}>
+          <Button variant="outline" onClick={reloadAll} disabled={isLoading}>
             <RefreshCw />
             Refresh
           </Button>
@@ -271,18 +389,18 @@ function Pool() {
                 ))}
               </NativeSelect>
             </FormField>
-            <FormField label="Score (0–270)" htmlFor="p-min">
+            <FormField label={`Score (0–${SCORE_MAX})`} htmlFor="p-min" error={filterErrors.score}>
               <div className="flex items-center gap-2">
-                <Input id="p-min" type="number" min={0} max={270} placeholder="Min" value={filters.scoreMin} onChange={(e) => update("scoreMin", e.target.value)} className="bg-white" />
+                <Input id="p-min" type="number" min={0} max={SCORE_MAX} placeholder="Min" value={filters.scoreMin} onChange={(e) => update("scoreMin", e.target.value)} aria-invalid={filterErrors.score ? true : undefined} className="bg-white" />
                 <span className="text-black/40">–</span>
-                <Input type="number" min={0} max={270} placeholder="Max" aria-label="Maximum score" value={filters.scoreMax} onChange={(e) => update("scoreMax", e.target.value)} className="bg-white" />
+                <Input type="number" min={0} max={SCORE_MAX} placeholder="Max" aria-label="Maximum score" value={filters.scoreMax} onChange={(e) => update("scoreMax", e.target.value)} aria-invalid={filterErrors.score ? true : undefined} className="bg-white" />
               </div>
             </FormField>
-            <FormField label="Approved between" htmlFor="p-from" className="lg:col-span-2">
+            <FormField label="Approved between" htmlFor="p-from" className="lg:col-span-2" error={filterErrors.approved}>
               <div className="flex items-center gap-2">
-                <Input id="p-from" type="date" value={filters.approvedFrom} onChange={(e) => update("approvedFrom", e.target.value)} className="bg-white" />
+                <Input id="p-from" type="date" value={filters.approvedFrom} onChange={(e) => update("approvedFrom", e.target.value)} aria-invalid={filterErrors.approved ? true : undefined} className="bg-white" />
                 <span className="text-black/40">–</span>
-                <Input type="date" aria-label="Approved to" value={filters.approvedTo} onChange={(e) => update("approvedTo", e.target.value)} className="bg-white" />
+                <Input type="date" aria-label="Approved to" value={filters.approvedTo} onChange={(e) => update("approvedTo", e.target.value)} aria-invalid={filterErrors.approved ? true : undefined} className="bg-white" />
               </div>
             </FormField>
           </div>
@@ -297,7 +415,13 @@ function Pool() {
               <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
                 Clear selection
               </Button>
-              <Button size="sm" onClick={() => setPoolOpen(true)}>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setPoolTargets(selectedRows);
+                  setPoolOpen(true);
+                }}
+              >
                 <CheckCheck />
                 Pool selected
               </Button>
@@ -318,10 +442,11 @@ function Pool() {
                 <TableHead className="w-10 pl-5">
                   <input
                     type="checkbox"
-                    aria-label="Select all on this page"
+                    aria-label="Select all that can be pooled on this page"
                     checked={allSelected}
-                    onChange={() => setSelected(allSelected ? new Set() : new Set(rows.map(rowKey)))}
-                    className="size-4 accent-[#007050]"
+                    disabled={selectable.length === 0}
+                    onChange={() => setSelected(allSelected ? new Set() : new Set(selectable.map(rowKey)))}
+                    className="size-4 accent-[#007050] disabled:cursor-not-allowed disabled:opacity-40"
                   />
                 </TableHead>
               ) : null}
@@ -329,6 +454,7 @@ function Pool() {
               <TableHead>Branch</TableHead>
               <TableHead>Score</TableHead>
               <TableHead>{view === "awaiting" ? "Approved" : "Pooled"}</TableHead>
+              <TableHead>Verification</TableHead>
               <TableHead>Bank account</TableHead>
               <TableHead className="pr-5 text-right">
                 <span className="sr-only">Actions</span>
@@ -337,26 +463,49 @@ function Pool() {
           </TableHeader>
           <TableBody>
             {isLoading && rows.length === 0 ? (
-              <TableSkeletonRows colSpan={7} />
+              <TableSkeletonRows colSpan={8} />
             ) : rows.length === 0 ? (
-              <TableMessageRow colSpan={7}>
+              <TableMessageRow colSpan={8}>
                 {view === "awaiting" ? "Nothing is waiting to be pooled." : "The pool is empty."}
               </TableMessageRow>
             ) : (
               rows.map((entry) => {
                 const key = rowKey(entry);
-                const isSelected = selected.has(key);
+                const name = entry.fullName ?? "household";
+                const verification = verificationOf(entry.beneficiaryId);
+                const block = view === "awaiting" ? poolBlock(entry, verification) : null;
+                const isSelected = !block && selected.has(key);
+                const payout = view === "pooled" && entry.poolStatus !== "DISBURSED" ? openPayoutOf(entry, openPayouts) : null;
                 return (
                   <TableRow key={key} className={cn(isSelected && "bg-[#007050]/[0.04]")}>
                     {view === "awaiting" ? (
                       <TableCell className="pl-5">
-                        <input
-                          type="checkbox"
-                          aria-label={`Select ${entry.fullName ?? "household"}`}
-                          checked={isSelected}
-                          onChange={() => toggle(entry)}
-                          className="size-4 accent-[#007050]"
-                        />
+                        {block ? (
+                          // Disabled inputs get no pointer events, so the wrapper carries the tooltip.
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-flex cursor-not-allowed">
+                                <input
+                                  type="checkbox"
+                                  aria-label={`Can't select ${name}. ${block}`}
+                                  checked={false}
+                                  disabled
+                                  readOnly
+                                  className="size-4 accent-[#007050] disabled:opacity-40"
+                                />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>{block}</TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${name}`}
+                            checked={isSelected}
+                            onChange={() => toggle(entry)}
+                            className="size-4 accent-[#007050]"
+                          />
+                        )}
                       </TableCell>
                     ) : null}
                     <TableCell className={view === "awaiting" ? undefined : "pl-5"}>
@@ -366,6 +515,11 @@ function Pool() {
                         </Link>
                         <WhitelistBadge effect={entry.whitelistEffect} />
                         {entry.source === "WHITELIST" ? <Badge tone="neutral">No assessment yet</Badge> : null}
+                        {payout ? (
+                          <Badge tone={payout.status === "PROCESSING" ? "warning" : "info"}>
+                            {payout.status === "PROCESSING" ? "Payout needs checking" : "Payout prepared"}
+                          </Badge>
+                        ) : null}
                       </div>
                       <p className="text-xs text-black/50">
                         {entry.assessmentId ? (
@@ -390,6 +544,15 @@ function Pool() {
                     </TableCell>
                     <TableCell className="text-sm text-black/65">
                       {formatDateTime((view === "awaiting" ? entry.approvedAt : entry.poolStatusAt) ?? null)}
+                    </TableCell>
+                    <TableCell>
+                      {verification === undefined ? (
+                        <span className="text-sm text-black/40">Checking…</span>
+                      ) : verification === null ? (
+                        <span className="text-sm text-amber-700">Couldn&apos;t check</span>
+                      ) : (
+                        <VerificationStatusBadge status={verification} />
+                      )}
                     </TableCell>
                     <TableCell>
                       {entry.bankAccount?.accountNumber ? (
@@ -424,6 +587,27 @@ function Pool() {
                             <PoolStatusBadge status="DISBURSED" />
                             {entry.poolStatusReason ? <p className="mt-1 text-xs text-black/50">{entry.poolStatusReason}</p> : null}
                           </div>
+                        ) : payout ? (
+                          // A payout is open: it is finished on the Payouts page, and the household can't leave the pool meanwhile.
+                          <>
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={`/dashboard/disbursements?open=${encodeURIComponent(payout.disbursementId)}`}>
+                                <Banknote />
+                                Open payout
+                              </Link>
+                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-flex cursor-not-allowed">
+                                  <Button variant="ghost" size="sm" className="text-rose-700" disabled aria-label={`Remove ${name}: not while a payout is open`}>
+                                    <MinusCircle />
+                                    Remove
+                                  </Button>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>A payout is open for this household. Pay, cancel or settle it first.</TooltipContent>
+                            </Tooltip>
+                          </>
                         ) : (
                           <>
                             <Button
@@ -468,12 +652,15 @@ function Pool() {
         <PayoutDialog
           key={rowKey(paying)}
           entry={paying}
-          onClose={() => setPaying(null)}
+          onClose={() => {
+            setPaying(null);
+            reloadAll();
+          }}
           onFinished={(payout) => {
             if (payout.status === "SUCCEEDED") {
               setNotice({ tone: "success", text: `Paid ${paying.fullName ?? "household"}. They have left the pool.` });
             }
-            reload();
+            reloadAll();
           }}
         />
       ) : null}
@@ -481,12 +668,13 @@ function Pool() {
       <ConfirmDialog
         open={poolOpen}
         onOpenChange={setPoolOpen}
-        title={`Pool ${selectedRows.length} household${selectedRows.length === 1 ? "" : "s"}?`}
+        title={`Pool ${poolTargets.length} household${poolTargets.length === 1 ? "" : "s"}?`}
         description="They become Active and are included in the next disbursement. It's all or nothing: if one of them was changed meanwhile, nothing is pooled and the list reloads."
         confirmLabel="Pool"
+        confirmDisabled={poolTargets.length === 0}
         onConfirm={async () => {
-          const assessmentIds = selectedRows.filter((row) => row.source === "ASSESSMENT").map((row) => row.assessmentId!);
-          const whitelistEntryIds = selectedRows.filter((row) => row.source === "WHITELIST").map((row) => row.whitelistEntryId!);
+          const assessmentIds = poolTargets.filter((row) => row.source === "ASSESSMENT").map((row) => row.assessmentId!);
+          const whitelistEntryIds = poolTargets.filter((row) => row.source === "WHITELIST").map((row) => row.whitelistEntryId!);
           try {
             await apiClient(API, {
               method: "POST",
@@ -495,11 +683,14 @@ function Pool() {
                 ...(whitelistEntryIds.length ? { whitelistEntryIds } : {}),
               }),
             });
-            setNotice({ tone: "success", text: `${selectedRows.length} household${selectedRows.length === 1 ? "" : "s"} pooled.` });
-          } finally {
-            setSelected(new Set());
-            reload();
+          } catch (poolError) {
+            // Keep the selection so the admin can see what failed; the dialog shows the error.
+            reloadAll();
+            throw poolError;
           }
+          setNotice({ tone: "success", text: `${poolTargets.length} household${poolTargets.length === 1 ? "" : "s"} pooled.` });
+          setSelected(new Set());
+          reloadAll();
         }}
       />
 
@@ -511,26 +702,26 @@ function Pool() {
             setReason("");
           }
         }}
-        title={action ? ACTION_COPY[action.kind].title : ""}
+        title={actionText?.title ?? ""}
         description={
-          action ? (
+          action && actionText ? (
             <>
-              <strong>{action.entry.fullName ?? "This household"}</strong>. {ACTION_COPY[action.kind].description}
+              <strong>{action.entry.fullName ?? "This household"}</strong>. {actionText.description}
             </>
           ) : undefined
         }
-        confirmLabel={action ? ACTION_COPY[action.kind].confirm : "Confirm"}
-        destructive={action ? ACTION_COPY[action.kind].destructive : false}
+        confirmLabel={actionText?.confirm ?? "Confirm"}
+        destructive={actionText?.destructive ?? false}
         confirmDisabled={!reason.trim()}
         onConfirm={async () => {
-          if (!action) return;
+          if (!action || !actionText) return;
           await apiClient(actionPath(action.entry, action.kind), {
             method: "POST",
             body: JSON.stringify({ reason: reason.trim() }),
           });
-          setNotice({ tone: "success", text: `${ACTION_COPY[action.kind].confirm}: ${action.entry.fullName ?? "household"}.` });
+          setNotice({ tone: "success", text: `${actionText.confirm}: ${action.entry.fullName ?? "household"}.` });
           setReason("");
-          reload();
+          reloadAll();
         }}
       >
         <FormField label="Reason" htmlFor="pool-reason" required hint="Recorded with the change">

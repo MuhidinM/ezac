@@ -196,14 +196,16 @@ export function WhitelistFormDialog({
       if (fileRef.current) fileRef.current.value = "";
       onSaved(entry);
     } catch (submitError) {
+      // Direct add is missing (403/404/405) or broken (500 for every input in UAT) upstream;
+      // either way the admin can't fix it from here, so say what to do instead.
       const unsupported =
-        isAdmin && submitError instanceof ApiError && [403, 404, 405].includes(submitError.status);
+        isAdmin && submitError instanceof ApiError && [403, 404, 405, 500, 501].includes(submitError.status);
       setError(
         unsupported
-          ? "Adding households directly isn't switched on in the backend yet. It has been requested; until then a field officer or branch can send the request for you to approve."
+          ? "Adding a household directly isn't available yet. Until it is, ask a field officer or the branch to send a whitelist request, then approve it on the Whitelist page."
           : errorMessage(submitError, isAdmin ? "Couldn't add to the whitelist" : "Couldn't send the request"),
       );
-      if (submitError instanceof ApiError) setFieldErrors(fieldErrorMap(submitError.errors));
+      if (submitError instanceof ApiError && !unsupported) setFieldErrors(fieldErrorMap(submitError.errors));
     } finally {
       setIsSaving(false);
     }

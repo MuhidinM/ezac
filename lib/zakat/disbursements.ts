@@ -1,4 +1,5 @@
 import type { BadgeTone } from "@/components/ui/badge";
+import { formatEtb } from "@/lib/backoffice/format";
 
 /** Payouts from the Zakat or Awqaf fund account to pooled households (WEB-ADMIN-ZAKAT-GUIDE §11). */
 
@@ -157,7 +158,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   NO_BANK_ACCOUNT: "There's no bank account on file for this household.",
   BANK_NOT_SUPPORTED: "This bank can't be paid yet (no IPS code configured).",
   ACCOUNT_NOT_FOUND: "The bank doesn't know this account number.",
-  AMOUNT_OUT_OF_RANGE: "The amount is above the maximum payout.",
+  AMOUNT_OUT_OF_RANGE: "The amount is outside the allowed payout range.",
   NAME_MISMATCH_NOT_ACKNOWLEDGED: "Tick the box to confirm you checked the names.",
   PAYOUT_EXPIRED: "This payout wasn't confirmed within 15 minutes. Prepare it again.",
   IDEMPOTENCY_KEY_REUSED: "This payout request was already used for a different payout. Close the dialog and start again.",
@@ -166,8 +167,44 @@ const ERROR_MESSAGES: Record<string, string> = {
   BANK_UNAVAILABLE: "The bank can't be reached right now. Try again shortly.",
 };
 
+/** The known payout error code in the error's code or message, if any. */
+export function payoutErrorCode(code: string | null, message: string): string | null {
+  if (code && ERROR_MESSAGES[code]) return code;
+  return Object.keys(ERROR_MESSAGES).find((item) => message.includes(item)) ?? null;
+}
+
+function limit(data: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = data[key];
+    const number = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN;
+    if (Number.isFinite(number)) return number;
+  }
+  return null;
+}
+
+/**
+ * "Enter between X and Y." from the limits sent with AMOUNT_OUT_OF_RANGE, or
+ * null when the backend sent none (it doesn't yet; the field names are a guess at
+ * the requested contract).
+ */
+export function amountRangeHint(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const record = data as Record<string, unknown>;
+  const min = limit(record, ["minAmountEtb", "minAmount", "min"]);
+  const max = limit(record, ["maxAmountEtb", "maxAmount", "max"]);
+  if (min !== null && max !== null) return `Enter between ${formatEtb(min)} and ${formatEtb(max)}.`;
+  if (max !== null) return `Enter at most ${formatEtb(max)}.`;
+  if (min !== null) return `Enter at least ${formatEtb(min)}.`;
+  return null;
+}
+
 /** Matches a known code in the error's code or message; falls back to the message. */
-export function payoutErrorMessage(code: string | null, message: string) {
-  const key = code && ERROR_MESSAGES[code] ? code : Object.keys(ERROR_MESSAGES).find((item) => message.includes(item));
-  return key ? ERROR_MESSAGES[key] : message;
+export function payoutErrorMessage(code: string | null, message: string, data?: unknown) {
+  const key = payoutErrorCode(code, message);
+  if (!key) return message;
+  if (key === "AMOUNT_OUT_OF_RANGE") {
+    const range = amountRangeHint(data);
+    return range ? `${ERROR_MESSAGES[key]} ${range}` : ERROR_MESSAGES[key];
+  }
+  return ERROR_MESSAGES[key];
 }

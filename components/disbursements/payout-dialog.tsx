@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { type FormEvent, useRef, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { CircleAlert, Clock } from "lucide-react";
 
 import { FormField } from "@/components/dashboard/form-field";
@@ -33,6 +33,7 @@ import {
   FUNDS,
   fundLabel,
   NAME_CHECK,
+  payoutErrorCode,
   payoutErrorMessage,
   RAIL_LABEL,
 } from "@/lib/zakat/disbursements";
@@ -46,7 +47,65 @@ const PREPARE_AGAIN = new Set(["PAYOUT_EXPIRED", "NOT_POOLED", "FUND_ACCOUNT_NOT
 function describeError(error: unknown, fallback: string) {
   if (!(error instanceof ApiError)) return { text: fallback, existingId: null as string | null };
   const existingId = (error.data as { disbursementId?: string } | null)?.disbursementId ?? null;
-  return { text: payoutErrorMessage(error.code, error.message), existingId };
+  return { text: payoutErrorMessage(error.code, error.message, error.data), existingId };
+}
+
+/** Ends a message with a full stop so another sentence can follow it. */
+function withStop(text: string) {
+  return /[.!?]$/.test(text.trim()) ? text.trim() : `${text.trim()}.`;
+}
+
+/** The known payout error code of a failed call, if any. */
+export function payoutCodeOf(error: unknown) {
+  return error instanceof ApiError ? payoutErrorCode(error.code, error.message) : null;
+}
+
+/**
+ * A failed confirm that may still have reached the bank: no answer at all, a
+ * timeout or a server error. A 4xx means the backend refused it, so nothing moved.
+ */
+export function mayHaveReachedBank(error: unknown) {
+  if (!(error instanceof ApiError)) return true;
+  return error.status === 0 || error.status === 408 || error.status >= 500;
+}
+
+/** Reads one payout again; null when that fails too. */
+export async function readPayout(id: string) {
+  try {
+    return await apiClient<Disbursement>(`${API}/${encodeURIComponent(id)}`);
+  } catch {
+    return null;
+  }
+}
+
+/** The current time, updated every `intervalMs`; null until mounted. */
+export function useNow(intervalMs: number) {
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    const tick = () => setNow(Date.now());
+    const first = setTimeout(tick, 0);
+    const timer = setInterval(tick, intervalMs);
+    return () => {
+      clearTimeout(first);
+      clearInterval(timer);
+    };
+  }, [intervalMs]);
+  return now;
+}
+
+/** A prepared payout whose 15 minutes are up can't be paid any more. */
+export function isExpired(payout: Pick<Disbursement, "status" | "expiresAt">, now: number | null) {
+  if (payout.status !== "AWAITING_CONFIRMATION" || !payout.expiresAt || now === null) return false;
+  const at = Date.parse(payout.expiresAt);
+  return Number.isFinite(at) && at <= now;
+}
+
+/** Shown when a call failed but a re-read shows the payout has moved on. */
+export const CHECKED_AGAIN = "The request didn't finish, so we checked the payout again. This is where it stands now.";
+
+/** The error text after a confirm that may have reached the bank, before the status is checked again. */
+export function unsureConfirmText(message: string, stillPrepared: boolean) {
+  return `${withStop(message)} ${stillPrepared ? "It still shows as Prepared." : "We couldn't check whether it went through."} Check its status before you pay again.`;
 }
 
 /** A missing name check, or a value this screen doesn't know yet, counts as "Not checked". */
@@ -154,18 +213,43 @@ export function PayoutDialog({
   const [payout, setPayout] = useState<Disbursement | null>(null);
   const [acknowledged, setAcknowledged] = useState(false);
   const [error, setError] = useState<{ text: string; existingId: string | null } | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [isWorking, setIsWorking] = useState(false);
+  const [working, setWorking] = useState<"prepare" | "confirm" | "cancel" | "check" | null>(null);
+  // After a confirm that may or may not have reached the bank, Pay waits until the status is checked again.
+  const [unsure, setUnsure] = useState(false);
+  // Closing a prepared payout first asks whether to keep or cancel it.
+  const [closing, setClosing] = useState(false);
+  const now = useNow(5_000);
 
+  const isWorking = working !== null;
   const name = entry.fullName ?? `Beneficiary #${entry.beneficiaryId}`;
   const prepared = payout?.status === "AWAITING_CONFIRMATION";
   const finished = payout && !prepared;
+  const expired = payout ? isExpired(payout, now) : false;
+
+  function startOver() {
+    setPayout(null);
+    setAcknowledged(false);
+    setUnsure(false);
+    setClosing(false);
+    attempt.current = { body: "", key: generateId() };
+  }
+
+  /** The payout moved on (paid, failed, needs checking, cancelled or expired). */
+  function show(next: Disbursement) {
+    setPayout(next);
+    setUnsure(false);
+    setClosing(false);
+    onFinished(next);
+  }
 
   async function prepare(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setNotice(null);
     setFieldErrors({});
-    setIsWorking(true);
+    setWorking("prepare");
     try {
       const body = {
         ...(entry.source === "WHITELIST" ? { whitelistEntryId: entry.whitelistEntryId } : { assessmentId: entry.assessmentId }),
@@ -182,17 +266,25 @@ export function PayoutDialog({
       });
       setPayout(next);
     } catch (prepareError) {
-      setError(describeError(prepareError, "Couldn't prepare the payout"));
-      if (prepareError instanceof ApiError) setFieldErrors(fieldErrorMap(prepareError.errors));
+      const described = describeError(prepareError, "Couldn't prepare the payout");
+      const fields = prepareError instanceof ApiError ? fieldErrorMap(prepareError.errors) : {};
+      if (payoutCodeOf(prepareError) === "AMOUNT_OUT_OF_RANGE") {
+        // Said once, under the amount.
+        fields.amountEtb = described.text;
+      } else {
+        setError(described);
+      }
+      setFieldErrors(fields);
     } finally {
-      setIsWorking(false);
+      setWorking(null);
     }
   }
 
   async function act(action: "confirm" | "cancel") {
     if (!payout) return;
     setError(null);
-    setIsWorking(true);
+    setNotice(null);
+    setWorking(action);
     try {
       const next = await apiClient<Disbursement>(`${API}/${encodeURIComponent(payout.disbursementId)}/${action}`, {
         method: "POST",
@@ -201,33 +293,80 @@ export function PayoutDialog({
         // accepts an acknowledgement for it (docs/backend-go-live-requests.md, section 3).
         body: JSON.stringify(action === "confirm" && payout.nameCheck === "MISMATCH" ? { acknowledgeNameMismatch: acknowledged } : {}),
       });
+      setUnsure(false);
       setPayout(next);
-      if (action === "cancel") {
-        onFinished(next);
-        onClose();
-      } else {
-        onFinished(next);
-      }
+      onFinished(next);
+      if (action === "cancel") onClose();
     } catch (actError) {
-      setError(describeError(actError, action === "confirm" ? "Couldn't send the payout" : "Couldn't cancel the payout"));
-      // Confirming is safe to retry, so keep the review open, unless the payout no longer exists.
-      if (actError instanceof ApiError && actError.code && PREPARE_AGAIN.has(actError.code)) {
-        setPayout(null);
-        setAcknowledged(false);
-        attempt.current = { body: "", key: generateId() };
+      const described = describeError(actError, action === "confirm" ? "Couldn't send the payout." : "Couldn't cancel the payout.");
+      const code = payoutCodeOf(actError);
+      if (code && PREPARE_AGAIN.has(code)) {
+        // The payout is gone (cancelled or expired): back to the form to prepare a new one.
+        setError(described);
+        startOver();
+        return;
+      }
+      // The call failed, but the payout may have moved on anyway (a timeout while the bank
+      // answered, a dropped connection): show where it stands now.
+      const latest = await readPayout(payout.disbursementId);
+      if (latest && latest.status !== "AWAITING_CONFIRMATION") {
+        if (code) setError(described);
+        else setNotice(CHECKED_AGAIN);
+        show(latest);
+        return;
+      }
+      if (latest) setPayout(latest);
+      if (action === "confirm" && mayHaveReachedBank(actError)) {
+        setUnsure(true);
+        setError({ text: unsureConfirmText(described.text, latest !== null), existingId: null });
+      } else {
+        setError(described);
       }
     } finally {
-      setIsWorking(false);
+      setWorking(null);
     }
   }
 
-  function close() {
-    // A prepared payout that is neither confirmed nor cancelled expires by itself after 15 minutes.
+  async function checkStatus() {
+    if (!payout) return;
+    setError(null);
+    setNotice(null);
+    setWorking("check");
+    try {
+      const latest = await readPayout(payout.disbursementId);
+      if (!latest) {
+        setError({ text: "Couldn't check the payout. Try again in a moment.", existingId: null });
+        return;
+      }
+      if (latest.status !== "AWAITING_CONFIRMATION") {
+        show(latest);
+        return;
+      }
+      setPayout(latest);
+      setUnsure(false);
+      setNotice("It still shows as Prepared. You can try paying again.");
+    } finally {
+      setWorking(null);
+    }
+  }
+
+  function requestClose() {
+    // A lookup or send is running: closing now would lose its result.
+    if (isWorking) return;
+    if (prepared && !expired) {
+      setClosing(true);
+      return;
+    }
+    onClose();
+  }
+
+  function keepAndClose() {
+    if (payout) onFinished(payout);
     onClose();
   }
 
   return (
-    <Dialog open onOpenChange={(open) => !open && close()}>
+    <Dialog open onOpenChange={(open) => !open && requestClose()}>
       <DialogContent className="max-h-[90svh] max-w-lg overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-[#001539]">{finished ? "Payout result" : prepared ? "Confirm the payout" : `Pay ${name}`}</DialogTitle>
@@ -235,11 +374,14 @@ export function PayoutDialog({
             {finished
               ? name
               : prepared
-                ? `Check the details, then confirm before ${formatDateTime(payout.expiresAt ?? null)}.`
+                ? expired
+                  ? "This payout has expired."
+                  : `Check the details, then confirm before ${formatDateTime(payout.expiresAt ?? null)}.`
                 : "The account is looked up with the bank first; nothing is paid until you confirm."}
           </DialogDescription>
         </DialogHeader>
 
+        {notice ? <InlineAlert tone="info">{notice}</InlineAlert> : null}
         {error ? (
           <InlineAlert>
             {error.text}
@@ -304,6 +446,7 @@ export function PayoutDialog({
                 onChange={(e) => setAmount(e.target.value)}
                 required
                 autoFocus
+                aria-invalid={fieldErrors.amountEtb ? true : undefined}
                 className="tabular-nums"
               />
             </FormField>
@@ -311,37 +454,77 @@ export function PayoutDialog({
               <Textarea id="payout-note" rows={2} maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} />
             </FormField>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={close}>
+              <Button type="button" variant="outline" onClick={requestClose} disabled={isWorking}>
                 Cancel
               </Button>
               <Button
                 type="submit"
                 disabled={isWorking || !(Number(amount) > 0) || (funds.data ? !(fund === "ZAKAT" ? funds.data.zakat : funds.data.waqf)?.ready : false)}
               >
-                {isWorking ? "Looking up the account…" : "Review payout"}
+                {working === "prepare" ? "Looking up the account…" : "Review payout"}
               </Button>
             </DialogFooter>
           </form>
         ) : prepared ? (
           <div className="space-y-4">
             <PayoutReview payout={payout} />
-            {needsNameAcknowledgement(payout) ? (
-              <NameCheckAcknowledgement payout={payout} checked={acknowledged} onCheckedChange={setAcknowledged} />
-            ) : null}
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => act("cancel")} disabled={isWorking}>
-                Cancel payout
-              </Button>
-              <Button onClick={() => act("confirm")} disabled={isWorking || (needsNameAcknowledgement(payout) && !acknowledged)}>
-                {isWorking ? "Sending…" : `Pay ${formatEtb(payout.amountEtb)}`}
-              </Button>
-            </DialogFooter>
+            {expired ? (
+              <>
+                <InlineAlert tone="warning">
+                  This payout wasn&apos;t confirmed within 15 minutes, so it can&apos;t be paid. Prepare it again.
+                </InlineAlert>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={onClose}>
+                    Close
+                  </Button>
+                  <Button onClick={startOver}>Prepare again</Button>
+                </DialogFooter>
+              </>
+            ) : closing ? (
+              <>
+                <InlineAlert tone="warning" title="Close without paying?">
+                  Nothing has been paid. If you keep this payout, you can still pay it from the Payouts page until{" "}
+                  {formatDateTime(payout.expiresAt ?? null)}. Until then no other payout can be prepared for this household.
+                </InlineAlert>
+                <DialogFooter>
+                  <Button type="button" variant="ghost" onClick={() => setClosing(false)} disabled={isWorking}>
+                    Go back
+                  </Button>
+                  <Button type="button" variant="outline" onClick={keepAndClose} disabled={isWorking}>
+                    Keep it
+                  </Button>
+                  <Button type="button" onClick={() => act("cancel")} disabled={isWorking} className="bg-rose-600 text-white hover:bg-rose-700">
+                    {working === "cancel" ? "Cancelling…" : "Cancel payout"}
+                  </Button>
+                </DialogFooter>
+              </>
+            ) : (
+              <>
+                {needsNameAcknowledgement(payout) ? (
+                  <NameCheckAcknowledgement payout={payout} checked={acknowledged} onCheckedChange={setAcknowledged} />
+                ) : null}
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => act("cancel")} disabled={isWorking}>
+                    {working === "cancel" ? "Cancelling…" : "Cancel payout"}
+                  </Button>
+                  {unsure ? (
+                    <Button onClick={checkStatus} disabled={isWorking}>
+                      {working === "check" ? "Checking…" : "Check status"}
+                    </Button>
+                  ) : (
+                    <Button onClick={() => act("confirm")} disabled={isWorking || (needsNameAcknowledgement(payout) && !acknowledged)}>
+                      {working === "confirm" ? "Sending…" : `Pay ${formatEtb(payout.amountEtb)}`}
+                    </Button>
+                  )}
+                </DialogFooter>
+              </>
+            )}
           </div>
         ) : payout ? (
           <div className="space-y-4">
             <PayoutOutcome payout={payout} />
             <DialogFooter>
-              <Button onClick={close}>Done</Button>
+              <Button onClick={onClose}>Done</Button>
             </DialogFooter>
           </div>
         ) : null}

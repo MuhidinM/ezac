@@ -6,11 +6,19 @@ import { type FormEvent, Suspense, useState } from "react";
 import { CircleAlert, Pencil, RefreshCw, Save } from "lucide-react";
 
 import { StatTile } from "@/components/charts/stat-tile";
+import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import {
+  CHECKED_AGAIN,
   NameCheckAcknowledgement,
   PayoutReview,
+  isExpired,
+  mayHaveReachedBank,
   nameCheckOf,
   needsNameAcknowledgement,
+  payoutCodeOf,
+  readPayout,
+  unsureConfirmText,
+  useNow,
 } from "@/components/disbursements/payout-dialog";
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
@@ -101,6 +109,7 @@ function Disbursements() {
   );
   const rows = list.data?.items ?? [];
   const s = summary.data;
+  const now = useNow(30_000);
 
   // The open payout lives in the URL so the pool's "Open it" link lands on it.
   function open(id: string | null) {
@@ -252,7 +261,8 @@ function Disbursements() {
               <TableMessageRow colSpan={5}>No payouts in this period.</TableMessageRow>
             ) : (
               rows.map((payout) => {
-                const shown = disbursementStatus(payout.status);
+                // A prepared payout past its 15 minutes can't be paid, even before the backend marks it expired.
+                const shown = disbursementStatus(isExpired(payout, now) ? "EXPIRED" : payout.status);
                 return (
                   <TableRow
                     key={payout.disbursementId}
@@ -311,29 +321,72 @@ function PayoutSheet({ payoutId, onClose, onChanged }: { payoutId: string | null
   const { data: payout, error, mutate } = useResource<Disbursement>(payoutId ? `${API}/${encodeURIComponent(payoutId)}` : null);
   const [acknowledged, setAcknowledged] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [isWorking, setIsWorking] = useState(false);
-  const shown = payout ? disbursementStatus(payout.status) : null;
+  const [notice, setNotice] = useState<string | null>(null);
+  const [working, setWorking] = useState<"confirm" | "cancel" | "check" | null>(null);
+  // After a confirm that may or may not have reached the bank, Pay waits until the status is checked again.
+  const [unsure, setUnsure] = useState(false);
+  const now = useNow(5_000);
+  const isWorking = working !== null;
+  const expired = payout ? isExpired(payout, now) : false;
+  const shown = payout ? (expired ? disbursementStatus("EXPIRED") : disbursementStatus(payout.status)) : null;
 
   async function act(action: "confirm" | "cancel") {
     if (!payout) return;
     setActionError(null);
-    setIsWorking(true);
+    setNotice(null);
+    setWorking(action);
     try {
       const next = await apiClient<Disbursement>(`${API}/${encodeURIComponent(payout.disbursementId)}/${action}`, {
         method: "POST",
         body: JSON.stringify(action === "confirm" && payout.nameCheck === "MISMATCH" ? { acknowledgeNameMismatch: acknowledged } : {}),
       });
       mutate(next);
+      setUnsure(false);
       onChanged();
     } catch (actError) {
-      setActionError(actError instanceof ApiError ? payoutErrorMessage(actError.code, actError.message) : "Something went wrong");
+      const message =
+        actError instanceof ApiError ? payoutErrorMessage(actError.code, actError.message, actError.data) : "Something went wrong.";
+      // Whatever went wrong, show the payout as it is now (it may have expired, or the bank
+      // may have answered after a timeout) and refresh the list and the totals.
+      const latest = await readPayout(payout.disbursementId);
+      if (latest) mutate(latest);
+      onChanged();
+      if (latest && latest.status !== payout.status && !payoutCodeOf(actError)) {
+        setNotice(CHECKED_AGAIN);
+      } else if (action === "confirm" && (!latest || latest.status === "AWAITING_CONFIRMATION") && mayHaveReachedBank(actError)) {
+        setUnsure(true);
+        setActionError(unsureConfirmText(message, latest !== null));
+      } else {
+        setActionError(message);
+      }
     } finally {
-      setIsWorking(false);
+      setWorking(null);
+    }
+  }
+
+  async function checkStatus() {
+    if (!payout) return;
+    setActionError(null);
+    setNotice(null);
+    setWorking("check");
+    try {
+      const latest = await readPayout(payout.disbursementId);
+      if (!latest) {
+        setActionError("Couldn't check the payout. Try again in a moment.");
+        return;
+      }
+      mutate(latest);
+      setUnsure(false);
+      onChanged();
+      if (latest.status === "AWAITING_CONFIRMATION") setNotice("It still shows as Prepared. You can try paying again.");
+    } finally {
+      setWorking(null);
     }
   }
 
   return (
-    <Sheet open={payoutId !== null} onOpenChange={(value) => !value && onClose()}>
+    // Closing while a send is running would hide its result.
+    <Sheet open={payoutId !== null} onOpenChange={(value) => !value && !isWorking && onClose()}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
         <SheetHeader>
           <SheetTitle className="text-[#001539]">{payout ? (payout.beneficiaryName ?? `Beneficiary #${payout.beneficiaryId}`) : "Payout"}</SheetTitle>
@@ -344,6 +397,7 @@ function PayoutSheet({ payoutId, onClose, onChanged }: { payoutId: string | null
         </SheetHeader>
         <div className="space-y-6 px-4 pb-6">
           {error ? <InlineAlert>{error.message}</InlineAlert> : null}
+          {notice ? <InlineAlert tone="info">{notice}</InlineAlert> : null}
           {actionError ? <InlineAlert>{actionError}</InlineAlert> : null}
           {!payout && !error ? <p className="text-sm text-black/45">Loading…</p> : null}
           {payout ? (
@@ -359,7 +413,18 @@ function PayoutSheet({ payoutId, onClose, onChanged }: { payoutId: string | null
                 />
               ) : null}
 
-              {payout.status === "AWAITING_CONFIRMATION" ? (
+              {payout.status === "AWAITING_CONFIRMATION" && expired ? (
+                <div className="space-y-2 rounded-xl border border-black/10 bg-black/[0.02] p-4">
+                  <p className="text-sm text-[#001539]">
+                    This payout wasn&apos;t confirmed by {formatDateTime(payout.expiresAt ?? null)}, so it can&apos;t be paid. Start a new one
+                    from the{" "}
+                    <Link href="/dashboard/pool" className="font-medium underline underline-offset-2">
+                      disbursement pool
+                    </Link>
+                    .
+                  </p>
+                </div>
+              ) : payout.status === "AWAITING_CONFIRMATION" ? (
                 <div className="space-y-4 rounded-xl border border-sky-200 bg-sky-50/40 p-4">
                   <p className="text-sm text-[#001539]">
                     Prepared, not paid. Confirm before {formatDateTime(payout.expiresAt ?? null)} or it expires.
@@ -369,11 +434,17 @@ function PayoutSheet({ payoutId, onClose, onChanged }: { payoutId: string | null
                   ) : null}
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" size="sm" onClick={() => act("cancel")} disabled={isWorking}>
-                      Cancel payout
+                      {working === "cancel" ? "Cancelling…" : "Cancel payout"}
                     </Button>
-                    <Button size="sm" onClick={() => act("confirm")} disabled={isWorking || (needsNameAcknowledgement(payout) && !acknowledged)}>
-                      {isWorking ? "Sending…" : `Pay ${formatEtb(payout.amountEtb)}`}
-                    </Button>
+                    {unsure ? (
+                      <Button size="sm" onClick={checkStatus} disabled={isWorking}>
+                        {working === "check" ? "Checking…" : "Check status"}
+                      </Button>
+                    ) : (
+                      <Button size="sm" onClick={() => act("confirm")} disabled={isWorking || (needsNameAcknowledgement(payout) && !acknowledged)}>
+                        {working === "confirm" ? "Sending…" : `Pay ${formatEtb(payout.amountEtb)}`}
+                      </Button>
+                    )}
                   </div>
                 </div>
               ) : null}
@@ -458,32 +529,38 @@ function SettleForm({ payout, onSettled }: { payout: Disbursement; onSettled: (p
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [isSaving, setIsSaving] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const paid = outcome === "SUCCEEDED";
+  const name = payout.beneficiaryName ?? "the household";
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+  // There's no undo, so the form only opens a confirm step that restates the outcome.
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setFieldErrors({});
-    setIsSaving(true);
+    setConfirming(true);
+  }
+
+  async function settle() {
     try {
       const next = await apiClient<Disbursement>(`${API}/${encodeURIComponent(payout.disbursementId)}/resolve`, {
         method: "POST",
         body: JSON.stringify({
           status: outcome,
-          ...(outcome === "SUCCEEDED" ? { providerReference: reference.trim() } : {}),
+          ...(paid ? { providerReference: reference.trim() } : {}),
           note: note.trim(),
         }),
       });
       onSettled(next);
     } catch (settleError) {
+      // Shown on the form, next to the fields, once the confirm step closes.
       setError(errorMessage(settleError, "Couldn't settle the payout"));
       if (settleError instanceof ApiError) setFieldErrors(fieldErrorMap(settleError.errors));
-    } finally {
-      setIsSaving(false);
     }
   }
 
   return (
+    <>
     <form onSubmit={onSubmit} className="space-y-4 rounded-xl border border-amber-200 bg-amber-50/50 p-4">
       <div>
         <p className="text-sm font-semibold text-[#001539]">Settle this payout</p>
@@ -516,7 +593,7 @@ function SettleForm({ payout, onSettled }: { payout: Disbursement; onSettled: (p
           </button>
         ))}
       </div>
-      {outcome === "SUCCEEDED" ? (
+      {paid ? (
         <FormField label="Bank reference" htmlFor="settle-ref" required error={fieldErrors.providerReference}>
           <Input id="settle-ref" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="FT…" required className="font-mono" />
         </FormField>
@@ -525,11 +602,34 @@ function SettleForm({ payout, onSettled }: { payout: Disbursement; onSettled: (p
         <Textarea id="settle-note" rows={2} maxLength={1000} value={note} onChange={(e) => setNote(e.target.value)} required />
       </FormField>
       <div className="flex justify-end">
-        <Button type="submit" disabled={isSaving || !outcome || !note.trim() || (outcome === "SUCCEEDED" && !reference.trim())}>
-          {isSaving ? "Saving…" : "Settle payout"}
+        <Button type="submit" disabled={confirming || !outcome || !note.trim() || (paid && !reference.trim())}>
+          Settle payout
         </Button>
       </div>
     </form>
+
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={paid ? "Mark this payout as paid?" : "Mark this payout as not paid?"}
+        description={
+          paid ? (
+            <>
+              {formatEtb(payout.amountEtb)} to {name}, bank reference <span className="font-mono">{reference.trim()}</span>. Only do this if
+              Coop Bank confirmed the money moved. The household leaves the pool. This can&apos;t be undone.
+            </>
+          ) : (
+            <>
+              {formatEtb(payout.amountEtb)} to {name}. Only do this if Coop Bank confirmed no money moved. The household stays in the pool
+              and can be paid again, so a wrong answer can mean paying twice. This can&apos;t be undone.
+            </>
+          )
+        }
+        confirmLabel={paid ? "Mark as paid" : "Mark as not paid"}
+        destructive={!paid}
+        onConfirm={settle}
+      />
+    </>
   );
 }
 
