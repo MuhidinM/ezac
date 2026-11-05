@@ -66,7 +66,7 @@ export default function WaqfInvestmentsPage() {
         title="Build a lasting endowment"
         body="Register an asset as Waqf and let it generate ongoing support for generations to come."
         primary={{ label: "Register a Waqf asset", href: "/waqf/register-asset" }}
-        secondary={{ label: "Fund a live project", href: "/waqf/crowdfunding" }}
+        secondary={{ label: "Talk to our team", href: "/contact" }}
       />
     </SitePage>
   );

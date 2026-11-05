@@ -49,9 +49,60 @@ function describeError(error: unknown, fallback: string) {
   return { text: payoutErrorMessage(error.code, error.message), existingId };
 }
 
+/** A missing name check, or a value this screen doesn't know yet, counts as "Not checked". */
+const UNKNOWN_NAME_CHECK: (typeof NAME_CHECK)["NOT_CHECKED"] = {
+  label: "Not checked",
+  tone: "warning",
+  hint: "The bank didn't confirm the account holder's name.",
+};
+
+export function nameCheckOf(payout: Pick<Disbursement, "nameCheck">) {
+  return NAME_CHECK[payout.nameCheck] ?? UNKNOWN_NAME_CHECK;
+}
+
+/**
+ * Anything short of a clear match needs a tick before paying: "Not checked" is
+ * the least verified case (no name came back at all), so it gets the same gate
+ * as "Names differ".
+ */
+export function needsNameAcknowledgement(payout: Pick<Disbursement, "nameCheck">) {
+  return payout.nameCheck !== "MATCH";
+}
+
+/** The tickbox that unlocks "Pay" when the name check isn't a match. */
+export function NameCheckAcknowledgement({
+  payout,
+  checked,
+  onCheckedChange,
+}: {
+  payout: Pick<Disbursement, "nameCheck">;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  const mismatch = payout.nameCheck === "MISMATCH";
+  return (
+    <label
+      className={cn(
+        "flex items-start gap-2 rounded-lg border p-3 text-sm text-[#001539]",
+        mismatch ? "border-rose-200 bg-rose-50/60" : "border-amber-200 bg-amber-50/60",
+      )}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onCheckedChange(e.target.checked)}
+        className="mt-0.5 size-4 accent-[#007050]"
+      />
+      {mismatch
+        ? "I compared the names and this is the right account."
+        : "The bank didn't confirm the name. I checked the account number with the household and it is the right account."}
+    </label>
+  );
+}
+
 /** Bank details of a prepared payout, with the name check made prominent. */
 export function PayoutReview({ payout }: { payout: Disbursement }) {
-  const check = NAME_CHECK[payout.nameCheck];
+  const check = nameCheckOf(payout);
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-black/[0.08] bg-black/[0.015] p-4">
@@ -145,6 +196,9 @@ export function PayoutDialog({
     try {
       const next = await apiClient<Disbursement>(`${API}/${encodeURIComponent(payout.disbursementId)}/${action}`, {
         method: "POST",
+        // The confirm contract only takes acknowledgeNameMismatch, for MISMATCH. The
+        // "Not checked" tick is checked here in the browser only until the backend
+        // accepts an acknowledgement for it (docs/backend-go-live-requests.md, section 3).
         body: JSON.stringify(action === "confirm" && payout.nameCheck === "MISMATCH" ? { acknowledgeNameMismatch: acknowledged } : {}),
       });
       setPayout(next);
@@ -271,22 +325,14 @@ export function PayoutDialog({
         ) : prepared ? (
           <div className="space-y-4">
             <PayoutReview payout={payout} />
-            {payout.nameCheck === "MISMATCH" ? (
-              <label className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50/60 p-3 text-sm text-[#001539]">
-                <input
-                  type="checkbox"
-                  checked={acknowledged}
-                  onChange={(e) => setAcknowledged(e.target.checked)}
-                  className="mt-0.5 size-4 accent-[#007050]"
-                />
-                I compared the names and this is the right account.
-              </label>
+            {needsNameAcknowledgement(payout) ? (
+              <NameCheckAcknowledgement payout={payout} checked={acknowledged} onCheckedChange={setAcknowledged} />
             ) : null}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => act("cancel")} disabled={isWorking}>
                 Cancel payout
               </Button>
-              <Button onClick={() => act("confirm")} disabled={isWorking || (payout.nameCheck === "MISMATCH" && !acknowledged)}>
+              <Button onClick={() => act("confirm")} disabled={isWorking || (needsNameAcknowledgement(payout) && !acknowledged)}>
                 {isWorking ? "Sending…" : `Pay ${formatEtb(payout.amountEtb)}`}
               </Button>
             </DialogFooter>

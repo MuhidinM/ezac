@@ -21,6 +21,7 @@ import { CertificateVerify } from "@/components/site/certificate-verify";
 import { CtaBand, Section, SectionHeading } from "@/components/site/sections";
 import { SitePage } from "@/components/site/site-page";
 import { ASNAF } from "@/lib/backoffice/options";
+import { readCalculatorConfig } from "@/components/landing/read-calculator-config";
 import type { CalculatorConfig, LivestockRow } from "@/lib/zakat/calculator-config";
 import { formatCount, formatEtbCompact, getCalculatorConfig, getHomeSummary, getImpactSummary } from "@/lib/zakat/impact";
 
@@ -94,7 +95,7 @@ const RECEIVING: Step[] = [
   {
     icon: GaugeIcon,
     title: "A need score",
-    body: "The answers are turned into one poverty score using a published points table. More points means greater need.",
+    body: "The answers are turned into one poverty score using the Commission's points table. More points means greater need.",
     detail: [
       "The points table is versioned. Each score records the version it was calculated with, and a later change never rewrites past scores.",
       "Before a new version goes live, its effect is tested on recent assessments.",
@@ -125,7 +126,7 @@ const RECEIVING: Step[] = [
 
 const SAFEGUARDS: { icon: LucideIcon; title: string; body: string }[] = [
   { icon: ShieldCheckIcon, title: "Separation of duties", body: "Field officers assess, branch supervisors decide, head office pools and pays. Fast-track and priority marks need evidence and a head-office decision." },
-  { icon: ScaleIcon, title: "Rules before people", body: "Scores come from a published, versioned points table, not from individual judgement, and every decision carries a written reason." },
+  { icon: ScaleIcon, title: "Rules before people", body: "Scores come from a versioned points table, not from individual judgement, and every decision carries a written reason." },
   { icon: ArrowRightLeftIcon, title: "Bank-verified payments", body: "Incoming money is matched to bank transactions; outgoing money goes only to an account checked with the bank." },
   { icon: FileSearchIcon, title: "Full audit trail", body: "Every change to prices, rules, scoring, decisions and payments is recorded with who made it and when." },
   { icon: UserCheckIcon, title: "Privacy by design", body: "Household details, scores and decisions are visible only to the staff who need them. Public figures are totals, never individuals." },
@@ -137,6 +138,11 @@ function livestockRows(rows: LivestockRow[]) {
     range: row.max != null ? `${row.min}–${row.max}` : `${row.min} and above`,
     due: row.due,
   }));
+}
+
+function pricesAsOf(value: string | null | undefined) {
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? date.toLocaleString("en", { dateStyle: "medium", timeStyle: "short" }) : "—";
 }
 
 function RulesTable({ config }: { config: CalculatorConfig }) {
@@ -153,10 +159,16 @@ function RulesTable({ config }: { config: CalculatorConfig }) {
             ["Nisab today", `ETB ${etb.format(Math.round(config.nisab.valueEtb))}`],
             [`Gold nisab (${config.nisab.goldGrams} g)`, `ETB ${etb.format(Math.round(config.nisab.goldValueEtb))}`],
             [`Silver nisab (${config.nisab.silverGrams} g)`, `ETB ${etb.format(Math.round(config.nisab.silverValueEtb))}`],
-            ["Wealth, cash and trade goods", `${pct(config.wealth.rate)} after ${config.wealth.hawlLunarDays} lunar days`],
+            [
+              "Wealth, cash and trade goods",
+              // 0 means the service didn't send the day count.
+              config.wealth.hawlLunarDays > 0
+                ? `${pct(config.wealth.rate)} after ${config.wealth.hawlLunarDays} lunar days`
+                : `${pct(config.wealth.rate)} after a full lunar year (Hawl)`,
+            ],
             ["Crops: nisab", `${etb.format(config.crops.nisabKg)} kg`],
             ["Crops: rain-fed / irrigated", `${pct(config.crops.rainFedRate)} / ${pct(config.crops.irrigatedRate)}`],
-            ["Prices as of", new Date(config.pricesAsOf).toLocaleString("en", { dateStyle: "medium", timeStyle: "short" })],
+            ["Prices as of", pricesAsOf(config.pricesAsOf)],
           ].map(([label, value]) => (
             <div key={label} className="flex justify-between gap-4 py-2.5">
               <dt style={{ color: "#6F6F6F" }}>{label}</dt>
@@ -259,7 +271,11 @@ function Timeline({ steps, accent }: { steps: Step[]; accent: string }) {
 }
 
 export default async function HowItWorksPage() {
-  const [config, home, impact] = await Promise.all([getCalculatorConfig(), getHomeSummary(), getImpactSummary()]);
+  // null means not published (the section is left out); an outage throws, so
+  // ISR keeps serving the last good page.
+  const [rawConfig, home, impact] = await Promise.all([getCalculatorConfig(), getHomeSummary(), getImpactSummary()]);
+  // A partial config would crash the rules table; leave the section out instead.
+  const config = readCalculatorConfig(rawConfig);
   const live = [
     { value: formatEtbCompact(home?.totalCollectedEtb), label: "Collected" },
     { value: formatCount(home?.totalBeneficiariesSupported), label: "Families supported" },
@@ -351,9 +367,15 @@ export default async function HowItWorksPage() {
         <SectionHeading
           eyebrow="Need levels"
           title="How the score is read"
-          intro="The score runs from 0 to 270 points. Where it lands sets the need level and the recommendation the branch sees; the branch still decides."
+          intro="Where the score lands sets the need level and the recommendation the branch sees; the branch still decides."
         />
+        {/* The band figures below are fixed in this page, not read from the active
+            points table (there is no public endpoint for it yet), so they are
+            labelled as an example rather than as the bands in force. */}
         <div className="mx-auto mt-10 max-w-3xl">
+          <p className="mb-3 text-center text-[10px] tracking-[0.16em] uppercase" style={{ color: "#007050" }}>
+            Example
+          </p>
           <div className="flex h-12 overflow-hidden rounded-xl text-sm font-medium text-white">
             <div className="flex items-center justify-center" style={{ width: `${(110 / 270) * 100}%`, backgroundColor: "#4c9a7a" }}>
               Low need
@@ -395,7 +417,7 @@ export default async function HowItWorksPage() {
             ))}
           </div>
           <p className="mt-4 text-center text-xs" style={{ color: "#6F6F6F" }}>
-            The current bands of the published points table. When the table changes, past scores keep the version they were given.
+            Example figures, to show how the bands work. The bands are part of the versioned points table and can change; each score keeps the version it was calculated with.
           </p>
         </div>
       </Section>

@@ -3,9 +3,14 @@
 import { FormEvent, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { ApiError } from "@/lib/api/errors";
 import { defaultDashboardPath } from "@/lib/auth/constants";
 import { fetchSession } from "@/lib/auth/use-session";
+
+type LoginResponse = {
+  success?: boolean;
+  message?: string;
+  data?: { passwordChangeRequired?: boolean };
+};
 
 export function LoginForm() {
   const router = useRouter();
@@ -15,17 +20,20 @@ export function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const passwordChanged = searchParams.get("passwordChanged") === "1";
+  const signedOutIdle = searchParams.get("reason") === "idle";
+
+  function requestedPage(): string | null {
+    const redirectTo = searchParams.get("redirect");
+    return redirectTo?.startsWith("/dashboard") ? redirectTo : null;
+  }
 
   async function resolveDestination(): Promise<string> {
-    const redirectTo = searchParams.get("redirect");
-    if (redirectTo?.startsWith("/dashboard")) {
-      return redirectTo;
-    }
-
+    // Always reload the session: a cached one could belong to whoever used
+    // this browser before.
     const session = await fetchSession({ force: true });
-    return session
-      ? defaultDashboardPath(session.allRoles)
-      : "/dashboard/beneficiary";
+    const requested = requestedPage();
+    if (requested) return requested;
+    return session ? defaultDashboardPath(session.allRoles) : "/dashboard/beneficiary";
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -40,23 +48,16 @@ export function LoginForm() {
         body: JSON.stringify({ username, password }),
       });
 
-      const payload = (await response.json()) as {
-        success: boolean;
-        message?: string;
-        data?: { passwordChangeRequired?: boolean };
-      };
+      const payload = (await response.json().catch(() => null)) as LoginResponse | null;
 
-      if (!response.ok || !payload.success) {
-        throw new ApiError(payload.message ?? "Login failed", response.status);
+      if (!response.ok || !payload?.success) {
+        setError(payload?.message ?? "Sign-in failed. Try again.");
+        return;
       }
 
-      const redirectTo = searchParams.get("redirect");
-      const redirectQuery =
-        redirectTo && redirectTo.startsWith("/dashboard")
-          ? `?redirect=${encodeURIComponent(redirectTo)}`
-          : "";
-
+      const requested = requestedPage();
       if (payload.data?.passwordChangeRequired) {
+        const redirectQuery = requested ? `?redirect=${encodeURIComponent(requested)}` : "";
         router.push(`/login/change-password${redirectQuery}`);
         router.refresh();
         return;
@@ -65,12 +66,8 @@ export function LoginForm() {
       const destination = await resolveDestination();
       router.push(destination);
       router.refresh();
-    } catch (submitError) {
-      if (submitError instanceof ApiError) {
-        setError(submitError.message);
-      } else {
-        setError("Unable to sign in. Please try again.");
-      }
+    } catch {
+      setError("We couldn't reach EZAC. Check your connection and try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -79,8 +76,20 @@ export function LoginForm() {
   return (
     <form onSubmit={onSubmit} className="mt-8 space-y-4">
       {passwordChanged ? (
-        <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        <p
+          role="status"
+          className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+        >
           Password updated. Please sign in with your new password.
+        </p>
+      ) : null}
+
+      {signedOutIdle && !passwordChanged ? (
+        <p
+          role="status"
+          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+        >
+          You were signed out after 15 minutes without activity.
         </p>
       ) : null}
 
@@ -136,6 +145,10 @@ export function LoginForm() {
       >
         {isSubmitting ? "Signing in..." : "Log In"}
       </button>
+
+      <p className="text-center text-sm text-black/60">
+        Forgot your password? Ask your administrator to reset it.
+      </p>
     </form>
   );
 }

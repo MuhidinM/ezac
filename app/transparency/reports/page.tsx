@@ -20,6 +20,7 @@ function fileSize(bytes: number | null) {
 }
 
 export default async function ImpactReportsPage() {
+  // null means none published; an outage throws, so ISR keeps the last good list.
   const reports = (await getImpactReports()) ?? [];
 
   return (

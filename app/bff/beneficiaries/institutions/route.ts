@@ -4,6 +4,13 @@ import { withStaffAccess } from "@/lib/api/bff";
 import { gatewayRequest } from "@/lib/api/gateway";
 import type { InstitutionListItem, PaginatedItems } from "@/lib/api/types";
 
+/**
+ * Who may call this route (mirrors the UI; the gateway still decides):
+ *
+ * | Method | Access | UI callers                                |
+ * | ------ | ------ | ----------------------------------------- |
+ * | GET    | staff  | Institution review (RequireRole hq)       |
+ */
 const ALLOWED_QUERY_KEYS = [
   "search",
   "verificationStatus",
@@ -23,7 +30,8 @@ export async function GET(request: NextRequest) {
   const query = upstreamQuery.toString();
   const path = `/api/beneficiaries/v1/institutions${query ? `?${query}` : ""}`;
 
-  return withStaffAccess((accessToken) =>
-    gatewayRequest<PaginatedItems<InstitutionListItem>>(path, { accessToken }),
+  return withStaffAccess(
+    (accessToken) => gatewayRequest<PaginatedItems<InstitutionListItem>>(path, { accessToken }),
+    { access: "staff", label: "beneficiaries/institutions" },
   );
 }

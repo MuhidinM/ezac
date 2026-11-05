@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { BadgeCheckIcon, ClipboardCheckIcon, LockIcon } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -95,12 +96,12 @@ export function HowItWorksTrust() {
           </div>
         </div>
         <div className="relative mt-10 text-center">
-          <a
+          <Link
             href="/how-it-works"
             className="inline-flex items-center gap-2 rounded-full border border-white/40 px-7 py-3.5 text-sm text-white transition-colors hover:bg-white/10"
           >
             See the full process →
-          </a>
+          </Link>
         </div>
       </div>
     </section>

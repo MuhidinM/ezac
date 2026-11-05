@@ -14,7 +14,9 @@ import { apiClient } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errors";
 import type { MeProfile } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
-import { clearSessionCache } from "@/lib/auth/use-session";
+import { STAFF_PASSWORD_HINT, staffPasswordProblems } from "@/lib/auth/password-policy";
+import { fetchSession, resetSessionCache } from "@/lib/auth/use-session";
+import { isValidEthiopianPhone } from "@/lib/registration/phone";
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Administrator",
@@ -58,14 +60,38 @@ function AccountDetails({ profile, onSaved }: { profile: MeProfile; onSaved: () 
     event.preventDefault();
     setError(null);
     setMessage(null);
+
+    // Send only what changed: the API leaves out fields alone, and a blank
+    // phone must never overwrite the one staff may sign in with.
+    const changes: { displayName?: string; phone?: string } = {};
+    const nextName = displayName.trim();
+    const nextPhone = phone.trim();
+    if (nextName !== (profile.displayName ?? "").trim()) changes.displayName = nextName;
+    if (nextPhone !== (profile.phone ?? "").trim()) {
+      if (!nextPhone) {
+        setError("Enter a phone number. To keep the current one, leave the field as it is.");
+        return;
+      }
+      if (!isValidEthiopianPhone(nextPhone)) {
+        setError("Enter an Ethiopian mobile number, for example +251911223344.");
+        return;
+      }
+      changes.phone = nextPhone;
+    }
+    if (Object.keys(changes).length === 0) {
+      setMessage("Nothing to save. Change your name or phone first.");
+      return;
+    }
+
     setIsSaving(true);
     try {
       await apiClient<MeProfile>("/bff/auth/me", {
         method: "PATCH",
-        body: JSON.stringify({ displayName: displayName.trim(), phone: phone.trim() }),
+        body: JSON.stringify(changes),
       });
       setMessage("Profile updated.");
-      clearSessionCache();
+      // Refresh the name in the sidebar and menu.
+      void fetchSession({ force: true });
       router.refresh();
       onSaved();
     } catch (saveError) {
@@ -125,12 +151,9 @@ function ChangePassword() {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    if (newPassword.length < 6) {
-      setError("New password must be at least 6 characters.");
-      return;
-    }
-    if (newPassword !== confirmNewPassword) {
-      setError("New password and confirmation don't match.");
+    const problems = staffPasswordProblems(currentPassword, newPassword, confirmNewPassword);
+    if (problems.length > 0) {
+      setError(`${problems[0]}.`);
       return;
     }
     setIsSaving(true);
@@ -139,7 +162,7 @@ function ChangePassword() {
         method: "POST",
         body: JSON.stringify({ currentPassword, newPassword, confirmNewPassword }),
       });
-      clearSessionCache();
+      resetSessionCache();
       router.push("/login?passwordChanged=1&redirect=/dashboard/profile");
       router.refresh();
     } catch (saveError) {
@@ -155,11 +178,11 @@ function ChangePassword() {
         <FormField label="Current password" htmlFor="currentPassword" required>
           <Input id="currentPassword" type="password" autoComplete="current-password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required />
         </FormField>
-        <FormField label="New password" htmlFor="newPassword" hint="At least 6 characters" required>
-          <Input id="newPassword" type="password" autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} minLength={6} required />
+        <FormField label="New password" htmlFor="newPassword" hint={STAFF_PASSWORD_HINT} required>
+          <Input id="newPassword" type="password" autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} minLength={10} required />
         </FormField>
         <FormField label="Confirm new password" htmlFor="confirmNewPassword" required>
-          <Input id="confirmNewPassword" type="password" autoComplete="new-password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} minLength={6} required />
+          <Input id="confirmNewPassword" type="password" autoComplete="new-password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} minLength={10} required />
         </FormField>
         <div className="flex justify-end border-t border-black/[0.06] pt-4">
           <Button type="submit" disabled={isSaving}>

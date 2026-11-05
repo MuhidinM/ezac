@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { getApiBaseUrl } from "@/lib/api/config";
-import { logGatewayUnreachable } from "@/lib/api/network-error";
+import { ApiError } from "@/lib/api/errors";
+import { logUpstreamFailure, readUpstreamJson, upstreamFetch } from "@/lib/api/upstream";
 
 /**
  * Public calculator config (prices, nisab, rates, livestock tables) from
@@ -9,11 +9,18 @@ import { logGatewayUnreachable } from "@/lib/api/network-error";
  */
 export async function GET() {
   try {
-    const upstream = await fetch(`${getApiBaseUrl()}/api/zakat/v1/calculator/config`, {
-      next: { revalidate: 300 },
-    });
-    const body = (await upstream.json().catch(() => null)) as unknown;
+    const call = await upstreamFetch(
+      "/api/zakat/v1/calculator/config",
+      { next: { revalidate: 300 } },
+      { label: "zakat/calculator-config" },
+    );
+    const parsed = await readUpstreamJson(call);
+    const body = parsed.kind === "json" ? parsed.value : null;
+    const upstream = call.response;
+
     if (!upstream.ok || !body) {
+      // 503 means prices aren't published yet: expected, not an incident.
+      if (upstream.status >= 500 && upstream.status !== 503) logUpstreamFailure(call, body);
       return NextResponse.json(
         {
           success: false,
@@ -21,18 +28,23 @@ export async function GET() {
             upstream.status === 503
               ? "Official prices aren't available yet."
               : "Couldn't load the official Zakat rates.",
+          requestId: call.requestId,
         },
-        { status: upstream.status || 502 },
+        { status: upstream.ok ? 502 : upstream.status },
       );
     }
+
     return NextResponse.json(body, {
       headers: { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" },
     });
   } catch (error) {
-    logGatewayUnreachable("zakat/calculator-config", error);
-    return NextResponse.json(
-      { success: false, message: "Couldn't reach the Zakat service." },
-      { status: 502 },
-    );
+    // Gateway unreachable (502) or too slow (504); already logged.
+    if (error instanceof ApiError) {
+      return NextResponse.json(
+        { success: false, message: error.message, requestId: error.requestId },
+        { status: error.status },
+      );
+    }
+    throw error;
   }
 }

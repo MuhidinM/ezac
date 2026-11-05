@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
 
 import { apiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
+import { sendToSignIn } from "@/lib/auth/client-session";
 
 type ResourceState<T> = {
   key: string | null;
@@ -12,14 +12,28 @@ type ResourceState<T> = {
   error?: ApiError | null;
 };
 
+let redirectingToLogin = false;
+
+/**
+ * A full page load, not a client navigation, so the login page and the route
+ * proxy start from the cleared session. Several resources can fail at once;
+ * only the first one navigates.
+ */
+function sendToLogin() {
+  if (redirectingToLogin) return;
+  redirectingToLogin = true;
+  // Also clears the cached session, saved drafts and setup tokens (shared
+  // branch PCs) and drops any cookie the server left, so /login doesn't bounce back.
+  void sendToSignIn(`${window.location.pathname}${window.location.search}`);
+}
+
 /**
  * Fetch a JSON resource from our BFF. Keeps the previous data while a reload
  * is in flight, and sends the user to login when the session has expired.
- * Pass `null` to skip fetching.
+ * Other errors (offline, 503 sign-in service down, 403…) are returned for
+ * the page to show. Pass `null` to skip fetching.
  */
 export function useResource<T>(path: string | null) {
-  const router = useRouter();
-  const pathname = usePathname();
   const [nonce, setNonce] = useState(0);
   const [state, setState] = useState<ResourceState<T>>({ key: null });
 
@@ -36,18 +50,20 @@ export function useResource<T>(path: string | null) {
       .catch((error: unknown) => {
         if (cancelled) return;
         if (error instanceof ApiError && error.status === 401) {
-          router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
+          sendToLogin();
           return;
         }
         const apiError =
-          error instanceof ApiError ? error : new ApiError("Something went wrong", 500);
+          error instanceof ApiError
+            ? error
+            : new ApiError("Something went wrong. Try again.", 500);
         setState((prev) => ({ key, data: prev.data, error: apiError }));
       });
 
     return () => {
       cancelled = true;
     };
-  }, [key, path, pathname, router]);
+  }, [key, path]);
 
   const reload = useCallback(() => setNonce((value) => value + 1), []);
   const mutate = useCallback(

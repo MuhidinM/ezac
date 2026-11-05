@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { withStaffAccess } from "@/lib/api/bff";
+import { withStaffAccess, type AccessOptions } from "@/lib/api/bff";
+import { readJsonBody } from "@/lib/api/body";
+import { ApiError } from "@/lib/api/errors";
 import { gatewayRequest } from "@/lib/api/gateway";
 import type {
   BranchCreateResponse,
@@ -9,6 +10,21 @@ import type {
   CreateBranchBody,
   PaginatedItems,
 } from "@/lib/api/types";
+
+/**
+ * Who may call this route (mirrors the UI; the gateway still decides):
+ *
+ * | Method | Access | UI callers                                                              |
+ * | ------ | ------ | ----------------------------------------------------------------------- |
+ * | GET    | admin  | branch filters on Beneficiaries, Assessments (isAdmin) and Pool (admin) |
+ * |        |        | branch picker on Field officers (admin)                                 |
+ * | POST   | admin  | Branches > create branch (RequireRole admin)                            |
+ */
+const ACCESS: AccessOptions = { access: "admin", label: "admin/branches" };
+
+function field(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
 
 export async function GET(request: NextRequest) {
   const upstreamQuery = new URLSearchParams();
@@ -20,57 +36,38 @@ export async function GET(request: NextRequest) {
   const query = upstreamQuery.toString();
   const path = `/api/beneficiaries/v1/admin/branches${query ? `?${query}` : ""}`;
 
-  return withStaffAccess((accessToken) =>
-    gatewayRequest<PaginatedItems<BranchListItem>>(path, { accessToken }),
+  return withStaffAccess(
+    (accessToken) => gatewayRequest<PaginatedItems<BranchListItem>>(path, { accessToken }),
+    ACCESS,
   );
 }
 
 export async function POST(request: Request) {
-  let body: CreateBranchBody;
+  return withStaffAccess(async (accessToken) => {
+    const body = (await readJsonBody<Partial<Record<keyof CreateBranchBody, unknown>> | null>(request)) ?? {};
 
-  try {
-    body = (await request.json()) as CreateBranchBody;
-  } catch {
-    return NextResponse.json(
-      { success: false, message: "Invalid request body" },
-      { status: 400 },
-    );
-  }
+    const payload: CreateBranchBody = {
+      name: field(body.name),
+      region: field(body.region),
+      zone: field(body.zone),
+      woreda: field(body.woreda),
+      branchPhone: field(body.branchPhone),
+      branchFullName: field(body.branchFullName),
+    };
 
-  if (
-    !body.name?.trim() ||
-    !body.region?.trim() ||
-    !body.zone?.trim() ||
-    !body.woreda?.trim() ||
-    !body.branchPhone?.trim() ||
-    !body.branchFullName?.trim()
-  ) {
-    return NextResponse.json(
-      { success: false, message: "Required branch fields are missing" },
-      { status: 400 },
-    );
-  }
+    if (Object.values(payload).some((value) => !value)) {
+      throw new ApiError("Required branch fields are missing", 400);
+    }
 
-  const payload: CreateBranchBody = {
-    name: body.name.trim(),
-    region: body.region.trim(),
-    zone: body.zone.trim(),
-    woreda: body.woreda.trim(),
-    branchPhone: body.branchPhone.trim(),
-    branchFullName: body.branchFullName.trim(),
-  };
-  if (body.branchEmail?.trim()) {
-    payload.branchEmail = body.branchEmail.trim();
-  }
+    const branchEmail = field(body.branchEmail);
+    if (branchEmail) {
+      payload.branchEmail = branchEmail;
+    }
 
-  return withStaffAccess((accessToken) =>
-    gatewayRequest<BranchCreateResponse>(
-      "/api/beneficiaries/v1/admin/branches",
-      {
-        method: "POST",
-        body: JSON.stringify(payload),
-        accessToken,
-      },
-    ),
-  );
+    return gatewayRequest<BranchCreateResponse>("/api/beneficiaries/v1/admin/branches", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      accessToken,
+    });
+  }, ACCESS);
 }

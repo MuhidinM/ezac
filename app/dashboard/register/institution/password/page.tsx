@@ -1,15 +1,10 @@
-import { SetPasswordStep } from "@/components/registration/set-password-step";
+import { InstitutionRegistrationUnavailable } from "../unavailable";
 
-const INSTITUTION_STEPS = ["Details", "Password", "Documents"];
-
+// Institution registration is switched off (see ../unavailable.tsx). This step was:
+//   <SetPasswordStep registrationType="institution" steps={["Details", "Password", "Documents"]}
+//     currentStep={1} backHref="/dashboard/register/institution"
+//     successHref="/dashboard/register/institution/documents" />
+// from "@/components/registration/set-password-step".
 export default function InstitutionPasswordPage() {
-  return (
-    <SetPasswordStep
-      registrationType="institution"
-      steps={INSTITUTION_STEPS}
-      currentStep={1}
-      backHref="/dashboard/register/institution"
-      successHref="/dashboard/register/institution/documents"
-    />
-  );
+  return <InstitutionRegistrationUnavailable />;
 }

@@ -25,8 +25,8 @@ import {
 import type { SessionInfo } from "@/lib/api/types";
 
 /**
- * hq: any head-office staff (ADMIN, FIELD_OFFICER, or a staff token without a
- * recognised role); admin / officer / branch: that role only.
+ * hq: any head-office staff (ADMIN or FIELD_OFFICER; a roleless account only
+ * when TRUST_ROLELESS_ACCOUNTS is on); admin / officer / branch: that role only.
  */
 export type NavAudience = "hq" | "admin" | "officer" | "branch";
 
@@ -184,10 +184,14 @@ export function isFieldOfficer(session: SessionInfo | null) {
   return session?.roles.includes("FIELD_OFFICER") ?? false;
 }
 
+/**
+ * Deny by default: no session (not loaded, signed out, or an account without
+ * an EZAC role) sees nothing. Callers show a skeleton while the session loads
+ * instead of asking this.
+ */
 export function canSee(audience: NavAudience[], session: SessionInfo | null) {
-  const isAdmin = session?.isAdmin ?? false;
-  const isBranch = session?.isBranch ?? false;
-  const isStaff = session?.isStaff ?? true;
+  if (!session) return false;
+  const { isAdmin, isBranch, isStaff } = session;
 
   return audience.some((target) => {
     if (target === "branch") return isBranch;

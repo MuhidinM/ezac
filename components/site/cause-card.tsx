@@ -7,7 +7,10 @@ const etb = new Intl.NumberFormat("en-ET", { notation: "compact", maximumFractio
 /** Public cause card (landing page and /causes). */
 export function CauseCard({ cause, closed = false }: { cause: PublicCause; closed?: boolean }) {
   const image = mediaSrc(cause.imageUrl);
-  const pct = cause.progress != null ? Math.round(cause.progress * 100) : null;
+  const pct = cause.progress != null && Number.isFinite(cause.progress) ? Math.max(0, Math.round(cause.progress * 100)) : null;
+  // Over-funded causes say so in words; the bar itself never runs past full.
+  const goalReached = pct != null && pct >= 100;
+  const barWidth = pct != null ? Math.min(100, pct) : 0;
 
   return (
     <article className="flex h-full flex-col rounded-3xl border border-black/5 bg-white p-2 shadow-xl shadow-black/5">
@@ -37,7 +40,12 @@ export function CauseCard({ cause, closed = false }: { cause: PublicCause; close
               </span>
             ) : null}
           </div>
-          <h3 className="font-serif-display text-xl leading-tight sm:text-2xl" style={{ color: "#001539", letterSpacing: "-0.5px" }}>
+          {/* Admins can save long titles and descriptions: clamp them so one wordy cause doesn't stretch its row. */}
+          <h3
+            className="font-serif-display line-clamp-2 text-xl leading-tight sm:text-2xl"
+            style={{ color: "#001539", letterSpacing: "-0.5px" }}
+            title={cause.title}
+          >
             <Link href={`/causes/${encodeURIComponent(cause.id)}`} className="hover:underline">
               {cause.title}
             </Link>
@@ -49,14 +57,16 @@ export function CauseCard({ cause, closed = false }: { cause: PublicCause; close
                   {cause.raisedEtb != null ? `ETB ${etb.format(cause.raisedEtb)}` : "Raised"}
                   {cause.goalEtb != null ? ` of ${etb.format(cause.goalEtb)}` : ""}
                 </span>
-                <span style={{ color: "#001539", fontWeight: 500 }}>{pct}%</span>
+                <span style={{ color: goalReached ? "#007050" : "#001539", fontWeight: 500 }}>
+                  {goalReached ? "Goal reached" : `${pct}%`}
+                </span>
               </div>
               <div className="h-1.5 w-full overflow-hidden rounded-full" style={{ backgroundColor: "rgba(0,0,0,0.08)" }}>
-                <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: "#007050" }} />
+                <div className="h-full rounded-full" style={{ width: `${barWidth}%`, backgroundColor: "#007050" }} />
               </div>
             </div>
           ) : null}
-          <p className="text-sm leading-relaxed" style={{ color: "#6F6F6F" }}>
+          <p className="line-clamp-3 text-sm leading-relaxed" style={{ color: "#6F6F6F" }}>
             {cause.description}
           </p>
           <Link

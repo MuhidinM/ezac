@@ -6,7 +6,12 @@ import { type FormEvent, Suspense, useState } from "react";
 import { CircleAlert, Pencil, RefreshCw, Save } from "lucide-react";
 
 import { StatTile } from "@/components/charts/stat-tile";
-import { PayoutReview } from "@/components/disbursements/payout-dialog";
+import {
+  NameCheckAcknowledgement,
+  PayoutReview,
+  nameCheckOf,
+  needsNameAcknowledgement,
+} from "@/components/disbursements/payout-dialog";
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { ListPagination } from "@/components/dashboard/list-pagination";
@@ -58,7 +63,6 @@ import {
   type FundAccounts,
   FUNDS,
   fundLabel,
-  NAME_CHECK,
   payoutErrorMessage,
   type Rail,
   RAIL_LABEL,
@@ -278,6 +282,7 @@ function Disbursements() {
                           {shown.label}
                         </Badge>
                         {payout.nameCheck === "MISMATCH" ? <Badge tone="danger">Names differ</Badge> : null}
+                        {payout.nameCheck === "NOT_CHECKED" ? <Badge tone="warning">Name not checked</Badge> : null}
                       </span>
                     </TableCell>
                     <TableCell className="pr-5 text-sm text-black/60">{formatDateTime(payout.createdAt)}</TableCell>
@@ -359,17 +364,14 @@ function PayoutSheet({ payoutId, onClose, onChanged }: { payoutId: string | null
                   <p className="text-sm text-[#001539]">
                     Prepared, not paid. Confirm before {formatDateTime(payout.expiresAt ?? null)} or it expires.
                   </p>
-                  {payout.nameCheck === "MISMATCH" ? (
-                    <label className="flex items-start gap-2 text-sm text-[#001539]">
-                      <input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} className="mt-0.5 size-4 accent-[#007050]" />
-                      I compared the names and this is the right account.
-                    </label>
+                  {needsNameAcknowledgement(payout) ? (
+                    <NameCheckAcknowledgement payout={payout} checked={acknowledged} onCheckedChange={setAcknowledged} />
                   ) : null}
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" size="sm" onClick={() => act("cancel")} disabled={isWorking}>
                       Cancel payout
                     </Button>
-                    <Button size="sm" onClick={() => act("confirm")} disabled={isWorking || (payout.nameCheck === "MISMATCH" && !acknowledged)}>
+                    <Button size="sm" onClick={() => act("confirm")} disabled={isWorking || (needsNameAcknowledgement(payout) && !acknowledged)}>
                       {isWorking ? "Sending…" : `Pay ${formatEtb(payout.amountEtb)}`}
                     </Button>
                   </div>
@@ -418,7 +420,7 @@ function PayoutSheet({ payoutId, onClose, onChanged }: { payoutId: string | null
                   items={[
                     { label: "Fund", value: payout.fund ? `${fundLabel(payout.fund)} fund` : null },
                     { label: "Rail", value: RAIL_LABEL[payout.rail] ?? payout.rail },
-                    { label: "Name check", value: NAME_CHECK[payout.nameCheck]?.label },
+                    { label: "Name check", value: nameCheckOf(payout).label },
                     { label: "Message id", value: payout.messageId ? <span className="font-mono">{payout.messageId}</span> : null },
                     { label: "Bank reference (FT)", value: payout.providerReference ? <span className="font-mono">{payout.providerReference}</span> : null },
                     ...(payout.rail === "IPS"

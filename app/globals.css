@@ -160,10 +160,6 @@
   font-family: var(--font-instrument-serif), "Instrument Serif", serif;
 }
 
-.font-playfair {
-  font-family: var(--font-playfair), "Playfair Display", serif;
-}
-
 .questionnaire-theme {
   --form-primary: #007050;
   --form-heading: #001539;
@@ -354,4 +350,20 @@
 
 .animate-pulse-dot {
   animation: pulse-dot 1.6s ease-in-out infinite;
+}
+
+/* These animation classes are unlayered, so Tailwind's motion-reduce: utilities
+   can't override them. Respect the setting here for every page that uses them. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-rise,
+  .animate-fade-rise-delay,
+  .animate-fade-rise-delay-2 {
+    opacity: 1;
+    animation: none;
+  }
+
+  .animate-marquee,
+  .animate-pulse-dot {
+    animation: none;
+  }
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Upload } from "lucide-react";
 
@@ -151,7 +152,7 @@ export function InstitutionDocumentsStep() {
               uploadingCode ? "pointer-events-none opacity-50" : undefined
             }
           >
-            <a href="/dashboard/register/institution/password">Back</a>
+            <Link href="/dashboard/register/institution/password">Back</Link>
           </Button>
           <Button onClick={onFinish} disabled={!kycComplete || !!uploadingCode}>
             Finish

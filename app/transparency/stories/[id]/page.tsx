@@ -16,6 +16,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function ImpactStoryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  // getStory throws when the zakat service is unavailable (the error page
+  // offers Try again), so null here really means "no such public story".
   const story = await getStory(id);
   if (!story) notFound();
   const image = mediaSrc(story.imageUrl);

@@ -75,6 +75,12 @@ export type PublicCause = {
   acceptsZakat: boolean;
   body?: string | null;
   images?: string[] | null;
+  /**
+   * Not sent yet (requested in docs/backend-go-live-requests.md §21). Once it
+   * is, a cause closed before its end date stops showing the give button.
+   */
+  status?: CauseStatus;
+  closedAt?: string | null;
 };
 
 export type StoryStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";

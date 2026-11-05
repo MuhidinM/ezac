@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 
+import { sendToSignIn } from "@/lib/auth/client-session";
 import { useSession } from "@/lib/auth/use-session";
 
 const HQ_PATH_PREFIXES = [
@@ -18,11 +19,19 @@ const HQ_PATH_PREFIXES = [
   "/dashboard/whitelist",
 ];
 
-/** Keeps branch officers inside their own portal. */
+/**
+ * Mounted once in the dashboard layout. Sends the browser to sign-in when the
+ * session has ended (deactivated account, expired IdP session), and keeps
+ * branch officers inside their own portal.
+ */
 export function DashboardRoleGuard() {
   const pathname = usePathname();
   const router = useRouter();
-  const { session } = useSession();
+  const { session, signedOut } = useSession();
+
+  useEffect(() => {
+    if (signedOut) void sendToSignIn(pathname);
+  }, [pathname, signedOut]);
 
   useEffect(() => {
     if (!session?.isBranch) return;

@@ -1,68 +1,162 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
 import { apiClient } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/errors";
 import type { SessionInfo } from "@/lib/api/types";
 
 // The sidebar, topbar, and several pages all need the session on every
-// navigation. Cache it so one dashboard view costs a single upstream /me call.
-let cached: SessionInfo | null | undefined;
-let inFlight: Promise<SessionInfo | null> | null = null;
+// navigation. Cache it so one dashboard view costs a single upstream /me call,
+// but only for a minute, so a role an administrator changes shows up without
+// a reload.
+const SESSION_TTL_MS = 60_000;
 
+type SessionSnapshot = {
+  session: SessionInfo | null;
+  isLoading: boolean;
+  /** The server said 401: the session is over and the user must sign in again. */
+  signedOut: boolean;
+  /**
+   * The session couldn't be read (offline, sign-in service down) and there is
+   * no earlier copy to show. Not the same as "no access": the page should
+   * offer a retry. Reads are retried in the background meanwhile.
+   */
+  unavailable: boolean;
+};
+
+const LOADING: SessionSnapshot = { session: null, isLoading: true, signedOut: false, unavailable: false };
+
+/** Background retries while the session can't be read: 5 s, 15 s, then every 30 s. */
+const RETRY_DELAYS_MS = [5_000, 15_000, 30_000];
+let retryAttempt = 0;
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+function cancelRetry() {
+  if (retryTimer) clearTimeout(retryTimer);
+  retryTimer = null;
+  retryAttempt = 0;
+}
+
+function scheduleRetry() {
+  if (retryTimer || listeners.size === 0) return;
+  const delay = RETRY_DELAYS_MS[Math.min(retryAttempt, RETRY_DELAYS_MS.length - 1)];
+  retryAttempt += 1;
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
+    void fetchSession({ force: true });
+  }, delay);
+}
+
+let snapshot: SessionSnapshot = LOADING;
+let fetchedAt = 0;
+let inFlight: Promise<SessionInfo | null> | null = null;
+const listeners = new Set<() => void>();
+
+function publish(next: SessionSnapshot) {
+  snapshot = next;
+  fetchedAt = Date.now();
+  for (const listener of listeners) listener();
+}
+
+function isFresh() {
+  return !snapshot.isLoading && Date.now() - fetchedAt < SESSION_TTL_MS;
+}
+
+/**
+ * Forget the cached session so the next read asks the server again. Pages
+ * already on screen keep what they show until that answer arrives.
+ */
 export function clearSessionCache(): void {
-  cached = undefined;
+  fetchedAt = 0;
+  inFlight = null;
+}
+
+/** Forget everything, including what is on screen (sign-out). */
+export function resetSessionCache(): void {
+  cancelRetry();
+  snapshot = LOADING;
+  fetchedAt = 0;
   inFlight = null;
 }
 
 export function fetchSession(options?: {
   force?: boolean;
 }): Promise<SessionInfo | null> {
-  if (options?.force) {
-    cached = undefined;
-    inFlight = null;
-  } else {
-    if (cached !== undefined) return Promise.resolve(cached);
+  if (!options?.force) {
+    if (isFresh()) return Promise.resolve(snapshot.session);
     if (inFlight) return inFlight;
   }
 
-  const request = apiClient<SessionInfo>("/bff/auth/session")
+  const request: Promise<SessionInfo | null> = apiClient<SessionInfo>("/bff/auth/session")
     .then((session) => {
-      cached = session;
+      if (inFlight === request) {
+        cancelRetry();
+        publish({ session, isLoading: false, signedOut: false, unavailable: false });
+      }
       return session;
     })
-    .catch(() => {
-      cached = null;
-      return null;
+    .catch((error: unknown) => {
+      if (inFlight !== request) return null;
+      if (error instanceof ApiError && error.status === 401) {
+        cancelRetry();
+        publish({ session: null, isLoading: false, signedOut: true, unavailable: false });
+        return null;
+      }
+      if (error instanceof ApiError && error.status === 403) {
+        // Signed in, but the account may not use the portal.
+        cancelRetry();
+        publish({ session: null, isLoading: false, signedOut: false, unavailable: false });
+        return null;
+      }
+      // Network trouble or a 503: keep the last good session rather than
+      // hiding every menu, and try again in the background.
+      publish({
+        session: snapshot.session,
+        isLoading: false,
+        signedOut: false,
+        unavailable: snapshot.session === null,
+      });
+      fetchedAt = 0;
+      if (snapshot.session === null) scheduleRetry();
+      return snapshot.session;
     })
     .finally(() => {
-      inFlight = null;
+      if (inFlight === request) inFlight = null;
     });
 
   inFlight = request;
   return request;
 }
 
-export function useSession(): {
-  session: SessionInfo | null;
-  isLoading: boolean;
-} {
-  const [session, setSession] = useState<SessionInfo | null>(cached ?? null);
-  const [isLoading, setIsLoading] = useState(cached === undefined);
+function onVisible() {
+  if (document.visibilityState === "visible" && !isFresh()) void fetchSession();
+}
 
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  if (listeners.size === 1) document.addEventListener("visibilitychange", onVisible);
+  return () => {
+    listeners.delete(listener);
+    if (listeners.size === 0) {
+      document.removeEventListener("visibilitychange", onVisible);
+      if (retryTimer) clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+  };
+}
+
+const getSnapshot = () => snapshot;
+const getServerSnapshot = () => LOADING;
+
+export function useSession(): SessionSnapshot {
+  const current = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+
+  // Each mount re-reads when the cached copy is older than the TTL; the answer
+  // reaches every component using the hook, the sidebar included.
   useEffect(() => {
-    let cancelled = false;
-
-    void fetchSession().then((next) => {
-      if (cancelled) return;
-      setSession(next);
-      setIsLoading(false);
-    });
-
-    return () => {
-      cancelled = true;
-    };
+    if (!isFresh()) void fetchSession();
   }, []);
 
-  return { session, isLoading };
+  return current;
 }

@@ -26,6 +26,8 @@ import { WHITELIST_REASONS } from "@/lib/backoffice/options";
 import { cn } from "@/lib/utils";
 
 const ACCEPTED = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+/** Per file, as for assessment documents; the server refuses uploads over 25 MB in total. */
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
 /** ADMIN adds directly (active at once); field officers and branches send a request ADMIN decides on. */
 export const ADMIN_WHITELIST_PATH = "/bff/backoffice/admin/whitelist";
@@ -169,6 +171,11 @@ export function WhitelistFormDialog({
       setError("Evidence must be PDF, JPEG, PNG or WebP.");
       return;
     }
+    const tooBig = files.find((file) => file.size > MAX_FILE_BYTES);
+    if (tooBig) {
+      setError(`"${tooBig.name}" is larger than 5 MB. Attach a smaller file or a scan at lower quality.`);
+      return;
+    }
 
     const body = new FormData();
     if (isAdmin) body.append("beneficiaryId", picked.id);
@@ -277,7 +284,7 @@ export function WhitelistFormDialog({
             label="Evidence"
             htmlFor="wl-files"
             required={!noteReplacesFiles}
-            hint="1–5 files: PDF, JPEG, PNG or WebP"
+            hint="1–5 files: PDF, JPEG, PNG or WebP, up to 5 MB each"
             error={fieldErrors.files}
           >
             <input

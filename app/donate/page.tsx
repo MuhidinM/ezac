@@ -64,9 +64,9 @@ export default function DonatePage() {
       </Section>
       <CtaBand
         title="Ready to give?"
-        body="Start with your Zakat obligation, or back a live Waqf project today."
+        body="Start with your Zakat obligation, or choose one of the causes open right now."
         primary={{ label: "Calculate & pay Zakat", href: "/zakat/calculator" }}
-        secondary={{ label: "Fund a Waqf project", href: "/waqf/crowdfunding" }}
+        secondary={{ label: "See open causes", href: "/causes" }}
       />
     </SitePage>
   );

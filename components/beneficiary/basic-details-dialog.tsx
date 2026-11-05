@@ -124,6 +124,20 @@ export function BasicDetailsDialog({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
 
+  // Start from the stored record every time the dialog opens. Parents open it
+  // by setting `open`, which never calls onOpenChange, and the component stays
+  // mounted while closed: without this, a cancelled edit (a bank account
+  // number, say) reappeared on the next open and was saved with it.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setDetails(fromSource(initial));
+      setError(null);
+      setFieldErrors({});
+    }
+  }
+
   function set<K extends keyof BasicDetails>(key: K, value: string) {
     setDetails((prev) => ({ ...prev, [key]: value }));
   }
@@ -168,14 +182,8 @@ export function BasicDetailsDialog({
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (next) setDetails(fromSource(initial));
-        onOpenChange(next);
-      }}
-    >
-      <DialogContent className="max-h-[90svh] max-w-2xl overflow-y-auto">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
         <form onSubmit={onSubmit} className="space-y-5">
           <DialogHeader>
             <DialogTitle className="text-[#001539]">Edit basic details</DialogTitle>

@@ -1,11 +1,23 @@
 import { Suspense } from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { LoginForm } from "@/components/auth/login-form";
 
+// The staff sign-in page should not show up in search results.
+export const metadata: Metadata = {
+  title: "Staff sign-in — EZAC",
+  description: "Sign-in for Ethiopian Zakat & Awqaf Commission staff.",
+  robots: { index: false, follow: false },
+};
+
 export default function LoginPage() {
   return (
-    <main className="relative min-h-screen overflow-hidden bg-white px-6 py-24 sm:px-8 md:py-0 md:flex md:items-center">
+    <main
+      id="main"
+      tabIndex={-1}
+      className="relative min-h-screen overflow-hidden bg-white px-6 py-24 outline-none sm:px-8 md:py-0 md:flex md:items-center"
+    >
       <div
         className="pointer-events-none absolute inset-0"
         aria-hidden="true"

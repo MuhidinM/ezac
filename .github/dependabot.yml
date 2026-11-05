@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # pnpm-lock.yaml; pull requests run the CI and deploy workflow's verify job.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # One pull request for the framework and its lint config, which must match.
+      next:
+        patterns: ["next", "eslint-config-next"]
+      react:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

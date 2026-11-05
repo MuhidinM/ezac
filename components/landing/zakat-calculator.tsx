@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
+import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowRightIcon,
@@ -24,6 +25,8 @@ import {
   type CalculatorConfig,
 } from "@/lib/zakat/calculator-config";
 
+import { readCalculatorConfig } from "./read-calculator-config";
+
 type CategoryKey =
   | "cash"
   | "gold"
@@ -34,81 +37,104 @@ type CategoryKey =
   | "rikazMinerals"
   | "debts";
 
+/** The figures the calculator applies right now: from the live config, or the offline fallbacks below. */
+type RuleFigures = {
+  zakatRate: number;
+  goldNisabGrams: number;
+  silverNisabGrams: number;
+  agriNisabKg: number;
+  rainFedRate: number;
+  mixedRate: number;
+  irrigatedRate: number;
+  rikazRate: number;
+};
+
 type Category = {
   key: CategoryKey;
   label: string;
   icon: LucideIcon;
-  ruling: string;
+  /** Built from the figures in use, so the explanation can't drift from the sum. */
+  ruling: (rules: RuleFigures) => string;
 };
+
+const pct = (rate: number) => `${+(rate * 100).toFixed(2)}%`;
+const kg = new Intl.NumberFormat("en-ET", { maximumFractionDigits: 1 });
 
 const CATEGORIES: Category[] = [
   {
     key: "cash",
     label: "Cash & Money",
     icon: CoinsIcon,
-    ruling:
-      "Zakat of 2.5% is due on cash, bank and mobile-money balances, plus reliable debts owed to you — once your total wealth meets Nisab and has been held for a full lunar year (Hawl).",
+    ruling: (r) =>
+      `Zakat of ${pct(r.zakatRate)} is due on cash, bank and mobile-money balances, plus reliable debts owed to you — once your total wealth meets Nisab and has been held for a full lunar year (Hawl).`,
   },
   {
     key: "gold",
     label: "Gold / Silver",
     icon: GemIcon,
-    ruling:
-      "Gold and silver owe 2.5% by fine-metal weight (gross grams × karat ÷ 24). Nisab is 85g fine gold or 595g fine silver. Most scholars include jewellery, whether worn or stored.",
+    ruling: (r) =>
+      `Gold and silver owe ${pct(r.zakatRate)} by fine-metal weight (gross grams × karat ÷ 24). Nisab is ${r.goldNisabGrams}g fine gold or ${r.silverNisabGrams}g fine silver. Most scholars include jewellery, whether worn or stored.`,
   },
   {
     key: "business",
     label: "Business",
     icon: BriefcaseIcon,
-    ruling:
-      "Trade goods bought to resell — inventory, business cash and receivables (less short-term payables) — owe 2.5%. Fixed assets such as machinery, vehicles and buildings are exempt.",
+    ruling: (r) =>
+      `Trade goods bought to resell — inventory, business cash and receivables (less short-term payables) — owe ${pct(r.zakatRate)}. Fixed assets such as machinery, vehicles and buildings are exempt.`,
   },
   {
     key: "propertyStocks",
     label: "Property & Stocks",
     icon: Building2Icon,
-    ruling:
-      "Your home and rental-property value are exempt — only saved rental income is charged. Trading shares owe 2.5% of market value; long-term shares owe 2.5% of the company's zakatable assets.",
+    ruling: (r) =>
+      `Your home and rental-property value are exempt — only saved rental income is charged. Trading shares owe ${pct(r.zakatRate)} of market value; long-term shares owe ${pct(r.zakatRate)} of the company's zakatable assets.`,
   },
   {
     key: "agriculture",
     label: "Agriculture",
     icon: LeafIcon,
-    ruling:
-      "Ushr is due on harvest day, with no Hawl: 10% if rain-fed, 7.5% if mixed, 5% if irrigated artificially. Nisab is about 653 kg of produce.",
+    ruling: (r) =>
+      `Ushr is due on harvest day, with no Hawl: ${pct(r.rainFedRate)} if rain-fed, ${pct(r.mixedRate)} if mixed, ${pct(r.irrigatedRate)} if irrigated artificially. Nisab is ${kg.format(r.agriNisabKg)} kg of produce.`,
   },
   {
     key: "livestock",
     label: "Livestock",
     icon: LandmarkIcon,
-    ruling:
+    ruling: () =>
       "Due only on freely-grazing (Sa'imah), non-working animals kept for milk or breeding, following the prophetic Nisab tables for sheep/goats, cattle and camels.",
   },
   {
     key: "rikazMinerals",
     label: "Rikaz / Minerals",
     icon: FactoryIcon,
-    ruling:
-      "Rikaz (buried treasure) owes 20% immediately, with no Nisab or Hawl. Mined minerals owe 2.5% once they reach the gold/silver Nisab value.",
+    ruling: (r) =>
+      `Rikaz (buried treasure) owes ${pct(r.rikazRate)} immediately, with no Nisab or Hawl. Mined minerals owe ${pct(r.zakatRate)} once they reach the Nisab value.`,
   },
   {
     key: "debts",
     label: "Debts & Liabilities",
     icon: ScaleIcon,
-    ruling:
-      "Deduct short-term debts due within the lunar year, plus the next 12 months of long-term loan payments, from your zakatable wealth before the 2.5% is applied.",
+    ruling: (r) =>
+      `Deduct short-term debts due within the lunar year, plus the next 12 months of long-term loan payments, from your zakatable wealth before the ${pct(r.zakatRate)} is applied.`,
   },
 ];
 
 // Offline fallbacks only; the official values come from the zakat service.
+// Mixed irrigation and Rikaz aren't in the config: the backend confirmed them as fixed.
 const ZAKAT_RATE = 0.025;
 const RIKAZ_RATE = OFFICIAL_RIKAZ_RATE;
 const GOLD_NISAB_GRAMS = 85;
 const SILVER_NISAB_GRAMS = 595;
 const AGRI_NISAB_KG = 653;
+const RAIN_FED_RATE = 0.1;
+const IRRIGATED_RATE = 0.05;
 const SILVER_PRICE_PER_GRAM_ETB = 412;
 const GOLD_PRICE_PER_GRAM_ETB = 7200;
 const KARATS = [24, 22, 21, 20, 18, 16, 14, 10] as const;
+
+// Anything longer is a typing slip, and would overflow to Infinity in the sums.
+const MAX_AMOUNT_DIGITS = 15;
+const MAX_HEAD_COUNT_DIGITS = 7;
 
 const FOCUS_RING =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007050] focus-visible:ring-offset-2";
@@ -185,9 +211,42 @@ const INITIAL_STATE: CalculatorState = {
   hawlCompleted: true,
 };
 
-function parseAmount(value: string) {
-  return parseFloat(value.replace(/,/g, "")) || 0;
+type ParsedAmount = { value: number; error: string | null };
+
+/**
+ * Reads a typed amount. Commas may group thousands; anything else that isn't a
+ * plain number (two decimal points, "1.500.000", a fraction of an animal, a
+ * runaway length) gets an inline message instead of a silently wrong total.
+ */
+function parseAmount(raw: string, { wholeNumber = false } = {}): ParsedAmount {
+  const text = raw.trim();
+  if (text === "" || text === ".") return { value: 0, error: null };
+  const [whole, fraction, ...rest] = text.split(".");
+  if (rest.length > 0) {
+    return { value: 0, error: "Use one decimal point at most. Separate thousands with commas, e.g. 1,500,000." };
+  }
+  if (fraction?.includes(",")) {
+    return { value: 0, error: "Commas can only separate thousands, before the decimal point." };
+  }
+  // "12,5" is a decimal comma, not 125; only a proper thousands grouping is allowed.
+  if (whole.includes(",") && !/^\d{1,3}(,\d{3})+$/.test(whole)) {
+    return {
+      value: 0,
+      error: "Use a point for decimals, e.g. 12.5. Commas can only separate thousands, e.g. 1,500,000.",
+    };
+  }
+  // "40.0" head is still 40; "40.5" is not a head count.
+  if (wholeNumber && fraction && /[1-9]/.test(fraction)) return { value: 0, error: "Enter a whole number." };
+  const digits = whole.replace(/,/g, "");
+  if (digits.replace(/^0+/, "").length > (wholeNumber ? MAX_HEAD_COUNT_DIGITS : MAX_AMOUNT_DIGITS)) {
+    return { value: 0, error: "This number is too large. Check it and try again." };
+  }
+  const value = Number(`${digits || "0"}.${fraction || "0"}`);
+  return Number.isFinite(value) ? { value, error: null } : { value: 0, error: "Enter a number, e.g. 1500000." };
 }
+
+/** The value of a typed amount; malformed input counts as 0 and is flagged separately. */
+const amount = (raw: string) => parseAmount(raw).value;
 
 function createMetalItem(): MetalLineItem {
   return {
@@ -213,15 +272,15 @@ function etbPerGramForKarat(
   return pure24 * (karat / 24);
 }
 
-function irrigationRate(mode: IrrigationMode, config: CalculatorConfig | null) {
+function irrigationRate(mode: IrrigationMode, rules: RuleFigures) {
   switch (mode) {
     case "mixed":
-      return MIXED_IRRIGATION_RATE;
+      return rules.mixedRate;
     case "artificial":
-      return config?.crops.irrigatedRate ?? 0.05;
+      return rules.irrigatedRate;
     case "natural":
     default:
-      return config?.crops.rainFedRate ?? 0.1;
+      return rules.rainFedRate;
   }
 }
 
@@ -361,13 +420,16 @@ export function ZakatCalculator() {
       .then(async (response) => {
         const json = (await response.json().catch(() => null)) as {
           success?: boolean;
-          data?: CalculatorConfig;
+          data?: unknown;
           message?: string;
         } | null;
-        if (!response.ok || !json?.success || !json.data?.nisab) {
+        if (!response.ok || !json?.success) {
           throw new Error(json?.message ?? "Rates unavailable (" + response.status + ").");
         }
-        if (isMounted) setConfig(json.data);
+        // A partial config would crash the page on render; treat it like no config.
+        const checked = readCalculatorConfig(json.data);
+        if (!checked) throw new Error("The official rates are incomplete right now.");
+        if (isMounted) setConfig(checked);
       })
       .catch((error: unknown) => {
         if (isMounted) {
@@ -382,11 +444,23 @@ export function ZakatCalculator() {
     };
   }, []);
 
-  const zakatRate = config?.wealth.rate ?? ZAKAT_RATE;
-  const agriNisabKg = config?.crops.nisabKg ?? AGRI_NISAB_KG;
-  const goldNisabGrams = config?.nisab.goldGrams ?? GOLD_NISAB_GRAMS;
-  const silverNisabGrams = config?.nisab.silverGrams ?? SILVER_NISAB_GRAMS;
+  const rules: RuleFigures = {
+    zakatRate: config?.wealth.rate ?? ZAKAT_RATE,
+    goldNisabGrams: config?.nisab.goldGrams ?? GOLD_NISAB_GRAMS,
+    silverNisabGrams: config?.nisab.silverGrams ?? SILVER_NISAB_GRAMS,
+    agriNisabKg: config?.crops.nisabKg ?? AGRI_NISAB_KG,
+    rainFedRate: config?.crops.rainFedRate ?? RAIN_FED_RATE,
+    mixedRate: MIXED_IRRIGATION_RATE,
+    irrigatedRate: config?.crops.irrigatedRate ?? IRRIGATED_RATE,
+    rikazRate: RIKAZ_RATE,
+  };
+  const { zakatRate, agriNisabKg, goldNisabGrams, silverNisabGrams } = rules;
   const nisabBasis = config?.nisab.basis ?? "silver";
+  // Fallback figures must never read as the Commission's live rule.
+  const usingEstimates = !config && !pricingLoading;
+  const estimateNote = usingEstimates
+    ? " These are typical figures: the official rates could not be loaded."
+    : "";
 
   const has = (key: CategoryKey) => added.includes(key);
 
@@ -397,55 +471,55 @@ export function ZakatCalculator() {
 
   // Cash base
   const cashBase =
-    parseAmount(form.cashOnHand) +
-    parseAmount(form.bankAndMobile) +
-    parseAmount(form.goodDebtReceivables) +
-    parseAmount(form.doubtfulDebtCollectedThisYear);
+    amount(form.cashOnHand) +
+    amount(form.bankAndMobile) +
+    amount(form.goodDebtReceivables) +
+    amount(form.doubtfulDebtCollectedThisYear);
 
   // Precious metals (karat affects ETB/g; Nisab uses fine gold/silver grams)
   const goldGrossGrams = form.metalItems
     .filter((item) => item.metal === "gold")
-    .reduce((sum, item) => sum + parseAmount(item.grams), 0);
+    .reduce((sum, item) => sum + amount(item.grams), 0);
   const silverGrossGrams = form.metalItems
     .filter((item) => item.metal === "silver")
-    .reduce((sum, item) => sum + parseAmount(item.grams), 0);
+    .reduce((sum, item) => sum + amount(item.grams), 0);
   const goldFineGrams = form.metalItems
     .filter((item) => item.metal === "gold")
     .reduce(
-      (sum, item) => sum + fineMetalGrams(parseAmount(item.grams), item.karat),
+      (sum, item) => sum + fineMetalGrams(amount(item.grams), item.karat),
       0,
     );
   const silverFineGrams = form.metalItems
     .filter((item) => item.metal === "silver")
     .reduce(
-      (sum, item) => sum + fineMetalGrams(parseAmount(item.grams), item.karat),
+      (sum, item) => sum + fineMetalGrams(amount(item.grams), item.karat),
       0,
     );
   const preciousMetalsValue = form.metalItems.reduce((sum, item) => {
-    const grams = parseAmount(item.grams);
+    const grams = amount(item.grams);
     const etbPerGram = etbPerGramForKarat(item.metal, item.karat, config);
     return sum + grams * etbPerGram;
   }, 0);
   // Business base
   const businessBase =
-    parseAmount(form.businessCash) +
-    parseAmount(form.inventoryValue) +
-    parseAmount(form.businessReceivables) -
-    parseAmount(form.businessShortTermPayables) +
-    parseAmount(form.propertyForResaleValue);
+    amount(form.businessCash) +
+    amount(form.inventoryValue) +
+    amount(form.businessReceivables) -
+    amount(form.businessShortTermPayables) +
+    amount(form.propertyForResaleValue);
 
   // Property & stocks base
   const propertyStocksBase =
-    parseAmount(form.rentalSavings) +
-    parseAmount(form.stocksTradingValue) +
-    parseAmount(form.stocksDividendCash) +
-    parseAmount(form.longTermCompanyZakatableAssets);
+    amount(form.rentalSavings) +
+    amount(form.stocksTradingValue) +
+    amount(form.stocksDividendCash) +
+    amount(form.longTermCompanyZakatableAssets);
 
   // Agriculture (no Hawl required)
-  const agricultureHarvestKg = parseAmount(form.cropsHarvestKg);
+  const agricultureHarvestKg = amount(form.cropsHarvestKg);
   const agricultureDue =
     has("agriculture") && agricultureHarvestKg >= agriNisabKg
-      ? agricultureHarvestKg * irrigationRate(form.irrigationMode, config)
+      ? agricultureHarvestKg * irrigationRate(form.irrigationMode, rules)
       : 0;
 
   // Thresholds & minerals / rikaz
@@ -453,22 +527,25 @@ export function ZakatCalculator() {
   const gold24kEtb = config?.goldPricePerGramEtb["24k"] ?? GOLD_PRICE_PER_GRAM_ETB;
   // The commission sets the basis (gold today); offline we fall back to silver.
   const nisabETB = config?.nisab.valueEtb ?? SILVER_NISAB_GRAMS * silver24kEtb;
-  const mineralsBase = parseAmount(form.mineralsValue);
+  const mineralsBase = amount(form.mineralsValue);
   const mineralsDue =
     has("rikazMinerals") && mineralsBase >= nisabETB
       ? mineralsBase * zakatRate
       : 0;
   const rikazDue = has("rikazMinerals")
-    ? parseAmount(form.rikazValue) * RIKAZ_RATE
+    ? amount(form.rikazValue) * RIKAZ_RATE
     : 0;
 
-  // Livestock
-  const livestockCount =
+  // Livestock: head counts are whole animals (a fraction would fall between table rows)
+  const livestockCountField: keyof CalculatorState =
     form.livestockMode === "sheepGoat"
-      ? parseAmount(form.sheepGoatCount)
+      ? "sheepGoatCount"
       : form.livestockMode === "cattle"
-        ? parseAmount(form.cattleCount)
-        : parseAmount(form.camelsCount);
+        ? "cattleCount"
+        : "camelsCount";
+  const livestockCount = parseAmount(form[livestockCountField] as string, {
+    wholeNumber: true,
+  }).value;
   const livestockEligible =
     form.livestockFreelyGrazing && !form.livestockUsedForWork;
   const livestockUnits =
@@ -484,8 +561,8 @@ export function ZakatCalculator() {
   const includedBusiness = has("business") ? Math.max(0, businessBase) : 0;
   const includedProperty = has("propertyStocks") ? propertyStocksBase : 0;
   const deductibleLiabilities = has("debts")
-    ? parseAmount(form.shortTermPersonalLiabilities) +
-      parseAmount(form.upcomingLoanPayments12m)
+    ? amount(form.shortTermPersonalLiabilities) +
+      amount(form.upcomingLoanPayments12m)
     : 0;
 
   const annualZakatableBase =
@@ -507,10 +584,38 @@ export function ZakatCalculator() {
     : 0;
   const annualDue = wealthDueActive ? adjustedAnnualBase * zakatRate : 0;
 
+  // Any malformed amount in a category the user has added blocks the total,
+  // so nobody pays from a figure built on a misread number.
+  const activeFieldValues: [string, boolean][] = [
+    ...(has("cash")
+      ? [form.cashOnHand, form.bankAndMobile, form.goodDebtReceivables, form.doubtfulDebtCollectedThisYear]
+      : []),
+    ...(has("gold") ? form.metalItems.map((item) => item.grams) : []),
+    ...(has("business")
+      ? [
+          form.businessCash,
+          form.inventoryValue,
+          form.businessReceivables,
+          form.businessShortTermPayables,
+          form.propertyForResaleValue,
+        ]
+      : []),
+    ...(has("propertyStocks")
+      ? [form.rentalSavings, form.stocksTradingValue, form.stocksDividendCash, form.longTermCompanyZakatableAssets]
+      : []),
+    ...(has("agriculture") ? [form.cropsHarvestKg] : []),
+    ...(has("rikazMinerals") ? [form.rikazValue, form.mineralsValue] : []),
+    ...(has("debts") ? [form.shortTermPersonalLiabilities, form.upcomingLoanPayments12m] : []),
+  ].map((value): [string, boolean] => [value, false]);
+  if (has("livestock")) activeFieldValues.push([form[livestockCountField] as string, true]);
+  const hasInputErrors = activeFieldValues.some(
+    ([value, wholeNumber]) => parseAmount(value, { wholeNumber }).error !== null,
+  );
+
   // Grand monetary total (in-kind dues are reported separately)
   const totalEtbDue = annualDue + rikazDue + mineralsDue;
   const hasInKind = agricultureDue > 0 || livestockUnits !== "No Zakat";
-  const readyToPay = totalEtbDue > 0 || hasInKind;
+  const readyToPay = !hasInputErrors && (totalEtbDue > 0 || hasInKind);
 
   const hasMonetaryCategory = ["cash", "gold", "business", "propertyStocks"].some(
     (k) => has(k as CategoryKey),
@@ -560,8 +665,13 @@ export function ZakatCalculator() {
     value: string,
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => void,
     helper?: string,
+    { wholeNumber = false }: { wholeNumber?: boolean } = {},
   ) => {
     const inputId = `f-${label.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}`;
+    const { error } = parseAmount(value, { wholeNumber });
+    const describedBy = [error ? `${inputId}-error` : null, helper ? `${inputId}-help` : null]
+      .filter(Boolean)
+      .join(" ");
     return (
     <div className="space-y-1.5">
       <label htmlFor={inputId} className="text-xs" style={{ color: "#6F6F6F" }}>
@@ -570,15 +680,23 @@ export function ZakatCalculator() {
       <input
         id={inputId}
         type="text"
-        inputMode="decimal"
+        inputMode={wholeNumber ? "numeric" : "decimal"}
+        maxLength={32}
         value={value}
         onChange={onChange}
-        className={`w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-[#007050] focus-visible:ring-2 focus-visible:ring-[#007050] ${FOCUS_RING}`}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy || undefined}
+        className={`w-full rounded-xl border bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-[#007050] focus-visible:ring-2 focus-visible:ring-[#007050] ${error ? "border-[#b4532a]" : "border-black/10"} ${FOCUS_RING}`}
         placeholder="0"
         style={{ color: "#001539" }}
       />
+      {error && (
+        <p id={`${inputId}-error`} className="text-[11px]" style={{ color: "#b4532a" }}>
+          {error}
+        </p>
+      )}
       {helper && (
-        <p className="text-[11px]" style={{ color: "#6F6F6F" }}>
+        <p id={`${inputId}-help`} className="text-[11px]" style={{ color: "#6F6F6F" }}>
           {helper}
         </p>
       )}
@@ -622,19 +740,31 @@ export function ZakatCalculator() {
               style={{ color: "#6F6F6F" }}
             >
               <p>
-                Official EZAC prices per gram by karat. Nisab is measured in{" "}
+                {config ? "Official EZAC prices per gram by karat." : "Estimated prices per gram by karat."}{" "}
+                Nisab is measured in{" "}
                 <strong style={{ color: "#001539" }}>fine metal</strong> (gross
-                grams × karat ÷ 24): gold {goldNisabGrams}g, silver {silverNisabGrams}g. The
-                commission currently applies the{" "}
-                <strong style={{ color: "#001539" }}>{nisabBasis}</strong> nisab.
+                grams × karat ÷ 24): gold {goldNisabGrams}g, silver {silverNisabGrams}g.{" "}
+                {config ? (
+                  <>
+                    The commission currently applies the{" "}
+                    <strong style={{ color: "#001539" }}>{nisabBasis}</strong> nisab.
+                  </>
+                ) : (
+                  <>
+                    Until the official rates load, this estimate uses the{" "}
+                    <strong style={{ color: "#001539" }}>{nisabBasis}</strong> nisab.
+                  </>
+                )}
               </p>
               <p className="mt-1">
                 {pricingLoading
                   ? "Loading official rates..."
                   : pricingError
-                    ? pricingError + " Using offline estimates until the official rates load."
+                    ? pricingError + " Using estimated prices instead."
                     : [
-                        "Prices as of " + new Date(config?.pricesAsOf ?? "").toLocaleString(),
+                        config?.pricesAsOf && !Number.isNaN(Date.parse(config.pricesAsOf))
+                          ? "Prices as of " + new Date(config.pricesAsOf).toLocaleString()
+                          : null,
                         config?.priceSource,
                         config?.usdEtbRate ? "USD/ETB " + config.usdEtbRate.toFixed(2) : null,
                       ]
@@ -643,7 +773,9 @@ export function ZakatCalculator() {
               </p>
             </div>
             <div className="space-y-3">
-              {form.metalItems.map((item, index) => (
+              {form.metalItems.map((item, index) => {
+                const gramsError = parseAmount(item.grams).error;
+                return (
                 <div key={item.id} className="grid gap-3 md:grid-cols-4">
                   <div className="space-y-1.5">
                     <label
@@ -682,6 +814,7 @@ export function ZakatCalculator() {
                       id={`grams-${item.id}`}
                       type="text"
                       inputMode="decimal"
+                      maxLength={32}
                       value={item.grams}
                       onChange={(e) =>
                         updateMetalItem(
@@ -690,10 +823,17 @@ export function ZakatCalculator() {
                           e.target.value.replace(/[^0-9.,]/g, ""),
                         )
                       }
-                      className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-[#007050] focus-visible:ring-2 focus-visible:ring-[#007050]"
+                      aria-invalid={gramsError ? true : undefined}
+                      aria-describedby={gramsError ? `grams-${item.id}-error` : undefined}
+                      className={`w-full rounded-xl border bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-[#007050] focus-visible:ring-2 focus-visible:ring-[#007050] ${gramsError ? "border-[#b4532a]" : "border-black/10"}`}
                       placeholder="0"
                       style={{ color: "#001539" }}
                     />
+                    {gramsError && (
+                      <p id={`grams-${item.id}-error`} className="text-[11px]" style={{ color: "#b4532a" }}>
+                        {gramsError}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-1.5">
                     <label
@@ -736,7 +876,8 @@ export function ZakatCalculator() {
                     </button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <button
@@ -822,7 +963,7 @@ export function ZakatCalculator() {
               "Harvest amount (kg)",
               form.cropsHarvestKg,
               updateAmount("cropsHarvestKg"),
-              `Nisab starts at ${agriNisabKg} kg. Due on harvest — no Hawl needed.`,
+              `Nisab starts at ${kg.format(agriNisabKg)} kg. Due on harvest — no Hawl needed.`,
             )}
             <div className="space-y-2">
               <p className="text-xs" style={{ color: "#6F6F6F" }}>
@@ -830,15 +971,16 @@ export function ZakatCalculator() {
               </p>
               <div className="flex flex-wrap gap-2">
                 {[
-                  { key: "natural", label: "Natural (10%)" },
-                  { key: "mixed", label: "Mixed (7.5%)" },
-                  { key: "artificial", label: "Artificial (5%)" },
+                  { key: "natural", label: `Natural (${pct(rules.rainFedRate)})` },
+                  { key: "mixed", label: `Mixed (${pct(rules.mixedRate)})` },
+                  { key: "artificial", label: `Artificial (${pct(rules.irrigatedRate)})` },
                 ].map((item) => {
                   const isActive = item.key === form.irrigationMode;
                   return (
                     <button
                       key={item.key}
                       type="button"
+                      aria-pressed={isActive}
                       onClick={() =>
                         setForm((prev) => ({
                           ...prev,
@@ -873,6 +1015,7 @@ export function ZakatCalculator() {
                   <button
                     key={item.key}
                     type="button"
+                    aria-pressed={isActive}
                     onClick={() =>
                       setForm((prev) => ({
                         ...prev,
@@ -929,18 +1072,24 @@ export function ZakatCalculator() {
                 "Number of sheep/goats",
                 form.sheepGoatCount,
                 updateAmount("sheepGoatCount"),
+                undefined,
+                { wholeNumber: true },
               )}
             {form.livestockMode === "cattle" &&
               renderAmountInput(
                 "Number of cattle/buffaloes",
                 form.cattleCount,
                 updateAmount("cattleCount"),
+                undefined,
+                { wholeNumber: true },
               )}
             {form.livestockMode === "camels" &&
               renderAmountInput(
                 "Number of camels",
                 form.camelsCount,
                 updateAmount("camelsCount"),
+                undefined,
+                { wholeNumber: true },
               )}
           </div>
         );
@@ -951,13 +1100,13 @@ export function ZakatCalculator() {
               "Rikaz discovered value (ETB)",
               form.rikazValue,
               updateAmount("rikazValue"),
-              "Rikaz is due immediately at 20%.",
+              `Rikaz is due immediately at ${pct(RIKAZ_RATE)}.`,
             )}
             {renderAmountInput(
               "Minerals extracted value (ETB)",
               form.mineralsValue,
               updateAmount("mineralsValue"),
-              "Minerals charged at 2.5% when Nisab is met.",
+              `Minerals charged at ${pct(zakatRate)} when Nisab is met.`,
             )}
           </div>
         );
@@ -987,34 +1136,35 @@ export function ZakatCalculator() {
 
   const breakdownRows: { label: string; value: string; deduction?: boolean }[] =
     [];
+  const wealthPct = pct(zakatRate);
   if (has("cash"))
     breakdownRows.push({
-      label: "Cash & money (2.5%)",
+      label: `Cash & money (${wealthPct})`,
       value: `ETB ${formatCurrency(cashShare)}`,
     });
   if (has("gold"))
     breakdownRows.push({
-      label: "Gold & silver (2.5%)",
+      label: `Gold & silver (${wealthPct})`,
       value: `ETB ${formatCurrency(goldShare)}`,
     });
   if (has("business"))
     breakdownRows.push({
-      label: "Business (2.5%)",
+      label: `Business (${wealthPct})`,
       value: `ETB ${formatCurrency(businessShare)}`,
     });
   if (has("propertyStocks"))
     breakdownRows.push({
-      label: "Property & stocks (2.5%)",
+      label: `Property & stocks (${wealthPct})`,
       value: `ETB ${formatCurrency(propertyShare)}`,
     });
   if (has("rikazMinerals"))
     breakdownRows.push({
-      label: "Rikaz (20%)",
+      label: `Rikaz (${pct(RIKAZ_RATE)})`,
       value: `ETB ${formatCurrency(rikazDue)}`,
     });
   if (has("rikazMinerals"))
     breakdownRows.push({
-      label: "Minerals (2.5%)",
+      label: `Minerals (${wealthPct})`,
       value: `ETB ${formatCurrency(mineralsDue)}`,
     });
   if (has("debts"))
@@ -1067,19 +1217,28 @@ export function ZakatCalculator() {
             className="mt-8 inline-flex items-center gap-2 text-xs"
             style={{ color: "rgba(255,255,255,0.7)" }}
           >
-            <InfoIcon className="h-3.5 w-3.5" />
-            <span>
-              Market snapshot{" "}
-              <span style={{ color: "#FFFFFF", fontWeight: 500 }}>
-                Gold 24k {formatCurrency(gold24kEtb)} ETB/g
+            <InfoIcon className="h-3.5 w-3.5 shrink-0" />
+            {config ? (
+              <span>
+                Market snapshot{" "}
+                <span style={{ color: "#FFFFFF", fontWeight: 500 }}>
+                  Gold 24k {formatCurrency(gold24kEtb)} ETB/g
+                </span>
+                {" · "}
+                <span style={{ color: "#FFFFFF", fontWeight: 500 }}>
+                  Silver 24k {formatCurrency(silver24kEtb)} ETB/g
+                </span>
+                {" · "}
+                Nisab ({nisabBasis}) ETB {formatCurrency(nisabETB)}
               </span>
-              {" · "}
-              <span style={{ color: "#FFFFFF", fontWeight: 500 }}>
-                Silver 24k {formatCurrency(silver24kEtb)} ETB/g
+            ) : pricingLoading ? (
+              <span>Loading the official rates…</span>
+            ) : (
+              <span>
+                The official rates could not be loaded. Totals below use
+                estimated prices and are only a rough guide.
               </span>
-              {" · "}
-              Nisab ({nisabBasis}) ETB {formatCurrency(nisabETB)}
-            </span>
+            )}
           </div>
         </div>
 
@@ -1111,7 +1270,7 @@ export function ZakatCalculator() {
                         >
                           {cat.label}
                         </h3>
-                        <InfoTip text={cat.ruling} label={cat.label} />
+                        <InfoTip text={cat.ruling(rules) + estimateNote} label={cat.label} />
                       </div>
                       <button
                         type="button"
@@ -1200,15 +1359,25 @@ export function ZakatCalculator() {
                 )}
               </div>
 
-              <p
-                className="font-serif-display mt-2 text-3xl break-words tabular-nums sm:text-4xl md:text-5xl"
-                style={{ color: "#001539", letterSpacing: "-1px" }}
-              >
-                ETB {formatCurrency(totalEtbDue)}
-              </p>
+              {hasInputErrors ? (
+                <p
+                  className="font-serif-display mt-2 text-2xl sm:text-3xl"
+                  style={{ color: "#9a5a14", letterSpacing: "-0.5px" }}
+                  role="status"
+                >
+                  Check the amounts marked above to see your total.
+                </p>
+              ) : (
+                <p
+                  className="font-serif-display mt-2 text-3xl break-words tabular-nums sm:text-4xl md:text-5xl"
+                  style={{ color: "#001539", letterSpacing: "-1px" }}
+                >
+                  ETB {formatCurrency(totalEtbDue)}
+                </p>
+              )}
 
               {/* In-kind dues reported separately from the monetary total */}
-              {(agricultureDue > 0 || livestockUnits !== "No Zakat") && (
+              {!hasInputErrors && (agricultureDue > 0 || livestockUnits !== "No Zakat") && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {agricultureDue > 0 && (
                     <span
@@ -1235,7 +1404,7 @@ export function ZakatCalculator() {
                 </div>
               )}
 
-              {breakdownRows.length > 0 && (
+              {!hasInputErrors && breakdownRows.length > 0 && (
                 <div
                   className="mt-4 space-y-2 text-xs"
                   style={{ color: "#595959" }}
@@ -1256,7 +1425,7 @@ export function ZakatCalculator() {
                 </div>
               )}
 
-              {hasMonetaryCategory && (
+              {!hasInputErrors && hasMonetaryCategory && (
                 <div
                   className="mt-4 space-y-2 border-t border-black/10 pt-3 text-xs"
                   style={{ color: "#595959" }}
@@ -1289,19 +1458,31 @@ export function ZakatCalculator() {
                 </div>
               )}
 
-              <button
-                type="button"
-                disabled={!readyToPay}
-                className={`group mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full py-4 text-sm transition-all duration-300 hover:scale-[1.01] disabled:hover:scale-100 ${FOCUS_RING}`}
-                style={{
-                  backgroundColor: readyToPay ? "#007050" : "rgba(0,0,0,0.1)",
-                  color: readyToPay ? "#FFFFFF" : "#6F6F6F",
-                  cursor: readyToPay ? "pointer" : "not-allowed",
-                }}
-              >
-                Proceed to Pay Zakat
-                <ArrowRightIcon className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-              </button>
+              {/* Payment itself happens in the EZAC app; /zakat/pay explains how. */}
+              {readyToPay ? (
+                <Link
+                  href="/zakat/pay"
+                  className={`group mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full py-4 text-sm transition-all duration-300 hover:scale-[1.01] ${FOCUS_RING}`}
+                  style={{ backgroundColor: "#007050", color: "#FFFFFF" }}
+                >
+                  Proceed to Pay Zakat
+                  <ArrowRightIcon className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="mt-5 inline-flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-full py-4 text-sm"
+                  style={{ backgroundColor: "rgba(0,0,0,0.1)", color: "#6F6F6F" }}
+                >
+                  Proceed to Pay Zakat
+                  <ArrowRightIcon className="h-4 w-4" />
+                </button>
+              )}
+              <p className="mt-3 text-center text-xs" style={{ color: "#595959" }}>
+                You pay in the EZAC app: it shows a QR code that you scan with
+                any Ethiopian bank app.
+              </p>
 
               <div
                 className="mt-4 flex items-center justify-center gap-2 text-[10px] uppercase tracking-[0.2em]"

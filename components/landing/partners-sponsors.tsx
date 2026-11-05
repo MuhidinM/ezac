@@ -106,7 +106,8 @@ export function PartnersSponsors() {
             <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-12 bg-linear-to-l from-white to-transparent" />
 
             <div className="group relative overflow-hidden">
-              <div className="flex w-max animate-[partners-marquee_28s_linear_infinite] gap-3 group-hover:paused">
+              {/* Tailwind has no `paused` utility; set the play state directly. */}
+              <div className="flex w-max animate-[partners-marquee_28s_linear_infinite] gap-3 group-hover:[animation-play-state:paused] group-focus-within:[animation-play-state:paused] motion-reduce:animate-none">
                 {[...PARTNERS, ...PARTNERS].map((partner, idx) => (
                   <div
                     key={`${partner.name}-${idx}`}

@@ -1,6 +1,6 @@
-import { Fragment } from "react";
 import { TrendingUpIcon } from "lucide-react";
 
+import { readCalculatorConfig } from "./read-calculator-config";
 import {
   formatCount,
   formatEtbCompact,
@@ -16,7 +16,9 @@ type Stat = {
 
 /** Live figures from zakat-engine; unpublished ones are left out. */
 async function loadStats(): Promise<Stat[]> {
-  const [home, impact, config] = await Promise.all([getHomeSummary(), getImpactSummary(), getCalculatorConfig()]);
+  const [home, impact, rawConfig] = await Promise.all([getHomeSummary(), getImpactSummary(), getCalculatorConfig()]);
+  // A partial config would throw here and take the home page down with it.
+  const config = readCalculatorConfig(rawConfig);
   const stats: (Stat | null)[] = [
     config
       ? { value: `ETB ${new Intl.NumberFormat("en-ET").format(Math.round(config.nisab.valueEtb))}`, label: `Nisab today (${config.nisab.basis})` }
@@ -88,7 +90,7 @@ export async function TransparencyTicker() {
         >
           <span className="relative flex h-2 w-2">
             <span
-              className="animate-pulse-dot absolute inset-0 rounded-full"
+              className="animate-pulse-dot absolute inset-0 rounded-full motion-reduce:animate-none!"
               style={{ backgroundColor: "#007050" }}
             />
             <span
@@ -108,33 +110,50 @@ export async function TransparencyTicker() {
           />
         </div>
 
-        <div className="relative flex-1 overflow-hidden py-5">
-          <div
-            className="animate-marquee flex whitespace-nowrap"
-            style={{ width: "max-content" }}
-          >
-            {loop.map((stat, i) => (
-              <Fragment key={i}>
-                <StatItem stat={stat} />
-                <span
-                  className="self-center"
-                  style={{ color: "rgba(255,255,255,0.2)" }}
+        {/* The strip pauses on hover and while focused (it's in the tab order
+            for that), and with reduced motion it becomes a static, wrapped
+            list. The marquee keyframes live in globals.css; the animation is
+            set as a utility here so the pause and motion-reduce rules can
+            override it. */}
+        <div
+          role="group"
+          aria-label="Live impact figures. Hover or focus to pause."
+          tabIndex={0}
+          className="group relative flex-1 overflow-hidden py-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/60"
+        >
+          <ul className="flex w-max animate-[marquee_40s_linear_infinite] whitespace-nowrap group-hover:[animation-play-state:paused] group-focus-within:[animation-play-state:paused] motion-reduce:w-auto motion-reduce:animate-none motion-reduce:flex-wrap motion-reduce:justify-center motion-reduce:gap-y-3 motion-reduce:whitespace-normal">
+            {loop.map((stat, i) => {
+              // Repeats only keep the marquee seamless: hide them from screen
+              // readers, and drop them when the strip is static.
+              const repeat = i >= stats.length;
+              return (
+                <li
+                  key={i}
+                  aria-hidden={repeat || undefined}
+                  className={`flex shrink-0 items-center ${repeat ? "motion-reduce:hidden" : ""}`}
                 >
-                  ◆
-                </span>
-              </Fragment>
-            ))}
-          </div>
+                  <StatItem stat={stat} />
+                  <span
+                    aria-hidden="true"
+                    className="self-center motion-reduce:hidden"
+                    style={{ color: "rgba(255,255,255,0.2)" }}
+                  >
+                    ◆
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
 
           <div
-            className="pointer-events-none absolute inset-y-0 left-0 w-24"
+            className="pointer-events-none absolute inset-y-0 left-0 w-24 motion-reduce:hidden"
             style={{
               background:
                 "linear-gradient(to right, #001539 0%, transparent 100%)",
             }}
           />
           <div
-            className="pointer-events-none absolute inset-y-0 right-0 w-24"
+            className="pointer-events-none absolute inset-y-0 right-0 w-24 motion-reduce:hidden"
             style={{
               background:
                 "linear-gradient(to left, #001539 0%, transparent 100%)",

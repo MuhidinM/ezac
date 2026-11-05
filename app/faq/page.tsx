@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 const FAQS = [
   {
     q: "How is it decided who receives Zakat?",
-    a: "By a published process: registration at a branch, a household assessment, a need score out of 270 points, a decision by the branch supervisor, and payment by head office. Emergencies can be fast-tracked with evidence. The 'How it works' page explains every step.",
+    a: "By a published process: registration at a branch, a household assessment, a need score from the Commission's points table, a decision by the branch supervisor, and payment by head office. Emergencies can be fast-tracked with evidence. The 'How it works' page explains every step.",
   },
   {
     q: "What is Nisab and how is it set?",
@@ -27,7 +27,7 @@ const FAQS = [
   },
   {
     q: "How do you verify that funds reach the right people?",
-    a: "Each household is registered at a branch, checked for duplicates, visited by a field officer and scored against a published points table. The branch supervisor approves it, head office adds it to the pool, and support is paid only to a bank account checked with the bank. Every step is recorded.",
+    a: "Each household is registered at a branch, checked for duplicates, visited by a field officer and scored against the Commission's points table. The branch supervisor approves it, head office adds it to the pool, and support is paid only to a bank account checked with the bank. Every step is recorded.",
   },
   {
     q: "What is the difference between Zakat and Waqf?",

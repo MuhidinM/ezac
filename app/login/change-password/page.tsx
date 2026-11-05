@@ -1,11 +1,22 @@
 import { Suspense } from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ChangePasswordForm } from "@/components/auth/change-password-form";
+import { SignOutLink } from "@/components/auth/sign-out-link";
+
+export const metadata: Metadata = {
+  title: "Change your password — EZAC",
+  robots: { index: false, follow: false },
+};
 
 export default function ChangePasswordPage() {
   return (
-    <main className="relative min-h-screen overflow-hidden bg-white px-6 py-24 sm:px-8 md:py-0 md:flex md:items-center">
+    <main
+      id="main"
+      tabIndex={-1}
+      className="relative min-h-screen overflow-hidden bg-white px-6 py-24 outline-none sm:px-8 md:py-0 md:flex md:items-center"
+    >
       <div
         className="pointer-events-none absolute inset-0"
         aria-hidden="true"
@@ -51,6 +62,13 @@ export default function ChangePasswordPage() {
           >
             <ChangePasswordForm />
           </Suspense>
+
+          <div className="mt-6 space-y-2 text-center text-sm text-black/60">
+            <p>Forgot your password? Ask your administrator to reset it.</p>
+            <p>
+              Not your account? <SignOutLink />
+            </p>
+          </div>
         </div>
       </section>
     </main>

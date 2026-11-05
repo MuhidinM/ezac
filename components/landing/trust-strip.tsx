@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3Icon,
@@ -63,13 +64,13 @@ export function TrustStrip() {
               Precision, transparency, accessibility.
             </h2>
           </div>
-          <a
+          <Link
             href="/how-it-works"
             className="hidden text-sm transition-colors hover:text-[#001539] md:inline"
             style={{ color: "#6F6F6F" }}
           >
             See how it works →
-          </a>
+          </Link>
         </div>
 
         <div className="grid grid-cols-2 divide-x divide-y divide-black/5 overflow-hidden rounded-2xl border border-black/5 md:grid-cols-3 md:divide-y-0 lg:grid-cols-5">

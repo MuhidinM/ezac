@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
 import {
   Building2Icon,
+  DownloadIcon,
   QrCodeIcon,
   ReceiptIcon,
   ShieldCheckIcon,
+  SmartphoneIcon,
 } from "lucide-react";
 import { SitePage } from "@/components/site/site-page";
+import { CITIZEN_APP_DOWNLOAD_URL } from "@/lib/constants/app-download";
 import {
   CtaBand,
   FeatureGrid,
@@ -81,6 +84,37 @@ export default function PayZakatPage() {
       <Section muted>
         <SectionHeading eyebrow="How it works" title="Three simple steps" />
         <StepList steps={STEPS} />
+      </Section>
+      {/* The calculator's "Proceed to Pay Zakat" lands here: give people the app itself. */}
+      <Section>
+        <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 rounded-3xl border border-black/5 bg-white p-8 text-center shadow-sm sm:p-10">
+          <span
+            className="inline-flex h-12 w-12 items-center justify-center rounded-full"
+            style={{ backgroundColor: "rgba(0,112,80,0.1)" }}
+          >
+            <SmartphoneIcon className="h-6 w-6" style={{ color: "#007050" }} />
+          </span>
+          <div>
+            <h2 className="font-serif-display text-3xl sm:text-4xl" style={{ color: "#001539", letterSpacing: "-1px" }}>
+              Get the EZAC app
+            </h2>
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed" style={{ color: "#6F6F6F" }}>
+              You pay in the EZAC app. It is available for Android phones only, as
+              a direct download (APK file) rather than from an app store.
+            </p>
+          </div>
+          <a
+            href={CITIZEN_APP_DOWNLOAD_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-sm font-medium text-white transition-transform duration-300 hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007050] focus-visible:ring-offset-2"
+            style={{ backgroundColor: "#007050" }}
+          >
+            <DownloadIcon className="h-4 w-4" />
+            Download the Android app
+            <span className="sr-only">(APK file, opens in a new tab)</span>
+          </a>
+        </div>
       </Section>
       <CtaBand
         title="Know your number first"

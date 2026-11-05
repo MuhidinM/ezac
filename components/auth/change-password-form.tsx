@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { ApiError } from "@/lib/api/errors";
 import { apiClient } from "@/lib/api/client";
-import { clearSessionCache } from "@/lib/auth/use-session";
+import { STAFF_PASSWORD_HINT, staffPasswordProblems } from "@/lib/auth/password-policy";
+import { resetSessionCache } from "@/lib/auth/use-session";
 
 export function ChangePasswordForm() {
   const router = useRouter();
@@ -20,13 +21,9 @@ export function ChangePasswordForm() {
     event.preventDefault();
     setError(null);
 
-    if (newPassword.length < 6) {
-      setError("New password must be at least 6 characters.");
-      return;
-    }
-
-    if (newPassword !== confirmNewPassword) {
-      setError("New password and confirmation do not match.");
+    const problems = staffPasswordProblems(currentPassword, newPassword, confirmNewPassword);
+    if (problems.length > 0) {
+      setError(`${problems[0]}.`);
       return;
     }
 
@@ -42,7 +39,7 @@ export function ChangePasswordForm() {
         }),
       });
 
-      clearSessionCache();
+      resetSessionCache();
 
       const redirect = searchParams.get("redirect");
       const loginUrl = new URL("/login", window.location.origin);
@@ -99,10 +96,14 @@ export function ChangePasswordForm() {
           autoComplete="new-password"
           value={newPassword}
           onChange={(event) => setNewPassword(event.target.value)}
-          minLength={6}
+          minLength={10}
           required
+          aria-describedby="new-password-hint"
           className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-[#001539] placeholder:text-black/35 outline-none transition focus:border-[#007050] focus:ring-2 focus:ring-[#007050]/20"
         />
+        <span id="new-password-hint" className="mt-1.5 block text-xs text-black/55">
+          {STAFF_PASSWORD_HINT}
+        </span>
       </label>
 
       <label className="block">
@@ -115,7 +116,7 @@ export function ChangePasswordForm() {
           autoComplete="new-password"
           value={confirmNewPassword}
           onChange={(event) => setConfirmNewPassword(event.target.value)}
-          minLength={6}
+          minLength={10}
           required
           className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-[#001539] placeholder:text-black/35 outline-none transition focus:border-[#007050] focus:ring-2 focus:ring-[#007050]/20"
         />

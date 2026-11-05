@@ -14,6 +14,7 @@ export const metadata: Metadata = {
 export const revalidate = 300;
 
 export default async function ImpactStoriesPage() {
+  // null means none published; an outage throws, so ISR keeps the last good list.
   const stories = (await getStories(1, 48))?.items ?? [];
 
   return (

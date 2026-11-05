@@ -1,4 +1,9 @@
+import Link from "next/link";
 import { ArrowRightIcon } from "lucide-react";
+
+// The fade-rise classes start at opacity 0. With reduced motion, skip the
+// animation and show the text at once (! beats the unlayered global CSS).
+const SHOW_WITHOUT_MOTION = "motion-reduce:animate-none! motion-reduce:opacity-100!";
 
 export function Hero() {
   return (
@@ -10,7 +15,7 @@ export function Hero() {
       }}
     >
       <h1
-        className="animate-fade-rise font-serif-display text-6xl font-normal sm:text-7xl md:text-8xl"
+        className={`animate-fade-rise font-serif-display text-6xl font-normal sm:text-7xl md:text-8xl ${SHOW_WITHOUT_MOTION}`}
         style={{
           color: "#001539",
           lineHeight: 0.95,
@@ -28,7 +33,7 @@ export function Hero() {
       </h1>
 
       <p
-        className="animate-fade-rise-delay mt-8 max-w-2xl text-base leading-relaxed sm:text-lg"
+        className={`animate-fade-rise-delay mt-8 max-w-2xl text-base leading-relaxed sm:text-lg ${SHOW_WITHOUT_MOTION}`}
         style={{
           color: "#6F6F6F",
           fontFamily: "Inter, sans-serif",
@@ -39,8 +44,8 @@ export function Hero() {
         every birr traced from your hand to the families and futures it builds.
       </p>
 
-      <div className="animate-fade-rise-delay-2 mt-12 flex flex-col items-center gap-4 sm:flex-row">
-        <a
+      <div className={`animate-fade-rise-delay-2 mt-12 flex flex-col items-center gap-4 sm:flex-row ${SHOW_WITHOUT_MOTION}`}>
+        <Link
           href="/zakat/calculator"
           className="inline-flex items-center gap-2 rounded-full px-10 py-5 text-base transition-transform duration-300 hover:scale-[1.03]"
           style={{
@@ -50,10 +55,12 @@ export function Hero() {
         >
           Calculate Your Zakat
           <ArrowRightIcon className="h-4 w-4" />
-        </a>
+        </Link>
 
-        <a
-          href="/dashboard/register"
+        {/* Households are registered at a branch or by a field officer, not
+            online: explain that instead of sending them to the staff sign-in. */}
+        <Link
+          href="/how-it-works#receiving"
           className="group relative isolate inline-flex overflow-hidden rounded-full border px-8 py-5 text-base"
           style={{
             borderColor: "#001539",
@@ -67,15 +74,15 @@ export function Hero() {
             }}
           />
           <span className="relative z-10 inline-flex items-center gap-2 text-[#001539] transition-colors duration-500 group-hover:text-white">
-            Register to Receive Zakat
+            How to Receive Zakat
             <span className="inline-block transition-transform duration-500 group-hover:translate-x-1">
               →
             </span>
           </span>
-        </a>
+        </Link>
       </div>
 
-      <div className="animate-fade-rise-delay-2 mt-auto w-full pt-20">
+      <div className={`animate-fade-rise-delay-2 mt-auto w-full pt-20 ${SHOW_WITHOUT_MOTION}`}>
         <p
           className="text-[10px] uppercase tracking-[0.18em]"
           style={{ color: "#6F6F6F" }}

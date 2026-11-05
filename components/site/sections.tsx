@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { ArrowRightIcon } from "lucide-react";
 
@@ -234,22 +235,22 @@ export function CtaBand({
           </p>
         )}
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <a
+          <Link
             href={primary.href}
             className="inline-flex items-center gap-2 rounded-full bg-white px-7 py-3.5 text-sm font-medium transition-transform duration-300 hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#007050]"
             style={{ color: "#007050" }}
           >
             {primary.label}
             <ArrowRightIcon className="h-4 w-4" />
-          </a>
+          </Link>
           {secondary && (
-            <a
+            <Link
               href={secondary.href}
               className="inline-flex items-center gap-2 rounded-full border border-white/40 px-7 py-3.5 text-sm transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#007050]"
               style={{ color: "#FFFFFF" }}
             >
               {secondary.label}
-            </a>
+            </Link>
           )}
         </div>
       </div>

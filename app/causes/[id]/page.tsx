@@ -16,6 +16,14 @@ function hasEnded(endsOn: string | null) {
   return endsOn ? new Date(`${endsOn}T23:59:59+03:00`).getTime() < Date.now() : false;
 }
 
+/** A calendar day ("2026-11-04") as is, a timestamp in Addis Ababa time; the raw value if unreadable. */
+function formatDay(value: string) {
+  const dateOnly = value.length === 10;
+  const date = new Date(dateOnly ? `${value}T00:00:00` : value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en", { dateStyle: "medium", ...(dateOnly ? {} : { timeZone: "Africa/Addis_Ababa" }) });
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const cause = await getCause(id);
@@ -24,11 +32,17 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function CausePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  // getCause throws when the zakat service is unavailable (the error page
+  // offers Try again), so null here really means "no such public cause".
   const cause = await getCause(id);
   if (!cause) notFound();
 
   const pct = cause.progress != null ? Math.round(cause.progress * 100) : null;
-  const ended = hasEnded(cause.endsOn);
+  // A cause can be over-funded: the bar stops at full and says so.
+  const goalReached = pct != null && pct >= 100;
+  // status is only sent once the backend adds it; until then the end date decides.
+  const closedEarly = cause.status === "CLOSED";
+  const ended = closedEarly || hasEnded(cause.endsOn);
   const cover = mediaSrc(cause.imageUrl);
   const gallery = (cause.images ?? []).map(mediaSrc).filter((src): src is string => Boolean(src) && src !== cover);
 
@@ -67,8 +81,22 @@ export default async function CausePage({ params }: { params: Promise<{ id: stri
               </p>
             </div>
             {pct != null ? (
-              <div className="h-2 w-full overflow-hidden rounded-full" style={{ backgroundColor: "rgba(0,0,0,0.08)" }}>
-                <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: "#007050" }} />
+              <div className="space-y-2">
+                <div
+                  role="progressbar"
+                  aria-label="Raised toward the goal"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.min(pct, 100)}
+                  aria-valuetext={goalReached ? "Goal reached" : `${pct}% of the goal`}
+                  className="h-2 w-full overflow-hidden rounded-full"
+                  style={{ backgroundColor: "rgba(0,0,0,0.08)" }}
+                >
+                  <div className="h-full rounded-full" style={{ width: `${Math.min(Math.max(pct, 0), 100)}%`, backgroundColor: "#007050" }} />
+                </div>
+                <p className="text-xs" style={{ color: goalReached ? "#007050" : "#6F6F6F" }}>
+                  {goalReached ? "Goal reached" : `${pct}% of the goal`}
+                </p>
               </div>
             ) : null}
             <dl className="space-y-2 text-sm">
@@ -78,10 +106,15 @@ export default async function CausePage({ params }: { params: Promise<{ id: stri
                   <dd style={{ color: "#001539" }}>{cause.region}</dd>
                 </div>
               ) : null}
-              {cause.endsOn ? (
+              {closedEarly && cause.closedAt ? (
+                <div className="flex justify-between gap-4">
+                  <dt style={{ color: "#6F6F6F" }}>Closed</dt>
+                  <dd style={{ color: "#001539" }}>{formatDay(cause.closedAt)}</dd>
+                </div>
+              ) : cause.endsOn && !closedEarly ? (
                 <div className="flex justify-between gap-4">
                   <dt style={{ color: "#6F6F6F" }}>{ended ? "Ended" : "Ends"}</dt>
-                  <dd style={{ color: "#001539" }}>{new Date(`${cause.endsOn}T00:00:00`).toLocaleDateString("en", { dateStyle: "medium" })}</dd>
+                  <dd style={{ color: "#001539" }}>{formatDay(cause.endsOn)}</dd>
                 </div>
               ) : null}
               <div className="flex justify-between gap-4">

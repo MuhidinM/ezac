@@ -72,6 +72,8 @@ export function pricePerGram(config: CalculatorConfig, metal: "gold" | "silver",
 /** Split `count` into units of size a and b, leaving the smallest remainder. */
 function bestSplit(count: number, a: number, b: number) {
   let best = { a: 0, b: 0, remainder: count };
+  // A zero or negative unit from a bad config would loop forever.
+  if (!(a > 0) || !(b > 0) || !Number.isFinite(count)) return best;
   for (let nb = 0; nb <= Math.floor(count / b); nb++) {
     const rest = count - nb * b;
     const na = Math.floor(rest / a);
@@ -100,7 +102,8 @@ export function livestockDue(
   }
 
   const rows = mode === "sheepGoat" ? livestock.sheepGoats : livestock.camels;
-  const row = rows.find((item) => count >= item.min && (item.max === undefined || count <= item.max));
+  // JSON sends an open upper bound as null, not undefined.
+  const row = rows.find((item) => count >= item.min && (item.max == null || count <= item.max));
   if (!row) return "No Zakat";
   if (row.dueItems?.length) return formatItems(row.dueItems);
   if (row.perHundred) return formatItems([{ kind: "sheep", count: Math.floor(count / 100) * row.perHundred }]);

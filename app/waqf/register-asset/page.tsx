@@ -83,9 +83,9 @@ export default function RegisterWaqfAssetPage() {
       </Section>
       <CtaBand
         title="Start your Waqf registration"
-        body="Begin the process online or speak with our endowment team for guidance."
-        primary={{ label: "Begin registration", href: "/dashboard/register" }}
-        secondary={{ label: "Talk to our team", href: "/contact" }}
+        body="Registration starts with a conversation: contact our endowment team and we'll guide you through each step."
+        primary={{ label: "Begin registration", href: "/contact" }}
+        secondary={{ label: "How Waqf investments work", href: "/waqf/investments" }}
       />
     </SitePage>
   );

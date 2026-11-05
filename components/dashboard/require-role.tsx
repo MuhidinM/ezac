@@ -1,10 +1,11 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ShieldAlert } from "lucide-react";
+import { CloudOff, ShieldAlert } from "lucide-react";
 
 import { canSee, type NavAudience } from "@/components/dashboard/nav-config";
-import { useSession } from "@/lib/auth/use-session";
+import { Button } from "@/components/ui/button";
+import { fetchSession, useSession } from "@/lib/auth/use-session";
 
 /** Render children only for the given audiences; explain otherwise. */
 export function RequireRole({
@@ -14,10 +15,29 @@ export function RequireRole({
   audience: NavAudience[];
   children: ReactNode;
 }) {
-  const { session, isLoading } = useSession();
+  const { session, isLoading, signedOut, unavailable } = useSession();
 
-  if (isLoading) {
-    return <div className="h-40 animate-pulse rounded-xl bg-black/[0.04]" />;
+  // Still loading, or on the way to sign-in: "no access" would be wrong in both cases.
+  if (isLoading || signedOut) {
+    return <div className="h-40 animate-pulse rounded-xl bg-black/[0.04]" role="status" aria-label="Loading" />;
+  }
+
+  // The session couldn't be read at all (offline, sign-in service down).
+  if (!session && unavailable) {
+    return (
+      <div className="flex flex-col items-center rounded-xl border border-black/[0.06] bg-white px-6 py-16 text-center shadow-xs" role="status">
+        <span className="flex size-11 items-center justify-center rounded-full bg-black/[0.04] text-black/50">
+          <CloudOff className="size-5" />
+        </span>
+        <h2 className="mt-4 text-base font-semibold text-[#001539]">We couldn&apos;t load your account</h2>
+        <p className="mt-1 max-w-sm text-sm text-black/55">
+          Check your connection. We&apos;ll keep trying, or try again now.
+        </p>
+        <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => void fetchSession({ force: true })}>
+          Try again
+        </Button>
+      </div>
+    );
   }
 
   if (!canSee(audience, session)) {

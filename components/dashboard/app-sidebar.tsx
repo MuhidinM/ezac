@@ -19,7 +19,8 @@ import {
   SidebarMenuItem,
   SidebarMenuSkeleton,
 } from "@/components/ui/sidebar";
-import { useSession } from "@/lib/auth/use-session";
+import { Button } from "@/components/ui/button";
+import { fetchSession, useSession } from "@/lib/auth/use-session";
 
 const SECONDARY_ITEMS = [
   { title: "Help & FAQ", url: "/faq", icon: LifeBuoy },
@@ -27,7 +28,7 @@ const SECONDARY_ITEMS = [
 ];
 
 export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
-  const { session, isLoading } = useSession();
+  const { session, isLoading, unavailable } = useSession();
   const isBranch = session?.isBranch ?? false;
 
   return (
@@ -66,6 +67,19 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
               ))}
             </SidebarMenu>
           </SidebarGroup>
+        ) : !session && unavailable ? (
+          // Offline or the sign-in service is down: not the same as having no access.
+          <div className="space-y-2 px-4 py-3 text-sm text-sidebar-foreground/70" role="status">
+            <p>We couldn&apos;t load your account. Check your connection; we&apos;ll keep trying.</p>
+            <Button type="button" variant="outline" size="sm" onClick={() => void fetchSession({ force: true })}>
+              Try again
+            </Button>
+          </div>
+        ) : !session ? (
+          // Signed in, but the account has no portal role.
+          <p className="px-4 py-3 text-sm text-sidebar-foreground/70">
+            Your account has no access to the staff portal. Ask an administrator to assign a role.
+          </p>
         ) : (
           NAV_SECTIONS.map((section) => (
             <NavMain

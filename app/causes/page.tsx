@@ -17,6 +17,8 @@ export const revalidate = 300;
 export default async function CausesPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
   const { status: raw } = await searchParams;
   const status = raw === "closed" ? "closed" : "active";
+  // null means none published. An outage throws and shows the error page
+  // (this page reads searchParams, so it renders per request, not from ISR).
   const causes = (await getCauses({ status, limit: 48 }))?.items ?? [];
 
   return (
