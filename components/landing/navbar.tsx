@@ -110,7 +110,7 @@ function DropdownGroup({
       <button
         ref={buttonRef}
         type="button"
-        className={`flex items-center gap-1 rounded-sm text-sm transition-colors hover:text-navy ${FOCUS_RING} ${isOpen ? "text-navy" : "text-muted-ink"}`}
+        className={`flex items-center gap-1 whitespace-nowrap rounded-sm text-sm transition-colors hover:text-navy ${FOCUS_RING} ${isOpen ? "text-navy" : "text-muted-ink"}`}
         onClick={() => setOpen(!isOpen)}
         onKeyDown={(event) => {
           if (event.key === "ArrowDown") {
@@ -180,7 +180,7 @@ export function Navbar() {
       {/* Below sm the bar drops the tagline and tightens its padding so the
           logo, Donate and the menu button fit on a 320px screen. */}
       <div
-        className={`mx-auto flex items-center justify-between gap-3 transition-all duration-500 ease-out sm:gap-6 ${scrolled ? "max-w-5xl rounded-full border border-black/5 bg-white/80 px-4 py-2.5 shadow-lg shadow-black/5 backdrop-blur-xl sm:px-5" : "max-w-7xl bg-transparent px-4 py-5 sm:px-8 sm:py-6"}`}
+        className={`mx-auto flex items-center justify-between gap-3 transition-all duration-500 ease-out sm:gap-6 ${scrolled ? "max-w-6xl rounded-full border border-black/5 bg-white/80 px-4 py-2.5 shadow-lg shadow-black/5 backdrop-blur-xl sm:px-5" : "max-w-7xl bg-transparent px-4 py-5 sm:px-8 sm:py-6"}`}
       >
         {/* No aria-label: the visible "EZAC" text names the link, so speech
             users can say what they see. */}
@@ -213,7 +213,7 @@ export function Navbar() {
           )}
         </Link>
 
-        <ul className="hidden items-center gap-7 lg:flex">
+        <ul className="hidden items-center gap-6 xl:flex 2xl:gap-7">
           {MENU.map((item, idx) => (
             <DropdownGroup
               key={item.group}
@@ -254,7 +254,7 @@ export function Navbar() {
                 type="button"
                 aria-label={nav.openMenu}
                 title={nav.openMenu}
-                className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white/70 text-navy transition-colors hover:bg-white lg:hidden ${FOCUS_RING}`}
+                className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white/70 text-navy transition-colors hover:bg-white xl:hidden ${FOCUS_RING}`}
               >
                 <MenuIcon aria-hidden="true" className="h-4 w-4" />
               </button>
