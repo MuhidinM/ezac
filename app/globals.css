@@ -7,7 +7,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-app-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-app-sans), var(--font-noto-ethiopic, "Noto Sans Ethiopic"), var(--font-noto-arabic, "Noto Sans Arabic"), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -157,7 +157,8 @@
 }
 
 .font-serif-display {
-  font-family: var(--font-instrument-serif), "Instrument Serif", serif;
+  /* Amharic and Arabic text falls through to the Noto fonts (see lib/fonts.ts). */
+  font-family: var(--font-instrument-serif), "Instrument Serif", var(--font-noto-serif-ethiopic, "Noto Serif Ethiopic"), var(--font-noto-naskh-arabic, "Noto Naskh Arabic"), serif;
 }
 
 .questionnaire-theme {
@@ -294,7 +295,7 @@
 }
 
 .font-body {
-  font-family: var(--font-inter), "Inter", sans-serif;
+  font-family: var(--font-inter), "Inter", var(--font-noto-ethiopic, "Noto Sans Ethiopic"), var(--font-noto-arabic, "Noto Sans Arabic"), sans-serif;
 }
 
 @keyframes fade-rise {

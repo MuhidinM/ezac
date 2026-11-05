@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { ACCESS_TOKEN_COOKIE, PASSWORD_CHANGE_COOKIE, REFRESH_TOKEN_COOKIE } from "@/lib/auth/constants";
+import { DEFAULT_LOCALE, LOCALE_COOKIE, isLocale, isUnlocalizedPath, splitLocale } from "@/lib/i18n/config";
 
 /** BFF calls an account with a temporary password may still make. */
 const PASSWORD_CHANGE_ALLOWED = new Set([
@@ -148,11 +149,45 @@ function guardBff(request: NextRequest): NextResponse | null {
   return null;
 }
 
+/**
+ * Public pages live under app/[lang]. English keeps the plain URLs: "/about"
+ * is served from /en/about (a rewrite, so the address bar stays "/about"),
+ * and "/en/about" redirects to "/about" so each page has one English address.
+ * A visitor who picked another language in the switcher (LOCALE_COOKIE) is
+ * sent from a plain URL to that language's prefix.
+ */
+function routePublicPage(request: NextRequest): NextResponse {
+  const { pathname } = request.nextUrl;
+  const { locale, path } = splitLocale(pathname);
+
+  if (locale === DEFAULT_LOCALE) {
+    const url = request.nextUrl.clone();
+    url.pathname = path;
+    return NextResponse.redirect(url, 308);
+  }
+  if (locale) return NextResponse.next();
+
+  const preferred = request.cookies.get(LOCALE_COOKIE)?.value;
+  if (isLocale(preferred) && preferred !== DEFAULT_LOCALE) {
+    const url = request.nextUrl.clone();
+    url.pathname = path === "/" ? `/${preferred}` : `/${preferred}${path}`;
+    return NextResponse.redirect(url, 307);
+  }
+
+  const url = request.nextUrl.clone();
+  url.pathname = path === "/" ? `/${DEFAULT_LOCALE}` : `/${DEFAULT_LOCALE}${path}`;
+  return NextResponse.rewrite(url);
+}
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname.startsWith("/bff/")) {
     return guardBff(request) ?? NextResponse.next();
+  }
+
+  if (!isUnlocalizedPath(pathname)) {
+    return routePublicPage(request);
   }
 
   // The access cookie expires with the token (~5 min); a refresh cookie still
@@ -191,5 +226,8 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/login", "/login/change-password", "/bff/:path*"],
+  // Every request except Next's own assets: public pages need locale routing,
+  // /dashboard and /login the session checks, /bff the API guards. Files from
+  // public/ pass straight through (isUnlocalizedPath).
+  matcher: ["/((?!_next/static|_next/image|_next/data|favicon.ico).*)"],
 };

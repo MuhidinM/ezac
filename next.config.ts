@@ -83,6 +83,9 @@ const nextConfig: NextConfig = {
     // longer (default 10 MB). Keep it above MULTIPART_BODY_LIMIT in
     // lib/api/body.ts (25 MiB) so the BFF's own cap answers 413 instead.
     proxyClientMaxBodySize: 26 * 1024 * 1024,
+    // Two root layouts (app/[lang] and app/(portal)): app/global-not-found.tsx
+    // answers URLs that match neither.
+    globalNotFound: true,
   },
   // No page uses next/image. Turning the optimizer off closes /_next/image,
   // which had unauthenticated advisories and would fetch for anyone.
