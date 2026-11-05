@@ -66,6 +66,7 @@ export default async function ImpactStoriesPage({ params }: PageProps<"/[lang]/t
                     <h2 className="font-serif-display text-xl leading-tight tracking-[-0.5px] text-navy sm:text-2xl">
                       <Link
                         href={localizedPath(locale, `/transparency/stories/${encodeURIComponent(story.id)}`)}
+                        title={format(t.readTitle, { title: story.title })}
                         className="outline-none after:absolute after:inset-0"
                       >
                         {story.title}

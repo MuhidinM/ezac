@@ -1,3 +1,5 @@
+import type { Messages } from "@/lib/i18n/messages";
+
 import about from "./about";
 import calculator from "./calculator";
 import common from "./common";
@@ -17,6 +19,7 @@ import transparency from "./transparency";
  */
 const en = { common, home, calculator, about, giving, transparency };
 
-export type Dictionary = typeof en;
+/** Read-only: pages and components only read the text, and every language shares this shape. */
+export type Dictionary = Messages<typeof en>;
 
 export default en;

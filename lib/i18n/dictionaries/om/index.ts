@@ -1,11 +1,17 @@
 import type { Dictionary } from "../en";
-import en from "../en";
+import about from "./about";
+import calculator from "./calculator";
+import common from "./common";
+import giving from "./giving";
+import home from "./home";
+import transparency from "./transparency";
 
 /**
- * Placeholder until the om translation lands: serves the English text so the
- * /om pages work. The translation replaces this file with one module per
- * namespace, typed against the English source.
+ * The Afaan Oromoo dictionary. Each namespace is typed against the English source
+ * (Messages<typeof en>), so a missing or extra key fails the type-check.
+ * These are machine-assisted drafts: native review notes are in
+ * docs/translation-review/om-*.md (git-ignored).
  */
-const om: Dictionary = en;
+const om: Dictionary = { common, home, calculator, about, giving, transparency };
 
 export default om;

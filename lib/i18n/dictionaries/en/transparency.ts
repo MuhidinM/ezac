@@ -159,6 +159,8 @@ const transparency = {
     empty: "No stories have been published yet.",
     /** Alt text for a story's photo; {title} is the story title as entered. */
     imageAlt: "Photo from the story: {title}",
+    /** Tooltip on a story card link; {title} is the story title as entered. */
+    readTitle: "Read the full story: {title}",
     cta: {
       title: "Be part of the next story",
       body: "Your Zakat reaches verified families across Ethiopia.",
