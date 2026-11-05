@@ -1226,7 +1226,7 @@ export function ZakatCalculator() {
                 </span>
                 {" · "}
                 <span style={{ color: "#FFFFFF", fontWeight: 500 }}>
-                  Silver 24k {formatCurrency(silver24kEtb)} ETB/g
+                  Silver {formatCurrency(silver24kEtb)} ETB/g
                 </span>
                 {" · "}
                 Nisab ({nisabBasis}) ETB {formatCurrency(nisabETB)}

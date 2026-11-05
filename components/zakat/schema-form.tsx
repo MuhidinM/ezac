@@ -190,17 +190,22 @@ function TableInput({
   );
 }
 
-/** Renders schema fields grouped by section and edits `value` by dot path. */
+/**
+ * Renders schema fields grouped by section and edits `value` by dot path.
+ * `errors` holds a message per field path (a table's own path for its rows).
+ */
 export function SchemaForm({
   fields,
   value,
   onChange,
   disabled,
+  errors,
 }: {
   fields: SchemaField[];
   value: Record<string, unknown>;
   onChange: (value: Record<string, unknown>) => void;
   disabled?: boolean;
+  errors?: Record<string, string>;
 }) {
   const sections = new Map<string, SchemaField[]>();
   for (const field of fields.filter((item) => typeof item.path === "string")) {
@@ -222,7 +227,11 @@ export function SchemaForm({
                 return (
                   <div key={field.path} className="space-y-1.5 sm:col-span-2 lg:col-span-3">
                     <p className="text-[13px] font-medium text-[#001539]">{field.label}</p>
-                    {hint ? <p className="text-xs text-black/50">{hint}</p> : null}
+                    {errors?.[field.path] ? (
+                      <p className="text-xs text-rose-700">{errors[field.path]}</p>
+                    ) : hint ? (
+                      <p className="text-xs text-black/50">{hint}</p>
+                    ) : null}
                     <TableInput
                       field={field}
                       rows={Array.isArray(current) ? (current as Row[]) : []}
@@ -234,7 +243,14 @@ export function SchemaForm({
                 );
               }
               return (
-                <FormField key={field.path} label={field.label} htmlFor={id} required={field.required && !disabled} hint={hint}>
+                <FormField
+                  key={field.path}
+                  label={field.label}
+                  htmlFor={id}
+                  required={field.required && !disabled}
+                  hint={hint}
+                  error={errors?.[field.path]}
+                >
                   <ScalarInput
                     field={field}
                     value={current}

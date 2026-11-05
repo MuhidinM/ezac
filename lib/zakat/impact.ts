@@ -4,10 +4,12 @@ import { getApiBaseUrl } from "@/lib/api/config";
 import { logGatewayUnreachable } from "@/lib/api/network-error";
 import type { CalculatorConfig } from "@/lib/zakat/calculator-config";
 import type { PublicCause, PublicStory } from "@/lib/zakat/content";
+import { ZAKAT_PUBLIC_TAG } from "@/lib/zakat/public-cache";
 
 /**
  * Public impact and transparency data from zakat-engine (no login), fetched on
- * the server and revalidated every 5 minutes.
+ * the server and revalidated every 5 minutes, or at once when an admin saves a
+ * change through the zakat-admin BFF (see lib/zakat/public-cache.ts).
  *
  * Every getter returns null only when there is nothing published: the service
  * answered 404 (or sent no data). When the service can't be reached, times out
@@ -49,7 +51,8 @@ const loadPublic = cache(async (path: string, emptyOn503 = false): Promise<unkno
   let response: Response;
   try {
     response = await fetch(`${getApiBaseUrl()}/api/zakat/v1${path}`, {
-      next: { revalidate: 300 },
+      // Admin changes expire the tag at once (app/bff/zakat-admin).
+      next: { revalidate: 300, tags: [ZAKAT_PUBLIC_TAG] },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   } catch (error) {
@@ -176,6 +179,21 @@ export async function getCauses(query: { status?: "active" | "closed"; urgent?: 
 
 /** One cause; null means it doesn't exist or isn't public (a real 404). */
 export const getCause = (id: string) => getPublic<PublicCause>(`/causes/${encodeURIComponent(id)}`);
+
+/**
+ * True when the cause is on the public closed list. The single-cause answer
+ * has no status yet (docs/backend-go-live-requests.md §21), so this is how the
+ * cause page learns that a cause was closed before its end date. Only the
+ * newest closed causes are checked, and an outage counts as "not listed".
+ */
+export async function isListedClosed(id: string): Promise<boolean> {
+  try {
+    const closed = await getCauses({ status: "closed", page: 1, limit: 50 });
+    return closed?.items.some((cause) => cause.id === id) ?? false;
+  } catch {
+    return false;
+  }
+}
 
 export const getStories = (page = 1, limit = 24) =>
   getPublic<Page<PublicStory>>(`/impact/stories?page=${page}&limit=${limit}`);

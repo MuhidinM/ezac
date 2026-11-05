@@ -9,7 +9,7 @@ import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { DetailList, Panel } from "@/components/dashboard/panel";
 import { RequireRole } from "@/components/dashboard/require-role";
-import { TableMessageRow } from "@/components/dashboard/table-states";
+import { TableMessageRow, TableSkeletonRows } from "@/components/dashboard/table-states";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -107,6 +107,8 @@ export default function ZakatSettingsPage() {
 
 function PaymentSettingsPanel() {
   const { data, error, mutate, reload } = useResource<PaymentSettings>("/bff/payments-admin/payment-settings");
+  // Kept here: the form remounts after a save, so its own state is lost.
+  const [notice, setNotice] = useState<string | null>(null);
   // Keyed on updatedAt so the form re-initialises after a save.
   return (
     <>
@@ -122,7 +124,22 @@ function PaymentSettingsPanel() {
         }
       >
         {error ? <InlineAlert>{error.message}</InlineAlert> : null}
-        {data ? <PaymentSettingsForm key={data.updatedAt ?? "new"} settings={data} onSaved={mutate} /> : null}
+        {notice ? (
+          <InlineAlert tone="success" className="mb-4">
+            {notice}
+          </InlineAlert>
+        ) : null}
+        {data ? (
+          <PaymentSettingsForm
+            key={data.updatedAt ?? "new"}
+            settings={data}
+            onEdit={() => setNotice(null)}
+            onSaved={(saved) => {
+              setNotice("Payment settings saved. They apply to new payments.");
+              mutate(saved);
+            }}
+          />
+        ) : null}
       </Panel>
       {/* Registering changes the settings (ethqrPuid, qrReady), so reload them. */}
       <EthqrPanel onRegistered={reload} />
@@ -130,7 +147,15 @@ function PaymentSettingsPanel() {
   );
 }
 
-function PaymentSettingsForm({ settings, onSaved }: { settings: PaymentSettings; onSaved: (settings: PaymentSettings) => void }) {
+function PaymentSettingsForm({
+  settings,
+  onEdit,
+  onSaved,
+}: {
+  settings: PaymentSettings;
+  onEdit: () => void;
+  onSaved: (settings: PaymentSettings) => void;
+}) {
   const [account, setAccount] = useState(settings.creditAccountNumber ?? "");
   const [name, setName] = useState(settings.creditAccountName ?? "");
   // The old Coop account flow is kept off; it can only be switched off from here.
@@ -146,6 +171,13 @@ function PaymentSettingsForm({ settings, onSaved }: { settings: PaymentSettings;
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    onEdit();
+    setMessage(null);
+    if (min.trim() && max.trim() && Number(min) > Number(max)) {
+      setFieldErrors({ maxAmountEtb: "Must be at least the minimum payment." });
+      return;
+    }
+    setFieldErrors({});
     // A new commission account clears the EthQR registration, so ask first.
     if (accountChanged && settings.ethqrPuid) {
       setConfirmAccount(true);
@@ -424,28 +456,60 @@ function EthqrRegisterDialog({ onClose, onRegistered }: { onClose: () => void; o
 
 function HomeFiguresPanel() {
   const { data, error, mutate } = useResource<HomeAdjustment>("/bff/zakat-admin/home/adjustment");
+  // Kept here: the form remounts after a save, so its own state is lost.
+  const [notice, setNotice] = useState<string | null>(null);
   return (
     <Panel
       title="Home figures (offline)"
       description="Collections and households from outside the app (cash, history before the app). Added to the live totals on the public home screen within about a minute. Saving replaces the previous values."
     >
       {error ? <InlineAlert>{error.message}</InlineAlert> : null}
-      {data ? <HomeFiguresForm key={data.createdAt ?? "new"} adjustment={data} onSaved={mutate} /> : null}
+      {notice ? (
+        <InlineAlert tone="success" className="mb-4">
+          {notice}
+        </InlineAlert>
+      ) : null}
+      {data ? (
+        <HomeFiguresForm
+          key={data.createdAt ?? "new"}
+          adjustment={data}
+          onEdit={() => setNotice(null)}
+          onSaved={(saved) => {
+            setNotice("Home figures saved. The public home screen shows them within about a minute.");
+            mutate(saved);
+          }}
+        />
+      ) : null}
     </Panel>
   );
 }
 
-function HomeFiguresForm({ adjustment, onSaved }: { adjustment: HomeAdjustment; onSaved: (value: HomeAdjustment) => void }) {
+function HomeFiguresForm({
+  adjustment,
+  onEdit,
+  onSaved,
+}: {
+  adjustment: HomeAdjustment;
+  onEdit: () => void;
+  onSaved: (value: HomeAdjustment) => void;
+}) {
   const [collected, setCollected] = useState(String(adjustment.offlineCollectedEtb ?? 0));
   const [households, setHouseholds] = useState(String(adjustment.offlineBeneficiaries ?? 0));
   const [note, setNote] = useState(adjustment.note ?? "");
   const [error, setError] = useState<string | null>(null);
+  const [householdsError, setHouseholdsError] = useState<string | undefined>();
   const [isSaving, setIsSaving] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setIsSaving(true);
+    onEdit();
     setError(null);
+    if (households.trim() && !Number.isInteger(Number(households))) {
+      setHouseholdsError("Enter a whole number of households.");
+      return;
+    }
+    setHouseholdsError(undefined);
+    setIsSaving(true);
     try {
       onSaved(
         await apiClient<HomeAdjustment>("/bff/zakat-admin/home/adjustment", {
@@ -471,7 +535,7 @@ function HomeFiguresForm({ adjustment, onSaved }: { adjustment: HomeAdjustment; 
         <FormField label="Collected offline (ETB)" htmlFor="hf-collected" required>
           <Input id="hf-collected" type="number" min={0} step="0.01" value={collected} onChange={(e) => setCollected(e.target.value)} required className="tabular-nums" />
         </FormField>
-        <FormField label="Households supported offline" htmlFor="hf-households">
+        <FormField label="Households supported offline" htmlFor="hf-households" error={householdsError}>
           <Input id="hf-households" type="number" min={0} step={1} value={households} onChange={(e) => setHouseholds(e.target.value)} className="tabular-nums" />
         </FormField>
       </div>
@@ -529,7 +593,9 @@ function FitrSeasonsPanel() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {seasons.length === 0 ? (
+          {!data && !error ? (
+            <TableSkeletonRows colSpan={6} />
+          ) : seasons.length === 0 ? (
             <TableMessageRow colSpan={6}>No seasons yet.</TableMessageRow>
           ) : (
             seasons.map((season) => (
@@ -558,7 +624,10 @@ function FitrSeasonsPanel() {
       </Table>
       {editing ? (
         <FitrSeasonDialog
+          key={editing === "new" ? "new" : editing.hijriYear}
           season={editing === "new" ? null : editing}
+          seasons={seasons}
+          onEditExisting={setEditing}
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);
@@ -570,7 +639,51 @@ function FitrSeasonsPanel() {
   );
 }
 
-function FitrSeasonDialog({ season, onClose, onSaved }: { season: FitrSeason | null; onClose: () => void; onSaved: () => void }) {
+/** The Hijri (Umm al-Qura) year of a calendar day, or null when the browser can't tell. */
+function hijriYearOf(day: string): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+  try {
+    const parts = new Intl.DateTimeFormat("en-u-ca-islamic-umalqura", { year: "numeric", timeZone: "UTC" }).formatToParts(
+      new Date(`${day}T00:00:00Z`),
+    );
+    const year = Number.parseInt(parts.find((part) => part.type === "year")?.value ?? "", 10);
+    return Number.isFinite(year) ? year : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Things to double-check before saving a season; saving stays possible. */
+function seasonWarnings(year: number, startsOn: string, dueBy: string, others: FitrSeason[]): string[] {
+  const warnings: string[] = [];
+  if (startsOn && dueBy) {
+    for (const other of others) {
+      if (other.startsOn <= dueBy && startsOn <= other.dueBy) {
+        warnings.push(`The dates overlap the ${other.hijriYear} AH season (${formatDate(other.startsOn)} – ${formatDate(other.dueBy)}).`);
+      }
+    }
+  }
+  const startYear = startsOn ? hijriYearOf(startsOn) : null;
+  const dueYear = dueBy ? hijriYearOf(dueBy) : null;
+  if (Number.isInteger(year) && year > 0 && startYear !== null && startYear !== year && dueYear !== year) {
+    warnings.push(`${formatDate(startsOn)} falls in ${startYear} AH, not ${year} AH. Check the year or the dates.`);
+  }
+  return warnings;
+}
+
+function FitrSeasonDialog({
+  season,
+  seasons,
+  onEditExisting,
+  onClose,
+  onSaved,
+}: {
+  season: FitrSeason | null;
+  seasons: FitrSeason[];
+  onEditExisting: (season: FitrSeason) => void;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const [year, setYear] = useState(season ? String(season.hijriYear) : "");
   const [startsOn, setStartsOn] = useState(season?.startsOn ?? "");
   const [dueBy, setDueBy] = useState(season?.dueBy ?? "");
@@ -580,11 +693,22 @@ function FitrSeasonDialog({ season, onClose, onSaved }: { season: FitrSeason | n
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
 
+  const yearNumber = year.trim() ? Number(year.trim()) : Number.NaN;
+  // Saving a year creates or replaces its season, so a new season must not reuse a year.
+  const existing = season ? null : (seasons.find((item) => item.hijriYear === yearNumber) ?? null);
+  const others = seasons.filter((item) => item.hijriYear !== (season?.hijriYear ?? yearNumber));
+  const warnings = seasonWarnings(yearNumber, startsOn, dueBy, others);
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setIsSaving(true);
     setError(null);
-    setFieldErrors({});
+    const problems: Record<string, string> = {};
+    if (!Number.isInteger(yearNumber) || yearNumber < 1400 || yearNumber > 1600) problems.hijriYear = "Enter a year from 1400 to 1600.";
+    else if (existing) problems.hijriYear = `A season for ${existing.hijriYear} AH already exists. Edit it instead.`;
+    if (startsOn && dueBy && dueBy < startsOn) problems.dueBy = "Must be on or after the start date.";
+    setFieldErrors(problems);
+    if (Object.keys(problems).length > 0) return;
+    setIsSaving(true);
     try {
       await apiClient(`/bff/zakat-admin/zakat-al-fitr/${encodeURIComponent(year.trim())}`, {
         method: "PUT",
@@ -608,6 +732,20 @@ function FitrSeasonDialog({ season, onClose, onSaved }: { season: FitrSeason | n
             <DialogDescription>The status (upcoming, open, closed) follows today&apos;s date.</DialogDescription>
           </DialogHeader>
           {error ? <InlineAlert>{error}</InlineAlert> : null}
+          {existing ? (
+            <InlineAlert
+              tone="warning"
+              title={`${existing.hijriYear} AH already has a season`}
+              action={
+                <Button type="button" size="sm" variant="outline" onClick={() => onEditExisting(existing)}>
+                  Edit {existing.hijriYear} AH
+                </Button>
+              }
+            >
+              ETB {etb.format(existing.perPersonAmountEtb)} per person, {formatDate(existing.startsOn)} – {formatDate(existing.dueBy)}. Saving
+              here would replace it.
+            </InlineAlert>
+          ) : null}
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Hijri year" htmlFor="fs-year" required hint="1400–1600" error={fieldErrors.hijriYear}>
               <Input id="fs-year" type="number" min={1400} max={1600} value={year} onChange={(e) => setYear(e.target.value)} disabled={!!season} required />
@@ -625,12 +763,21 @@ function FitrSeasonDialog({ season, onClose, onSaved }: { season: FitrSeason | n
           <FormField label="Basis" htmlFor="fs-basis" hint="How the amount was set" error={fieldErrors.basis}>
             <Textarea id="fs-basis" rows={2} maxLength={500} value={basis} onChange={(e) => setBasis(e.target.value)} />
           </FormField>
+          {warnings.length > 0 ? (
+            <InlineAlert tone="warning" title="Check before saving">
+              <ul className="list-disc space-y-0.5 pl-4">
+                {warnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            </InlineAlert>
+          ) : null}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSaving}>
-              {isSaving ? "Saving…" : "Save season"}
+            <Button type="submit" disabled={isSaving || existing !== null}>
+              {isSaving ? "Saving…" : warnings.length > 0 ? "Save anyway" : "Save season"}
             </Button>
           </DialogFooter>
         </form>

@@ -157,6 +157,13 @@ function PaymentsAdmin() {
             </NativeSelect>
           </div>
           {method ? <span className="text-xs text-black/45">Method filter applies to this page</span> : null}
+          {status === "AWAITING_CONFIRMATION" || status === "OTP_SENT" || status === "EXPIRED" ? (
+            <span className="text-xs text-black/45">
+              {status === "EXPIRED"
+                ? "Old Coop account payments left open over 15 minutes show as Expired, but are counted under Started or Waiting for code until the server closes them."
+                : "Rows marked Expired were left open over 15 minutes and can no longer finish. The server still counts them here."}
+            </span>
+          ) : null}
           {status || method ? (
             <Button
               variant="ghost"
@@ -242,7 +249,7 @@ function PaymentsAdmin() {
         />
       </Panel>
 
-      <EthqrTransactions key={range} range={range} />
+      <EthqrTransactions key={range} range={range} onOpenPayment={setOpenId} />
 
       <CertificateCheck />
 
@@ -558,6 +565,8 @@ type CertificateResult = {
 function CertificateCheck() {
   const [id, setId] = useState("");
   const [result, setResult] = useState<CertificateResult | null>(null);
+  // The number the result is for, as checked.
+  const [checked, setChecked] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isChecking, setIsChecking] = useState(false);
 
@@ -566,8 +575,11 @@ function CertificateCheck() {
     setError(null);
     setResult(null);
     setIsChecking(true);
+    const number = id.trim();
     try {
-      setResult(await apiClient<CertificateResult>(`/bff/certificates/verify/${encodeURIComponent(id.trim())}`));
+      const answer = await apiClient<CertificateResult>(`/bff/certificates/verify/${encodeURIComponent(number)}`);
+      setChecked(number);
+      setResult(answer);
     } catch (checkError) {
       setError(errorMessage(checkError, "Couldn't check the certificate"));
     } finally {
@@ -579,7 +591,19 @@ function CertificateCheck() {
     <Panel title="Check a certificate" description="Confirm a donor's zakat certificate number">
       <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2">
         <FormField label="Certificate number" htmlFor="cert-id" className="w-64">
-          <Input id="cert-id" value={id} onChange={(e) => setId(e.target.value)} placeholder="ZC-2026-000451" className="font-mono" required />
+          <Input
+            id="cert-id"
+            value={id}
+            onChange={(e) => {
+              setId(e.target.value);
+              // A result belongs to the number that was checked.
+              setResult(null);
+              setError(null);
+            }}
+            placeholder="ZC-2026-000451"
+            className="font-mono"
+            required
+          />
         </FormField>
         <Button type="submit" variant="outline" disabled={isChecking || !id.trim()}>
           <Search />
@@ -592,7 +616,7 @@ function CertificateCheck() {
           <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/60 p-4">
             <p className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-emerald-800">
               <BadgeCheck className="size-4" />
-              Valid certificate
+              Valid certificate: <span className="font-mono">{result.certificateId || checked}</span>
             </p>
             <DetailList
               columns={3}
@@ -604,7 +628,9 @@ function CertificateCheck() {
             />
           </div>
         ) : (
-          <InlineAlert className="mt-4">No valid certificate with that number.</InlineAlert>
+          <InlineAlert className="mt-4">
+            No valid certificate with the number <span className="font-mono">{result.certificateId || checked}</span>.
+          </InlineAlert>
         )
       ) : null}
     </Panel>

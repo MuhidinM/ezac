@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { CtaBand, Section } from "@/components/site/sections";
 import { SitePage } from "@/components/site/site-page";
 import { categoryLabel, mediaSrc } from "@/lib/zakat/content";
-import { getCause } from "@/lib/zakat/impact";
+import { getCause, isListedClosed } from "@/lib/zakat/impact";
 
 export const revalidate = 300;
 
@@ -40,8 +40,10 @@ export default async function CausePage({ params }: { params: Promise<{ id: stri
   const pct = cause.progress != null ? Math.round(cause.progress * 100) : null;
   // A cause can be over-funded: the bar stops at full and says so.
   const goalReached = pct != null && pct >= 100;
-  // status is only sent once the backend adds it; until then the end date decides.
-  const closedEarly = cause.status === "CLOSED";
+  // status is only sent once the backend adds it; until then the public closed
+  // list tells a cause closed early, and the end date the rest.
+  const closedEarly =
+    cause.status === "CLOSED" || (cause.status === undefined && !hasEnded(cause.endsOn) && (await isListedClosed(cause.id)));
   const ended = closedEarly || hasEnded(cause.endsOn);
   const cover = mediaSrc(cause.imageUrl);
   const gallery = (cause.images ?? []).map(mediaSrc).filter((src): src is string => Boolean(src) && src !== cover);

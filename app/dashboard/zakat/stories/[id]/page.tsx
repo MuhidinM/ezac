@@ -134,6 +134,10 @@ function StoryForm({
     setError(null);
     setFieldErrors({});
     onNotice(null);
+    if (story?.status === "PUBLISHED" && !form.consentConfirmed) {
+      setError("A published story needs the beneficiary's consent. If they withdrew it, take the story down first, then save.");
+      return;
+    }
     setIsSaving(true);
     try {
       const saved = await apiClient<AdminStory>(story ? `${API}/${encodeURIComponent(story.id)}` : API, {
@@ -278,7 +282,7 @@ function StoryForm({
           title={action === "archive" ? "Take this story down?" : "Publish this story?"}
           description={
             action === "archive"
-              ? "It's removed from the app and public site. You can publish it again later."
+              ? "It's removed from the app and the public site straight away. You can publish it again later."
               : "It appears in the app and on the public site straight away."
           }
           confirmLabel={action === "archive" ? "Take down" : "Publish"}

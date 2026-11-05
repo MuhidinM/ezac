@@ -25,6 +25,13 @@ import { type AdminCause, CAUSE_BADGES, CONTENT_CATEGORIES } from "@/lib/zakat/c
 
 const API = "/bff/zakat-admin/causes";
 
+/** Today's calendar day in Addis Ababa, e.g. "2026-11-05". */
+function todayInAddis() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Addis_Ababa", year: "numeric", month: "2-digit", day: "2-digit" }).format(
+    new Date(),
+  );
+}
+
 type Form = {
   title: string;
   description: string;
@@ -141,6 +148,12 @@ function CauseForm({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [action, setAction] = useState<"publish" | "close" | null>(null);
+  // Impact regions, so causes use the same names the live region counts use.
+  const regions = useResource<{ code: string; name: string }[]>("/bff/zakat-admin/impact/regions");
+  const regionNames = (regions.data ?? []).map((region) => region.name);
+  const [today] = useState(todayInAddis);
+  const endPassed = Boolean(form.endsOn) && form.endsOn < today;
+  const savedEndPassed = Boolean(cause?.ended) || (Boolean(initial.endsOn) && initial.endsOn < today);
 
   const dirty = JSON.stringify(form) !== JSON.stringify(initial);
   const set = <K extends keyof Form>(key: K, value: Form[K]) => setForm((prev) => ({ ...prev, [key]: value }));
@@ -201,8 +214,17 @@ function CauseForm({
       />
 
       {notice ? <InlineAlert tone="success">{notice}</InlineAlert> : null}
-      {dirty && cause && cause.status !== "ACTIVE" ? (
-        <InlineAlert tone="info">Save your changes before publishing.</InlineAlert>
+      {dirty && cause ? (
+        <InlineAlert tone="info">
+          {canClose ? "Save or discard your changes before closing the cause." : "Save your changes before publishing."}
+        </InlineAlert>
+      ) : null}
+      {cause && !dirty && cause.status !== "CLOSED" && savedEndPassed ? (
+        <InlineAlert tone="warning">
+          {cause.status === "ACTIVE"
+            ? "The end date has passed, so the app and website list this cause as completed. Close it, or set a later end date to keep it running."
+            : "The end date has passed. Set a later end date before publishing, or it shows as completed straight away."}
+        </InlineAlert>
       ) : null}
 
       {cause ? (
@@ -260,11 +282,26 @@ function CauseForm({
                 ))}
               </NativeSelect>
             </FormField>
-            <FormField label="Region" htmlFor="region" hint="e.g. Harari" error={fieldErrors.region}>
-              <Input id="region" value={form.region} onChange={(e) => set("region", e.target.value)} />
+            <FormField label="Region" htmlFor="region" hint="From the impact regions, so the region counts match" error={fieldErrors.region}>
+              <NativeSelect id="region" value={form.region} onChange={(e) => set("region", e.target.value)}>
+                <option value="">All of Ethiopia</option>
+                {regionNames.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+                {form.region && regions.data && !regionNames.includes(form.region) ? (
+                  <option value={form.region}>{form.region} (not an impact region)</option>
+                ) : null}
+              </NativeSelect>
             </FormField>
-            <FormField label="Ends on" htmlFor="endsOn" hint="Moves to closed in the app after this date" error={fieldErrors.endsOn}>
-              <Input id="endsOn" type="date" value={form.endsOn} onChange={(e) => set("endsOn", e.target.value)} />
+            <FormField
+              label="Ends on"
+              htmlFor="endsOn"
+              hint={endPassed ? undefined : "Moves to completed in the app and on the website after this date"}
+              error={fieldErrors.endsOn ?? (endPassed ? "This date has passed. The cause would show as completed." : undefined)}
+            >
+              <Input id="endsOn" type="date" min={cause ? undefined : today} value={form.endsOn} onChange={(e) => set("endsOn", e.target.value)} />
             </FormField>
           </div>
         </Panel>
@@ -331,7 +368,9 @@ function CauseForm({
           description={
             action === "close"
               ? "It moves to the app's closed list and stops taking new payments. You can publish it again later."
-              : "It appears in the app straight away."
+              : savedEndPassed
+                ? "Its end date has passed, so the app and website will list it as completed straight away. Set a later end date first if it should take payments."
+                : "It appears in the app and on the website straight away."
           }
           confirmLabel={action === "close" ? "Close cause" : "Publish"}
           destructive={action === "close"}

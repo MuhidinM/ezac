@@ -88,6 +88,14 @@ function CausesAdmin() {
             <InlineAlert>{error.message}</InlineAlert>
           </div>
         ) : null}
+        {causes.some((cause) => cause.status === "ACTIVE" && cause.ended) ? (
+          <div className="px-5 pt-4">
+            <InlineAlert tone="info">
+              Causes marked Ended are past their end date: the app and website list them as completed. Close them, or set a later end
+              date to keep them running.
+            </InlineAlert>
+          </div>
+        ) : null}
         <Table>
           <TableHeader>
             <TableRow className="bg-black/[0.015]">
