@@ -4,6 +4,21 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * EZAC brand colours as utilities (text-navy, bg-brand, text-accent-ink, …).
+ * Use these instead of hex literals. Contrast on white: navy 18:1, brand 6.1:1,
+ * accent-ink 4.95:1, muted 5:1 (all pass WCAG AA for body text). The bright
+ * accent (#e18f35) is only 2.6:1 on white: use it for fills, borders and text
+ * on navy (7:1), and accent-ink for orange text on light backgrounds.
+ */
+@theme {
+  --color-navy: #001539;
+  --color-brand: #007050;
+  --color-accent: #e18f35;
+  --color-accent-ink: #a85d12;
+  --color-muted: #6f6f6f;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
