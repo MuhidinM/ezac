@@ -2,7 +2,6 @@ import { withStaffAccess } from "@/lib/api/bff";
 import { gatewayRequest } from "@/lib/api/gateway";
 import type { MeProfile, UpdateMeBody } from "@/lib/api/types";
 import { authError } from "@/lib/auth/http";
-import { isValidEthiopianPhone, normalizePhoneToE164 } from "@/lib/registration/phone";
 
 // Your own profile: any signed-in account may read it, including during the
 // forced password change and before roles are known. withStaffAccess answers
@@ -29,22 +28,21 @@ export async function PATCH(request: Request) {
   const payload: UpdateMeBody = {};
   if (typeof body?.displayName === "string") {
     const displayName = body.displayName.trim();
+    // A blank name also blanks the officer's name on their branch record and
+    // on every decision they sign.
+    if (!displayName) {
+      return authError(400, "Enter your name.");
+    }
     if (displayName.length > 120) {
       return authError(400, "Keep the display name under 120 characters.");
     }
     payload.displayName = displayName;
   }
-  if (typeof body?.phone === "string") {
-    const phone = body.phone.trim();
-    // The phone is also how many staff sign in, so never send a blank or
-    // malformed one upstream.
-    if (!phone) {
-      return authError(400, "Enter a phone number. To keep the current one, leave the field as it is.");
-    }
-    if (!isValidEthiopianPhone(phone)) {
-      return authError(400, "Enter an Ethiopian mobile number, for example +251911223344.");
-    }
-    payload.phone = normalizePhoneToE164(phone);
+  if (body?.phone !== undefined) {
+    // The phone is how staff sign in. The gateway answers 200 but keeps the
+    // old number (and the old sign-in), so refuse it rather than report a
+    // change that never happened.
+    return authError(400, "Your sign-in phone is managed by an administrator and can't be changed here.");
   }
 
   if (Object.keys(payload).length === 0) {

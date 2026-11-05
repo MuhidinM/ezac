@@ -4,6 +4,7 @@ import { type FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { KeyRound, Save } from "lucide-react";
 
+import { PasswordProblems, passwordProblemsFrom } from "@/components/auth/password-problems";
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { Panel } from "@/components/dashboard/panel";
@@ -11,21 +12,40 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiClient } from "@/lib/api/client";
-import { errorMessage } from "@/lib/api/errors";
-import type { MeProfile } from "@/lib/api/types";
+import { ApiError, errorMessage } from "@/lib/api/errors";
+import type { AppRole, MeProfile } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
+import { sendToSignIn } from "@/lib/auth/client-session";
+import { filterAppRoles } from "@/lib/auth/constants";
 import { STAFF_PASSWORD_HINT, staffPasswordProblems } from "@/lib/auth/password-policy";
-import { fetchSession, resetSessionCache } from "@/lib/auth/use-session";
+import { fetchSession, resetSessionCache, useSession } from "@/lib/auth/use-session";
 import { isValidEthiopianPhone } from "@/lib/registration/phone";
 
-const ROLE_LABELS: Record<string, string> = {
+const ROLE_LABELS: Record<AppRole, string> = {
   ADMIN: "Administrator",
   FIELD_OFFICER: "Field officer",
   BRANCH: "Branch officer",
 };
 
+const NAME_MAX_LENGTH = 120;
+
+/**
+ * The sign-in phone to show, or "" when /me holds something else in that
+ * field (an administrator's username, such as platform.admin).
+ */
+function shownPhone(phone: string | null): string {
+  const value = phone?.trim() ?? "";
+  return value && isValidEthiopianPhone(value) ? value : "";
+}
+
+function sameName(a: string, b: string): boolean {
+  return a.replace(/\s+/g, " ").trim() === b.replace(/\s+/g, " ").trim();
+}
+
 export function ProfileForm() {
   const { data: profile, error, isLoading, reload } = useResource<MeProfile>("/bff/auth/me");
+  // Kept here: AccountDetails remounts after a save and would lose it.
+  const [notice, setNotice] = useState<string | null>(null);
 
   if (isLoading && !profile) {
     return <div className="h-64 animate-pulse rounded-xl bg-black/[0.04]" />;
@@ -42,54 +62,72 @@ export function ProfileForm() {
   // Keyed so the form re-initialises after a save returns new values.
   return (
     <div className="grid gap-6 lg:grid-cols-2">
-      <AccountDetails key={`${profile.displayName}|${profile.phone}`} profile={profile} onSaved={reload} />
+      <AccountDetails
+        key={profile.displayName ?? ""}
+        profile={profile}
+        notice={notice}
+        onNotice={setNotice}
+        onSaved={reload}
+      />
       <ChangePassword />
     </div>
   );
 }
 
-function AccountDetails({ profile, onSaved }: { profile: MeProfile; onSaved: () => void }) {
+function AccountDetails({
+  profile,
+  notice,
+  onNotice,
+  onSaved,
+}: {
+  profile: MeProfile;
+  notice: string | null;
+  onNotice: (message: string | null) => void;
+  onSaved: () => void;
+}) {
   const router = useRouter();
+  const { session } = useSession();
   const [displayName, setDisplayName] = useState(profile.displayName ?? "");
-  const [phone, setPhone] = useState(profile.phone ?? "");
-  const [message, setMessage] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  const phone = shownPhone(profile.phone);
+  // /me can leave out roles that are on the sign-in token, so show both.
+  // Only EZAC roles: the sign-in service adds technical ones of its own.
+  const roles = filterAppRoles([...profile.roles, ...(session?.roles ?? [])]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    setMessage(null);
+    setNameError(null);
+    onNotice(null);
 
-    // Send only what changed: the API leaves out fields alone, and a blank
-    // phone must never overwrite the one staff may sign in with.
-    const changes: { displayName?: string; phone?: string } = {};
     const nextName = displayName.trim();
-    const nextPhone = phone.trim();
-    if (nextName !== (profile.displayName ?? "").trim()) changes.displayName = nextName;
-    if (nextPhone !== (profile.phone ?? "").trim()) {
-      if (!nextPhone) {
-        setError("Enter a phone number. To keep the current one, leave the field as it is.");
-        return;
-      }
-      if (!isValidEthiopianPhone(nextPhone)) {
-        setError("Enter an Ethiopian mobile number, for example +251911223344.");
-        return;
-      }
-      changes.phone = nextPhone;
+    if (!nextName) {
+      setNameError("Enter your name.");
+      return;
     }
-    if (Object.keys(changes).length === 0) {
-      setMessage("Nothing to save. Change your name or phone first.");
+    if (nextName.length > NAME_MAX_LENGTH) {
+      setNameError(`Keep your name under ${NAME_MAX_LENGTH} characters.`);
+      return;
+    }
+    if (sameName(nextName, profile.displayName ?? "")) {
+      onNotice("Nothing to save. Change your name first.");
       return;
     }
 
     setIsSaving(true);
     try {
-      await apiClient<MeProfile>("/bff/auth/me", {
+      const saved = await apiClient<MeProfile | null>("/bff/auth/me", {
         method: "PATCH",
-        body: JSON.stringify(changes),
+        body: JSON.stringify({ displayName: nextName }),
       });
-      setMessage("Profile updated.");
+      if (typeof saved?.displayName === "string" && !sameName(saved.displayName, nextName)) {
+        setError("Your name was not saved. Try again.");
+        return;
+      }
+      onNotice("Profile updated.");
       // Refresh the name in the sidebar and menu.
       void fetchSession({ force: true });
       router.refresh();
@@ -102,30 +140,45 @@ function AccountDetails({ profile, onSaved }: { profile: MeProfile; onSaved: () 
   }
 
   return (
-    <Panel title="Account details" description="How your name and phone appear across EZAC.">
+    <Panel
+      title="Account details"
+      description="How your name appears across EZAC. An administrator manages your phone and email."
+    >
       <form onSubmit={onSubmit} className="space-y-4">
-        {message ? <InlineAlert tone="success">{message}</InlineAlert> : null}
+        {notice ? <InlineAlert tone="success">{notice}</InlineAlert> : null}
         {error ? <InlineAlert>{error}</InlineAlert> : null}
-        <FormField label="Display name" htmlFor="displayName">
-          <Input id="displayName" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Your name" />
+        <FormField label="Display name" htmlFor="displayName" required error={nameError ?? undefined}>
+          <Input
+            id="displayName"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="Your name"
+            maxLength={NAME_MAX_LENGTH}
+            autoComplete="name"
+            aria-invalid={nameError ? true : undefined}
+          />
         </FormField>
-        <FormField label="Phone" htmlFor="phone">
-          <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+2519…" />
+        <FormField
+          label="Phone"
+          htmlFor="phone"
+          hint={phone ? "Your sign-in phone is managed by an administrator." : "Managed by your administrator"}
+        >
+          <Input id="phone" type="tel" value={phone} placeholder="No phone on file" disabled readOnly />
         </FormField>
         <FormField label="Email" htmlFor="email" hint="Managed by your administrator">
-          <Input id="email" value={profile.email ?? "—"} disabled readOnly />
+          <Input id="email" value={profile.email ?? ""} placeholder="No email on file" disabled readOnly />
         </FormField>
         <div className="space-y-1.5">
           <p className="text-[13px] font-medium text-[#001539]">Roles</p>
           <div className="flex flex-wrap gap-1.5">
-            {profile.roles.length > 0 ? (
-              profile.roles.map((role) => (
+            {roles.length > 0 ? (
+              roles.map((role) => (
                 <Badge key={role} tone="navy">
-                  {ROLE_LABELS[role] ?? role}
+                  {ROLE_LABELS[role]}
                 </Badge>
               ))
             ) : (
-              <span className="text-sm text-black/45">—</span>
+              <span className="text-sm text-black/45">No role assigned yet</span>
             )}
           </div>
         </div>
@@ -146,14 +199,16 @@ function ChangePassword() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [problems, setProblems] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    const problems = staffPasswordProblems(currentPassword, newPassword, confirmNewPassword);
-    if (problems.length > 0) {
-      setError(`${problems[0]}.`);
+    setProblems([]);
+    const found = staffPasswordProblems(currentPassword, newPassword, confirmNewPassword);
+    if (found.length > 0) {
+      setProblems(found);
       return;
     }
     setIsSaving(true);
@@ -166,7 +221,14 @@ function ChangePassword() {
       router.push("/login?passwordChanged=1&redirect=/dashboard/profile");
       router.refresh();
     } catch (saveError) {
-      setError(errorMessage(saveError, "Failed to change password"));
+      if (saveError instanceof ApiError && saveError.status === 401) {
+        // The session itself is over (a wrong current password is a 400).
+        void sendToSignIn("/dashboard/profile", { reason: "ended" });
+        return;
+      }
+      const listed = passwordProblemsFrom(saveError);
+      if (listed.length > 0) setProblems(listed);
+      else setError(errorMessage(saveError, "Failed to change password"));
       setIsSaving(false);
     }
   }
@@ -174,7 +236,13 @@ function ChangePassword() {
   return (
     <Panel title="Password" description="You'll be signed out and asked to sign in with the new password.">
       <form onSubmit={onSubmit} className="space-y-4">
-        {error ? <InlineAlert>{error}</InlineAlert> : null}
+        {problems.length > 0 ? (
+          <InlineAlert>
+            <PasswordProblems problems={problems} />
+          </InlineAlert>
+        ) : error ? (
+          <InlineAlert>{error}</InlineAlert>
+        ) : null}
         <FormField label="Current password" htmlFor="currentPassword" required>
           <Input id="currentPassword" type="password" autoComplete="current-password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required />
         </FormField>

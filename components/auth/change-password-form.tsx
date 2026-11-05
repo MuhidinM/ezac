@@ -3,8 +3,10 @@
 import { FormEvent, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { PasswordProblems, passwordProblemsFrom } from "@/components/auth/password-problems";
 import { ApiError } from "@/lib/api/errors";
 import { apiClient } from "@/lib/api/client";
+import { sendToSignIn } from "@/lib/auth/client-session";
 import { STAFF_PASSWORD_HINT, staffPasswordProblems } from "@/lib/auth/password-policy";
 import { resetSessionCache } from "@/lib/auth/use-session";
 
@@ -15,15 +17,17 @@ export function ChangePasswordForm() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [problems, setProblems] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setProblems([]);
 
-    const problems = staffPasswordProblems(currentPassword, newPassword, confirmNewPassword);
-    if (problems.length > 0) {
-      setError(`${problems[0]}.`);
+    const found = staffPasswordProblems(currentPassword, newPassword, confirmNewPassword);
+    if (found.length > 0) {
+      setProblems(found);
       return;
     }
 
@@ -50,7 +54,15 @@ export function ChangePasswordForm() {
       router.push(`${loginUrl.pathname}${loginUrl.search}`);
       router.refresh();
     } catch (submitError) {
-      if (submitError instanceof ApiError) {
+      if (submitError instanceof ApiError && submitError.status === 401) {
+        // The session itself is over (a wrong current password is a 400).
+        void sendToSignIn(searchParams.get("redirect") ?? undefined, { reason: "ended" });
+        return;
+      }
+      const listed = passwordProblemsFrom(submitError);
+      if (listed.length > 0) {
+        setProblems(listed);
+      } else if (submitError instanceof ApiError) {
         setError(submitError.message);
       } else {
         setError("Unable to change password. Please try again.");
@@ -62,13 +74,13 @@ export function ChangePasswordForm() {
 
   return (
     <form onSubmit={onSubmit} className="mt-8 space-y-4">
-      {error ? (
-        <p
+      {error || problems.length > 0 ? (
+        <div
           role="alert"
           className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
         >
-          {error}
-        </p>
+          {problems.length > 0 ? <PasswordProblems problems={problems} /> : error}
+        </div>
       ) : null}
 
       <label className="block">

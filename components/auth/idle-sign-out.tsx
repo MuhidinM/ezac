@@ -24,6 +24,31 @@ const SHARE_EVERY_MS = 15 * 1000;
 
 const ACTIVITY_EVENTS = ["pointerdown", "pointermove", "keydown", "wheel", "touchstart"] as const;
 
+/**
+ * Window events for open forms (the assessment wizard saves on them):
+ * - IDLE_WARNING_EVENT: the one-minute warning just opened.
+ * - BEFORE_SIGN_OUT_EVENT: this tab is about to sign out. A listener may call
+ *   `event.detail.waitUntil(promise)` to hold the sign-out until its save
+ *   settles, for at most SAVE_GRACE_MS.
+ */
+export const IDLE_WARNING_EVENT = "ezac:idle-warning";
+export const BEFORE_SIGN_OUT_EVENT = "ezac:before-sign-out";
+const SAVE_GRACE_MS = 5 * 1000;
+
+export type BeforeSignOutDetail = { waitUntil: (work: Promise<unknown>) => void };
+
+/** Tells open forms the session is ending and waits briefly for their saves. */
+async function announceSignOut(): Promise<void> {
+  const pending: Promise<unknown>[] = [];
+  const detail: BeforeSignOutDetail = { waitUntil: (work) => void pending.push(work) };
+  window.dispatchEvent(new CustomEvent<BeforeSignOutDetail>(BEFORE_SIGN_OUT_EVENT, { detail }));
+  if (pending.length === 0) return;
+  await Promise.race([
+    Promise.allSettled(pending),
+    new Promise((resolve) => window.setTimeout(resolve, SAVE_GRACE_MS)),
+  ]);
+}
+
 function sharedActivity(): number {
   try {
     return Number(window.localStorage.getItem(STORAGE_KEY)) || 0;
@@ -50,8 +75,19 @@ export function IdleSignOut() {
   const lastActivity = useRef(0);
   const lastShared = useRef(0);
   const warningOpen = useRef(false);
+  const leavingRef = useRef(false);
   const stayButton = useRef<HTMLButtonElement>(null);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  const [isLeaving, setIsLeaving] = useState(false);
+
+  // Give open forms their chance to save, then sign out. Runs once.
+  const leave = useCallback(async (reason?: "idle") => {
+    if (leavingRef.current) return;
+    leavingRef.current = true;
+    setIsLeaving(true);
+    await announceSignOut();
+    await signOut({ reason });
+  }, []);
 
   const markActive = useCallback((now = Date.now()) => {
     lastActivity.current = now;
@@ -85,11 +121,14 @@ export function IdleSignOut() {
       const idleFor = now - latest;
 
       if (idleFor >= IDLE_MS + WARNING_MS) {
-        void signOut({ reason: "idle" });
+        void leave("idle");
         return;
       }
       if (idleFor >= IDLE_MS) {
-        warningOpen.current = true;
+        if (!warningOpen.current) {
+          warningOpen.current = true;
+          window.dispatchEvent(new CustomEvent(IDLE_WARNING_EVENT));
+        }
         setSecondsLeft(Math.ceil((IDLE_MS + WARNING_MS - idleFor) / 1000));
         return;
       }
@@ -126,7 +165,7 @@ export function IdleSignOut() {
       window.removeEventListener("storage", onStorage);
       window.clearInterval(timer);
     };
-  }, [markActive]);
+  }, [markActive, leave]);
 
   const open = secondsLeft !== null;
 
@@ -135,7 +174,7 @@ export function IdleSignOut() {
       open={open}
       onOpenChange={(next) => {
         // Escape or the close button: the person is clearly here.
-        if (!next) stayActive();
+        if (!next && !leavingRef.current) stayActive();
       }}
     >
       <DialogContent
@@ -148,17 +187,21 @@ export function IdleSignOut() {
       >
         <DialogHeader>
           <DialogTitle>
-            You&apos;ll be signed out in {secondsLeft ?? 60} second{secondsLeft === 1 ? "" : "s"}
+            {isLeaving
+              ? "Signing you out…"
+              : `You'll be signed out in ${secondsLeft ?? 60} second${secondsLeft === 1 ? "" : "s"}`}
           </DialogTitle>
           <DialogDescription>
-            There has been no activity for 15 minutes. To keep working, choose Stay signed in.
+            {isLeaving
+              ? "This takes a moment."
+              : "There has been no activity for 15 minutes. To keep working, choose Stay signed in."}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" onClick={() => void signOut()}>
+          <Button variant="outline" disabled={isLeaving} onClick={() => void leave()}>
             Sign out now
           </Button>
-          <Button ref={stayButton} onClick={stayActive}>
+          <Button ref={stayButton} disabled={isLeaving} onClick={stayActive}>
             Stay signed in
           </Button>
         </DialogFooter>

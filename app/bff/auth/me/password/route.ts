@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 
-import { bffError } from "@/lib/api/bff";
+import { SESSION_ENDED_MESSAGE, bffError } from "@/lib/api/bff";
 import { ApiError } from "@/lib/api/errors";
 import { gatewayRequest } from "@/lib/api/gateway";
-import type { ChangePasswordBody } from "@/lib/api/types";
+import type { ChangePasswordBody, MeProfile } from "@/lib/api/types";
 import { authError, authUnavailableResponse, clientIp } from "@/lib/auth/http";
 import { staffPasswordProblems } from "@/lib/auth/password-policy";
 import { UNKNOWN_IP, passwordChangeLimiter, tooManyAttemptsMessage } from "@/lib/auth/rate-limit";
@@ -14,6 +14,26 @@ import {
   getAccessToken,
   sessionFromAccessToken,
 } from "@/lib/auth/session";
+
+const WRONG_CURRENT_PASSWORD = "Your current password is not correct.";
+
+/**
+ * Whether the gateway still accepts this token. Only a 401 from /me means
+ * the session is over; anything else (an answer, a 403, an outage) leaves
+ * the session alone.
+ */
+async function tokenState(accessToken: string): Promise<"valid" | "ended"> {
+  try {
+    await gatewayRequest<MeProfile>("/api/auth/v1/me", {
+      accessToken,
+      label: "auth/me/password token check",
+      timeoutMs: AUTH_REQUEST_TIMEOUT_MS,
+    });
+    return "valid";
+  } catch (error) {
+    return error instanceof ApiError && error.status === 401 ? "ended" : "valid";
+  }
+}
 
 export async function POST(request: Request) {
   let body: Partial<ChangePasswordBody>;
@@ -37,7 +57,8 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         success: false,
-        message: problems[0],
+        // Every problem at once, so nobody fixes the rules one by one.
+        message: `${problems.join(". ")}.`,
         errors: problems.map((message) => ({ field: "newPassword", message })),
       },
       { status: 400, headers: { "Cache-Control": "no-store" } },
@@ -81,11 +102,21 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     if (error instanceof ApiError) {
-      const wrongPassword = error.status === 400 || error.status === 401 || error.status === 403;
-      attempt.finish(wrongPassword ? "failure" : "neutral");
+      // The gateway answers a wrong current password with 401, the same
+      // status as a dead token. Only a dead token ends the session; a typo
+      // must leave the user signed in to try again.
       if (error.status === 401) {
-        await clearAuthCookies();
+        if ((await tokenState(accessToken)) === "ended") {
+          attempt.finish("neutral");
+          await clearAuthCookies();
+          return authError(401, SESSION_ENDED_MESSAGE);
+        }
+        attempt.finish("failure");
+        return authError(400, WRONG_CURRENT_PASSWORD);
       }
+
+      const wrongPassword = error.status === 400 || error.status === 403;
+      attempt.finish(wrongPassword ? "failure" : "neutral");
 
       // 502/504 arrive here too, already logged, with a plain message.
       return bffError(error);

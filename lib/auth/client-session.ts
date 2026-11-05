@@ -72,9 +72,10 @@ export function leaveAfterSignOutElsewhere(): void {
 
 /**
  * The server says the session is over (401): clear browser state and go to
- * sign-in, coming back to `path` afterwards.
+ * sign-in, coming back to `path` afterwards. With `reason: "ended"` the
+ * sign-in page says the session ended, for a form the user was filling in.
  */
-export async function sendToSignIn(path?: string): Promise<void> {
+export async function sendToSignIn(path?: string, options?: { reason?: "ended" }): Promise<void> {
   if (leaving) return;
   leaving = true;
   clearClientSession();
@@ -86,6 +87,9 @@ export async function sendToSignIn(path?: string): Promise<void> {
   } catch {
     // Ignore; the sign-in page still loads.
   }
-  const target = path?.startsWith("/dashboard") ? `/login?redirect=${encodeURIComponent(path)}` : "/login";
-  window.location.replace(target);
+  const query = new URLSearchParams();
+  if (path?.startsWith("/dashboard")) query.set("redirect", path);
+  if (options?.reason) query.set("reason", options.reason);
+  const search = query.toString();
+  window.location.replace(search ? `/login?${search}` : "/login");
 }

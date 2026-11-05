@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { defaultDashboardPath } from "@/lib/auth/constants";
@@ -19,8 +19,10 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const passwordInput = useRef<HTMLInputElement>(null);
   const passwordChanged = searchParams.get("passwordChanged") === "1";
   const signedOutIdle = searchParams.get("reason") === "idle";
+  const sessionEnded = searchParams.get("reason") === "ended";
 
   function requestedPage(): string | null {
     const redirectTo = searchParams.get("redirect");
@@ -52,6 +54,9 @@ export function LoginForm() {
 
       if (!response.ok || !payload?.success) {
         setError(payload?.message ?? "Sign-in failed. Try again.");
+        // Start the password again; the username stays.
+        setPassword("");
+        passwordInput.current?.focus();
         return;
       }
 
@@ -93,6 +98,15 @@ export function LoginForm() {
         </p>
       ) : null}
 
+      {sessionEnded && !passwordChanged ? (
+        <p
+          role="status"
+          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+        >
+          Your session has ended. Sign in again to continue.
+        </p>
+      ) : null}
+
       {error ? (
         <p
           role="alert"
@@ -123,6 +137,7 @@ export function LoginForm() {
           Password
         </span>
         <input
+          ref={passwordInput}
           type="password"
           name="password"
           autoComplete="current-password"

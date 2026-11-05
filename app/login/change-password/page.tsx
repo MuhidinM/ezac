@@ -1,16 +1,33 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { ChangePasswordForm } from "@/components/auth/change-password-form";
 import { SignOutLink } from "@/components/auth/sign-out-link";
+import { PASSWORD_CHANGE_COOKIE } from "@/lib/auth/constants";
 
 export const metadata: Metadata = {
   title: "Change your password — EZAC",
   robots: { index: false, follow: false },
 };
 
-export default function ChangePasswordPage() {
+export default async function ChangePasswordPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  // This screen is only for an account that must replace a temporary
+  // password (proxy.ts sends those here). Anyone else changes their password
+  // on Profile & security. proxy.ts already sends signed-out visitors to /login.
+  const pending = (await cookies()).get(PASSWORD_CHANGE_COOKIE)?.value;
+  if (!pending) {
+    const requested = (await searchParams).redirect;
+    const back = typeof requested === "string" && requested.startsWith("/dashboard") ? requested : null;
+    redirect(back ?? "/dashboard/profile");
+  }
+
   return (
     <main
       id="main"
