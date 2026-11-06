@@ -68,6 +68,11 @@ export default async function CausesPage({ params, searchParams }: PageProps<"/[
   const totalPages = result?.pagination.totalPages ?? 0;
   // A page past the end (an old link after causes closed) is not a page.
   if (isPastLastPage(page, totalPages)) notFound();
+  // Nothing open: point to the completed causes so the page is never a dead end.
+  const closedCount =
+    status === "active" && causes.length === 0
+      ? ((await getCauses({ status: "closed", page: 1, limit: 1 }).catch(() => null))?.pagination.totalItems ?? 0)
+      : 0;
   const primary = { label: t.cta.primary, href: localizedPath(locale, "/zakat/pay"), title: t.cta.primaryTitle };
   const secondary = {
     label: t.cta.secondary,
@@ -105,6 +110,15 @@ export default async function CausesPage({ params, searchParams }: PageProps<"/[
           {causes.length === 0 ? (
             <p className="mx-auto mt-12 max-w-xl rounded-2xl border border-dashed border-black/15 p-10 text-center text-sm text-muted-ink">
               {status === "active" ? t.empty.active : t.empty.closed}
+              {closedCount > 0 ? (
+                <Link
+                  href={localizedPath(locale, statusPath("closed"))}
+                  title={t.filter.seeClosed.title}
+                  className="mt-4 block font-medium text-brand underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+                >
+                  {format(t.filter.seeClosed.label, { count: closedCount })}
+                </Link>
+              ) : null}
             </p>
           ) : (
             <div className="mx-auto mt-12 grid max-w-6xl grid-cols-1 gap-5 sm:grid-cols-2 md:gap-6 lg:grid-cols-3">

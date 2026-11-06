@@ -426,6 +426,7 @@ const giving: Messages<typeof en> = {
       activeTitle: "عرض الحملات المفتوحة الآن",
       closed: "مكتملة",
       closedTitle: "عرض الحملات التي أُغلقت",
+      seeClosed: { label: "عرض {count} من الحملات المكتملة", title: "الحملات التي أُغلقت وما جمعته" },
     },
     /** Visually hidden heading above the list, so headings run in order. */
     listHeading: {

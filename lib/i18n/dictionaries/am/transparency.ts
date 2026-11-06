@@ -121,6 +121,8 @@ const transparency: Messages<typeof en> = {
     empty: "እስካሁን ይፋ የተደረገ ሪፖርት የለም።",
     published: "ይፋ የተደረገበት ቀን፦ {date}",
     file: "PDF",
+    undated: "ቀን አልተገለጸም",
+    yearHeading: "በ{year} ይፋ የተደረጉ",
     fileWithSize: "PDF · {size}",
     linkTitle: "ያውርዱ፦ {title} (PDF፣ በአዲስ ትር ይከፈታል)",
     newTab: "(በአዲስ ትር ይከፈታል)",

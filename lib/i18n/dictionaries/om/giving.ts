@@ -424,6 +424,7 @@ const giving: Messages<typeof en> = {
       activeTitle: "Kaayyoolee amma banaa ta'an agarsiisaa",
       closed: "Xumuraman",
       closedTitle: "Kaayyoolee cufaman agarsiisaa",
+      seeClosed: { label: "Kaayyoolee xumuraman {count} ilaalaa", title: "Kaayyoolee cufamanii fi maallaqa walitti qaban" },
     },
     listHeading: {
       active: "Kaayyoolee amma banaa ta'an",

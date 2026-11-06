@@ -71,6 +71,9 @@ const home: Messages<typeof en> = {
       "Kaayyoolee Itoophiyaa guutuu keessaa; tokkoon tokkoon isaanii osoo hin tarreeffamin dura ni gamaagamu, galma isaaniitti hammam akka dhihaatan ni agarsiisu.",
     introEmpty:
       "Ammatti kaayyoon banaa ta'e hin jiru. Kaayyooleen haaraan akkuma Komishiniin maxxanseen asitti mul'atu.",
+    eyebrowClosed: "Dhiyeenya kana kan xumuraman",
+    introClosed: "Ammatti kaayyoon banaa ta'e hin jiru. Kaayyooleen dhiyeenya kana xumuraman kunneen Zakaan eessa akka ga'e agarsiisu.",
+    seeClosed: { label: "Kaayyoolee xumuraman hunda ilaalaa", title: "Kaayyoolee cufamanii fi maallaqa walitti qaban" },
     seeAll: { label: "Kaayyoolee hunda ilaalaa", title: "Kaayyoolee banaa hunda sakatta'aa" },
     howReaches: {
       label: "Akkaataa Zakaan maatiiwwan itti ga'u",

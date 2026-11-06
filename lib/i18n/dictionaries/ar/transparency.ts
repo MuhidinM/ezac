@@ -123,6 +123,8 @@ const transparency: Messages<typeof en> = {
     empty: "لم تُنشر أي تقارير بعد.",
     published: "نُشر في {date}",
     file: "PDF",
+    undated: "التاريخ غير مذكور",
+    yearHeading: "نُشرت في عام {year}",
     fileWithSize: "PDF · {size}",
     linkTitle: "تنزيل {title} (PDF، يُفتح في علامة تبويب جديدة)",
     newTab: "(يُفتح في علامة تبويب جديدة)",

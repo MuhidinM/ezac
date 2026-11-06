@@ -130,6 +130,9 @@ const transparency = {
     empty: "No reports have been published yet.",
     published: "Published {date}",
     file: "PDF",
+    undated: "Date not given",
+    /** Heading over the reports published in one year; {year} is the year. */
+    yearHeading: "Published in {year}",
     fileWithSize: "PDF · {size}",
     /** Title and screen-reader hint on each report link. */
     linkTitle: "Download {title} (PDF, opens in a new tab)",

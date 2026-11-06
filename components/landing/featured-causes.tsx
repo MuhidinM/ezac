@@ -18,9 +18,19 @@ export async function FeaturedCauses({ t, locale }: { t: Dictionary["home"]["cau
   const showingUrgent = Boolean(urgent?.items.length);
   const page = showingUrgent ? urgent : await getCauses({ limit: 6 });
   if (!page) return null;
-  const causes = page.items;
+  const open = page.items;
+  // Nothing open: show the latest completed causes rather than an empty section.
+  const closed = open.length === 0 ? ((await getCauses({ status: "closed", limit: 3 }).catch(() => null))?.items ?? []) : [];
+  const showingClosed = closed.length > 0;
+  const causes = showingClosed ? closed : open;
   // Only call them urgent when they are: the fallback is the newest open causes.
-  const eyebrow = causes.length === 0 ? t.eyebrowEmpty : showingUrgent ? t.eyebrowUrgent : t.eyebrowOpen;
+  const eyebrow = showingClosed
+    ? t.eyebrowClosed
+    : causes.length === 0
+      ? t.eyebrowEmpty
+      : showingUrgent
+        ? t.eyebrowUrgent
+        : t.eyebrowOpen;
 
   return (
     <section aria-labelledby="featured-causes-title" className="relative z-10 w-full border-t border-black/5 bg-white">
@@ -34,7 +44,7 @@ export async function FeaturedCauses({ t, locale }: { t: Dictionary["home"]["cau
             {t.title.before} <span className="italic text-accent-ink">{t.title.accent}</span> {t.title.after}
           </h2>
           <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-muted-ink sm:text-lg">
-            {causes.length > 0 ? t.intro : t.introEmpty}
+            {showingClosed ? t.introClosed : causes.length > 0 ? t.intro : t.introEmpty}
           </p>
         </div>
 
@@ -42,13 +52,17 @@ export async function FeaturedCauses({ t, locale }: { t: Dictionary["home"]["cau
           <>
             <div className="mx-auto mt-12 grid w-full max-w-6xl grid-cols-1 gap-5 sm:grid-cols-2 md:gap-6 lg:grid-cols-3">
               {causes.slice(0, 3).map((cause) => (
-                <CauseCard key={cause.id} cause={cause} locale={locale} />
+                <CauseCard key={cause.id} cause={cause} locale={locale} closed={showingClosed} />
               ))}
             </div>
 
             <div className="mt-10 text-center">
-              <Link href={localizedPath(locale, "/causes")} title={t.seeAll.title} className={LINK_CLASS}>
-                {t.seeAll.label}
+              <Link
+                href={localizedPath(locale, showingClosed ? "/causes?status=closed" : "/causes")}
+                title={showingClosed ? t.seeClosed.title : t.seeAll.title}
+                className={LINK_CLASS}
+              >
+                {showingClosed ? t.seeClosed.label : t.seeAll.label}
               </Link>
             </div>
           </>

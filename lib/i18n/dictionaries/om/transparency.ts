@@ -116,6 +116,8 @@ const transparency: Messages<typeof en> = {
     empty: "Hanga ammaatti gabaasni maxxanfame hin jiru.",
     published: "Guyyaa {date} maxxanfame",
     file: "PDF",
+    undated: "Guyyaan hin ibsamne",
+    yearHeading: "Bara {year} kan maxxanfaman",
     fileWithSize: "PDF · {size}",
     linkTitle: "{title} buufadhaa (PDF, tabii haaraa keessatti banama)",
     newTab: "(tabii haaraa keessatti banama)",

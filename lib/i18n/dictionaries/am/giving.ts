@@ -420,6 +420,7 @@ const giving: Messages<typeof en> = {
       activeTitle: "አሁን ክፍት የሆኑትን የድጋፍ ዓላማዎች ይመልከቱ",
       closed: "የተጠናቀቁ",
       closedTitle: "የተዘጉትን የድጋፍ ዓላማዎች ይመልከቱ",
+      seeClosed: { label: "{count} የተጠናቀቁ የድጋፍ ዓላማዎችን ይመልከቱ", title: "የተዘጉ የድጋፍ ዓላማዎችና ያሰባሰቡት ገንዘብ" },
     },
     /** Visually hidden heading above the list, so headings run in order. */
     listHeading: {

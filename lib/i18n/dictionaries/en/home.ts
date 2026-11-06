@@ -69,6 +69,9 @@ const home = {
     intro: "Causes across Ethiopia, each reviewed before it is listed and showing its progress toward its goal.",
     introEmpty: "No causes are open right now. New causes appear here as soon as the Commission publishes them.",
     seeAll: { label: "See all causes", title: "Browse every open cause" },
+    eyebrowClosed: "Recently completed",
+    introClosed: "No causes are open right now. These recently completed causes show where Zakat has gone.",
+    seeClosed: { label: "See all completed causes", title: "Causes that have closed and what they raised" },
     howReaches: { label: "How Zakat reaches families", title: "How households are assessed and paid" },
   },
   howItWorks: {

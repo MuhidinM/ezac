@@ -426,6 +426,7 @@ const giving = {
       activeTitle: "Show the causes open now",
       closed: "Completed",
       closedTitle: "Show the causes that have closed",
+      seeClosed: { label: "See {count} completed causes", title: "Causes that have closed and what they raised" },
     },
     /** Visually hidden heading above the list, so headings run in order. */
     listHeading: {
