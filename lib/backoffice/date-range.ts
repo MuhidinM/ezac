@@ -25,3 +25,23 @@ export function rangeQuery(key: RangeKey) {
   const { from, to } = rangeDates(key);
   return `from=${from}&to=${to}`;
 }
+
+/** "vs previous 30 days": how a range's comparison period reads in a stat tile. */
+export const PREVIOUS_LABEL: Record<RangeKey, string> = {
+  "30d": "vs previous 30 days",
+  "90d": "vs previous 90 days",
+  "1y": "vs previous 12 months",
+};
+
+/** The window of the same length just before `rangeDates(key)`, for "change vs previous period". */
+export function previousRangeDates(key: RangeKey) {
+  const { from } = rangeDates(key);
+  const start = new Date(`${from}T00:00:00`);
+  const to = new Date(start);
+  to.setDate(to.getDate() - 1);
+  const previousFrom = new Date(start);
+  if (key === "30d") previousFrom.setDate(previousFrom.getDate() - 30);
+  else if (key === "90d") previousFrom.setDate(previousFrom.getDate() - 90);
+  else previousFrom.setFullYear(previousFrom.getFullYear() - 1);
+  return { from: isoDate(previousFrom), to: isoDate(to) };
+}

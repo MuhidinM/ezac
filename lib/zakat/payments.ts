@@ -155,7 +155,11 @@ export function displayStatus(payment: Pick<ZakatPayment, "status" | "createdAt"
  * Ababa, +03:00): `from` inclusive, `to` exclusive, so `to` is the day after.
  */
 export function paymentRangeQuery(key: RangeKey) {
-  const { from, to } = rangeDates(key);
+  return paymentDatesQuery(rangeDates(key));
+}
+
+/** The same for explicit YYYY-MM-DD dates (e.g. the previous period). */
+export function paymentDatesQuery({ from, to }: { from: string; to: string }) {
   const end = new Date(`${to}T00:00:00Z`);
   end.setUTCDate(end.getUTCDate() + 1);
   const toNext = end.toISOString().slice(0, 10);
