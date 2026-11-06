@@ -14,7 +14,7 @@ import {
   MAX_KYC_FILE_SIZE,
 } from "@/lib/registration/constants";
 import {
-  clearRegistrationSession,
+  clearInProgressRegistration,
   getRegistrationSession,
   setRegistrationSuccessFlag,
   updateRegistrationSession,
@@ -122,7 +122,7 @@ export function InstitutionDocumentsStep() {
       return;
     }
 
-    clearRegistrationSession();
+    clearInProgressRegistration();
     setRegistrationSuccessFlag();
     router.push("/dashboard/beneficiary");
   }

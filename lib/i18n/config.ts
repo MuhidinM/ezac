@@ -39,13 +39,23 @@ export function localeDirection(locale: Locale): "ltr" | "rtl" {
 }
 
 /**
- * Locale for Intl number and date formatting. Arabic keeps Latin digits so
- * amounts in birr read the same as on bank statements and receipts.
+ * Locale for Intl number and date formatting. Server and browser must format
+ * identically or client components hit hydration mismatches, so each value was
+ * checked in Node and Chromium. Arabic keeps Latin digits so amounts in birr
+ * read the same as on bank statements and receipts. English uses Irish
+ * English: en-GB writes compact numbers as "1.2K" in Node but "1.2k" in Chrome.
+ *
+ * Afaan Oromoo uses Kenyan English: Chrome, Edge and Android have no Intl data
+ * for "om", so "om-ET" fell back to each browser's own language there (Arabic
+ * digits, "2,5 %") and the page no longer matched the server's HTML. en-KE
+ * formats identically in Node and Chromium (Latin digits, "245,140.5", "2.5%",
+ * "1.2M", "5 Nov 2026, 18:04"), so dates on Oromo pages use English month
+ * names. Not a language tag: use the Locale itself for lang or inLanguage.
  */
 export const INTL_LOCALE: Record<Locale, string> = {
-  en: "en-GB",
+  en: "en-IE",
   am: "am-ET",
-  om: "om-ET",
+  om: "en-KE",
   ar: "ar-u-nu-latn",
 };
 

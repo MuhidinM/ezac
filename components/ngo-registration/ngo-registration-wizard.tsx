@@ -120,17 +120,7 @@ export function NgoRegistrationWizard() {
     const referenceNumber = generateReferenceNumber();
     const submittedAt = new Date().toISOString();
 
-    const payload = {
-      formId: "EZAC-NGO-REG-001",
-      referenceNumber,
-      branchId,
-      branchName,
-      submittedAt,
-      eligibilityScore: score,
-      decision,
-      ...state,
-    };
-    console.log("EZAC NGO Application Submitted:", payload);
+    // Institution registration is switched off; nothing is sent or logged until it calls the real endpoint.
 
     setSubmitResult({ referenceNumber, submittedAt, score, decision });
     clearDraft();

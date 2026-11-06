@@ -29,24 +29,43 @@ const ACTIVITY_EVENTS = ["pointerdown", "pointermove", "keydown", "wheel", "touc
  * - IDLE_WARNING_EVENT: the one-minute warning just opened.
  * - BEFORE_SIGN_OUT_EVENT: this tab is about to sign out. A listener may call
  *   `event.detail.waitUntil(promise)` to hold the sign-out until its save
- *   settles, for at most SAVE_GRACE_MS.
+ *   settles, for at most SAVE_GRACE_MS. The save must be sent with
+ *   `event.detail.signal`, which aborts when the sign-out stops waiting.
  */
 export const IDLE_WARNING_EVENT = "ezac:idle-warning";
 export const BEFORE_SIGN_OUT_EVENT = "ezac:before-sign-out";
 const SAVE_GRACE_MS = 5 * 1000;
 
-export type BeforeSignOutDetail = { waitUntil: (work: Promise<unknown>) => void };
+export type BeforeSignOutDetail = {
+  waitUntil: (work: Promise<unknown>) => void;
+  signal: AbortSignal;
+};
 
 /** Tells open forms the session is ending and waits briefly for their saves. */
 async function announceSignOut(): Promise<void> {
   const pending: Promise<unknown>[] = [];
-  const detail: BeforeSignOutDetail = { waitUntil: (work) => void pending.push(work) };
+  const stopWaiting = new AbortController();
+  const detail: BeforeSignOutDetail = {
+    waitUntil: (work) => void pending.push(work),
+    signal: stopWaiting.signal,
+  };
   window.dispatchEvent(new CustomEvent<BeforeSignOutDetail>(BEFORE_SIGN_OUT_EVENT, { detail }));
   if (pending.length === 0) return;
+  let timer = 0;
   await Promise.race([
     Promise.allSettled(pending),
-    new Promise((resolve) => window.setTimeout(resolve, SAVE_GRACE_MS)),
+    new Promise((resolve) => {
+      timer = window.setTimeout(resolve, SAVE_GRACE_MS);
+    }),
   ]);
+  window.clearTimeout(timer);
+  // A save still running may have renewed the session on the server (the BFF
+  // refreshes an expired access token for it). Its answer would then store
+  // fresh auth cookies after signOut's logout cleared them, signing the next
+  // person at this PC back in. Cancelling it makes the browser drop that
+  // answer; the BFF doesn't stop when the browser cancels, so a save the
+  // gateway already has still lands.
+  stopWaiting.abort();
 }
 
 function sharedActivity(): number {

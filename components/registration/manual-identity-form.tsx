@@ -16,6 +16,8 @@ import { ageMismatch, formErrors } from "@/lib/registration/form-errors";
 import { normalizePhoneToE164 } from "@/lib/registration/phone";
 import {
   getSelectedBranch,
+  passwordSetupHref,
+  savePendingPasswordSetup,
   type SelectedBranch,
   setRegistrationSession,
   setRegistrationSuccessFlag,
@@ -162,15 +164,22 @@ export function ManualIdentityForm() {
         body,
       });
       if (created.passwordSetupToken) {
+        savePendingPasswordSetup({
+          entityId: created.id,
+          passwordSetupToken: created.passwordSetupToken,
+          registrationType: "manual",
+          branchName: branch.branchName,
+          fullName: data.fullName,
+          bin: created.bin ?? null,
+        });
         setRegistrationSession({
           registrationType: "manual",
           entityId: created.id,
-          passwordSetupToken: created.passwordSetupToken,
           phone: data.phone,
           fullName: data.fullName,
           bin: created.bin ?? null,
         });
-        router.push("/dashboard/register/manual/password");
+        router.push(passwordSetupHref(created.id));
       } else {
         setRegistrationSuccessFlag();
         router.push(`/dashboard/beneficiary/${created.id}`);

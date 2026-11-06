@@ -272,6 +272,8 @@ const transparency: Messages<typeof en> = {
       camels: "Gaala",
       rangeBetween: "{min}–{max}",
       rangeFrom: "{min} fi isaa ol",
+      duePer: "{per} hundaaf {item}",
+      dueAnd: "{first} fi {second}",
       cattle:
         "Loon: mataa {minimum} irraa kaasee; loon {tabiPer} hundaaf jabbii waggaa tokkoo tokko, loon {musinnahPer} hundaaf immoo saa waggaa lamaa tokko.",
       averagePrices: "Gatii giddugaleessaa horii madaaluuf fayyadu: {prices}.",

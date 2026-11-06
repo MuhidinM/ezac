@@ -14,7 +14,9 @@ import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api/errors";
 import { registerApiJson } from "@/lib/registration/api";
 import {
-  clearRegistrationSession,
+  clearInProgressRegistration,
+  clearPendingPasswordSetup,
+  getPendingPasswordSetup,
   getRegistrationSession,
   setRegistrationSuccessFlag,
 } from "@/lib/registration/session";
@@ -50,24 +52,19 @@ export function SetPasswordStep({
   const [registered, setRegistered] = useState<Registered | null>(null);
 
   useEffect(() => {
-    const session = getRegistrationSession();
-    if (
-      !session ||
-      !session.branchId ||
-      session.registrationType !== registrationType ||
-      !session.passwordSetupToken
-    ) {
+    // The household named in the link (the profile's "Set password"), else
+    // the one this tab registered last.
+    const householdId =
+      new URLSearchParams(window.location.search).get("household") ?? getRegistrationSession()?.entityId;
+    const setup = householdId ? getPendingPasswordSetup(householdId) : null;
+    if (!setup || setup.registrationType !== registrationType) {
       router.replace("/dashboard/register");
       return;
     }
     // Registration state lives in sessionStorage, readable only after mount.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setBranchName(session.branchName);
-    setRegistered(
-      session.entityId
-        ? { id: session.entityId, name: session.fullName?.trim() || null, bin: session.bin ?? null }
-        : null,
-    );
+    setBranchName(setup.branchName ?? null);
+    setRegistered({ id: setup.entityId, name: setup.fullName?.trim() || null, bin: setup.bin ?? null });
     setSessionChecked(true);
   }, [registrationType, router]);
 
@@ -82,8 +79,8 @@ export function SetPasswordStep({
       return;
     }
 
-    const session = getRegistrationSession();
-    if (!session?.passwordSetupToken) {
+    const setup = registered ? getPendingPasswordSetup(registered.id) : null;
+    if (!setup) {
       setError("This page has expired. Open the household's profile to check the registration.");
       return;
     }
@@ -94,13 +91,15 @@ export function SetPasswordStep({
       await registerApiJson<null>("/bff/register/set-password", {
         method: "POST",
         headers: {
-          "X-Password-Setup-Token": session.passwordSetupToken,
+          "X-Password-Setup-Token": setup.passwordSetupToken,
         },
         body: JSON.stringify({ password, confirmPassword }),
       });
 
+      clearPendingPasswordSetup(setup.entityId);
       if (registrationType === "manual") {
-        clearRegistrationSession();
+        // A registration started since then belongs to another household: keep it.
+        if (getRegistrationSession()?.entityId === setup.entityId) clearInProgressRegistration();
         setRegistrationSuccessFlag();
         router.push("/dashboard/beneficiary");
         return;
@@ -165,7 +164,7 @@ export function SetPasswordStep({
           title={`${registered.name ?? "The household"} is registered${registered.bin ? ` (BIN ${registered.bin})` : ""}.`}
         >
           Don&apos;t register them again. To set the password later, open their profile: it offers this step
-          until you close this browser tab.
+          until you close this browser tab or sign out.
         </InlineAlert>
       ) : null}
       <form id="set-password-form" onSubmit={onSubmit}>

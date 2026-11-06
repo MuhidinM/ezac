@@ -16,7 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { apiClient } from "@/lib/api/client";
-import type { AssessmentStatus, BankAccount, PoolStatus } from "@/lib/api/backoffice-types";
+import type { AssessmentStatus, BankAccount, BeneficiaryWhitelist, PoolStatus } from "@/lib/api/backoffice-types";
 import type { BeneficiaryDetail } from "@/lib/api/types";
 import { BANKS, MARITAL_STATUS, PRIMARY_LANGUAGE, SEX } from "@/lib/backoffice/options";
 import { ageMismatch, formErrors } from "@/lib/registration/form-errors";
@@ -73,7 +73,8 @@ const FIELD_KEYS = Object.keys(FIELD_IDS) as (keyof BasicDetails)[];
 /**
  * The bank account once the assessment is submitted or the household is
  * awaiting the pool or pooled: "locked" for everyone but ADMIN, "warn" for
- * ADMIN, "unchecked" when the assessments could not be read (fail closed).
+ * ADMIN, "unchecked" when the assessments or whitelist could not be read
+ * (fail closed).
  */
 export type BankLock = "locked" | "warn" | "unchecked" | null;
 
@@ -82,24 +83,29 @@ const BANK_LOCKING_ASSESSMENTS: AssessmentStatus[] = ["SUBMITTED", "APPROVED"];
 const BANK_LOCKING_POOL: PoolStatus[] = ["AWAITING_POOL", "POOLED"];
 
 /**
- * The BankLock for a household. `assessments` is its assessment history:
- * undefined while it loads or when it can't be read, which locks the account
- * for everyone but ADMIN.
+ * The BankLock for a household. `assessments` is its assessment history and
+ * `whitelist` its whitelist, whose fast-track entry can pool it without an
+ * assessment. Either one undefined (still loading, or unreadable) locks the
+ * account for everyone but ADMIN.
  */
 export function bankLockFor({
   isAdmin,
   assessments,
   poolStatus,
+  whitelist,
 }: {
   isAdmin: boolean;
   assessments: { status: AssessmentStatus }[] | undefined;
   poolStatus?: PoolStatus | null;
+  whitelist: Pick<BeneficiaryWhitelist, "current"> | undefined;
 }): BankLock {
+  const fastTrackPool = whitelist?.current?.poolStatus;
   const settled =
     (assessments ?? []).some((item) => BANK_LOCKING_ASSESSMENTS.includes(item.status)) ||
-    (!!poolStatus && BANK_LOCKING_POOL.includes(poolStatus));
+    (!!poolStatus && BANK_LOCKING_POOL.includes(poolStatus)) ||
+    (!!fastTrackPool && BANK_LOCKING_POOL.includes(fastTrackPool));
   if (isAdmin) return settled ? "warn" : null;
-  if (assessments === undefined) return "unchecked";
+  if (assessments === undefined || whitelist === undefined) return "unchecked";
   return settled ? "locked" : null;
 }
 
@@ -387,16 +393,16 @@ export function BasicDetailsDialog({
             </div>
             {bankLock === "locked" ? (
               <InlineAlert tone="info">
-                This household has an assessment that is submitted or approved, so the bank account is locked.
-                Ask an administrator if it needs to change.
+                This household has an assessment that is submitted or approved, or it is in the pool, so the bank
+                account is locked. Ask an administrator if it needs to change.
               </InlineAlert>
             ) : bankLock === "unchecked" ? (
               <InlineAlert tone="info">
-                We couldn&apos;t check this household&apos;s assessments, so the bank account can&apos;t be
-                changed right now. Reload the page and try again.
+                We couldn&apos;t check this household&apos;s assessments and whitelist, so the bank account
+                can&apos;t be changed right now. Reload the page and try again.
               </InlineAlert>
             ) : bankLock === "warn" ? (
-              <InlineAlert tone="warning" title="This household's assessment is already submitted or approved">
+              <InlineAlert tone="warning" title="This household's assessment is submitted or approved, or it is in the pool">
                 Payments will go to the new account straight away, and the old one is not kept. Check the new
                 details against the household&apos;s documents before you save.
               </InlineAlert>

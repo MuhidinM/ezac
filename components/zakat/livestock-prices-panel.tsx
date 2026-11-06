@@ -43,7 +43,7 @@ const etb = new Intl.NumberFormat("en-ET", { maximumFractionDigits: 0 });
 export function LivestockPricesPanel({ onChanged }: { onChanged?: () => void }) {
   const { data, error, mutate } = useResource<RulesVersion>("/bff/zakat-admin/calculator-configs/active");
   // Kept here: the form remounts on the new version, so its own state is lost.
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ tone: "success" | "warning"; text: string } | null>(null);
   return (
     <Panel
       title="Livestock prices"
@@ -51,8 +51,8 @@ export function LivestockPricesPanel({ onChanged }: { onChanged?: () => void }) 
     >
       {error ? <InlineAlert>{error.message}</InlineAlert> : null}
       {notice ? (
-        <InlineAlert tone="success" className="mb-4">
-          {notice}
+        <InlineAlert tone={notice.tone} className="mb-4">
+          {notice.text}
         </InlineAlert>
       ) : null}
       {data ? (
@@ -61,8 +61,16 @@ export function LivestockPricesPanel({ onChanged }: { onChanged?: () => void }) 
           active={data}
           onEdit={() => setNotice(null)}
           onSaved={(next) => {
-            setNotice(`Saved as calculator rules v${next.version}. The public How it works page shows the new prices now.`);
+            setNotice({ tone: "success", text: `Saved as calculator rules v${next.version}. The public How it works page shows the new prices now.` });
             mutate(next);
+            onChanged?.();
+          }}
+          onOutdated={(latest) => {
+            setNotice({
+              tone: "warning",
+              text: `Nothing was saved: calculator rules v${latest.version} (${latest.name}) was applied after this page loaded, and saving would have undone it. The form now shows v${latest.version}; enter the livestock prices again and save.`,
+            });
+            mutate(latest);
             onChanged?.();
           }}
         />
@@ -77,10 +85,13 @@ function LivestockForm({
   active,
   onEdit,
   onSaved,
+  onOutdated,
 }: {
   active: RulesVersion;
   onEdit: () => void;
   onSaved: (version: RulesVersion) => void;
+  /** Another version became active after this form loaded; nothing was saved. */
+  onOutdated: (latest: RulesVersion) => void;
 }) {
   const current = active.rules.livestockAverageUnitPriceEtb;
   const [prices, setPrices] = useState<Record<Animal, string>>(() =>
@@ -101,11 +112,19 @@ function LivestockForm({
     const livestockAverageUnitPriceEtb = Object.fromEntries(ANIMALS.map(({ key }) => [key, Number(prices[key])]));
     const today = new Date().toLocaleDateString("en", { dateStyle: "medium" });
     try {
+      // The new version copies every other rule from the active one. Read it again
+      // now: a version applied since this page loaded (another tab or admin) would
+      // otherwise be undone by a copy of the older rules.
+      const latest = await apiClient<RulesVersion>("/bff/zakat-admin/calculator-configs/active");
+      if (latest.version !== active.version) {
+        onOutdated(latest);
+        return;
+      }
       const created = await apiClient<RulesVersion>("/bff/zakat-admin/calculator-configs", {
         method: "POST",
         body: JSON.stringify({
           name: (note.trim() || `Livestock prices ${today}`).slice(0, 160),
-          rules: { ...active.rules, livestockAverageUnitPriceEtb },
+          rules: { ...latest.rules, livestockAverageUnitPriceEtb },
           activate: true,
         }),
       });

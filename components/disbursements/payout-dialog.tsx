@@ -78,27 +78,74 @@ export async function readPayout(id: string) {
   }
 }
 
-/** The current time, updated every `intervalMs`; null until mounted. */
-export function useNow(intervalMs: number) {
+/** How far the browser clock is ahead of the server's, in ms; null until read. */
+let clockOffset: number | null = null;
+let clockSync: Promise<void> | null = null;
+
+/**
+ * Reads the server's time once per page load from the Date header of an
+ * uncached answer. Expiry is the server's 15 minutes: a browser clock or time
+ * zone set wrong must not hide Pay and Cancel on a payout that is still open.
+ */
+function syncClock() {
+  clockSync ??= (async () => {
+    const sent = Date.now();
+    const response = await fetch("/bff/health", { cache: "no-store" });
+    const received = Date.now();
+    const serverTime = Date.parse(response.headers.get("Date") ?? "");
+    if (!Number.isFinite(serverTime)) throw new Error("No Date header");
+    // The header was stamped somewhere during the round trip: take the middle.
+    clockOffset = (sent + received) / 2 - serverTime;
+  })().catch(() => {
+    // Try again on the next mount; until then nothing is treated as expired here.
+    clockSync = null;
+  });
+  return clockSync;
+}
+
+/**
+ * The server's current time (the browser clock corrected by the server's),
+ * updated every `intervalMs`; null until the server's time is known, and while
+ * it is null no payout is treated as expired here: the server still refuses an
+ * expired one on Pay (PAYOUT_EXPIRED).
+ */
+export function useServerNow(intervalMs: number) {
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
-    const tick = () => setNow(Date.now());
-    const first = setTimeout(tick, 0);
+    let cancelled = false;
+    const tick = () => {
+      if (!cancelled && clockOffset !== null) setNow(Date.now() - clockOffset);
+    };
+    void syncClock().then(tick);
     const timer = setInterval(tick, intervalMs);
     return () => {
-      clearTimeout(first);
+      cancelled = true;
       clearInterval(timer);
     };
   }, [intervalMs]);
   return now;
 }
 
-/** A prepared payout whose 15 minutes are up can't be paid any more. */
-export function isExpired(payout: Pick<Disbursement, "status" | "expiresAt">, now: number | null) {
-  if (payout.status !== "AWAITING_CONFIRMATION" || !payout.expiresAt || now === null) return false;
+/** Milliseconds left to confirm a prepared payout; null when not prepared or not known. */
+function timeLeft(payout: Pick<Disbursement, "status" | "expiresAt">, now: number | null) {
+  if (payout.status !== "AWAITING_CONFIRMATION" || !payout.expiresAt || now === null) return null;
   const at = Date.parse(payout.expiresAt);
-  return Number.isFinite(at) && at <= now;
+  return Number.isFinite(at) ? at - now : null;
 }
+
+/** A prepared payout whose 15 minutes are up (by the server's clock) can't be paid any more. */
+export function isExpired(payout: Pick<Disbursement, "status" | "expiresAt">, now: number | null) {
+  const left = timeLeft(payout, now);
+  return left !== null && left <= 0;
+}
+
+/** Under two minutes left: a nudge only, Pay and Cancel stay. */
+export function isExpiringSoon(payout: Pick<Disbursement, "status" | "expiresAt">, now: number | null) {
+  const left = timeLeft(payout, now);
+  return left !== null && left > 0 && left <= 2 * 60_000;
+}
+
+export const EXPIRING_SOON = "Less than 2 minutes left to confirm. If time runs out, prepare it again.";
 
 /** Shown when a call failed but a re-read shows the payout has moved on. */
 export const CHECKED_AGAIN = "The request didn't finish, so we checked the payout again. This is where it stands now.";
@@ -220,13 +267,14 @@ export function PayoutDialog({
   const [unsure, setUnsure] = useState(false);
   // Closing a prepared payout first asks whether to keep or cancel it.
   const [closing, setClosing] = useState(false);
-  const now = useNow(5_000);
+  const now = useServerNow(5_000);
 
   const isWorking = working !== null;
   const name = entry.fullName ?? `Beneficiary #${entry.beneficiaryId}`;
   const prepared = payout?.status === "AWAITING_CONFIRMATION";
   const finished = payout && !prepared;
   const expired = payout ? isExpired(payout, now) : false;
+  const expiringSoon = payout ? isExpiringSoon(payout, now) : false;
 
   function startOver() {
     setPayout(null);
@@ -500,6 +548,7 @@ export function PayoutDialog({
               </>
             ) : (
               <>
+                {expiringSoon ? <InlineAlert tone="warning">{EXPIRING_SOON}</InlineAlert> : null}
                 {needsNameAcknowledgement(payout) ? (
                   <NameCheckAcknowledgement payout={payout} checked={acknowledged} onCheckedChange={setAcknowledged} />
                 ) : null}

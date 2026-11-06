@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  DEFAULT_LOCALE,
   LOCALES,
   LOCALE_COOKIE,
   LOCALE_NAMES,
@@ -41,7 +42,10 @@ function useLanguageOptions(): LanguageOption[] {
   return LOCALES.map((option) => ({
     locale: option,
     name: LOCALE_NAMES[option],
-    href: localizedPath(option, path),
+    // English links to "/en/about", not "/about": proxy.ts treats that as an
+    // explicit choice (saves it and redirects to "/about"), so English opened
+    // in a new tab isn't sent back to an earlier language the cookie remembers.
+    href: option === DEFAULT_LOCALE ? `/${DEFAULT_LOCALE}${path === "/" ? "" : path}` : localizedPath(option, path),
     current: option === locale,
     title: format(common.language.switchTo, { language: LOCALE_NAMES[option] }),
   }));
@@ -55,9 +59,12 @@ function useLanguageOptions(): LanguageOption[] {
  * changed could be in the old language.
  */
 function chooseLanguage(event: MouseEvent<HTMLAnchorElement>, option: LanguageOption) {
-  document.cookie = `${LOCALE_COOKIE}=${option.locale}; path=/; max-age=31536000; samesite=lax`;
-  // Let the browser handle new-tab and new-window clicks itself.
+  // Let the browser handle new-tab, new-window and download clicks itself, and
+  // leave the saved language alone for them: the cookie is shared by every
+  // tab, so a visitor who only peeks at another language in a new tab would
+  // otherwise see this tab jump to that language on its next link.
   if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  document.cookie = `${LOCALE_COOKIE}=${option.locale}; path=/; max-age=31536000; samesite=lax`;
   event.preventDefault();
   // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full load on purpose (see above)
   window.location.assign(`${option.href}${window.location.search}${window.location.hash}`);

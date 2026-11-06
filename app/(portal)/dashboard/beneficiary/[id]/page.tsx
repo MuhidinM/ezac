@@ -34,15 +34,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import type { Assessment, AssessmentListItem, PoolStatus } from "@/lib/api/backoffice-types";
+import { requestPath } from "@/components/whitelist/whitelist-form-dialog";
+import type { Assessment, AssessmentListItem, BeneficiaryWhitelist, PoolStatus } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errors";
-import type { BeneficiaryDetail, PaginatedItems } from "@/lib/api/types";
+import type { BeneficiaryDetail } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
 import { useSession } from "@/lib/auth/use-session";
+import { isLivePoolStatus } from "@/lib/backoffice/assessment-steps";
 import { MARITAL_STATUS, PRIMARY_LANGUAGE, SEX, labelFor } from "@/lib/backoffice/options";
+import { useBranchScope } from "@/lib/backoffice/use-branch-scope";
 import { formatBeneficiaryCategory, formatDateTime } from "@/lib/beneficiary/format";
-import { hasPendingPasswordSetup } from "@/lib/registration/session";
+import { hasPendingPasswordSetup, passwordSetupHref } from "@/lib/registration/session";
 
 type VerificationAction = "verified" | "rejected";
 
@@ -58,23 +61,32 @@ export default function BeneficiaryDetailPage() {
   const { data: beneficiary, error, isLoading, reload, mutate } = useResource<BeneficiaryDetail>(
     `/bff/beneficiaries/${encodeURIComponent(id)}`,
   );
-  // Assessment history: tells whether the bank account is settled, and its
-  // 403 is how we learn the household is outside the user's branches (the
-  // detail itself is not branch-scoped yet).
-  const { data: assessmentsData, error: assessmentsError } = useResource<
-    AssessmentListItem[] | PaginatedItems<AssessmentListItem>
-  >(
-    beneficiary && beneficiary.beneficiaryType !== "institution"
-      ? `/bff/backoffice/beneficiaries/${encodeURIComponent(beneficiary.id)}/assessments`
-      : null,
-  );
-  const assessmentHistory = Array.isArray(assessmentsData) ? assessmentsData : assessmentsData?.items;
-  // The detail GET has no pool status yet; the latest approved assessment carries it.
+  // Assessment history: tells whether the bank account is settled, and
+  // whether the household is in the user's branches.
+  const branch = useBranchScope(beneficiary);
+  const assessmentHistory = branch.assessments;
+  // The detail GET has no pool status yet. The latest approved assessment
+  // carries it, or for a fast-track household pooled without an assessment,
+  // its whitelist entry.
   const approved = beneficiary?.poolStatus ? null : latestApproved(assessmentHistory ?? []);
   const { data: approvedAssessment } = useResource<Assessment>(
     approved ? `/bff/backoffice/assessments/${encodeURIComponent(approved.id)}` : null,
   );
-  const poolStatus: PoolStatus | null = beneficiary?.poolStatus ?? approvedAssessment?.pool?.status ?? null;
+  const {
+    data: whitelistData,
+    error: whitelistError,
+    reload: reloadWhitelist,
+  } = useResource<BeneficiaryWhitelist>(
+    beneficiary && beneficiary.beneficiaryType !== "institution" ? requestPath(beneficiary.id) : null,
+  );
+  // Undefined until it is read: the bank lock fails closed meanwhile.
+  const whitelist = whitelistError ? undefined : whitelistData;
+  const fastTrackPool = whitelist?.current?.poolStatus;
+  const poolStatus: PoolStatus | null =
+    beneficiary?.poolStatus ??
+    (isLivePoolStatus(fastTrackPool) ? fastTrackPool : null) ??
+    approvedAssessment?.pool?.status ??
+    null;
   useBreadcrumbLabel(beneficiary?.fullName);
 
   const [isEditingInstitution, setIsEditingInstitution] = useState(false);
@@ -110,16 +122,16 @@ export default function BeneficiaryDetailPage() {
     beneficiary.verificationStatus !== "verified" &&
     beneficiary.verificationStatus !== "rejected";
 
-  // Branch scope: a 403 on the household's assessments means another branch.
-  const outOfScope = assessmentsError?.status === 403;
-  const scopeChecked = isInstitution || isAdmin || assessmentsData !== undefined || !!assessmentsError;
-  const canEdit = (session?.isStaff ?? false) && scopeChecked && !outOfScope;
+  // Branch scope: only a confirmed answer allows changes (fails closed).
+  const outOfScope = branch.scope === "out";
+  const scopeChecked = branch.scope !== "checking";
+  const canEdit = (session?.isStaff ?? false) && branch.scope === "in";
 
   // Bank account: settled once the assessment is with the branch or the
   // household is (about to be) pooled. Only ADMIN may change it then.
   const bankLock: BankLock = isInstitution
     ? null
-    : bankLockFor({ isAdmin, assessments: assessmentHistory, poolStatus });
+    : bankLockFor({ isAdmin, assessments: assessmentHistory, poolStatus, whitelist });
   const canEditBank = canEdit && (bankLock === null || bankLock === "warn");
 
   // Merge: the PATCH answers leave out fields such as the lifecycle and BIN,
@@ -209,6 +221,15 @@ export default function BeneficiaryDetailPage() {
           You can view it but not change it.
         </InlineAlert>
       ) : null}
+      {branch.scope === "unknown" ? (
+        <InlineAlert
+          tone="warning"
+          title="We couldn't check this household's branch."
+          action={<Button variant="outline" size="sm" onClick={branch.reload}>Retry</Button>}
+        >
+          You can view it, but changes are off until the check works. {branch.error?.message}
+        </InlineAlert>
+      ) : null}
 
       {passwordPending && !outOfScope ? (
         <InlineAlert
@@ -216,7 +237,7 @@ export default function BeneficiaryDetailPage() {
           title="No login password yet"
           action={
             <Button size="sm" variant="outline" asChild>
-              <Link href="/dashboard/register/manual/password">
+              <Link href={passwordSetupHref(beneficiary.id)}>
                 <KeyRound />
                 Set password
               </Link>
@@ -224,7 +245,7 @@ export default function BeneficiaryDetailPage() {
           }
         >
           Registration stopped before the household&apos;s password was set. You can set it here until you
-          close this browser tab.
+          close this browser tab or sign out.
         </InlineAlert>
       ) : null}
 
@@ -233,14 +254,14 @@ export default function BeneficiaryDetailPage() {
           tone="warning"
           title="Possible duplicate registration"
           action={
-            outOfScope ? null : (
+            canEdit ? (
               <Button size="sm" variant="outline" asChild>
                 <Link href={`/dashboard/beneficiary/${beneficiary.id}/duplicates`}>
                   <CopyCheck />
                   Review
                 </Link>
               </Button>
-            )
+            ) : null
           }
         >
           This record matches another beneficiary. Resolve it before starting an assessment.
@@ -290,7 +311,7 @@ export default function BeneficiaryDetailPage() {
               title="Bank account"
               description={
                 canEdit && bankLock === "locked"
-                  ? "Where payments are sent. Locked once the assessment is submitted. Only an administrator can change it."
+                  ? "Where payments are sent. Locked once the assessment is submitted or the household is in the pool. Only an administrator can change it."
                   : "Where payments are sent. Needed to submit an assessment and to pay the household."
               }
               actions={
@@ -383,6 +404,7 @@ export default function BeneficiaryDetailPage() {
               beneficiaryId={beneficiary.id}
               beneficiaryName={beneficiary.fullName}
               household={{ ...beneficiary, poolStatus }}
+              onChanged={reloadWhitelist}
             />
           )}
           {!isInstitution && session?.isStaff ? (

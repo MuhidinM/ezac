@@ -88,19 +88,50 @@ const ACCENT_CLASSES: Record<Accent, { fill: string; text: string }> = {
   navy: { fill: "bg-navy", text: "text-navy" },
 };
 
-function RulesTable({ config, t, locale }: { config: CalculatorConfig; t: Strings["rules"]; locale: Locale }) {
+function RulesTable({
+  config,
+  t,
+  kindsText,
+  locale,
+}: {
+  config: CalculatorConfig;
+  t: Strings["rules"];
+  /** The calculator's animal names, so the table and the calculator name the same animals the same way. */
+  kindsText: Dictionary["calculator"]["livestock"];
+  locale: Locale;
+}) {
   const number = new Intl.NumberFormat(INTL_LOCALE[locale], { maximumFractionDigits: 1 });
   const pct = (rate: number) => formatPercent(rate, locale);
   const etb = (value: number) => formatEtb(value, locale) ?? "—";
   const animals: Record<string, string> = t.animals;
+  const kinds: Record<string, string> = kindsText.kinds;
   const prices = Object.entries(config.livestockAverageUnitPriceEtb ?? {});
+  const dueItem = (kind: string, count: number) =>
+    format(kindsText.dueItem, {
+      count: number.format(count),
+      kind: Object.prototype.hasOwnProperty.call(kinds, kind) ? kinds[kind] : kind,
+    });
+  // Same precedence as livestockDue(): the service's English `due` is only the
+  // last resort, for a row that carries nothing structured.
+  const dueText = (row: LivestockRow) => {
+    const items = row.dueItems?.filter((item) => item.count > 0) ?? [];
+    if (items.length > 0) return items.map((item) => dueItem(item.kind, item.count)).join(kindsText.dueSeparator);
+    if (row.perHundred) return format(t.duePer, { item: dueItem("sheep", row.perHundred), per: number.format(100) });
+    if (row.bintLabunPer && row.hiqqahPer) {
+      return format(t.dueAnd, {
+        first: format(t.duePer, { item: dueItem("bint_labun", 1), per: number.format(row.bintLabunPer) }),
+        second: format(t.duePer, { item: dueItem("hiqqah", 1), per: number.format(row.hiqqahPer) }),
+      });
+    }
+    return row.due;
+  };
   const livestockRows = (rows: LivestockRow[]) =>
     rows.map((row) => ({
       range:
         row.max != null
           ? format(t.rangeBetween, { min: number.format(row.min), max: number.format(row.max) })
           : format(t.rangeFrom, { min: number.format(row.min) }),
-      due: row.due,
+      due: dueText(row),
     }));
   const basisGrams = config.nisab.basis === "gold" ? config.nisab.goldGrams : config.nisab.silverGrams;
   const rows: [string, string][] = [
@@ -229,7 +260,7 @@ function Timeline({
 
 export default async function HowItWorksPage({ params }: PageProps<"/[lang]/how-it-works">) {
   const locale = localeFromParam((await params).lang);
-  const { transparency, giving } = await getDictionary(locale);
+  const { transparency, giving, calculator } = await getDictionary(locale);
   const t = transparency.howItWorks;
   // null means not published (the section is left out); an outage throws, so
   // ISR keeps serving the last good page.
@@ -291,7 +322,7 @@ export default async function HowItWorksPage({ params }: PageProps<"/[lang]/how-
       {config ? (
         <Section>
           <SectionHeading eyebrow={t.rules.eyebrow} title={t.rules.title} intro={t.rules.intro} />
-          <RulesTable config={config} t={t.rules} locale={locale} />
+          <RulesTable config={config} t={t.rules} kindsText={calculator.livestock} locale={locale} />
         </Section>
       ) : null}
 

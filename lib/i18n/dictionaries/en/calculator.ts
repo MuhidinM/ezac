@@ -154,7 +154,6 @@ const calculator = {
 
   gold: {
     officialPrices: "Official EZAC prices per gram by karat.",
-    estimatedPrices: "Estimated prices per gram by karat.",
     /** {fineMetal} is shown in bold. */
     nisabRule: "Nisab is measured in {fineMetal} (gross grams × karat ÷ 24): gold {goldGrams}g, silver {silverGrams}g.",
     fineMetal: "fine metal",
@@ -162,7 +161,8 @@ const calculator = {
     basisOfficial: "The commission currently applies the {basis} nisab.",
     basisEstimate: "Until the official rates load, this estimate uses the {basis} nisab.",
     loading: "Loading official rates...",
-    errorFallback: "{error} Using estimated prices instead.",
+    /** Shown when the official rates failed: the metals can't be valued, so the total leaves them out. */
+    errorExcluded: "{error} Gold and silver are left out of the total until the official prices load.",
     pricesAsOf: "Prices as of {date}",
     usdEtb: "USD/ETB {rate}",
     metalLabel: "Metal #{number}",
@@ -268,7 +268,10 @@ const calculator = {
     nisabStatus: "ETB {amount} · {status}",
     noHawl: "Wealth has not completed a full lunar year — no wealth Zakat is due yet.",
     belowNisab: "Your net wealth is below Nisab — no wealth Zakat is due yet.",
+    noHawlLivestock: "Your animals have not been held for a full lunar year — no livestock Zakat is due yet.",
     pay: "Proceed to Pay Zakat",
+    /** Under the disabled pay button while the official rates are unavailable. */
+    payNeedsRates: "You can proceed to pay once the official rates load.",
     payTitle: "See how to pay this Zakat in the EZAC app",
     payNote: "You pay in the EZAC app: it shows a QR code that you scan with any Ethiopian bank app.",
     bank: "Cooperative Bank of Oromia",

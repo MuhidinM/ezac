@@ -26,17 +26,22 @@ import { cn } from "@/lib/utils";
  * `livePoolStatus` (an assessment's pool status) and the household's own pool
  * status tell whether an assessment row is the household's live pool row; a
  * declined or removed fast-track entry then doesn't show its old pool badge.
+ *
+ * `onChanged` runs after a request, decision or revocation, for pages that
+ * read the whitelist too.
  */
 export function WhitelistPanel({
   beneficiaryId,
   beneficiaryName,
   household,
   livePoolStatus,
+  onChanged,
 }: {
   beneficiaryId: string;
   beneficiaryName?: string | null;
   household?: HouseholdState | null;
   livePoolStatus?: PoolStatus | null;
+  onChanged?: () => void;
 }) {
   const { session } = useSession();
   const { data, error, reload } = useResource<BeneficiaryWhitelist>(requestPath(beneficiaryId));
@@ -62,6 +67,10 @@ export function WhitelistPanel({
   const canAdd = canDecide && canOpenForm;
   const canRequest = !canDecide && canOpenForm;
   const history = (data?.history ?? []).filter((entry) => entry.id !== data?.current?.id);
+  const changed = () => {
+    reload();
+    onChanged?.();
+  };
 
   return (
     <Panel
@@ -87,7 +96,7 @@ export function WhitelistPanel({
         <WhitelistEntryCard
           entry={data.current}
           canDecide={canDecide}
-          onChanged={() => reload()}
+          onChanged={changed}
           hidePoolStatus={stalePool(data.current)}
         />
       ) : data ? (
@@ -118,7 +127,7 @@ export function WhitelistPanel({
                   <WhitelistEntryCard
                     entry={entry}
                     canDecide={false}
-                    onChanged={() => reload()}
+                    onChanged={changed}
                     hidePoolStatus={stalePool(entry)}
                     compact
                   />
@@ -136,7 +145,7 @@ export function WhitelistPanel({
         onOpenChange={setFormOpen}
         onSaved={() => {
           setFormOpen(false);
-          reload();
+          changed();
         }}
       />
     </Panel>

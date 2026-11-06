@@ -20,6 +20,7 @@ import {
 import { LocalizedLink, useI18n } from "@/lib/i18n/client";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { format } from "@/lib/i18n/messages";
+import { toAsciiNumber } from "@/lib/i18n/digits";
 import {
   MIXED_IRRIGATION_RATE,
   RIKAZ_RATE as OFFICIAL_RIKAZ_RATE,
@@ -74,6 +75,8 @@ const CATEGORIES: { key: CategoryKey; icon: LucideIcon }[] = [
 
 // Offline fallbacks only; the official values come from the zakat service.
 // Mixed irrigation and Rikaz aren't in the config: the backend confirmed them as fixed.
+// There is no fallback gold price: without the official rates, gold and silver
+// items are left out of the total rather than valued at a stale price.
 const ZAKAT_RATE = 0.025;
 const RIKAZ_RATE = OFFICIAL_RIKAZ_RATE;
 const GOLD_NISAB_GRAMS = 85;
@@ -82,7 +85,6 @@ const AGRI_NISAB_KG = 653;
 const RAIN_FED_RATE = 0.1;
 const IRRIGATED_RATE = 0.05;
 const SILVER_PRICE_PER_GRAM_ETB = 412;
-const GOLD_PRICE_PER_GRAM_ETB = 7200;
 const KARATS = [24, 22, 21, 20, 18, 16, 14, 10] as const;
 
 // Anything longer is a typing slip, and would overflow to Infinity in the sums.
@@ -180,7 +182,7 @@ type ParsedAmount = { value: number; error: InputError | null };
  * runaway length) gets an inline message instead of a silently wrong total.
  */
 function parseAmount(raw: string, { wholeNumber = false } = {}): ParsedAmount {
-  const text = raw.trim();
+  const text = toAsciiNumber(raw).trim();
   if (text === "" || text === ".") return { value: 0, error: null };
   const [whole, fraction, ...rest] = text.split(".");
   if (rest.length > 0) return { value: 0, error: "decimalPoints" };
@@ -200,8 +202,12 @@ function parseAmount(raw: string, { wholeNumber = false } = {}): ParsedAmount {
 /** The value of a typed amount; malformed input counts as 0 and is flagged separately. */
 const amount = (raw: string) => parseAmount(raw).value;
 
-/** Typing keeps digits, points and commas only, as before localization. */
-const cleanAmount = (raw: string) => raw.replace(/[^0-9.,]/g, "");
+/**
+ * Typing keeps digits, points and commas only. Arabic-script digits and
+ * separators stay as typed, so the field shows what the visitor entered;
+ * parseAmount reads them as ASCII.
+ */
+const cleanAmount = (raw: string) => raw.replace(/[^0-9.,\u0660-\u0669\u06F0-\u06F9\u066B\u066C\u060C]/g, "");
 
 function createMetalItem(): MetalLineItem {
   return {
@@ -215,12 +221,6 @@ function createMetalItem(): MetalLineItem {
 /** Fine (pure) metal content in grams for jewelry/alloys: gross × (karat / 24). */
 function fineMetalGrams(grossGrams: number, karat: Karat) {
   return grossGrams * (karat / 24);
-}
-
-function etbPerGramForKarat(metal: MetalType, karat: Karat, config: CalculatorConfig | null): number {
-  if (config) return pricePerGram(config, metal, karat);
-  const pure24 = metal === "gold" ? GOLD_PRICE_PER_GRAM_ETB : SILVER_PRICE_PER_GRAM_ETB;
-  return pure24 * (karat / 24);
 }
 
 function irrigationRate(mode: IrrigationMode, rules: RuleFigures) {
@@ -479,11 +479,10 @@ export function ZakatCalculator({ t }: { t: CalculatorText }) {
   const silverFineGrams = form.metalItems
     .filter((item) => item.metal === "silver")
     .reduce((sum, item) => sum + fineMetalGrams(amount(item.grams), item.karat), 0);
-  const preciousMetalsValue = form.metalItems.reduce((sum, item) => {
-    const grams = amount(item.grams);
-    const etbPerGram = etbPerGramForKarat(item.metal, item.karat, config);
-    return sum + grams * etbPerGram;
-  }, 0);
+  // 0 until the official prices load: the metals are then left out of the total.
+  const preciousMetalsValue = config
+    ? form.metalItems.reduce((sum, item) => sum + amount(item.grams) * pricePerGram(config, item.metal, item.karat), 0)
+    : 0;
   // Business base
   const businessBase =
     amount(form.businessCash) +
@@ -508,7 +507,6 @@ export function ZakatCalculator({ t }: { t: CalculatorText }) {
 
   // Thresholds & minerals / rikaz
   const silver24kEtb = config?.silverPricePerGramEtb ?? SILVER_PRICE_PER_GRAM_ETB;
-  const gold24kEtb = config?.goldPricePerGramEtb["24k"] ?? GOLD_PRICE_PER_GRAM_ETB;
   // The commission sets the basis (gold today); offline we fall back to silver.
   const nisabETB = config?.nisab.valueEtb ?? SILVER_NISAB_GRAMS * silver24kEtb;
   const mineralsBase = amount(form.mineralsValue);
@@ -523,7 +521,8 @@ export function ZakatCalculator({ t }: { t: CalculatorText }) {
         ? "cattleCount"
         : "camelsCount";
   const livestockCount = parseAmount(form[livestockCountField], { wholeNumber: true }).value;
-  const livestockEligible = form.livestockFreelyGrazing && !form.livestockUsedForWork;
+  // Livestock needs a full Hawl like wealth does; only crops and Rikaz are exempt.
+  const livestockEligible = form.hawlCompleted && form.livestockFreelyGrazing && !form.livestockUsedForWork;
   const livestockOwed: LivestockDue =
     has("livestock") && livestockEligible
       ? config
@@ -584,9 +583,12 @@ export function ZakatCalculator({ t }: { t: CalculatorText }) {
   // Grand monetary total (in-kind dues are reported separately)
   const totalEtbDue = annualDue + rikazDue + mineralsDue;
   const hasInKind = agricultureDue > 0 || livestockOwed !== null;
-  const readyToPay = !hasInputErrors && (totalEtbDue > 0 || hasInKind);
+  const somethingDue = !hasInputErrors && (totalEtbDue > 0 || hasInKind);
+  // A total built on fallback figures is a rough guide, not something to pay from.
+  const readyToPay = somethingDue && config !== null;
 
   const hasMonetaryCategory = (["cash", "gold", "business", "propertyStocks"] as const).some((k) => has(k));
+  const showHawl = hasMonetaryCategory || has("livestock");
 
   // ---- Wording -----------------------------------------------------------
 
@@ -738,7 +740,7 @@ export function ZakatCalculator({ t }: { t: CalculatorText }) {
           <div className="space-y-4">
             <div className="rounded-2xl border border-black/10 p-4 text-xs text-neutral-500">
               <p>
-                {config ? t.gold.officialPrices : t.gold.estimatedPrices}{" "}
+                {config ? `${t.gold.officialPrices} ` : null}
                 {fill(t.gold.nisabRule, {
                   fineMetal: <strong className="text-navy">{t.gold.fineMetal}</strong>,
                   goldGrams: <Num>{fmt.grams(goldNisabGrams)}</Num>,
@@ -748,11 +750,11 @@ export function ZakatCalculator({ t }: { t: CalculatorText }) {
                   basis: <strong className="text-navy">{basisLabel}</strong>,
                 })}
               </p>
-              <p className="mt-1">
+              <p className={`mt-1 ${pricingError ? "text-accent-ink" : ""}`}>
                 {pricingLoading
                   ? t.gold.loading
                   : pricingError
-                    ? format(t.gold.errorFallback, { error: ratesErrorText(pricingError) })
+                    ? format(t.gold.errorExcluded, { error: ratesErrorText(pricingError) })
                     : [
                         config?.pricesAsOf && !Number.isNaN(Date.parse(config.pricesAsOf))
                           ? format(t.gold.pricesAsOf, { date: fmt.dateTime(new Date(config.pricesAsOf)) })
@@ -852,7 +854,7 @@ export function ZakatCalculator({ t }: { t: CalculatorText }) {
                   goldFine: <Num>{fmt.grams(goldFineGrams)}</Num>,
                   silverGross: <Num>{fmt.grams(silverGrossGrams)}</Num>,
                   silverFine: <Num>{fmt.grams(silverFineGrams)}</Num>,
-                  value: <Num>{fmt.currency(preciousMetalsValue)}</Num>,
+                  value: <Num>{config ? fmt.currency(preciousMetalsValue) : "—"}</Num>,
                 })}
               </p>
             </div>
@@ -990,7 +992,12 @@ export function ZakatCalculator({ t }: { t: CalculatorText }) {
   if (has("cash"))
     breakdownRows.push({ key: "cash", label: fill(breakdown.cash, { rate: wealthRate }), value: money(cashShare) });
   if (has("gold"))
-    breakdownRows.push({ key: "gold", label: fill(breakdown.gold, { rate: wealthRate }), value: money(goldShare) });
+    breakdownRows.push({
+      key: "gold",
+      label: fill(breakdown.gold, { rate: wealthRate }),
+      // Not valued without the official prices, so not shown as a zero share.
+      value: config ? money(goldShare) : "—",
+    });
   if (has("business"))
     breakdownRows.push({
       key: "business",
@@ -1048,7 +1055,7 @@ export function ZakatCalculator({ t }: { t: CalculatorText }) {
               <span>
                 {t.rates.snapshot}{" "}
                 <span className="font-medium text-white">
-                  {fill(t.rates.gold24k, { price: <Num>{fmt.currency(gold24kEtb)}</Num> })}
+                  {fill(t.rates.gold24k, { price: <Num>{fmt.currency(config.goldPricePerGramEtb["24k"] ?? 0)}</Num> })}
                 </span>
                 {" · "}
                 <span className="font-medium text-white">
@@ -1157,7 +1164,7 @@ export function ZakatCalculator({ t }: { t: CalculatorText }) {
                 <p className="text-xs uppercase tracking-[0.16em] text-neutral-600 rtl:tracking-normal">
                   {t.result.total}
                 </p>
-                {hasMonetaryCategory && (
+                {showHawl && (
                   <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-neutral-600">
                     <input
                       type="checkbox"
@@ -1201,6 +1208,9 @@ export function ZakatCalculator({ t }: { t: CalculatorText }) {
                     </span>
                   )}
                 </div>
+              )}
+              {!hasInputErrors && has("livestock") && !form.hawlCompleted && (
+                <p className="mt-3 text-xs text-accent-ink">{t.result.noHawlLivestock}</p>
               )}
 
               {!hasInputErrors && breakdownRows.length > 0 && (
@@ -1256,6 +1266,9 @@ export function ZakatCalculator({ t }: { t: CalculatorText }) {
                   {t.result.pay}
                   <ArrowRightIcon className="h-4 w-4 rtl:-scale-x-100" aria-hidden="true" />
                 </button>
+              )}
+              {somethingDue && usingEstimates && (
+                <p className="mt-3 text-center text-xs text-accent-ink">{t.result.payNeedsRates}</p>
               )}
               <p className="mt-3 text-center text-xs text-neutral-600">{t.result.payNote}</p>
 

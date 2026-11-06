@@ -7,7 +7,7 @@ import { Banknote, CheckCheck, CornerUpLeft, MinusCircle, RefreshCw, SlidersHori
 import { PoolStatusBadge, RiskBadge, ScoreMeter, WhitelistBadge } from "@/components/backoffice/status-badges";
 import { VerificationStatusBadge } from "@/components/beneficiary/verification-status-badge";
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
-import { PayoutDialog, isExpired, useNow } from "@/components/disbursements/payout-dialog";
+import { PayoutDialog, isExpired, useServerNow } from "@/components/disbursements/payout-dialog";
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { ListPagination } from "@/components/dashboard/list-pagination";
@@ -235,7 +235,7 @@ function Pool() {
   const checkingPayouts = useResource<PaginatedItems<Disbursement>>(
     view === "pooled" ? `${PAYOUTS_API}?status=PROCESSING&${openPayoutsQuery}` : null,
   );
-  const now = useNow(30_000);
+  const now = useServerNow(30_000);
   const openPayouts = [
     ...(preparedPayouts.data?.items ?? []).filter((payout) => !isExpired(payout, now)),
     ...(checkingPayouts.data?.items ?? []),

@@ -9,16 +9,18 @@ import { StatTile } from "@/components/charts/stat-tile";
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import {
   CHECKED_AGAIN,
+  EXPIRING_SOON,
   NameCheckAcknowledgement,
   PayoutReview,
   isExpired,
+  isExpiringSoon,
   mayHaveReachedBank,
   nameCheckOf,
   needsNameAcknowledgement,
   payoutCodeOf,
   readPayout,
   unsureConfirmText,
-  useNow,
+  useServerNow,
 } from "@/components/disbursements/payout-dialog";
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
@@ -109,7 +111,7 @@ function Disbursements() {
   );
   const rows = list.data?.items ?? [];
   const s = summary.data;
-  const now = useNow(30_000);
+  const now = useServerNow(30_000);
 
   // The open payout lives in the URL so the pool's "Open it" link lands on it.
   function open(id: string | null) {
@@ -330,9 +332,10 @@ function PayoutSheet({ payoutId, onClose, onChanged }: { payoutId: string | null
   const [working, setWorking] = useState<"confirm" | "cancel" | "check" | null>(null);
   // After a confirm that may or may not have reached the bank, Pay waits until the status is checked again.
   const [unsure, setUnsure] = useState(false);
-  const now = useNow(5_000);
+  const now = useServerNow(5_000);
   const isWorking = working !== null;
   const expired = payout ? isExpired(payout, now) : false;
+  const expiringSoon = payout ? isExpiringSoon(payout, now) : false;
   const shown = payout ? (expired ? disbursementStatus("EXPIRED") : disbursementStatus(payout.status)) : null;
 
   async function act(action: "confirm" | "cancel") {
@@ -434,6 +437,7 @@ function PayoutSheet({ payoutId, onClose, onChanged }: { payoutId: string | null
                   <p className="text-sm text-[#001539]">
                     Prepared, not paid. Confirm before {formatDateTime(payout.expiresAt ?? null)} or it expires.
                   </p>
+                  {expiringSoon ? <InlineAlert tone="warning">{EXPIRING_SOON}</InlineAlert> : null}
                   {needsNameAcknowledgement(payout) ? (
                     <NameCheckAcknowledgement payout={payout} checked={acknowledged} onCheckedChange={setAcknowledged} />
                   ) : null}

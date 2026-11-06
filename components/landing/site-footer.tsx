@@ -30,7 +30,7 @@ const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visibl
  * context: it renders under server pages and under the error boundary alike.
  */
 export function SiteFooter() {
-  const { common, href } = useI18n();
+  const { common, href, year } = useI18n();
   const footer = common.footer;
 
   return (
@@ -91,7 +91,7 @@ export function SiteFooter() {
               </nav>
 
               <div className="flex flex-col gap-2 border-t border-black/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-xs text-muted-ink">{format(footer.copyright, { year: new Date().getFullYear() })}</p>
+                <p className="text-xs text-muted-ink">{format(footer.copyright, { year })}</p>
                 <a
                   href={DX_VALLEY_URL}
                   target="_blank"

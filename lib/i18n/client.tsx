@@ -15,6 +15,12 @@ type I18nValue = {
   href: (path: string) => string;
   /** Intl locale for numbers and dates in the current language. */
   intlLocale: string;
+  /**
+   * The year the server rendered the page in, for the footer. Static pages are
+   * rendered at build time, so a year computed in the browser would differ
+   * from the server HTML after New Year and break hydration.
+   */
+  year: number;
 };
 
 const I18nContext = createContext<I18nValue | null>(null);
@@ -22,10 +28,12 @@ const I18nContext = createContext<I18nValue | null>(null);
 export function I18nProvider({
   locale,
   common,
+  year,
   children,
 }: {
   locale: Locale;
   common: Dictionary["common"];
+  year: number;
   children: React.ReactNode;
 }) {
   const value = useMemo<I18nValue>(
@@ -35,8 +43,9 @@ export function I18nProvider({
       common,
       href: (path: string) => localizedPath(locale, path),
       intlLocale: INTL_LOCALE[locale],
+      year,
     }),
-    [locale, common],
+    [locale, common, year],
   );
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }

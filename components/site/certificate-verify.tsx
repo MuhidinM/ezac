@@ -6,6 +6,7 @@ import { BadgeCheckIcon, SearchIcon, XCircleIcon } from "lucide-react";
 import { useI18n } from "@/lib/i18n/client";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { format } from "@/lib/i18n/messages";
+import { toAsciiNumber } from "@/lib/i18n/digits";
 
 type Result = {
   valid: boolean;
@@ -56,7 +57,8 @@ export function CertificateVerify({ t }: { t: Strings }) {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const number = id.trim();
+    // Arabic keypads type ٠-٩; certificate numbers use ASCII digits.
+    const number = toAsciiNumber(id.trim());
     const request = ++requestRef.current;
     setResult(null);
     setError(null);

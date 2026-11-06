@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { PenLine, RefreshCw, RotateCcw, TriangleAlert } from "lucide-react";
 
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
@@ -92,7 +92,7 @@ export function PriceStatusPanel({
   reuse: PriceValues | null;
   onReuseClose: () => void;
 }) {
-  const { data, error, reload } = useResource<PriceStatus>("/bff/zakat-admin/prices/status");
+  const { data, error, reload, mutate } = useResource<PriceStatus>("/bff/zakat-admin/prices/status");
   const [refreshOpen, setRefreshOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -106,7 +106,6 @@ export function PriceStatusPanel({
   const automatic = data?.apiKeyConfigured ?? true;
   const until = automatic ? "until the next automatic fetch at 06:00 Addis Ababa time" : "until new prices are entered";
   const budgetText = data ? ` (${data.budget.used} of ${data.budget.limit} used this month)` : "";
-  const dialogFrom = reuse ?? (manualOpen ? latest : null);
 
   function changed(message: string) {
     setNotice(message);
@@ -230,14 +229,13 @@ export function PriceStatusPanel({
         }}
       />
 
-      {dialogFrom || manualOpen ? (
+      {reuse || manualOpen ? (
         <ManualPricesDialog
           key={reuse ? `reuse-${reuse.pricesAsOf}` : "latest"}
-          current={latest}
-          from={dialogFrom}
-          reusing={reuse !== null}
+          reuse={reuse}
           nisab={nisab}
           until={until}
+          onLoaded={mutate}
           onClose={closeDialog}
           onSaved={() => {
             closeDialog();
@@ -324,7 +322,76 @@ function priceWarnings(values: Values, current: PriceValues | null): string[] {
   return warnings;
 }
 
+/**
+ * Reads the prices in use again before showing the form. The page's copy can be
+ * hours old (the 06:00 fetch, another admin), and the form sends every price, so
+ * filling it from that copy would put old prices back.
+ */
 function ManualPricesDialog({
+  reuse,
+  nisab,
+  until,
+  onLoaded,
+  onClose,
+  onSaved,
+}: {
+  reuse: PriceValues | null;
+  nisab: NisabRules | null;
+  until: string;
+  /** Updates the panel with the fresh read. */
+  onLoaded: (status: PriceStatus) => void;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const fresh = useResource<PriceStatus>("/bff/zakat-admin/prices/status");
+  const ready = fresh.data && !fresh.error && !fresh.isLoading ? fresh.data : null;
+
+  useEffect(() => {
+    if (ready) onLoaded(ready);
+  }, [ready, onLoaded]);
+
+  return (
+    <Dialog open onOpenChange={(open) => (open ? null : onClose())}>
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+        {ready ? (
+          <ManualPricesForm
+            current={ready.latest}
+            from={reuse ?? ready.latest}
+            reusing={reuse !== null}
+            nisab={nisab}
+            until={until}
+            onClose={onClose}
+            onSaved={onSaved}
+          />
+        ) : (
+          <div className="space-y-4">
+            <DialogHeader>
+              <DialogTitle className="text-[#001539]">Change prices</DialogTitle>
+              <DialogDescription>
+                {fresh.error
+                  ? "The form opens only with the prices in use read just now, so no old prices are saved by mistake."
+                  : "Loading the prices in use…"}
+              </DialogDescription>
+            </DialogHeader>
+            {fresh.error ? <InlineAlert title="Couldn't load the prices in use">{fresh.error.message}</InlineAlert> : null}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+              {fresh.error ? (
+                <Button type="button" onClick={fresh.reload}>
+                  Try again
+                </Button>
+              ) : null}
+            </DialogFooter>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ManualPricesForm({
   current,
   from,
   reusing,
@@ -341,8 +408,8 @@ function ManualPricesDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  // Every field starts with the prices in use (or the history row chosen), so
-  // changing one price leaves the others as they are.
+  // Every field starts with the prices in use (read just now) or the history
+  // row chosen, so changing one price leaves the others as they are.
   const [values, setValues] = useState<Values>(() => toValues(from));
   const [note, setNote] = useState(() =>
     reusing && from ? `Same prices as ${formatDateTime(from.pricesAsOf)}${from.manual ? "" : " (automatic)"}` : "",
@@ -425,106 +492,100 @@ function ManualPricesDialog({
     }
   }
 
-  return (
-    <Dialog open onOpenChange={(open) => (open ? null : onClose())}>
-      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
-        {step === "edit" ? (
-          <form onSubmit={review} className="space-y-4" noValidate>
-            <DialogHeader>
-              <DialogTitle className="text-[#001539]">Change prices</DialogTitle>
-              <DialogDescription>
-                {reusing && from
-                  ? `Filled in with the prices of ${formatDateTime(from.pricesAsOf)}. `
-                  : "Filled in with the prices in use. Change only what you need; the rest stays as it is. "}
-                You check the result before it goes live.
-              </DialogDescription>
-            </DialogHeader>
-            {error ? <InlineAlert>{error}</InlineAlert> : null}
-            <fieldset className="space-y-2">
-              <legend className="text-[13px] font-medium text-[#001539]">Gold, ETB per gram</legend>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {KARATS.map((karat) => (
-                  <PriceInput
-                    key={karat}
-                    id={`gold-${karat}`}
-                    label={karat}
-                    required={karat === "24k"}
-                    emptyHint={karat === "24k" ? undefined : "Worked out from 24k"}
-                    value={values[karat]}
-                    before={currentValue(current, karat)}
-                    error={fieldErrors[karat]}
-                    onChange={(value) => set(karat, value)}
-                  />
-                ))}
-              </div>
-              <p className="flex flex-wrap items-center gap-x-2 text-xs text-black/50">
-                Clear a karat to have it worked out from 24k by purity.
-                <button
-                  type="button"
-                  onClick={workOutKarats}
-                  disabled={gold24 === null || Number.isNaN(gold24)}
-                  className="font-medium text-[#007050] underline underline-offset-2 disabled:text-black/30 disabled:no-underline"
-                >
-                  Work out 22k to 14k from 24k now
-                </button>
-              </p>
-            </fieldset>
-            <div className="grid grid-cols-2 gap-3">
-              <PriceInput
-                id="silver"
-                label="Silver, ETB per gram"
-                required
-                value={values.silver}
-                before={currentValue(current, "silver")}
-                error={fieldErrors.silver}
-                onChange={(value) => set("silver", value)}
-              />
-              <PriceInput
-                id="usd"
-                label="USD to ETB"
-                step="0.0001"
-                emptyHint="Keeps the last rate"
-                value={values.usd}
-                before={currentValue(current, "usd")}
-                error={fieldErrors.usd}
-                onChange={(value) => set("usd", value)}
-              />
-            </div>
-            <FormField label="Note" htmlFor="price-note" hint="Why the prices were changed by hand" error={fieldErrors.note}>
-              <Textarea id="price-note" rows={2} maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} />
-            </FormField>
-            {warnings.length > 0 ? <WarningList warnings={warnings} /> : null}
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={onClose}>
-                Cancel
-              </Button>
-              <Button type="submit">Review</Button>
-            </DialogFooter>
-          </form>
-        ) : (
-          <div className="space-y-4">
-            <DialogHeader>
-              <DialogTitle className="text-[#001539]">Check the new prices</DialogTitle>
-              <DialogDescription>
-                They go live in the public calculator as soon as you save, and stay {until}.
-              </DialogDescription>
-            </DialogHeader>
-            {error ? <InlineAlert>{error}</InlineAlert> : null}
-            <ChangeTable values={values} current={current} changed={changedFields} />
-            <NisabChange values={values} current={current} nisab={nisab} />
-            {warnings.length > 0 ? <WarningList warnings={warnings} /> : null}
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setStep("edit")} disabled={isSaving}>
-                Back
-              </Button>
-              <Button type="button" onClick={() => void save()} disabled={isSaving}>
-                {isSaving ? "Saving…" : warnings.length > 0 ? "Save anyway" : "Save prices"}
-              </Button>
-            </DialogFooter>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
+  return step === "edit" ? (
+    <form onSubmit={review} className="space-y-4" noValidate>
+      <DialogHeader>
+        <DialogTitle className="text-[#001539]">Change prices</DialogTitle>
+        <DialogDescription>
+          {reusing && from
+            ? `Filled in with the prices of ${formatDateTime(from.pricesAsOf)}. `
+            : "Filled in with the prices in use. Change only what you need; the rest stays as it is. "}
+          You check the result before it goes live.
+        </DialogDescription>
+      </DialogHeader>
+      {error ? <InlineAlert>{error}</InlineAlert> : null}
+      <fieldset className="space-y-2">
+        <legend className="text-[13px] font-medium text-[#001539]">Gold, ETB per gram</legend>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {KARATS.map((karat) => (
+            <PriceInput
+              key={karat}
+              id={`gold-${karat}`}
+              label={karat}
+              required={karat === "24k"}
+              emptyHint={karat === "24k" ? undefined : "Worked out from 24k"}
+              value={values[karat]}
+              before={currentValue(current, karat)}
+              error={fieldErrors[karat]}
+              onChange={(value) => set(karat, value)}
+            />
+          ))}
+        </div>
+        <p className="flex flex-wrap items-center gap-x-2 text-xs text-black/50">
+          Clear a karat to have it worked out from 24k by purity.
+          <button
+            type="button"
+            onClick={workOutKarats}
+            disabled={gold24 === null || Number.isNaN(gold24)}
+            className="font-medium text-[#007050] underline underline-offset-2 disabled:text-black/30 disabled:no-underline"
+          >
+            Work out 22k to 14k from 24k now
+          </button>
+        </p>
+      </fieldset>
+      <div className="grid grid-cols-2 gap-3">
+        <PriceInput
+          id="silver"
+          label="Silver, ETB per gram"
+          required
+          value={values.silver}
+          before={currentValue(current, "silver")}
+          error={fieldErrors.silver}
+          onChange={(value) => set("silver", value)}
+        />
+        <PriceInput
+          id="usd"
+          label="USD to ETB"
+          step="0.0001"
+          emptyHint="Keeps the last rate"
+          value={values.usd}
+          before={currentValue(current, "usd")}
+          error={fieldErrors.usd}
+          onChange={(value) => set("usd", value)}
+        />
+      </div>
+      <FormField label="Note" htmlFor="price-note" hint="Why the prices were changed by hand" error={fieldErrors.note}>
+        <Textarea id="price-note" rows={2} maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} />
+      </FormField>
+      {warnings.length > 0 ? <WarningList warnings={warnings} /> : null}
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit">Review</Button>
+      </DialogFooter>
+    </form>
+  ) : (
+    <div className="space-y-4">
+      <DialogHeader>
+        <DialogTitle className="text-[#001539]">Check the new prices</DialogTitle>
+        <DialogDescription>
+          They go live in the public calculator as soon as you save, and stay {until}.
+        </DialogDescription>
+      </DialogHeader>
+      {error ? <InlineAlert>{error}</InlineAlert> : null}
+      <ChangeTable values={values} current={current} changed={changedFields} />
+      <NisabChange values={values} current={current} nisab={nisab} />
+      {warnings.length > 0 ? <WarningList warnings={warnings} /> : null}
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={() => setStep("edit")} disabled={isSaving}>
+          Back
+        </Button>
+        <Button type="button" onClick={() => void save()} disabled={isSaving}>
+          {isSaving ? "Saving…" : warnings.length > 0 ? "Save anyway" : "Save prices"}
+        </Button>
+      </DialogFooter>
+    </div>
   );
 }
 

@@ -147,14 +147,13 @@ const calculator: Messages<typeof en> = {
 
   gold: {
     officialPrices: "أسعار EZAC الرسمية للغرام بحسب العيار.",
-    estimatedPrices: "أسعار تقديرية للغرام بحسب العيار.",
     nisabRule:
       "يُقاس النصاب بوزن {fineMetal} (الوزن الإجمالي بالغرام × العيار ÷ 24): الذهب {goldGrams} غ، والفضة {silverGrams} غ.",
     fineMetal: "المعدن الخالص",
     basisOfficial: "تعتمد الهيئة حاليًا نصاب {basis}.",
     basisEstimate: "إلى أن تُحمَّل الأسعار الرسمية، يعتمد هذا التقدير نصاب {basis}.",
     loading: "جارٍ تحميل الأسعار الرسمية…",
-    errorFallback: "{error} تُستخدم الأسعار التقديرية بدلًا منها.",
+    errorExcluded: "{error} يُستبعَد الذهب والفضة من المجموع إلى أن تُحمَّل الأسعار الرسمية.",
     pricesAsOf: "الأسعار بتاريخ {date}",
     usdEtb: "USD/ETB {rate}",
     metalLabel: "المعدن رقم {number}",
@@ -258,7 +257,9 @@ const calculator: Messages<typeof en> = {
     nisabStatus: "{amount} ETB · {status}",
     noHawl: "لم يمضِ على مالك حول قمري كامل، فلا تجب زكاة المال بعد.",
     belowNisab: "صافي مالك دون النصاب، فلا تجب زكاة المال بعد.",
+    noHawlLivestock: "لم يمضِ على ماشيتك حول قمري كامل، فلا تجب زكاة المواشي بعد.",
     pay: "متابعة لدفع الزكاة",
+    payNeedsRates: "يمكنك متابعة الدفع بعد تحميل الأسعار الرسمية.",
     payTitle: "تعرّف على كيفية دفع هذه الزكاة عبر تطبيق EZAC",
     payNote: "تدفع عبر تطبيق EZAC: يعرض لك رمز QR تمسحه بأي تطبيق مصرفي إثيوبي.",
     bank: "بنك أوروميا التعاوني",

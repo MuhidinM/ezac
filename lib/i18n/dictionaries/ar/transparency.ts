@@ -276,6 +276,8 @@ const transparency: Messages<typeof en> = {
       camels: "الإبل",
       rangeBetween: "{min}–{max}",
       rangeFrom: "{min} فأكثر",
+      duePer: "{item} عن كل {per}",
+      dueAnd: "{first}، و{second}",
       cattle:
         "البقر: ابتداءً من {minimum} رأسًا، يجب تبيع (عجل عمره سنة) عن كل {tabiPer}، ومُسِنّة (بقرة عمرها سنتان) عن كل {musinnahPer}.",
       averagePrices: "متوسط الأسعار المعتمدة لتقويم المواشي: {prices}.",

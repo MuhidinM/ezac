@@ -275,6 +275,8 @@ const transparency: Messages<typeof en> = {
       camels: "ግመል",
       rangeBetween: "{min}–{max}",
       rangeFrom: "{min} እና ከዚያ በላይ",
+      duePer: "ለእያንዳንዱ {per}፣ {item}",
+      dueAnd: "{first} እና {second}",
       cattle:
         "ከብት፦ ከ{minimum} ራስ ጀምሮ፣ ለእያንዳንዱ {tabiPer} አንድ የአንድ ዓመት ጥጃ፣ ለእያንዳንዱ {musinnahPer} ደግሞ አንድ የሁለት ዓመት ላም።",
       averagePrices: "እንስሳትን ለመገመት የሚያገለግሉ አማካይ ዋጋዎች፦ {prices}።",

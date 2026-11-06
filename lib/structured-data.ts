@@ -1,4 +1,4 @@
-import { INTL_LOCALE, type Locale, localizedPath } from "@/lib/i18n/config";
+import { type Locale, localizedPath } from "@/lib/i18n/config";
 import { LOGO_PATH, ORGANIZATION_NAME, SITE_NAME, absoluteUrl } from "@/lib/site";
 
 /**
@@ -29,7 +29,7 @@ export function websiteJsonLd(locale: Locale, name: string, description: string)
     name,
     url: absoluteUrl(localizedPath(locale, "/")),
     description,
-    inLanguage: INTL_LOCALE[locale].split("-")[0],
+    inLanguage: locale,
     publisher: { "@id": absoluteUrl("/#organization") },
   };
 }
@@ -74,7 +74,7 @@ export function articleJsonLd(input: {
     headline: input.headline,
     description: input.description,
     url: absoluteUrl(localizedPath(input.locale, input.path)),
-    inLanguage: INTL_LOCALE[input.locale].split("-")[0],
+    inLanguage: input.locale,
     ...(input.image ? { image: absoluteUrl(input.image) } : {}),
     ...(input.datePublished ? { datePublished: input.datePublished } : {}),
     ...(input.dateModified || input.datePublished ? { dateModified: input.dateModified ?? input.datePublished } : {}),

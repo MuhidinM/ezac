@@ -292,6 +292,9 @@ const transparency = {
       camels: "Camels",
       rangeBetween: "{min}–{max}",
       rangeFrom: "{min} and above",
+      /** Open-ended table rows. {item} is an animal due, e.g. "1 Sheep" (calculator.livestock.dueItem). */
+      duePer: "{item} per {per}",
+      dueAnd: "{first} and {second}",
       cattle:
         "Cattle: from {minimum} head, one one-year calf per {tabiPer} and one two-year cow per {musinnahPer}.",
       averagePrices: "Average prices used to value animals: {prices}.",

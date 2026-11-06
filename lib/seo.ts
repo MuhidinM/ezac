@@ -52,7 +52,8 @@ export function pageMetadata({
   absoluteTitle,
 }: PageMetadataInput): Metadata {
   const url = localizedPath(locale, path);
-  const images = [{ url: image || DEFAULT_OG_IMAGE, width: 1200, height: 630, alt: imageAlt ?? title }];
+  // Only the default image has known dimensions; uploaded cause and story images vary.
+  const images = [image ? { url: image, alt: imageAlt ?? title } : { url: DEFAULT_OG_IMAGE, width: 1200, height: 630, alt: imageAlt ?? title }];
 
   return {
     title: absoluteTitle ? { absolute: title } : title,

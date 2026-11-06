@@ -139,14 +139,13 @@ const calculator: Messages<typeof en> = {
 
   gold: {
     officialPrices: "Gatii ifaa EZAC giraama tokkoof, kaaraatiin.",
-    estimatedPrices: "Gatii tilmaamaa giraama tokkoof, kaaraatiin.",
     nisabRule:
       "Nisaabni {fineMetal} irratti safarama (giraama waliigalaa × kaaraatii ÷ 24): warqee {goldGrams}g, meetii {silverGrams}g.",
     fineMetal: "sibiila qulqulluu",
     basisOfficial: "Komishiniin yeroo ammaa Nisaaba {basis} hojiirra oolcha.",
     basisEstimate: "Hanga gatiin ifaa fe'amutti, tilmaamni kun Nisaaba {basis} fayyadama.",
     loading: "Gatii ifaa fe'aa jira...",
-    errorFallback: "{error} Kanaaf gatii tilmaamaa fayyadamaa jirra.",
+    errorExcluded: "{error} Hanga gatiin ifaa fe'amutti, warqee fi meetiin waliigala keessatti hin herregaman.",
     pricesAsOf: "Gatii yeroo {date}",
     usdEtb: "USD/ETB {rate}",
     metalLabel: "Sibiila #{number}",
@@ -250,7 +249,9 @@ const calculator: Messages<typeof en> = {
     nisabStatus: "ETB {amount} · {status}",
     noHawl: "Qabeenyi waggaa hijraa guutuu hin xumurre — ammaaf Zakaan qabeenyaa dirqama hin ta'u.",
     belowNisab: "Qabeenyi keessan qulqulluun Nisaabaa gadi — ammaaf Zakaan qabeenyaa dirqama hin ta'u.",
+    noHawlLivestock: "Horiin keessan waggaa hijraa guutuu isin harka hin turre — ammaaf Zakaan horii dirqama hin ta'u.",
     pay: "Zakaa Kaffaluuf Itti Fufaa",
+    payNeedsRates: "Erga gatiin ifaa fe'amee booda gara kaffaltiitti itti fufuu dandeessu.",
     payTitle: "Akkaataa Zakaa kana appii EZAC keessatti itti kaffaltan ilaalaa",
     payNote:
       "Kaffaltiin appii EZAC keessatti raawwatama: appichi koodii QR agarsiisa, isinis appii baankii Itoophiyaa kamiinuu iskaan gootu.",

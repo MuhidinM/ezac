@@ -59,7 +59,7 @@ export default async function PublicRootLayout({ children, params }: LayoutProps
         >
           {common.skipToContent}
         </a>
-        <I18nProvider locale={locale} common={common}>
+        <I18nProvider locale={locale} common={common} year={new Date().getFullYear()}>
           {children}
         </I18nProvider>
         <JsonLd data={[organizationJsonLd(common.site.tagline), websiteJsonLd(locale, common.site.defaultTitle, common.site.tagline)]} />

@@ -21,11 +21,13 @@ import { BasicDetailsDialog, bankLockFor } from "@/components/beneficiary/basic-
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Button } from "@/components/ui/button";
+import { requestPath } from "@/components/whitelist/whitelist-form-dialog";
 import type {
   Assessment,
   AssessmentDocument,
   AssessmentListItem,
   AssessmentValidation,
+  BeneficiaryWhitelist,
 } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
 import { ApiError, fieldErrorMap } from "@/lib/api/errors";
@@ -67,10 +69,15 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
   const { data: history } = useResource<AssessmentListItem[] | PaginatedItems<AssessmentListItem>>(
     beneficiaryId ? `/bff/backoffice/beneficiaries/${encodeURIComponent(beneficiaryId)}/assessments` : null,
   );
+  // A fast-track whitelist entry can pool the household without an assessment.
+  const { data: whitelist, error: whitelistError } = useResource<BeneficiaryWhitelist>(
+    beneficiaryId ? requestPath(beneficiaryId) : null,
+  );
   const bankLock = bankLockFor({
     isAdmin: session?.isAdmin ?? false,
     assessments: Array.isArray(history) ? history : history?.items,
     poolStatus: beneficiary?.poolStatus ?? initial.pool?.status,
+    whitelist: whitelistError ? undefined : whitelist,
   });
 
   const [assessment, setAssessment] = useState(initial);
@@ -145,9 +152,10 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
 
   /**
    * Save the current step; resolves false when the user must stay put.
-   * `keepalive` lets the request finish while the page signs out.
+   * `keepalive` lets the request finish while the page signs out; `signal`
+   * lets the sign-out cancel it.
    */
-  async function save(options?: { keepalive?: boolean }): Promise<boolean> {
+  async function save(options?: { keepalive?: boolean; signal?: AbortSignal }): Promise<boolean> {
     if (step === 8 || !isDirty) return true;
     setIsSaving(true);
     setSaveError(null);
@@ -157,6 +165,7 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
         method: "PATCH",
         body: JSON.stringify(stepBody(step, draft)),
         keepalive: options?.keepalive,
+        signal: options?.signal,
       });
       setAssessment(updated);
       setDraft(draftFromAssessment(updated));
@@ -166,6 +175,8 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
       void validate();
       return true;
     } catch (error) {
+      // Cancelled by the sign-out: the page is leaving, and the save may still land.
+      if (error instanceof DOMException && error.name === "AbortError") return false;
       if (error instanceof ApiError && error.status === 409) {
         setSaveError(`${error.message}. Opening the latest version…`);
         setTimeout(() => router.push(`/dashboard/assessments/${initial.id}`), 1500);
@@ -190,9 +201,9 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
   // Idle sign-out: save the open step when the one-minute warning opens, and
   // again just before signing out, so unsaved answers aren't lost.
   useEffect(() => {
-    function saveInBackground() {
+    function saveInBackground(signal?: AbortSignal) {
       if (savingNow.current) return null;
-      return saveLatest.current({ keepalive: true });
+      return saveLatest.current({ keepalive: true, signal });
     }
     function onIdleWarning() {
       void saveInBackground();
@@ -201,10 +212,12 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
       signingOut.current = true;
       // Unsubmitted review inputs stay out of the next person's session on a shared PC.
       clearSubmitInputs(initial.id);
-      const saving = saveInBackground();
-      if (saving) {
-        (event as CustomEvent<{ waitUntil?: (work: Promise<unknown>) => void } | null>).detail?.waitUntil?.(saving);
-      }
+      const detail = (
+        event as CustomEvent<{ waitUntil?: (work: Promise<unknown>) => void; signal?: AbortSignal } | null>
+      ).detail;
+      // The sign-out aborts the save through `signal` if it is still running when the wait ends.
+      const saving = saveInBackground(detail?.signal);
+      if (saving) detail?.waitUntil?.(saving);
     }
     window.addEventListener(IDLE_WARNING_EVENT, onIdleWarning);
     window.addEventListener(BEFORE_SIGN_OUT_EVENT, onBeforeSignOut);

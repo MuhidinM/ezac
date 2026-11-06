@@ -155,6 +155,10 @@ function guardBff(request: NextRequest): NextResponse | null {
  * and "/en/about" redirects to "/about" so each page has one English address.
  * A visitor who picked another language in the switcher (LOCALE_COOKIE) is
  * sent from a plain URL to that language's prefix.
+ *
+ * "/en/..." is also how the switcher asks for English explicitly (even in a
+ * new tab, where its click handler doesn't run): the redirect saves English
+ * as the choice, and is not cached, or a cached redirect would skip that.
  */
 function routePublicPage(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
@@ -163,7 +167,12 @@ function routePublicPage(request: NextRequest): NextResponse {
   if (locale === DEFAULT_LOCALE) {
     const url = request.nextUrl.clone();
     url.pathname = path;
-    return NextResponse.redirect(url, 308);
+    const response = NextResponse.redirect(url, 308);
+    response.headers.set("Cache-Control", "private, no-store");
+    if (request.cookies.get(LOCALE_COOKIE)?.value !== DEFAULT_LOCALE) {
+      response.cookies.set(LOCALE_COOKIE, DEFAULT_LOCALE, { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax" });
+    }
+    return response;
   }
   if (locale) return NextResponse.next();
 

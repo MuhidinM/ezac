@@ -9,13 +9,16 @@ export const dynamic = "force-dynamic";
 
 /**
  * Every public page in every language is open to crawlers. The staff portal,
- * sign-in and the site's own API are not for search engines.
+ * sign-in and the site's own API are not for search engines, except the
+ * public photos under /bff/media/: cause and story pages use them as their
+ * share images, and X and LinkedIn show no picture for a blocked image URL.
+ * Crawlers pick the longest matching rule, so /bff/media/ wins over /bff.
  */
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: "*",
-      allow: "/",
+      allow: ["/", "/bff/media/"],
       disallow: ["/dashboard", "/login", "/bff"],
     },
     sitemap: absoluteUrl("/sitemap.xml"),
