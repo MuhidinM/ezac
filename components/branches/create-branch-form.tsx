@@ -89,7 +89,7 @@ export function CreateBranchDialog({ open, onOpenChange, onCreated }: Props) {
       <DialogContent className="max-w-xl">
         <form onSubmit={onSubmit} className="space-y-5">
           <DialogHeader>
-            <DialogTitle className="text-[#001539]">New branch</DialogTitle>
+            <DialogTitle className="text-navy">New branch</DialogTitle>
             <DialogDescription>
               Creates the branch and a branch-officer login. The officer signs in with the branch phone.
             </DialogDescription>
@@ -120,7 +120,7 @@ export function CreateBranchDialog({ open, onOpenChange, onCreated }: Props) {
           </div>
 
           <div className="space-y-3 rounded-lg bg-black/[0.02] p-4">
-            <p className="text-sm font-semibold text-[#001539]">Branch officer</p>
+            <p className="text-sm font-semibold text-navy">Branch officer</p>
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField label="Full name" htmlFor="b-officer" required error={fieldErrors.branchFullName} className="sm:col-span-2">
                 <Input id="b-officer" value={form.branchFullName} onChange={(e) => set("branchFullName", e.target.value)} required />

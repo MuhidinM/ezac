@@ -161,3 +161,21 @@ export function paymentRangeQuery(key: RangeKey) {
   const toNext = end.toISOString().slice(0, 10);
   return `from=${encodeURIComponent(`${from}T00:00:00+03:00`)}&to=${encodeURIComponent(`${toNext}T00:00:00+03:00`)}`;
 }
+
+/** The commission's receiving account with spaces and dashes removed, as it is saved. */
+export function cleanReceivingAccount(value: string): string {
+  return value.replace(/[\s-]/g, "");
+}
+
+/**
+ * Why a receiving account number can't be saved, or null when it can. Blank is
+ * allowed (payments stay off); otherwise 6–20 digits, the payment-service rule
+ * (logic-backoffice-19).
+ */
+export function receivingAccountProblem(value: string): string | null {
+  const digits = cleanReceivingAccount(value);
+  if (!digits) return null;
+  if (!/^\d+$/.test(digits)) return "Use digits only.";
+  if (digits.length < 6 || digits.length > 20) return "Enter 6 to 20 digits.";
+  return null;
+}

@@ -215,7 +215,7 @@ export function ConfigEditor({
             </InlineAlert>
           ) : null}
           {isDirty ? (
-            <p className="text-xs text-black/50">You have unsaved changes. Save the draft before checking the impact or activating it.</p>
+            <p className="text-xs text-black/60">You have unsaved changes. Save the draft before checking the impact or activating it.</p>
           ) : null}
           <div className="max-w-md">
             <FormField label="Version name" htmlFor="config-name">
@@ -231,7 +231,7 @@ export function ConfigEditor({
 
       {schema.rules.length > 0 ? (
         <details className="rounded-xl border border-black/[0.08] bg-white p-4">
-          <summary className="cursor-pointer text-sm font-medium text-[#001539]">Rules the system checks when you save</summary>
+          <summary className="cursor-pointer text-sm font-medium text-navy">Rules the system checks when you save</summary>
           <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-black/65">
             {schema.rules.map((rule, index) => (
               <li key={index}>{ruleText(rule)}</li>
@@ -266,7 +266,7 @@ export function ConfigEditor({
               <p>It has the same settings as v{compareWith.version}, so scores don&apos;t change.</p>
             ) : (
               <>
-                <p className="font-medium text-[#001539]">
+                <p className="font-medium text-navy">
                   {changes.length} setting{changes.length === 1 ? "" : "s"} differ{changes.length === 1 ? "s" : ""} from{" "}
                   {live ? "live " : ""}v{compareWith.version}:
                 </p>
@@ -331,12 +331,12 @@ function Steps({ current }: { current: number }) {
             <span
               className={cn(
                 "flex size-6 items-center justify-center rounded-full text-xs font-semibold",
-                done ? "bg-[#007050] text-white" : active ? "bg-[#001539] text-white" : "bg-black/[0.06] text-black/45",
+                done ? "bg-brand text-white" : active ? "bg-navy text-white" : "bg-black/[0.06] text-black/60",
               )}
             >
               {done ? <Check className="size-3.5" /> : number}
             </span>
-            <span className={cn(active ? "font-medium text-[#001539]" : "text-black/50")}>{label}</span>
+            <span className={cn(active ? "font-medium text-navy" : "text-black/60")}>{label}</span>
             {number < STEPS.length ? <span className="mx-1 h-px w-6 bg-black/15" /> : null}
           </li>
         );
@@ -370,7 +370,7 @@ function PreviewResults({ preview }: { preview: ScoringPreview }) {
         ) : null}
         <div className="max-h-80 overflow-auto rounded-lg border border-black/[0.06]">
           <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-[#fafafa] text-left text-xs text-black/50">
+            <thead className="sticky top-0 bg-[#fafafa] text-left text-xs text-black/60">
               <tr>
                 <th className="px-3 py-2 font-medium">Assessment</th>
                 <th className="px-3 py-2 text-right font-medium">Now</th>
@@ -384,17 +384,17 @@ function PreviewResults({ preview }: { preview: ScoringPreview }) {
                 .map((item) => (
                   <tr key={item.assessmentId} className={cn("border-t border-black/[0.04]", item.riskChanged && "bg-sky-50/60")}>
                     <td className="px-3 py-2">
-                      <p className="font-medium text-[#001539]">{item.beneficiaryName ?? `#${item.assessmentId}`}</p>
-                      <p className="text-xs text-black/45">{item.assessmentNumber ?? ""}</p>
+                      <p className="font-medium text-navy">{item.beneficiaryName ?? `#${item.assessmentId}`}</p>
+                      <p className="text-xs text-black/60">{item.assessmentNumber ?? ""}</p>
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums">{item.oldScore}</td>
-                    <td className="px-3 py-2 text-right font-medium text-[#001539] tabular-nums">{item.newScore}</td>
+                    <td className="px-3 py-2 text-right font-medium text-navy tabular-nums">{item.newScore}</td>
                     <td className="px-3 py-2">
                       <span className="flex items-center gap-1.5">
                         <RiskBadge risk={item.oldRisk as RiskCategory} />
                         {item.riskChanged ? (
                           <>
-                            <span className="text-black/35">→</span>
+                            <span className="text-black/60">→</span>
                             <RiskBadge risk={item.newRisk as RiskCategory} />
                           </>
                         ) : null}
@@ -413,8 +413,8 @@ function PreviewResults({ preview }: { preview: ScoringPreview }) {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-black/[0.06] p-4">
-      <p className="text-xs font-medium text-black/50">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tracking-tight text-[#001539] tabular-nums">{value}</p>
+      <p className="text-xs font-medium text-black/60">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tracking-tight text-navy tabular-nums">{value}</p>
     </div>
   );
 }

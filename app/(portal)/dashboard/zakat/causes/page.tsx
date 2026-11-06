@@ -130,7 +130,7 @@ function CausesAdmin() {
                             >
                               {cause.title}
                             </Link>
-                            <span className="block max-w-sm truncate text-xs text-black/50">{cause.description}</span>
+                            <span className="block max-w-sm truncate text-xs text-black/60">{cause.description}</span>
                           </span>
                         </span>
                       </TableCell>
@@ -147,7 +147,7 @@ function CausesAdmin() {
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {cause.raisedEtb != null ? formatEtb(cause.raisedEtb) : "—"}
-                        {cause.goalEtb != null ? <span className="block text-xs text-black/45">of {formatEtb(cause.goalEtb)}</span> : null}
+                        {cause.goalEtb != null ? <span className="block text-xs text-black/60">of {formatEtb(cause.goalEtb)}</span> : null}
                       </TableCell>
                       <TableCell>
                         {cause.progress != null ? (
@@ -155,10 +155,10 @@ function CausesAdmin() {
                             <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/[0.06]">
                               <span className="block h-full rounded-full bg-brand" style={{ width: `${Math.min(100, Math.round(cause.progress * 100))}%` }} />
                             </span>
-                            <span className="w-9 text-right text-xs tabular-nums text-black/55">{Math.round(cause.progress * 100)}%</span>
+                            <span className="w-9 text-right text-xs tabular-nums text-black/60">{Math.round(cause.progress * 100)}%</span>
                           </span>
                         ) : (
-                          <span className="text-xs text-black/40">No goal</span>
+                          <span className="text-xs text-black/60">No goal</span>
                         )}
                       </TableCell>
                       <TableCell className="pr-5 text-sm text-black/60">{formatDate(cause.endsOn)}</TableCell>

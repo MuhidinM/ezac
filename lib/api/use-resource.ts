@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { apiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
+import { subscribeToConnection, useOnline } from "@/lib/api/online-status";
 import { sendToSignIn } from "@/lib/auth/client-session";
 
 type ResourceState<T> = {
@@ -32,6 +33,11 @@ function sendToLogin() {
  * is in flight, and sends the user to login when the session has expired.
  * Other errors (offline, 503 sign-in service down, 403…) are returned for
  * the page to show. Pass `null` to skip fetching.
+ *
+ * A failed load is tried again by itself when the browser comes back online.
+ * `offline` is true while the browser says it has no network; a load that
+ * failed meanwhile is the status-0 "No connection" ApiError, which ErrorAlert
+ * shows as is.
  */
 export function useResource<T>(path: string | null) {
   const [nonce, setNonce] = useState(0);
@@ -66,6 +72,23 @@ export function useResource<T>(path: string | null) {
   }, [key, path]);
 
   const reload = useCallback(() => setNonce((value) => value + 1), []);
+
+  const error = state.key === key ? (state.error ?? null) : null;
+  const online = useOnline();
+
+  // Back online: retry a load that failed. Loaded data is left alone, so the
+  // page doesn't flash its skeleton on every reconnect.
+  const failedRef = useRef(false);
+  useEffect(() => {
+    failedRef.current = error !== null;
+  }, [error]);
+  useEffect(() => {
+    if (!path) return;
+    return subscribeToConnection((isOnline) => {
+      if (isOnline && failedRef.current) reload();
+    });
+  }, [path, reload]);
+
   const mutate = useCallback(
     (data: T) => setState((prev) => ({ ...prev, data })),
     [],
@@ -73,8 +96,9 @@ export function useResource<T>(path: string | null) {
 
   return {
     data: state.data,
-    error: state.key === key ? (state.error ?? null) : null,
+    error,
     isLoading: key !== null && state.key !== key,
+    offline: !online,
     reload,
     mutate,
   };

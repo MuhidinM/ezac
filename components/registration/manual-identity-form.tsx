@@ -24,6 +24,7 @@ import {
   setRegistrationSession,
 } from "@/lib/registration/session";
 import type { CreateBeneficiaryResponse } from "@/lib/registration/types";
+import { typeScale } from "@/components/backoffice/type-scale";
 
 type Form = {
   fullName: string;
@@ -230,7 +231,7 @@ export function ManualIdentityForm() {
           </InlineAlert>
         ) : null}
         <fieldset className="space-y-4">
-          <legend className="text-sm font-semibold text-[#001539]">Registration</legend>
+          <legend className={typeScale.panelTitle}>Registration</legend>
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField
               label="Printed registration code"
@@ -270,7 +271,7 @@ export function ManualIdentityForm() {
         </fieldset>
 
         <fieldset className="space-y-4">
-          <legend className="text-sm font-semibold text-[#001539]">Applicant</legend>
+          <legend className={typeScale.panelTitle}>Applicant</legend>
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Full name" htmlFor="reg-name" required error={err("fullName")} className="sm:col-span-2">
               <Input id="reg-name" value={form.fullName} onChange={(e) => set("fullName", e.target.value)} required />
@@ -323,8 +324,8 @@ export function ManualIdentityForm() {
         </fieldset>
 
         <fieldset className="space-y-4">
-          <legend className="text-sm font-semibold text-[#001539]">Address</legend>
-          <p className="-mt-2 text-xs text-black/50">Region, zone and woreda come from the branch.</p>
+          <legend className={typeScale.panelTitle}>Address</legend>
+          <p className="-mt-2 text-xs text-black/60">Region, zone and woreda come from the branch.</p>
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Kebele" htmlFor="reg-kebele" error={err("kebele")}>
               <Input id="reg-kebele" value={form.kebele} onChange={(e) => set("kebele", e.target.value)} />

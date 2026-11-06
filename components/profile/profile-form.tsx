@@ -169,7 +169,7 @@ function AccountDetails({
           <Input id="email" value={profile.email ?? ""} placeholder="No email on file" disabled readOnly />
         </FormField>
         <div className="space-y-1.5">
-          <p className="text-[13px] font-medium text-[#001539]">Roles</p>
+          <p className="text-[13px] font-medium text-navy">Roles</p>
           <div className="flex flex-wrap gap-1.5">
             {roles.length > 0 ? (
               roles.map((role) => (
@@ -178,7 +178,7 @@ function AccountDetails({
                 </Badge>
               ))
             ) : (
-              <span className="text-sm text-black/45">No role assigned yet</span>
+              <span className="text-sm text-black/60">No role assigned yet</span>
             )}
           </div>
         </div>

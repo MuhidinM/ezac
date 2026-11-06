@@ -16,7 +16,7 @@ export function ChartDataTable({
 }) {
   return (
     <details className="group text-xs">
-      <summary className="inline-flex cursor-pointer items-center gap-1 rounded text-black/55 select-none hover:text-navy focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+      <summary className="inline-flex cursor-pointer items-center gap-1 rounded text-black/60 select-none hover:text-navy focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
         <span className="group-open:hidden">Show the numbers</span>
         <span className="hidden group-open:inline">Hide the numbers</span>
       </summary>
@@ -29,7 +29,7 @@ export function ChartDataTable({
                 <th
                   key={column}
                   scope="col"
-                  className={index === 0 ? "px-3 py-2 font-medium text-black/55" : "px-3 py-2 text-right font-medium text-black/55"}
+                  className={index === 0 ? "px-3 py-2 font-medium text-black/60" : "px-3 py-2 text-right font-medium text-black/60"}
                 >
                   {column}
                 </th>

@@ -52,14 +52,14 @@ export default async function ChangePasswordPage({
           <img src="/logo.svg" alt="EZAC" className="h-10 w-auto" />
           <span className="flex flex-col">
             <span
-              className="font-serif-display text-xl tracking-tight"
-              style={{ color: "#001539", lineHeight: 1.1 }}
+              className="font-serif-display text-xl tracking-tight text-navy"
+              style={{ lineHeight: 1.1 }}
             >
               EZAC
             </span>
             <span
-              className="text-[10px] uppercase tracking-[0.18em]"
-              style={{ color: "#6F6F6F", lineHeight: 1.4 }}
+              className="text-xs uppercase tracking-[0.18em] text-muted-ink"
+              style={{ lineHeight: 1.4 }}
             >
               Ethiopian Zakat &amp; Awqaf Commission
             </span>
@@ -67,7 +67,7 @@ export default async function ChangePasswordPage({
         </Link>
 
         <div className="mt-10 rounded-3xl border border-black/5 bg-white/80 p-6 shadow-xl shadow-black/5 backdrop-blur-xl sm:p-8">
-          <h1 className="text-2xl font-medium tracking-tight text-[#001539]">
+          <h1 className="text-2xl font-medium tracking-tight text-navy">
             Change your password
           </h1>
           <p className="mt-1 text-sm text-black/60">

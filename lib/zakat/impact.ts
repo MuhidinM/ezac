@@ -3,6 +3,7 @@ import { cache } from "react";
 
 import { getApiBaseUrl } from "@/lib/api/config";
 import { INTL_LOCALE, type Locale } from "@/lib/i18n/config";
+import { logEvent, oneLine } from "@/lib/api/log";
 import { logGatewayUnreachable } from "@/lib/api/network-error";
 import type { CalculatorConfig } from "@/lib/zakat/calculator-config";
 import { readCalculatorConfig } from "@/lib/zakat/calculator-read";
@@ -46,7 +47,8 @@ export class PublicDataUnavailableError extends Error {
  * Throws PublicDataUnavailableError when the answer is an outage.
  */
 export async function readPublicAnswer(response: Response, path: string, emptyOn503 = false): Promise<unknown> {
-  const label = `zakat${path}`;
+  // Never log query strings (lib/api/log.ts).
+  const where = { label: "zakat_public", path: path.split("?")[0] };
   // Never published, or taken down. A 400 is a malformed id in the URL.
   if (response.status === 404 || response.status === 410 || response.status === 400) return null;
   // zakat-engine's own "no data yet" answer. An nginx or gateway 503 (HTML, or
@@ -56,7 +58,7 @@ export async function readPublicAnswer(response: Response, path: string, emptyOn
     if (body && typeof body === "object" && body.success === false) return null;
   }
   if (!response.ok) {
-    console.error(`[${label}] the gateway answered HTTP ${response.status}`);
+    logEvent("error", "public_data_http_error", { ...where, status: response.status });
     throw new PublicDataUnavailableError(path, new Error(`HTTP ${response.status}`));
   }
 
@@ -64,11 +66,15 @@ export async function readPublicAnswer(response: Response, path: string, emptyOn
   try {
     envelope = await response.json();
   } catch (error) {
-    console.error(`[${label}] the gateway answered with a body that isn't JSON`);
+    logEvent("error", "public_data_not_json", { ...where, status: response.status });
     throw new PublicDataUnavailableError(path, error);
   }
   if (!envelope.success) {
-    console.error(`[${label}] the gateway reported a failure`, envelope.message ?? "");
+    logEvent("error", "public_data_failure", {
+      ...where,
+      status: response.status,
+      message: envelope.message ? oneLine(String(envelope.message), 200) : undefined,
+    });
     throw new PublicDataUnavailableError(path, new Error(envelope.message ?? "success: false"));
   }
   return envelope.data ?? null;

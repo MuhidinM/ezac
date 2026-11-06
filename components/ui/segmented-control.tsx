@@ -44,11 +44,16 @@ function joinIds(...ids: (string | undefined)[]) {
 function useGroupProps<V extends string>(props: ChoiceGroupProps<V>) {
   const field = useField();
   const named = Boolean(props["aria-label"] || props["aria-labelledby"]);
+  const required = Boolean(props.required ?? field?.required);
   return {
     id: props.id,
     name: props.name,
     disabled: props.disabled,
-    required: props.required ?? field?.required,
+    // Radix renders a hidden native radio per item when `required` is set.
+    // Unnamed and required, those block the whole form in Firefox (no radio
+    // in the unnamed "group" is checked), so only native-validate a named group.
+    required: required && Boolean(props.name),
+    "aria-required": required || undefined,
     value: props.value ?? null,
     onValueChange: (next: string) => props.onValueChange(next as V),
     "aria-label": props["aria-label"],
@@ -135,7 +140,7 @@ function ChoiceCards<V extends string>({ columns = 2, ...props }: ChoiceGroupPro
             <span className="min-w-0">
               <span className="block text-sm font-semibold text-navy">{option.label}</span>
               {option.description ? (
-                <span className="mt-0.5 block text-sm text-black/55">{option.description}</span>
+                <span className="mt-0.5 block text-sm text-black/60">{option.description}</span>
               ) : null}
             </span>
           </RadioGroupPrimitive.Item>

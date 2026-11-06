@@ -1,5 +1,7 @@
 "use client";
 
+import { useId } from "react";
+
 import { cn } from "@/lib/utils";
 
 type CheckboxOption = {
@@ -25,6 +27,8 @@ export function CheckboxGroup({
   columns = 1,
   error,
 }: CheckboxGroupProps) {
+  // Two groups on one step can share option values ("other"), so ids are per group.
+  const groupId = useId();
   return (
     <fieldset className="space-y-2">
       <legend className="form-label text-sm font-medium">{label}</legend>
@@ -37,7 +41,7 @@ export function CheckboxGroup({
         )}
       >
         {options.map((option) => {
-          const id = `checkbox-${option.value}`;
+          const id = `${groupId}-checkbox-${option.value}`;
           const checked = values[option.value] ?? false;
 
           return (
@@ -47,7 +51,7 @@ export function CheckboxGroup({
               className={cn(
                 "flex min-h-10 cursor-pointer items-start gap-3 rounded-lg border px-3 py-2 text-sm transition",
                 checked
-                  ? "border-[#007050] bg-[rgba(0,112,80,0.06)]"
+                  ? "border-brand bg-[rgba(0,112,80,0.06)]"
                   : "border-black/10 bg-white hover:border-black/20",
               )}
             >
@@ -56,12 +60,12 @@ export function CheckboxGroup({
                 id={id}
                 checked={checked}
                 onChange={(e) => onChange(option.value, e.target.checked)}
-                className="mt-1 h-5 w-5 shrink-0 accent-[#007050]"
+                className="mt-1 h-5 w-5 shrink-0 accent-brand"
               />
-              <span className="text-[#001539]">
+              <span className="text-navy">
                 {option.label}
                 {option.description ? (
-                  <span className="block text-sm text-black/55">
+                  <span className="block text-sm text-black/60">
                     {option.description}
                   </span>
                 ) : null}

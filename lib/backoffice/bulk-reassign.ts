@@ -7,8 +7,8 @@ import type { AssessmentListItem, FieldOfficer } from "@/lib/api/backoffice-type
  * stopping at the first failure.
  */
 
-/** The list rows carry the branch id (not yet in AssessmentListItem). */
-export type ReassignItem = AssessmentListItem & { branchId?: string | number | null };
+/** An assessment list row; its branchId says which officers can take it. */
+export type ReassignItem = AssessmentListItem;
 
 export type BranchGroup = {
   /** "" when the backend didn't say which branch. */

@@ -38,6 +38,7 @@ import { useResource } from "@/lib/api/use-resource";
 import { formatCount, formatDate, formatEtb } from "@/lib/backoffice/format";
 import { formatDateTime } from "@/lib/beneficiary/format";
 import { fixedCodeOnLiveBank, modeLabel, modeWarning, railMode } from "@/lib/zakat/payment-mode";
+import { cleanReceivingAccount, receivingAccountProblem } from "@/lib/zakat/payments";
 
 type HomeAdjustment = {
   offlineCollectedEtb: number;
@@ -170,7 +171,7 @@ function PaymentSettingsForm({
   const [enabled, setEnabled] = useState(settings.coopEnabled);
   const [confirmAccount, setConfirmAccount] = useState(false);
   const [qrEnabled, setQrEnabled] = useState(settings.qrEnabled ?? false);
-  const accountChanged = (settings.creditAccountNumber ?? "") !== account.trim();
+  const accountChanged = (settings.creditAccountNumber ?? "") !== cleanReceivingAccount(account);
   const warning = modeWarning(settings, ["bank", "qr"]);
   const [min, setMin] = useState(settings.minAmountEtb != null ? String(settings.minAmountEtb) : "");
   const [max, setMax] = useState(settings.maxAmountEtb != null ? String(settings.maxAmountEtb) : "");
@@ -182,8 +183,13 @@ function PaymentSettingsForm({
     event.preventDefault();
     onEdit();
     setMessage(null);
-    if (min.trim() && max.trim() && Number(min) > Number(max)) {
-      setFieldErrors({ maxAmountEtb: "Must be at least the minimum payment." });
+    const accountProblem = receivingAccountProblem(account);
+    const amountProblem = min.trim() && max.trim() && Number(min) > Number(max) ? "Must be at least the minimum payment." : null;
+    if (accountProblem || amountProblem) {
+      setFieldErrors({
+        ...(accountProblem ? { creditAccountNumber: accountProblem } : {}),
+        ...(amountProblem ? { maxAmountEtb: amountProblem } : {}),
+      });
       return;
     }
     setFieldErrors({});
@@ -204,7 +210,7 @@ function PaymentSettingsForm({
       const saved = await apiClient<PaymentSettings>("/bff/payments-admin/payment-settings", {
         method: "PUT",
         body: JSON.stringify({
-          creditAccountNumber: account.trim() || null,
+          creditAccountNumber: cleanReceivingAccount(account) || null,
           creditAccountName: name.trim() || null,
           coopEnabled: enabled,
           qrEnabled,
@@ -272,14 +278,14 @@ function PaymentSettingsForm({
       </div>
       {settings.coopEnabled ? (
         <label className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-sm text-navy">
-          <input type="checkbox" checked={!enabled} onChange={(e) => setEnabled(!e.target.checked)} className="mt-0.5 size-4 accent-[#007050]" />
+          <input type="checkbox" checked={!enabled} onChange={(e) => setEnabled(!e.target.checked)} className="mt-0.5 size-4 accent-brand" />
           <span>
             Switch off the old Coop account payments
-            <span className="block text-xs text-black/55">They are still on. Donors should pay by QR; the old flow is being retired.</span>
+            <span className="block text-xs text-black/60">They are still on. Donors should pay by QR; the old flow is being retired.</span>
           </span>
         </label>
       ) : (
-        <p className="text-xs text-black/45">Old Coop account payments: switched off.</p>
+        <p className="text-xs text-black/60">Old Coop account payments: switched off.</p>
       )}
       <label className="flex items-start gap-2 text-sm text-navy">
         <input
@@ -287,17 +293,17 @@ function PaymentSettingsForm({
           checked={qrEnabled}
           onChange={(e) => setQrEnabled(e.target.checked)}
           disabled={!settings.ethqrPuid && !qrEnabled}
-          className="mt-0.5 size-4 accent-[#007050]"
+          className="mt-0.5 size-4 accent-brand"
         />
         <span>
           Accept QR payments (EthQR)
-          <span className="block text-xs text-black/50">
+          <span className="block text-xs text-black/60">
             {settings.ethqrPuid ? `Registered with EthQR (merchant ${settings.ethqrPuid}).` : "Register the account with EthQR below first."}
           </span>
         </span>
       </label>
       <div className="flex items-center justify-between border-t border-black/[0.06] pt-4">
-        <p className="flex flex-wrap items-center gap-1 text-xs text-black/45">
+        <p className="flex flex-wrap items-center gap-1 text-xs text-black/60">
           {settings.updatedAt ? <>Last changed {formatDateTime(settings.updatedAt)}</> : "Not configured yet"}
           {settings.updatedAt && (settings.updatedBy || settings.updatedByName) ? <>by {staffRef(settings.updatedBy, settings.updatedByName)}</> : null}
           <span>· Bank connection: {modeLabel(settings.bankMode)}</span>
@@ -314,7 +320,7 @@ function PaymentSettingsForm({
         description={
           <>
             Donations are paid into this account from now on: <span className="font-mono">{settings.creditAccountNumber || "none"}</span> →{" "}
-            <span className="font-mono">{account.trim() || "none"}</span>.{" "}
+            <span className="font-mono">{cleanReceivingAccount(account) || "none"}</span>.{" "}
             {settings.ethqrPuid
               ? `This clears the EthQR registration (merchant ${settings.ethqrPuid}). QR payments stop until the new account is registered with EthQR.`
               : "Check the number with the bank statement before saving."}
@@ -374,11 +380,11 @@ function EthqrPanel({ onRegistered }: { onRegistered: () => void }) {
           ]}
         />
       ) : notRegistered ? (
-        <p className="text-sm text-black/55">The commission account isn&apos;t registered with EthQR yet.</p>
+        <p className="text-sm text-black/60">The commission account isn&apos;t registered with EthQR yet.</p>
       ) : error ? (
         <ErrorAlert error={error} />
       ) : (
-        <p className="text-sm text-black/45">Loading…</p>
+        <p className="text-sm text-black/60">Loading…</p>
       )}
       {open ? (
         <EthqrRegisterDialog
@@ -590,7 +596,7 @@ function HomeFiguresForm({
         <Textarea id="hf-note" rows={2} maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} />
       </FormField>
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-black/[0.06] pt-4">
-        <div className="space-y-0.5 text-xs text-black/45">
+        <div className="space-y-0.5 text-xs text-black/60">
           {adjustment.createdAt ? (
             <>
               <p className="flex flex-wrap items-center gap-1">
@@ -618,15 +624,15 @@ function HomeFiguresForm({
         onConfirm={save}
       >
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm text-navy">
-          <dt className="text-black/55">Collected offline</dt>
+          <dt className="text-black/60">Collected offline</dt>
           <dd className="tabular-nums">
             {formatEtb(adjustment.offlineCollectedEtb ?? 0)} → <strong>{formatEtb(nextCollected)}</strong>
           </dd>
-          <dt className="text-black/55">Households</dt>
+          <dt className="text-black/60">Households</dt>
           <dd className="tabular-nums">
             {formatCount(adjustment.offlineBeneficiaries ?? 0)} → <strong>{formatCount(nextHouseholds)}</strong>
           </dd>
-          <dt className="text-black/55">Source</dt>
+          <dt className="text-black/60">Source</dt>
           <dd className="break-words">{note.trim()}</dd>
         </dl>
       </ConfirmDialog>

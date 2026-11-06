@@ -70,7 +70,8 @@ type PriceField = Karat | "silver" | "usd";
 /** A change this large is flagged before saving (go-live requests §16). */
 const LARGE_CHANGE = 0.15;
 
-const etb = new Intl.NumberFormat("en-ET", { maximumFractionDigits: 2 });
+/** A bare rate for cells whose header already names the unit ("ETB per gram"). Fixed "en" locale, like lib/backoffice/format. */
+const rate = new Intl.NumberFormat("en", { maximumFractionDigits: 2 });
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** A person's name for "entered by"; a bare account id means nothing to an admin, so it's left out. */
@@ -196,8 +197,8 @@ export function PriceStatusPanel({
                   </span>
                 ),
               },
-              { label: "Gold 24k, ETB per gram", value: etb.format(latest.goldPricePerGramEtb["24k"] ?? 0) },
-              { label: "Silver, ETB per gram", value: etb.format(latest.silverPricePerGramEtb) },
+              { label: "Gold 24k, per gram", value: formatEtb(latest.goldPricePerGramEtb["24k"] ?? null) },
+              { label: "Silver, per gram", value: formatEtb(latest.silverPricePerGramEtb) },
               { label: "USD to ETB", value: latest.usdEtbRate != null ? latest.usdEtbRate.toFixed(4) : null },
               {
                 label: "Price API requests",
@@ -316,7 +317,7 @@ function priceWarnings(values: Values, current: PriceValues | null): string[] {
     if (next === null || Number.isNaN(next) || !before) continue;
     if (Math.abs(next - before) / before > LARGE_CHANGE) {
       warnings.push(
-        `${FIELD_LABEL[field]} moves by ${percent(before, next)} (${etb.format(before)} → ${etb.format(next)}). Check it before saving.`,
+        `${FIELD_LABEL[field]} moves by ${percent(before, next)} (${rate.format(before)} → ${rate.format(next)}). Check it before saving.`,
       );
     }
   }
@@ -367,7 +368,7 @@ function ManualPricesDialog({
         ) : (
           <div className="space-y-4">
             <DialogHeader>
-              <DialogTitle className="text-[#001539]">Change prices</DialogTitle>
+              <DialogTitle className="text-navy">Change prices</DialogTitle>
               <DialogDescription>
                 {fresh.error
                   ? "The form opens only with the prices in use read just now, so no old prices are saved by mistake."
@@ -498,7 +499,7 @@ function ManualPricesForm({
   return step === "edit" ? (
     <form onSubmit={review} className="space-y-4" noValidate>
       <DialogHeader>
-        <DialogTitle className="text-[#001539]">Change prices</DialogTitle>
+        <DialogTitle className="text-navy">Change prices</DialogTitle>
         <DialogDescription>
           {reusing && from
             ? `Filled in with the prices of ${formatDateTime(from.pricesAsOf)}. `
@@ -508,7 +509,7 @@ function ManualPricesForm({
       </DialogHeader>
       {error ? <InlineAlert>{error}</InlineAlert> : null}
       <fieldset className="space-y-2">
-        <legend className="text-[13px] font-medium text-[#001539]">Gold, ETB per gram</legend>
+        <legend className="text-[13px] font-medium text-navy">Gold, ETB per gram</legend>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {KARATS.map((karat) => (
             <PriceInput
@@ -524,13 +525,13 @@ function ManualPricesForm({
             />
           ))}
         </div>
-        <p className="flex flex-wrap items-center gap-x-2 text-xs text-black/50">
+        <p className="flex flex-wrap items-center gap-x-2 text-xs text-black/60">
           Clear a karat to have it worked out from 24k by purity.
           <button
             type="button"
             onClick={workOutKarats}
             disabled={gold24 === null || Number.isNaN(gold24)}
-            className="font-medium text-[#007050] underline underline-offset-2 disabled:text-black/30 disabled:no-underline"
+            className="font-medium text-brand underline underline-offset-2 disabled:text-black/30 disabled:no-underline"
           >
             Work out 22k to 14k from 24k now
           </button>
@@ -577,7 +578,7 @@ function ManualPricesForm({
   ) : (
     <div className="space-y-4">
       <DialogHeader>
-        <DialogTitle className="text-[#001539]">Check the new prices</DialogTitle>
+        <DialogTitle className="text-navy">Check the new prices</DialogTitle>
         <DialogDescription>
           They go live in the public calculator as soon as you save, and stay {until}.
         </DialogDescription>
@@ -586,7 +587,7 @@ function ManualPricesForm({
       <ChangeTable values={values} current={current} changed={changedFields} />
       <NisabChange values={values} current={current} nisab={nisab} />
       <p className="text-sm text-navy">
-        <span className="text-black/55">Reason and source:</span> {note.trim()}
+        <span className="text-black/60">Reason and source:</span> {note.trim()}
       </p>
       {warnings.length > 0 ? <WarningList warnings={warnings} /> : null}
       <DialogFooter>
@@ -631,7 +632,7 @@ function PriceInput({
       htmlFor={id}
       required={required}
       error={error}
-      hint={edited ? `Was ${etb.format(before)}` : value.trim() ? undefined : emptyHint}
+      hint={edited ? `Was ${rate.format(before)}` : value.trim() ? undefined : emptyHint}
     >
       <Input
         id={id}
@@ -642,7 +643,7 @@ function PriceInput({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         aria-invalid={error ? true : undefined}
-        className={cn("tabular-nums", edited && "border-[#007050]")}
+        className={cn("tabular-nums", edited && "border-brand")}
       />
     </FormField>
   );
@@ -666,7 +667,7 @@ function ChangeTable({ values, current, changed }: { values: Values; current: Pr
   return (
     <table className="w-full text-sm">
       <thead>
-        <tr className="border-b border-black/[0.08] text-left text-xs text-black/50">
+        <tr className="border-b border-black/[0.08] text-left text-xs text-black/60">
           <th className="py-1.5 font-medium">ETB per gram</th>
           <th className="py-1.5 text-right font-medium">Now</th>
           <th className="py-1.5 text-right font-medium">New</th>
@@ -681,11 +682,11 @@ function ChangeTable({ values, current, changed }: { values: Values; current: Pr
           const shown = next ?? derived;
           const isChanged = changed.includes(field);
           return (
-            <tr key={field} className={cn("border-b border-black/[0.04]", isChanged ? "text-[#001539]" : "text-black/45")}>
+            <tr key={field} className={cn("border-b border-black/[0.04]", isChanged ? "text-navy" : "text-black/60")}>
               <td className={cn("py-1.5", isChanged && "font-medium")}>{field === "usd" ? "USD to ETB rate" : FIELD_LABEL[field]}</td>
-              <td className="py-1.5 text-right tabular-nums">{before != null ? etb.format(before) : "—"}</td>
+              <td className="py-1.5 text-right tabular-nums">{before != null ? rate.format(before) : "—"}</td>
               <td className={cn("py-1.5 text-right tabular-nums", isChanged && "font-semibold")}>
-                {next !== null ? etb.format(next) : derived !== null ? `≈ ${etb.format(derived)} (from 24k)` : "—"}
+                {next !== null ? rate.format(next) : derived !== null ? `≈ ${rate.format(derived)} (from 24k)` : "—"}
               </td>
               <td className="py-1.5 text-right tabular-nums">
                 {!isChanged ? "No change" : before && shown ? percent(before, shown) : "New"}
@@ -709,10 +710,10 @@ function NisabChange({ values, current, nisab }: { values: Values; current: Pric
   const before = beforePrice ? grams * beforePrice : null;
   return (
     <div className="rounded-lg border border-black/[0.08] bg-black/[0.015] px-4 py-3 text-sm">
-      <p className="text-xs text-black/50">
+      <p className="text-xs text-black/60">
         Nisab ({gold ? "gold" : "silver"} basis: {grams} g × {gold ? "gold 24k" : "silver"} price)
       </p>
-      <p className="mt-0.5 font-semibold text-[#001539] tabular-nums">
+      <p className="mt-0.5 font-semibold text-navy tabular-nums">
         {before !== null && Math.round(before) !== Math.round(after)
           ? `${formatEtb(Math.round(before))} → ${formatEtb(Math.round(after))} (${percent(before, after)})`
           : `${formatEtb(Math.round(after))} (no change)`}

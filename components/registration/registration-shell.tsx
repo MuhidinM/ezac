@@ -58,9 +58,9 @@ export function RegistrationShell({
                 <span
                   className={cn(
                     "flex size-6 items-center justify-center rounded-full text-xs font-semibold tabular-nums",
-                    done && "bg-[#007050] text-white",
-                    active && "bg-[#001539] text-white",
-                    !done && !active && "bg-black/[0.06] text-black/45",
+                    done && "bg-brand text-white",
+                    active && "bg-navy text-white",
+                    !done && !active && "bg-black/[0.06] text-black/60",
                   )}
                 >
                   {done ? <Check className="size-3.5" /> : index + 1}
@@ -68,7 +68,7 @@ export function RegistrationShell({
                 <span
                   className={cn(
                     "text-sm",
-                    active ? "font-medium text-[#001539]" : "text-black/50",
+                    active ? "font-medium text-navy" : "text-black/60",
                   )}
                 >
                   {step}

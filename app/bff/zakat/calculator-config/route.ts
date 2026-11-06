@@ -1,54 +1,44 @@
+import { unstable_cache } from "next/cache";
 import { NextResponse } from "next/server";
 
-import { ApiError } from "@/lib/api/errors";
-import { logUpstreamFailure, readUpstreamJson, upstreamFetch } from "@/lib/api/upstream";
+import { PublicDataUnavailableError, fetchPublic } from "@/lib/zakat/impact";
 import { ZAKAT_PUBLIC_TAG } from "@/lib/zakat/public-cache";
 
+const PATH = "/calculator/config";
+
 /**
- * Public calculator config (prices, nisab, rates, livestock tables) from
- * zakat-engine. No login needed. Cached here for 5 minutes, or until an admin
- * changes prices or rules through the zakat-admin BFF, which expires the tag.
+ * The answer is cached, not the HTTP response: Next's fetch cache never
+ * stores a non-200, so "no prices yet" (503) used to go to zakat-engine on
+ * every request (the pattern behind UAT #15). Here "not published" (null) is
+ * cached like any other answer for 5 minutes, or until an admin changes prices
+ * or rules through the zakat-admin BFF, which expires the tag. An outage
+ * throws, and a throw is never cached. Same key as lib/zakat/impact.ts, so the
+ * public pages and this route share one cached answer.
  */
+const cachedConfig = unstable_cache(fetchPublic, ["zakat-public-answer"], {
+  revalidate: 300,
+  tags: [ZAKAT_PUBLIC_TAG],
+});
+
+/** Public calculator config (prices, nisab, rates, livestock tables) from zakat-engine. No login needed. */
 export async function GET() {
+  let data: unknown;
   try {
-    const call = await upstreamFetch(
-      "/api/zakat/v1/calculator/config",
-      { next: { revalidate: 300, tags: [ZAKAT_PUBLIC_TAG] } },
-      { label: "zakat/calculator-config" },
-    );
-    const parsed = await readUpstreamJson(call);
-    const body = parsed.kind === "json" ? parsed.value : null;
-    const upstream = call.response;
-
-    if (!upstream.ok || !body) {
-      // 503 means prices aren't published yet: expected, not an incident.
-      if (upstream.status >= 500 && upstream.status !== 503) logUpstreamFailure(call, body);
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            upstream.status === 503
-              ? "Official prices aren't available yet."
-              : "Couldn't load the official Zakat rates.",
-          requestId: call.requestId,
-        },
-        { status: upstream.ok ? 502 : upstream.status },
-      );
-    }
-
-    // Browsers ask again on every load (the server answers from its own
-    // cache), so a price or rules change shows on the next page load.
-    return NextResponse.json(body, {
-      headers: { "Cache-Control": "public, no-cache" },
-    });
+    // true: zakat-engine's 503 { success: false } means no prices stored yet, not an outage.
+    data = await cachedConfig(PATH, true);
   } catch (error) {
-    // Gateway unreachable (502) or too slow (504); already logged.
-    if (error instanceof ApiError) {
-      return NextResponse.json(
-        { success: false, message: error.message, requestId: error.requestId },
-        { status: error.status },
-      );
+    // Unreachable, too slow or failing; fetchPublic has already logged it.
+    if (error instanceof PublicDataUnavailableError) {
+      return NextResponse.json({ success: false, message: "Couldn't load the official Zakat rates." }, { status: 502 });
     }
     throw error;
   }
+
+  if (data === null) {
+    return NextResponse.json({ success: false, message: "Official prices aren't available yet." }, { status: 503 });
+  }
+
+  // Browsers ask again on every load (the server answers from its own
+  // cache), so a price or rules change shows on the next page load.
+  return NextResponse.json({ success: true, data }, { headers: { "Cache-Control": "public, no-cache" } });
 }

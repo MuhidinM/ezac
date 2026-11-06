@@ -403,7 +403,7 @@ export default function BeneficiaryDetailPage() {
             <PanelSkeleton rows={2} />
           ) : outOfScope ? (
             <Panel title="Assessments">
-              <p className="text-sm text-black/45">Only staff of this household&apos;s branch can see its assessments.</p>
+              <p className="text-sm text-black/60">Only staff of this household&apos;s branch can see its assessments.</p>
             </Panel>
           ) : (
             <BeneficiaryAssessments beneficiary={beneficiary} />
@@ -415,7 +415,7 @@ export default function BeneficiaryDetailPage() {
             <PanelSkeleton rows={2} columns={1} />
           ) : outOfScope ? (
             <Panel title="Whitelist">
-              <p className="text-sm text-black/45">Only staff of this household&apos;s branch can see its whitelist.</p>
+              <p className="text-sm text-black/60">Only staff of this household&apos;s branch can see its whitelist.</p>
             </Panel>
           ) : (
             <WhitelistPanel
@@ -526,7 +526,7 @@ function VerificationDialog({
       <DialogContent>
         <form onSubmit={onSubmit} className="space-y-4">
           <DialogHeader>
-            <DialogTitle className="text-[#001539]">
+            <DialogTitle className="text-navy">
               {action === "verified" ? "Verify beneficiary" : "Reject beneficiary"}
             </DialogTitle>
             <DialogDescription>

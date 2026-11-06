@@ -37,6 +37,7 @@ import { useResource } from "@/lib/api/use-resource";
 import { useSession } from "@/lib/auth/use-session";
 import { isEditable } from "@/lib/backoffice/assessment-steps";
 import { formatDate } from "@/lib/backoffice/format";
+import { useScoreMax } from "@/lib/backoffice/score-max";
 import { dateRangeProblem } from "@/lib/backoffice/list-filters";
 import { formatDateTime } from "@/lib/beneficiary/format";
 import { useListState } from "@/lib/hooks/use-list-state";
@@ -200,6 +201,8 @@ function AssessmentsView() {
   const officer = isFieldOfficer(session);
   const copy = pageCopy(session);
   const rows = data?.items ?? [];
+  // Only rows without their own maxScore need the live maximum.
+  const scoreMax = useScoreMax(rows.some((item) => item.totalScore != null && !item.maxScore));
   const hasFilters = !!filters.search || activeFilters > 0;
 
   function onSearch(event: FormEvent<HTMLFormElement>) {
@@ -278,7 +281,7 @@ function AssessmentsView() {
                   <SlidersHorizontal />
                   Filters
                   {activeFilters ? (
-                    <span className="rounded-full bg-brand px-1.5 text-[11px] text-white tabular-nums">
+                    <span className="rounded-full bg-brand px-1.5 text-xs text-white tabular-nums">
                       {activeFilters}
                     </span>
                   ) : null}
@@ -402,7 +405,7 @@ function AssessmentsView() {
                         >
                           {item.beneficiaryName ?? item.fullName ?? `Beneficiary #${item.beneficiaryId}`}
                         </Link>
-                        <p className="text-xs text-black/50">
+                        <p className="text-xs text-black/60">
                           {[item.assessmentNumber, item.bin, item.branchName, item.officerName].filter(Boolean).join(" · ") ||
                             `Assessment #${item.id}`}
                         </p>
@@ -411,10 +414,10 @@ function AssessmentsView() {
                         <AssessmentStatusBadge status={item.status} />
                       </TableCell>
                       <TableCell>
-                        <ScoreMeter score={item.totalScore} max={item.maxScore} risk={item.riskCategory} />
+                        <ScoreMeter score={item.totalScore} max={item.maxScore || scoreMax} risk={item.riskCategory} />
                       </TableCell>
                       <TableCell>
-                        {item.totalScore != null ? <RiskBadge risk={item.riskCategory} /> : <span className="text-black/40">—</span>}
+                        {item.totalScore != null ? <RiskBadge risk={item.riskCategory} /> : <span className="text-black/60">—</span>}
                       </TableCell>
                       <TableCell>{formatDate(item.assessmentDate)}</TableCell>
                       <TableCell className="pr-5 text-sm text-black/60">

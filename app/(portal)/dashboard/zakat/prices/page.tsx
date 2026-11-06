@@ -217,7 +217,7 @@ function Prices() {
         {chart.error ? (
           <ErrorAlert error={chart.error} onRetry={chart.reload} />
         ) : chart.isLoading && points.length === 0 ? (
-          <p className="text-sm text-black/45">Loading…</p>
+          <p className="text-sm text-black/60">Loading…</p>
         ) : (
           <>
             <div className="grid gap-6 lg:grid-cols-2">
@@ -239,7 +239,7 @@ function Prices() {
               />
             </div>
             {goldSeries.skipped || silverSeries.skipped ? (
-              <p className="mt-3 text-xs text-black/45">
+              <p className="mt-3 text-xs text-black/60">
                 Prices with no gold or silver value are left out of that chart
                 {goldSeries.skipped ? ` (gold: ${goldSeries.skipped})` : ""}
                 {silverSeries.skipped ? ` (silver: ${silverSeries.skipped})` : ""}.
@@ -286,7 +286,7 @@ function Prices() {
                       {row.manual ? <Badge tone="warning">Entered by hand</Badge> : <Badge tone="success">Automatic</Badge>}
                       {row.source ? <span className="text-sm text-black/60">{row.source}</span> : null}
                     </span>
-                    {enteredByLabel(row) ? <p className="text-xs text-black/45">by {enteredByLabel(row)}</p> : null}
+                    {enteredByLabel(row) ? <p className="text-xs text-black/60">by {enteredByLabel(row)}</p> : null}
                   </TableCell>
                   <TableCell className="text-sm text-black/60">{row.note ?? "—"}</TableCell>
                   <TableCell className="pr-5 text-right">

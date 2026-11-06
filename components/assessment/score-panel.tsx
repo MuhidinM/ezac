@@ -38,7 +38,7 @@ export function ScorePanel({ assessment }: { assessment: Assessment }) {
 
   if (!score) {
     return (
-      <div className="p-5 text-sm text-black/50">
+      <div className="p-5 text-sm text-black/60">
         This assessment hasn&apos;t been scored yet. It&apos;s scored when the officer submits it.
       </div>
     );
@@ -59,16 +59,16 @@ export function ScorePanel({ assessment }: { assessment: Assessment }) {
       </div>
 
       <div className="p-5">
-        <h3 className="mb-3 text-sm font-semibold text-[#001539]">Section breakdown</h3>
+        <h3 className="mb-3 text-sm font-semibold text-navy">Section breakdown</h3>
         <ScoreBreakdown score={score} />
       </div>
 
       {flags.length > 0 || acknowledgements.length > 0 ? (
         <div className="grid gap-6 p-5 md:grid-cols-2">
           <div>
-            <h3 className="mb-2 text-sm font-semibold text-[#001539]">Data-quality flags</h3>
+            <h3 className="mb-2 text-sm font-semibold text-navy">Data-quality flags</h3>
             {flags.length === 0 ? (
-              <p className="text-sm text-black/45">None</p>
+              <p className="text-sm text-black/60">None</p>
             ) : (
               <ul className="space-y-1.5">
                 {flags.map((flag, index) => (
@@ -81,15 +81,15 @@ export function ScorePanel({ assessment }: { assessment: Assessment }) {
             )}
           </div>
           <div>
-            <h3 className="mb-2 text-sm font-semibold text-[#001539]">Officer&apos;s warning comments</h3>
+            <h3 className="mb-2 text-sm font-semibold text-navy">Officer&apos;s warning comments</h3>
             {acknowledgements.length === 0 ? (
-              <p className="text-sm text-black/45">None</p>
+              <p className="text-sm text-black/60">None</p>
             ) : (
               <dl className="space-y-3">
                 {acknowledgements.map(([code, comment]) => (
                   <div key={code}>
-                    <dt className="text-xs font-medium text-black/50">{WARNING_LABELS[code] ?? code}</dt>
-                    <dd className="text-sm text-[#001539]">{comment || "—"}</dd>
+                    <dt className="text-xs font-medium text-black/60">{WARNING_LABELS[code] ?? code}</dt>
+                    <dd className="text-sm text-navy">{comment || "—"}</dd>
                   </div>
                 ))}
               </dl>
@@ -193,21 +193,21 @@ export function SignOffTimeline({ assessment }: { assessment: Assessment }) {
             <span
               className={cn(
                 "relative flex size-6 shrink-0 items-center justify-center rounded-full",
-                event.done ? "bg-[#007050] text-white" : "bg-black/[0.05] text-black/30",
+                event.done ? "bg-brand text-white" : "bg-black/[0.05] text-black/60",
               )}
             >
               {event.done ? <Check className="size-3.5" /> : <Circle className="size-2.5" />}
             </span>
             <div className="min-w-0">
-              <p className={cn("text-sm font-medium", event.done ? "text-[#001539]" : "text-black/40")}>
+              <p className={cn("text-sm font-medium", event.done ? "text-navy" : "text-black/60")}>
                 {event.title}
               </p>
               {event.done ? (
-                <p className="text-xs text-black/50">
+                <p className="text-xs text-black/60">
                   {[event.who, event.when ? formatDateTime(event.when) : null].filter(Boolean).join(" · ")}
                 </p>
               ) : (
-                <p className="text-xs text-black/40">Pending</p>
+                <p className="text-xs text-black/60">Pending</p>
               )}
               {event.done && event.body ? <p className="mt-1 text-sm text-black/70">{event.body}</p> : null}
             </div>
@@ -248,9 +248,9 @@ export function ScoreHistory({ assessmentId }: { assessmentId: string }) {
             scores.map((item, index) => {
               const superseded = item.status === "SUPERSEDED";
               return (
-                <TableRow key={item.id ?? index} className={superseded ? "text-black/40" : undefined}>
+                <TableRow key={item.id ?? index} className={superseded ? "text-black/60" : undefined}>
                   <TableCell className="pl-5">{formatDateTime(item.calculatedAt ?? null)}</TableCell>
-                  <TableCell className={cn("font-semibold tabular-nums", superseded ? "line-through" : "text-[#001539]")}>
+                  <TableCell className={cn("font-semibold tabular-nums", superseded ? "line-through" : "text-navy")}>
                     {item.totalScore} / {item.maxScore}
                   </TableCell>
                   <TableCell className={superseded ? "opacity-50" : undefined}>

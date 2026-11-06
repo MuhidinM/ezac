@@ -130,7 +130,7 @@ function WhitelistQueue() {
                 ))}
               </div>
             ) : rows.length === 0 ? (
-              <p className="px-5 py-12 text-center text-sm text-black/45">Nothing here.</p>
+              <p className="px-5 py-12 text-center text-sm text-black/60">Nothing here.</p>
             ) : (
               <ul className="divide-y divide-black/[0.06]">
                 {rows.map((entry) => (
@@ -139,8 +139,8 @@ function WhitelistQueue() {
                       <Link href={`/dashboard/beneficiary/${entry.beneficiaryId}`} className="font-semibold text-navy hover:underline">
                         {entry.beneficiaryName ?? `Beneficiary #${entry.beneficiaryId}`}
                       </Link>
-                      <p className="text-xs text-black/50">{[entry.branchName, entry.region].filter(Boolean).join(" · ") || "—"}</p>
-                      <p className="mt-1 text-xs text-black/45">
+                      <p className="text-xs text-black/60">{[entry.branchName, entry.region].filter(Boolean).join(" · ") || "—"}</p>
+                      <p className="mt-1 text-xs text-black/60">
                         Requested {formatDateTime(entry.requestedAt ?? null)}
                         {entry.requestedByName ? ` by ${entry.requestedByName}` : ""}
                       </p>

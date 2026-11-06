@@ -154,7 +154,7 @@ export function BulkReassignDialog({
         </DialogHeader>
 
         {loading ? (
-          <p role="status" className="text-sm text-black/55">
+          <p role="status" className="text-sm text-black/60">
             Loading their open assessments…
           </p>
         ) : null}
@@ -199,7 +199,7 @@ export function BulkReassignDialog({
               );
             })}
             {more > 0 ? (
-              <p className="text-xs text-black/55">
+              <p className="text-xs text-black/60">
                 The first {items.length} are listed. Run this again afterwards for the other {more}.
               </p>
             ) : null}

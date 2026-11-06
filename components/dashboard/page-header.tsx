@@ -28,7 +28,7 @@ export function PageHeader({ title, description, actions, back, meta, documentTi
       {back ? (
         <Link
           href={back.href}
-          className="inline-flex items-center gap-1.5 text-sm text-black/50 transition hover:text-navy"
+          className="inline-flex items-center gap-1.5 text-sm text-black/60 transition hover:text-navy"
         >
           <ArrowLeft aria-hidden="true" className="size-3.5" />
           {back.label}

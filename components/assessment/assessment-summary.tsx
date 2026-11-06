@@ -56,7 +56,7 @@ function withOther(options: Option[], value: string | null, other: string | null
 function Block({ letter, title, children }: { letter: string; title: string; children: ReactNode }) {
   return (
     <section className="border-b border-black/[0.06] px-5 py-5 last:border-0">
-      <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-[#001539]">
+      <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-navy">
         <span className="flex size-6 items-center justify-center rounded bg-black/[0.05] text-xs text-black/60">
           {letter}
         </span>
@@ -100,7 +100,7 @@ export function AssessmentSummary({ assessment }: { assessment: Assessment }) {
         <div className="space-y-4">
           <div className="overflow-x-auto rounded-lg border border-black/[0.06]">
             <table className="w-full min-w-[640px] text-sm">
-              <thead className="bg-black/[0.015] text-left text-xs text-black/50">
+              <thead className="bg-black/[0.015] text-left text-xs text-black/60">
                 <tr>
                   <th className="px-3 py-2 font-medium">Name</th>
                   <th className="px-3 py-2 font-medium">Relationship</th>
@@ -114,13 +114,13 @@ export function AssessmentSummary({ assessment }: { assessment: Assessment }) {
               <tbody>
                 {d.household.members.map((member, index) => (
                   <tr key={index} className="border-t border-black/[0.04]">
-                    <td className="px-3 py-2 font-medium text-[#001539]">{member.name || "—"}</td>
+                    <td className="px-3 py-2 font-medium text-navy">{member.name || "—"}</td>
                     <td className="px-3 py-2">{labelFor(RELATIONSHIP, member.relationship)}</td>
                     <td className="px-3 py-2">{labelFor(SEX, member.sex)}</td>
                     <td className="px-3 py-2 tabular-nums">{member.age ?? "—"}</td>
                     <td className="px-3 py-2">{member.occupation || "—"}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{formatEtb(member.monthlyIncome)}</td>
-                    <td className="px-3 py-2 text-xs text-black/55">
+                    <td className="px-3 py-2 text-xs text-black/60">
                       {[
                         member.hasDisability && "Disability",
                         member.chronicallyIll && "Chronically ill",

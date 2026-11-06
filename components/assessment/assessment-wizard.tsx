@@ -16,7 +16,7 @@ import { StepSubmit, clearSubmitInputs } from "@/components/assessment/steps/ste
 import { StepVerification } from "@/components/assessment/steps/step-verification";
 import { StepVulnerability } from "@/components/assessment/steps/step-vulnerability";
 import { StepWellbeing } from "@/components/assessment/steps/step-wellbeing";
-import { useLeaveGuard } from "@/components/assessment/use-leave-guard";
+import { useLeaveGuard } from "@/lib/hooks/use-leave-guard";
 import { AssessmentStatusBadge } from "@/components/backoffice/status-badges";
 import { BasicDetailsDialog, bankLockFor } from "@/components/beneficiary/basic-details-dialog";
 import { ErrorAlert } from "@/components/dashboard/error-alert";
@@ -409,7 +409,7 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
             >
               {definition.title}
             </h2>
-            <p className="text-sm text-black/55">{definition.description}</p>
+            <p className="text-sm text-black/60">{definition.description}</p>
             <span id="assessment-step-position" className="sr-only">
               Step {step} of 8
             </span>
@@ -490,7 +490,7 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
                 <ArrowLeft />
                 Back
               </Button>
-              <p className="hidden text-xs text-black/45 sm:block">
+              <p className="hidden text-xs text-black/60 sm:block">
                 {isDirty
                   ? "Unsaved changes"
                   : savedAt

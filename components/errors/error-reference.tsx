@@ -8,8 +8,8 @@ import { cn } from "@/lib/utils";
 export function ErrorReference({ digest, className }: { digest: string | null; className?: string }) {
   if (!digest) return null;
   return (
-    <p className={cn("text-xs", className)} style={{ color: "#6F6F6F" }}>
-      Reference: <span className="font-mono select-all" style={{ color: "#001539" }}>{digest}</span>
+    <p className={cn("text-xs text-muted-ink", className)}>
+      Reference: <span className="font-mono select-all text-navy">{digest}</span>
     </p>
   );
 }

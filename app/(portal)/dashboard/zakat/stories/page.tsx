@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
 
-import { InlineAlert } from "@/components/dashboard/inline-alert";
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Panel } from "@/components/dashboard/panel";
 import { RequireRole } from "@/components/dashboard/require-role";
@@ -33,7 +33,7 @@ export default function StoriesAdminPage() {
 
 function StoriesAdmin() {
   // Plain array of all states, newest first.
-  const { data, error, isLoading } = useResource<AdminStory[]>("/bff/zakat-admin/impact/stories");
+  const { data, error, isLoading, reload } = useResource<AdminStory[]>("/bff/zakat-admin/impact/stories");
   const stories = data ?? [];
 
   return (
@@ -54,7 +54,7 @@ function StoriesAdmin() {
       <Panel flush>
         {error ? (
           <div className="px-5 pt-4">
-            <InlineAlert>{error.message}</InlineAlert>
+            <ErrorAlert error={error} onRetry={reload} />
           </div>
         ) : null}
         <Table>
@@ -86,11 +86,11 @@ function StoriesAdmin() {
                       <span className="min-w-0">
                         <Link
                           href={`/dashboard/zakat/stories/${encodeURIComponent(story.id)}`}
-                          className="block truncate font-medium text-[#001539] after:absolute after:inset-0 hover:underline"
+                          className="block truncate font-medium text-navy after:absolute after:inset-0 hover:underline"
                         >
                           {story.title}
                         </Link>
-                        <span className="block max-w-sm truncate text-xs text-black/50">{story.summary}</span>
+                        <span className="block max-w-sm truncate text-xs text-black/60">{story.summary}</span>
                       </span>
                     </span>
                   </TableCell>

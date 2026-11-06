@@ -79,21 +79,21 @@ export function WelcomeStep() {
                 key={option.type}
                 type="button"
                 onClick={() => onContinue(option.type, option.href)}
-                className="group flex items-start gap-4 rounded-xl border border-black/[0.08] bg-white p-5 text-left transition hover:border-[#007050]/40 hover:shadow-sm"
+                className="group flex items-start gap-4 rounded-xl border border-black/[0.08] bg-white p-5 text-left transition hover:border-brand/40 hover:shadow-sm"
               >
-                <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-[#007050]/[0.08] text-[#007050]">
+                <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-brand/[0.08] text-brand">
                   <option.icon className="size-5" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block font-semibold text-[#001539]">{option.title}</span>
-                  <span className="mt-1 block text-sm text-black/55">{option.description}</span>
+                  <span className="block font-semibold text-navy">{option.title}</span>
+                  <span className="mt-1 block text-sm text-black/60">{option.description}</span>
                 </span>
-                <ArrowRight className="mt-1 size-4 text-black/30 transition group-hover:translate-x-0.5 group-hover:text-[#007050]" />
+                <ArrowRight className="mt-1 size-4 text-black/30 transition group-hover:translate-x-0.5 group-hover:text-brand" />
               </button>
             ))}
           </div>
 
-          <p className="text-sm text-black/55">
+          <p className="text-sm text-black/60">
             Institutions (NGOs and organisations) can&apos;t be registered here yet.
           </p>
 

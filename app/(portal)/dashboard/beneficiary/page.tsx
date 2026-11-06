@@ -154,8 +154,9 @@ function Beneficiaries() {
   const { data: branches } = useResource<PaginatedItems<BranchListItem>>(
     isAdmin ? "/bff/admin/branches?page=1&limit=100" : null,
   );
-  // The active scoring config's maximum, read once the score filter is shown.
-  const scoreMax = useScoreMax(showAdvanced);
+  // The active scoring config's maximum, read once the score filter is shown
+  // or a row has no maxScore of its own.
+  const scoreMax = useScoreMax(showAdvanced || (data?.items ?? []).some((item) => item.score != null && !item.maxScore));
   const scoreProblem = scoreRangeProblem(draftScore.min, draftScore.max, scoreMax);
 
   function update<K extends keyof Filters>(key: K, value: Filters[K]) {
@@ -254,7 +255,7 @@ function Beneficiaries() {
               <SlidersHorizontal />
               Filters
               {activeAdvanced ? (
-                <span className="rounded-full bg-brand px-1.5 text-[11px] text-white tabular-nums">
+                <span className="rounded-full bg-brand px-1.5 text-xs text-white tabular-nums">
                   {activeAdvanced}
                 </span>
               ) : null}
@@ -476,7 +477,7 @@ function Beneficiaries() {
                         </span>
                       ) : null}
                     </div>
-                    <p className="text-xs text-black/50 tabular-nums">
+                    <p className="text-xs text-black/60 tabular-nums">
                       {item.phone ?? "—"}
                       <span className="capitalize"> · {item.beneficiaryType}</span>
                     </p>
@@ -489,7 +490,7 @@ function Beneficiaries() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <ScoreMeter score={item.score} max={item.maxScore} risk={item.riskCategory} />
+                    <ScoreMeter score={item.score} max={item.maxScore || scoreMax} risk={item.riskCategory} />
                   </TableCell>
                   <TableCell>
                     <RiskBadge risk={item.riskCategory} />
@@ -497,7 +498,7 @@ function Beneficiaries() {
                   <TableCell>
                     <AssessmentStatusBadge status={item.assessmentStatus} />
                     {item.lastAssessedAt ? (
-                      <p className="mt-1 text-xs text-black/45">
+                      <p className="mt-1 text-xs text-black/60">
                         {formatDateTime(item.lastAssessedAt)}
                       </p>
                     ) : null}

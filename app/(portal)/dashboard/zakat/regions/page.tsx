@@ -107,13 +107,13 @@ function ImpactRegions() {
                   <TableCell className="pl-5 font-medium text-navy">{region.name}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatEtb(region.distributedFundsEtb)}</TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {region.livesTouched != null ? formatCount(region.livesTouched) : <span className="text-xs text-black/45">Live count</span>}
+                    {region.livesTouched != null ? formatCount(region.livesTouched) : <span className="text-xs text-black/60">Live count</span>}
                   </TableCell>
                   <TableCell>{region.active ? <Badge tone="success">Shown</Badge> : <Badge tone="neutral">Hidden</Badge>}</TableCell>
                   <TableCell className="text-sm text-black/60">
                     {formatDateTime(region.updatedAt)}
                     {region.updatedBy || region.updatedByName ? (
-                      <span className="block text-xs text-black/45">by {staffRef(region.updatedBy, region.updatedByName)}</span>
+                      <span className="block text-xs text-black/60">by {staffRef(region.updatedBy, region.updatedByName)}</span>
                     ) : null}
                   </TableCell>
                   <TableCell className="pr-5 text-right">
@@ -269,7 +269,7 @@ function RegionDialog({
               <Input id="rg-sort" type="number" step={1} value={form.sortOrder} onChange={(e) => set("sortOrder", e.target.value)} />
             </FormField>
             <label className="flex items-center gap-2 self-end pb-2 text-sm text-navy">
-              <input type="checkbox" checked={form.active} onChange={(e) => set("active", e.target.checked)} className="size-4 accent-[#007050]" />
+              <input type="checkbox" checked={form.active} onChange={(e) => set("active", e.target.checked)} className="size-4 accent-brand" />
               Show on the public site
             </label>
           </div>

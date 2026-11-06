@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { type KeyboardEvent, Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Banknote, CheckCheck, CornerUpLeft, MinusCircle, RefreshCw, SlidersHorizontal, X, XCircle } from "lucide-react";
 
@@ -43,7 +43,7 @@ import { ETHIOPIAN_REGIONS } from "@/lib/constants/regions";
 import { useListState } from "@/lib/hooks/use-list-state";
 import { cn } from "@/lib/utils";
 import type { Disbursement } from "@/lib/zakat/disbursements";
-import { POOL_FILTERS, POOL_LIST_DEFAULTS, POOL_SORTS, poolQuery, poolStepBack } from "@/lib/zakat/pool-list";
+import { POOL_FILTERS, POOL_LIST_DEFAULTS, POOL_SORTS, poolCountParams, poolQuery, poolStepBack } from "@/lib/zakat/pool-list";
 
 const API = "/bff/backoffice/admin/pool";
 const PAYOUTS_API = "/bff/payments-admin/disbursements";
@@ -57,27 +57,23 @@ const VIEWS: { value: View; label: string }[] = [
   { value: "pooled", label: "In the pool" },
 ];
 
-/** How long the score boxes wait after the last keystroke before the list reloads (perf-11). */
-const SCORE_DEBOUNCE_MS = 400;
-
 /**
- * A text box whose value is written to the URL a moment after typing stops,
- * so each keystroke doesn't reload the list. Takes the URL's value when it
- * changes from elsewhere (Clear, Back).
+ * A text box's draft, written to the URL only when the admin presses Enter or
+ * leaves the box, so typing "150" doesn't reload the list for "1" and "15"
+ * (perf-11). Takes the URL's value when it changes from elsewhere (Clear, Back).
  */
-function useDebouncedDraft(value: string, commit: (value: string) => void, delay = SCORE_DEBOUNCE_MS) {
+function useDraft(value: string) {
   const [draft, setDraft] = useState(value);
   const [synced, setSynced] = useState(value);
   if (value !== synced) {
     setSynced(value);
     setDraft(value);
   }
-  useEffect(() => {
-    if (draft === value) return;
-    const timer = setTimeout(() => commit(draft), delay);
-    return () => clearTimeout(timer);
-  }, [draft, value, commit, delay]);
   return [draft, setDraft] as const;
+}
+
+function viewPath(view: View) {
+  return view === "awaiting" ? `${API}/awaiting` : API;
 }
 
 type ActionCopy = { title: string; description: string; confirm: string; destructive?: boolean };
@@ -208,16 +204,34 @@ function Pool() {
 
   // The active scoring config's maximum; 270 until it is known.
   const scoreMax = useScoreMax();
-  const commitScoreMin = useCallback((value: string) => setList({ scoreMin: value }), [setList]);
-  const commitScoreMax = useCallback((value: string) => setList({ scoreMax: value }), [setList]);
-  const [scoreMinDraft, setScoreMinDraft] = useDebouncedDraft(list.scoreMin, commitScoreMin);
-  const [scoreMaxDraft, setScoreMaxDraft] = useDebouncedDraft(list.scoreMax, commitScoreMax);
+  const [scoreMinDraft, setScoreMinDraft] = useDraft(list.scoreMin);
+  const [scoreMaxDraft, setScoreMaxDraft] = useDraft(list.scoreMax);
+  // Both boxes go to the URL together. A range that can't match (min above max, outside
+  // 0 to the maximum) is shown under the field and left out of the request (poolQuery).
+  function commitScores() {
+    setList({ scoreMin: scoreMinDraft.trim(), scoreMax: scoreMaxDraft.trim() });
+  }
+  function onScoreKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commitScores();
+    }
+  }
   const query = poolQuery(list, scoreMax, PAGE_SIZE);
   // Errors follow what is typed, before it reaches the URL.
   const filterErrors = poolQuery({ ...list, scoreMin: scoreMinDraft, scoreMax: scoreMaxDraft }, scoreMax, PAGE_SIZE).errors;
-  const path = view === "awaiting" ? `${API}/awaiting` : API;
-  const listPath = `${path}?${query.params.toString()}`;
+  const scoresPending = scoreMinDraft.trim() !== list.scoreMin || scoreMaxDraft.trim() !== list.scoreMax;
+  const listPath = `${viewPath(view)}?${query.params.toString()}`;
   const { data, error, isLoading, reload } = useResource<PaginatedItems<PoolEntry>>(listPath);
+  // The other tab's count under the same filters, so every tab shows one (UAT 78).
+  const otherView: View = view === "awaiting" ? "pooled" : "awaiting";
+  const otherCount = useResource<PaginatedItems<PoolEntry>>(`${viewPath(otherView)}?${poolCountParams(query.params).toString()}`);
+  const counts: Record<View, number | undefined> = {
+    awaiting: undefined,
+    pooled: undefined,
+    [view]: data?.pagination.totalItems,
+    [otherView]: otherCount.data?.pagination.totalItems,
+  };
 
   // A selection belongs to one page of one list: it is cleared when the list changes.
   const [selectionFor, setSelectionFor] = useState(listPath);
@@ -258,6 +272,7 @@ function Pool() {
 
   function reloadAll() {
     reload();
+    otherCount.reload();
     preparedPayouts.reload();
     checkingPayouts.reload();
   }
@@ -310,7 +325,7 @@ function Pool() {
             {VIEWS.map((item) => (
               <TabsTrigger key={item.value} value={item.value}>
                 {item.label}
-                {view === item.value && data ? <TabsCount>{formatCount(data.pagination.totalItems)}</TabsCount> : null}
+                {counts[item.value] !== undefined ? <TabsCount>{formatCount(counts[item.value])}</TabsCount> : null}
               </TabsTrigger>
             ))}
           </TabsList>
@@ -328,7 +343,7 @@ function Pool() {
               <SlidersHorizontal />
               Filters
               {activeFilters ? (
-                <span className="rounded-full bg-[#007050] px-1.5 text-[11px] text-white tabular-nums">{activeFilters}</span>
+                <span className="rounded-full bg-brand px-1.5 text-xs text-white tabular-nums">{activeFilters}</span>
               ) : null}
             </Button>
             {activeFilters ? (
@@ -375,17 +390,44 @@ function Pool() {
                 ))}
               </NativeSelect>
             </FormField>
-            <FormField label={`Score (0–${scoreMax})`} htmlFor="p-min" error={filterErrors.score}>
+            <FormField
+              label={`Score (0–${scoreMax})`}
+              htmlFor="p-min"
+              error={filterErrors.score}
+              hint={scoresPending ? "Press Enter or leave the box to apply" : undefined}
+            >
               <div className="flex items-center gap-2">
-                <Input id="p-min" type="number" min={0} max={scoreMax} placeholder="Min" value={scoreMinDraft} onChange={(e) => setScoreMinDraft(e.target.value)} className="bg-white" />
-                <span className="text-black/40">–</span>
-                <Input type="number" min={0} max={scoreMax} placeholder="Max" aria-label="Maximum score" value={scoreMaxDraft} onChange={(e) => setScoreMaxDraft(e.target.value)} className="bg-white" />
+                <Input
+                  id="p-min"
+                  type="number"
+                  min={0}
+                  max={scoreMax}
+                  placeholder="Min"
+                  value={scoreMinDraft}
+                  onChange={(e) => setScoreMinDraft(e.target.value)}
+                  onKeyDown={onScoreKeyDown}
+                  onBlur={commitScores}
+                  className="bg-white"
+                />
+                <span className="text-black/60">–</span>
+                <Input
+                  type="number"
+                  min={0}
+                  max={scoreMax}
+                  placeholder="Max"
+                  aria-label="Maximum score"
+                  value={scoreMaxDraft}
+                  onChange={(e) => setScoreMaxDraft(e.target.value)}
+                  onKeyDown={onScoreKeyDown}
+                  onBlur={commitScores}
+                  className="bg-white"
+                />
               </div>
             </FormField>
             <FormField label="Approved between" htmlFor="p-from" className="lg:col-span-2" error={filterErrors.approved}>
               <div className="flex items-center gap-2">
                 <Input id="p-from" type="date" value={list.approvedFrom} onChange={(e) => update("approvedFrom", e.target.value)} className="bg-white" />
-                <span className="text-black/40">–</span>
+                <span className="text-black/60">–</span>
                 <Input type="date" aria-label="Approved to" value={list.approvedTo} onChange={(e) => update("approvedTo", e.target.value)} className="bg-white" />
               </div>
             </FormField>
@@ -393,7 +435,7 @@ function Pool() {
         ) : null}
 
         {view === "awaiting" && selectedRows.length > 0 ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/[0.06] bg-[#007050]/[0.05] px-5 py-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/[0.06] bg-brand/[0.05] px-5 py-2.5">
             <p className="text-sm text-navy">
               <span className="font-semibold tabular-nums">{selectedRows.length}</span> selected
             </p>
@@ -432,7 +474,7 @@ function Pool() {
                     checked={allSelected}
                     disabled={selectable.length === 0}
                     onChange={() => setSelected(allSelected ? new Set() : new Set(selectable.map(rowKey)))}
-                    className="size-4 accent-[#007050] disabled:cursor-not-allowed disabled:opacity-40"
+                    className="size-4 accent-brand disabled:cursor-not-allowed disabled:opacity-40"
                   />
                 </TableHead>
               ) : null}
@@ -467,7 +509,7 @@ function Pool() {
                 const isSelected = !block && selected.has(key);
                 const payout = view === "pooled" && entry.poolStatus !== "DISBURSED" ? openPayoutOf(entry, openPayouts) : null;
                 return (
-                  <TableRow key={key} className={cn(isSelected && "bg-[#007050]/[0.04]")}>
+                  <TableRow key={key} className={cn(isSelected && "bg-brand/[0.04]")}>
                     {view === "awaiting" ? (
                       <TableCell className="pl-5">
                         {block ? (
@@ -481,7 +523,7 @@ function Pool() {
                                   checked={false}
                                   disabled
                                   readOnly
-                                  className="size-4 accent-[#007050] disabled:opacity-40"
+                                  className="size-4 accent-brand disabled:opacity-40"
                                 />
                               </span>
                             </TooltipTrigger>
@@ -493,7 +535,7 @@ function Pool() {
                             aria-label={`Select ${name}`}
                             checked={isSelected}
                             onChange={() => toggle(entry)}
-                            className="size-4 accent-[#007050]"
+                            className="size-4 accent-brand"
                           />
                         )}
                       </TableCell>
@@ -511,7 +553,7 @@ function Pool() {
                           </Badge>
                         ) : null}
                       </div>
-                      <p className="text-xs text-black/50">
+                      <p className="text-xs text-black/60">
                         {entry.assessmentId ? (
                           <Link href={`/dashboard/assessments/${entry.assessmentId}`} className="hover:underline">
                             {entry.assessmentNumber ?? `Assessment #${entry.assessmentId}`}
@@ -524,7 +566,7 @@ function Pool() {
                     </TableCell>
                     <TableCell>
                       <p className="text-sm text-navy">{entry.branchName ?? "—"}</p>
-                      <p className="text-xs text-black/45">{[entry.woreda, entry.region].filter(Boolean).join(", ")}</p>
+                      <p className="text-xs text-black/60">{[entry.woreda, entry.region].filter(Boolean).join(", ")}</p>
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
@@ -537,7 +579,7 @@ function Pool() {
                     </TableCell>
                     <TableCell>
                       {verification === undefined ? (
-                        <span className="text-sm text-black/40">Checking…</span>
+                        <span className="text-sm text-black/60">Checking…</span>
                       ) : verification === null ? (
                         <span className="text-sm text-amber-700">Couldn&apos;t check</span>
                       ) : (
@@ -548,7 +590,7 @@ function Pool() {
                       {entry.bankAccount?.accountNumber ? (
                         <>
                           <p className="font-mono text-sm text-navy">{entry.bankAccount.accountNumber}</p>
-                          <p className="text-xs text-black/45">
+                          <p className="text-xs text-black/60">
                             {[entry.bankAccount.bankName, entry.bankAccount.accountHolderName].filter(Boolean).join(" · ")}
                           </p>
                         </>
@@ -575,7 +617,7 @@ function Pool() {
                           // Paid and left the pool; it must be assessed and pooled again to be paid again.
                           <div className="text-right">
                             <PoolStatusBadge status="DISBURSED" />
-                            {entry.poolStatusReason ? <p className="mt-1 text-xs text-black/50">{entry.poolStatusReason}</p> : null}
+                            {entry.poolStatusReason ? <p className="mt-1 text-xs text-black/60">{entry.poolStatusReason}</p> : null}
                           </div>
                         ) : payout ? (
                           // A payout is open: it is finished on the Payouts page, and the household can't leave the pool meanwhile.

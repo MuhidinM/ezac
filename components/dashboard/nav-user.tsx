@@ -57,12 +57,12 @@ export function NavUser() {
   const identity = (
     <>
       <Avatar className="size-8 rounded-lg">
-        <AvatarFallback className="rounded-lg bg-[#001539] text-xs font-semibold text-white">
+        <AvatarFallback className="rounded-lg bg-navy text-xs font-semibold text-white">
           {initials(name)}
         </AvatarFallback>
       </Avatar>
       <div className="grid flex-1 text-left text-sm leading-tight">
-        <span className="truncate font-medium text-[#001539]">{name}</span>
+        <span className="truncate font-medium text-navy">{name}</span>
         <span className="truncate text-xs text-muted-foreground">{subtitle}</span>
       </div>
     </>

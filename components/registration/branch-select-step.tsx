@@ -3,12 +3,12 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, MapPin, Search, Store } from "lucide-react";
+import { Check, MapPin, Store } from "lucide-react";
 
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { RegistrationShell } from "@/components/registration/registration-shell";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { NativeSelect } from "@/components/ui/native-select";
 import type { StaffBranchOption, StaffMe } from "@/lib/api/backoffice-types";
 import { useResource } from "@/lib/api/use-resource";
@@ -74,16 +74,14 @@ export function BranchSelectStep() {
     >
       <div className="space-y-5">
         <div className="flex flex-wrap gap-3">
-          <div className="relative min-w-60 flex-1">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-black/35" />
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search branch, zone or woreda"
-              className="bg-white pl-9"
-              aria-label="Search branches"
-            />
-          </div>
+          {/* Filters as you type, so there is no form to submit. */}
+          <SearchInput
+            label="Search branches"
+            wrapperClassName="min-w-60 flex-1"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search branch, zone or woreda"
+          />
           <div className="w-48">
             <NativeSelect aria-label="Region" value={region} onChange={(event) => setRegion(event.target.value)}>
               <option value="">All regions</option>
@@ -109,7 +107,7 @@ export function BranchSelectStep() {
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-black/15 py-10 text-center text-sm text-black/50">
+          <p className="rounded-lg border border-dashed border-black/15 py-10 text-center text-sm text-black/60">
             {branches.length === 0
               ? "You aren't assigned to any active branch yet. Ask an administrator to add an assignment."
               : "No active branches match your search."}
@@ -134,21 +132,21 @@ export function BranchSelectStep() {
                   className={cn(
                     "relative flex items-start gap-3 rounded-lg border p-4 text-left transition",
                     isSelected
-                      ? "border-[#007050] bg-[#007050]/[0.05] ring-1 ring-[#007050]"
+                      ? "border-brand bg-brand/[0.05] ring-1 ring-brand"
                       : "border-black/[0.08] bg-white hover:border-black/20",
                   )}
                 >
                   <span
                     className={cn(
                       "flex size-9 shrink-0 items-center justify-center rounded-md",
-                      isSelected ? "bg-[#007050] text-white" : "bg-black/[0.04] text-black/50",
+                      isSelected ? "bg-brand text-white" : "bg-black/[0.04] text-black/60",
                     )}
                   >
                     {isSelected ? <Check className="size-4" /> : <Store className="size-4" />}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block font-medium text-[#001539]">{branch.name}</span>
-                    <span className="mt-0.5 flex items-center gap-1 text-xs text-black/50">
+                    <span className="block font-medium text-navy">{branch.name}</span>
+                    <span className="mt-0.5 flex items-center gap-1 text-xs text-black/60">
                       <MapPin className="size-3" />
                       {[branch.woreda, branch.zone, branch.region].filter(Boolean).join(", ") || "—"}
                     </span>
@@ -195,8 +193,8 @@ export function BranchSelectStep() {
           </Button>
           <div className="flex items-center gap-3">
             {selected ? (
-              <span className="text-sm text-black/55">
-                <span className="font-medium text-[#001539]">{selected.name}</span> selected
+              <span className="text-sm text-black/60">
+                <span className="font-medium text-navy">{selected.name}</span> selected
               </span>
             ) : null}
             <Button disabled={!selected} onClick={() => selected && goOn(selected)}>

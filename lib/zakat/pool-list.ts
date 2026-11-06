@@ -97,3 +97,18 @@ export function poolStepBack(
   const last = Math.max(1, data.pagination.totalPages || 1);
   return Math.min(page - 1, last);
 }
+
+/**
+ * The query for a tab's count: the same filters as the list, one row only.
+ * Each Pool tab shows how many households it holds under the current filters,
+ * not only the open one (UAT 78).
+ */
+export function poolCountParams(params: URLSearchParams): URLSearchParams {
+  const next = new URLSearchParams(params);
+  next.set("page", "1");
+  next.set("limit", "1");
+  // Order doesn't change a count.
+  next.delete("sort");
+  next.delete("order");
+  return next;
+}

@@ -43,7 +43,7 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
                   <img src="/logo.svg" alt="" className="size-6 object-contain" />
                 </div>
                 <div className="grid flex-1 text-left leading-tight">
-                  <span className="truncate text-sm font-semibold tracking-tight text-[#001539]">
+                  <span className="truncate text-sm font-semibold tracking-tight text-navy">
                     EZAC
                   </span>
                   <span className="truncate text-xs text-sidebar-foreground/70">

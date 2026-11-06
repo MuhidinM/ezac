@@ -95,23 +95,23 @@ export function WhitelistEntryCard({
 
       <dl className="space-y-2 text-sm">
         <div>
-          <dt className="text-xs text-black/45">Reason</dt>
+          <dt className="text-xs text-black/60">Reason</dt>
           <dd className="font-medium text-navy">{labelFor(WHITELIST_REASONS, entry.reasonCode)}</dd>
         </div>
         {entry.justification ? (
           <div>
-            <dt className="text-xs text-black/45">Justification</dt>
+            <dt className="text-xs text-black/60">Justification</dt>
             <dd className="whitespace-pre-line text-black/70">{entry.justification}</dd>
           </div>
         ) : null}
         {entry.communityVerificationNote ? (
           <div>
-            <dt className="text-xs text-black/45">Community verification</dt>
+            <dt className="text-xs text-black/60">Community verification</dt>
             <dd className="whitespace-pre-line text-black/70">{entry.communityVerificationNote}</dd>
           </div>
         ) : null}
         {!compact ? (
-          <div className="text-xs text-black/50">
+          <div className="text-xs text-black/60">
             Requested {formatDateTime(entry.requestedAt ?? null)}
             {entry.requestedByName ? ` by ${entry.requestedByName}` : ""}
             {entry.decidedAt ? ` · decided ${formatDateTime(entry.decidedAt)}${entry.decidedByName ? ` by ${entry.decidedByName}` : ""}` : ""}
@@ -133,7 +133,7 @@ export function WhitelistEntryCard({
               >
                 <FileText className="size-3.5" />
                 {file.fileName ?? "Evidence"}
-                {file.sizeBytes ? <span className="text-xs text-black/40">{formatBytes(file.sizeBytes)}</span> : null}
+                {file.sizeBytes ? <span className="text-xs text-black/60">{formatBytes(file.sizeBytes)}</span> : null}
               </a>
             </li>
           ))}

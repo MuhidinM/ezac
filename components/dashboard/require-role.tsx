@@ -15,7 +15,7 @@ export function RequireRole({
   audience: NavAudience[];
   children: ReactNode;
 }) {
-  const { session, isLoading, signedOut, unavailable } = useSession();
+  const { session, isLoading, signedOut, unavailable, provisional } = useSession();
 
   // Still loading, or on the way to sign-in: "no access" would be wrong in both cases.
   if (isLoading || signedOut) {
@@ -29,8 +29,8 @@ export function RequireRole({
         <span className="flex size-11 items-center justify-center rounded-full bg-black/[0.04] text-black/50">
           <CloudOff className="size-5" />
         </span>
-        <h2 className="mt-4 text-base font-semibold text-[#001539]">We couldn&apos;t load your account</h2>
-        <p className="mt-1 max-w-sm text-sm text-black/55">
+        <h2 className="mt-4 text-base font-semibold text-navy">We couldn&apos;t load your account</h2>
+        <p className="mt-1 max-w-sm text-sm text-black/60">
           Check your connection. We&apos;ll keep trying, or try again now.
         </p>
         <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => void fetchSession({ force: true })}>
@@ -41,6 +41,11 @@ export function RequireRole({
   }
 
   if (!canSee(audience, session)) {
+    // The token's roles are only a first guess (/me can add roles): wait for
+    // the server's answer before saying "no access".
+    if (provisional) {
+      return <div className="h-40 animate-pulse rounded-xl bg-black/[0.04]" role="status" aria-label="Loading" />;
+    }
     return <NoAccess />;
   }
 
@@ -53,10 +58,10 @@ export function NoAccess({ message }: { message?: string }) {
       <span className="flex size-11 items-center justify-center rounded-full bg-black/[0.04] text-black/50">
         <ShieldAlert className="size-5" />
       </span>
-      <h2 className="mt-4 text-base font-semibold text-[#001539]">
+      <h2 className="mt-4 text-base font-semibold text-navy">
         You don&apos;t have access to this page
       </h2>
-      <p className="mt-1 max-w-sm text-sm text-black/55">
+      <p className="mt-1 max-w-sm text-sm text-black/60">
         {message ?? "Your role or branch assignment doesn't include this area. Contact an administrator if you think this is wrong."}
       </p>
     </div>

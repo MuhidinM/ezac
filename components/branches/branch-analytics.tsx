@@ -47,7 +47,7 @@ export function BranchAnalytics() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold text-[#001539]">Branch activity</h2>
+        <h2 className="text-sm font-semibold text-navy">Branch activity</h2>
         <RangeSelect value={range} onChange={setRange} />
       </div>
       {error ? <InlineAlert>{error.message}</InlineAlert> : null}
@@ -97,7 +97,7 @@ export function BranchAnalytics() {
               ) : (
                 data!.assessmentsPerOfficer.map((row) => (
                   <TableRow key={row.officerSub}>
-                    <TableCell className="pl-5 font-medium text-[#001539]">{row.officerName ?? "Unnamed officer"}</TableCell>
+                    <TableCell className="pl-5 font-medium text-navy">{row.officerName ?? "Unnamed officer"}</TableCell>
                     <TableCell className="text-right tabular-nums">{row.open}</TableCell>
                     <TableCell className="text-right tabular-nums">{row.submittedInRange}</TableCell>
                     <TableCell className="pr-5 text-right tabular-nums">{row.approvedInRange}</TableCell>

@@ -214,8 +214,8 @@ function Branches() {
                     {[item.woreda, item.zone, item.region].filter(Boolean).join(", ") || "—"}
                   </TableCell>
                   <TableCell>
-                    <p className="text-sm text-[#001539]">{branchContact(item).fullName ?? "—"}</p>
-                    <p className="text-xs text-black/50 tabular-nums">{branchContact(item).phone ?? ""}</p>
+                    <p className="text-sm text-navy">{branchContact(item).fullName ?? "—"}</p>
+                    <p className="text-xs text-black/60 tabular-nums">{branchContact(item).phone ?? ""}</p>
                   </TableCell>
                   <TableCell>
                     <CodeStatsInline stats={item.codeStats} />

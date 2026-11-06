@@ -1,5 +1,5 @@
-"use client";
-
+// No "use client": status-badges (also used outside client pages) reads the
+// constant; the hook only runs in client components.
 import type { ScoreDistribution } from "@/lib/api/backoffice-types";
 import { useResource } from "@/lib/api/use-resource";
 

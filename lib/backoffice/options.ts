@@ -13,10 +13,10 @@ export const ASNAF = options({
   poor: "Poor (Faqir)",
   needy: "Needy (Miskin)",
   zakat_administrator: "Zakat administrator (Amil)",
-  muallaf: "Muallaf",
+  muallaf: "Hearts to be reconciled (Muallaf)",
   freeing_captives: "Freeing captives (Riqab)",
   debtor: "Debtor (Gharim)",
-  fi_sabilillah: "Fi sabilillah",
+  fi_sabilillah: "In the cause of Allah (Fi sabilillah)",
   stranded_traveler: "Stranded traveller (Ibn sabil)",
   other: "Other",
 });

@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 
+import { errorFields, logEvent } from "@/lib/api/log";
 import { LOCALES, localizedPath } from "@/lib/i18n/config";
 import { getCauses, getStories } from "@/lib/zakat/impact";
 import { absoluteUrl } from "@/lib/site";
@@ -110,7 +111,7 @@ async function fromGateway(label: string, load: () => Promise<Entry[]>): Promise
   try {
     return await load();
   } catch (error) {
-    console.error(`[sitemap] left out ${label}: the zakat service is unavailable`, error instanceof Error ? error.message : "");
+    logEvent("warn", "sitemap_partial", { label, ...errorFields(error) });
     return [];
   }
 }

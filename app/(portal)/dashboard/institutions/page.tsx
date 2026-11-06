@@ -179,18 +179,18 @@ function Institutions() {
                     <Link
                       href={`/dashboard/beneficiary/${item.id}`}
                       onClick={(event) => event.stopPropagation()}
-                      className="font-medium text-[#001539] hover:underline"
+                      className="font-medium text-navy hover:underline"
                     >
                       {item.fullName ?? "Unnamed institution"}
                     </Link>
-                    <p className="text-xs text-black/50">
+                    <p className="text-xs text-black/60">
                       {[item.tradingName, item.phone].filter(Boolean).join(" · ") || "—"}
                     </p>
                   </TableCell>
                   <TableCell className="capitalize">{item.institutionSubtype?.replaceAll("_", " ") ?? "—"}</TableCell>
                   <TableCell>
                     {item.institutionRequiredKycComplete == null ? (
-                      <span className="text-black/40">—</span>
+                      <span className="text-black/60">—</span>
                     ) : (
                       <Badge tone={item.institutionRequiredKycComplete ? "success" : "warning"}>
                         {item.institutionRequiredKycComplete ? "Complete" : "Incomplete"}

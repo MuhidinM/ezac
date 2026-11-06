@@ -13,7 +13,8 @@ It is a Next.js 16 App Router app (React 19, TypeScript, Tailwind CSS v4, shadcn
 ## Prerequisites
 
 - Node.js 22
-- pnpm 12.4.1 (the version that wrote `pnpm-lock.yaml`): `corepack enable && corepack prepare pnpm@12.4.1 --activate`
+- pnpm 12.4.1 (the version that wrote `pnpm-lock.yaml`): run `corepack enable` once. Corepack then uses the
+  version in the `packageManager` field of `package.json`, so there is nothing else to install or keep in step.
 - Network access to a gateway, and for the UAT gateway its certificate (`certs/uat-ezac.pem`, not in git: ask a
   teammate)
 
@@ -27,6 +28,9 @@ pnpm dev:uat                 # UAT gateway, trusting certs/uat-ezac.pem
 ```
 
 Open http://localhost:3000.
+
+When something is wrong in production (site down, slow, a screen failing), see [RUNBOOK.md](RUNBOOK.md). To report
+a security problem, see [SECURITY.md](SECURITY.md).
 
 ## Environment variables
 
@@ -68,8 +72,12 @@ set in the process environment wins over the files. See `.env.example` for a tem
   session and role again, and the gateway has the final say.
 - **Security headers** (CSP, frame blocking, HSTS, Permissions-Policy) are set in `next.config.ts`. The full Content
   Security Policy runs in report-only mode; reports arrive at `/bff/csp-report` and are logged.
-- **Logs**: `instrumentation.ts` writes one JSON line per server error (route, release, error digest; no headers,
-  cookies or query strings) and a loud line at startup if `API_BASE_URL` is missing or invalid.
+- **Logs**: every server log line is one JSON object written by `logEvent()` in `lib/api/log.ts`, with `level`,
+  `event`, `time` and `release` (`GIT_SHA`); search them with `grep '"event":"gateway_error"'` or `jq`. Never log
+  bodies, cookies, tokens or query strings. `instrumentation.ts` writes one line per server error (route, release,
+  error digest) and a loud line at startup if `API_BASE_URL` is missing or invalid. Errors in the browser are sent,
+  scrubbed of personal data, to `POST /bff/client-error` (`lib/api/client-error.ts`) and logged as
+  `client_error` lines.
 
 ## SEO and languages
 
@@ -99,7 +107,7 @@ is set, and warns if `release` isn't the commit it deployed. Uptime monitors can
 ## Deploying
 
 1. Every pull request and push runs the **verify** job in `.github/workflows/deploy.yml`: install with the frozen
-   lockfile, lint, type-check, build and `pnpm audit --prod --audit-level high`.
+   lockfile, lint, type-check, `pnpm test`, build and `pnpm audit --prod --audit-level high`.
 2. A push to `master` (or a manual run) that passes verify runs **deploy**: one at a time, it connects over SSH and
    runs `GIT_SHA=<commit> bash /var/www/ezac/deploy.sh` on the server. Secrets: `SSH_PRIVATE_KEY`,
    `SSH_KNOWN_HOSTS`, `SSH_HOST`, `SSH_PORT`, `SSH_USER`.

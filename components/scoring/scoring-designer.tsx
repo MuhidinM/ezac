@@ -75,8 +75,8 @@ function Stepper({
   if (!onChange) {
     return (
       <span className="inline-flex items-baseline gap-1 tabular-nums">
-        <span className="text-base font-semibold text-[#001539]">{value}</span>
-        <span className="text-xs text-black/45">{unit}</span>
+        <span className="text-base font-semibold text-navy">{value}</span>
+        <span className="text-xs text-black/60">{unit}</span>
       </span>
     );
   }
@@ -86,7 +86,7 @@ function Stepper({
         <button
           type="button"
           aria-label={`Less ${label}`}
-          className="flex size-8 items-center justify-center text-black/50 hover:text-[#001539] disabled:opacity-30"
+          className="flex size-8 items-center justify-center text-black/50 hover:text-navy disabled:opacity-30"
           onClick={() => onChange(clamp(value - step))}
           disabled={value <= min}
         >
@@ -102,21 +102,21 @@ function Stepper({
           step={step}
           onChange={(event) => onChange(clamp(Number(event.target.value) || 0))}
           className={cn(
-            "h-8 w-14 border-x border-black/10 bg-transparent text-center text-sm font-semibold text-[#001539] tabular-nums outline-none",
+            "h-8 w-14 border-x border-black/10 bg-transparent text-center text-sm font-semibold text-navy tabular-nums outline-none",
             changedFrom != null && "bg-sky-50",
           )}
         />
         <button
           type="button"
           aria-label={`More ${label}`}
-          className="flex size-8 items-center justify-center text-black/50 hover:text-[#001539] disabled:opacity-30"
+          className="flex size-8 items-center justify-center text-black/50 hover:text-navy disabled:opacity-30"
           onClick={() => onChange(clamp(value + step))}
           disabled={max != null && value >= max}
         >
           <Plus className="size-3.5" />
         </button>
       </span>
-      {changedFrom != null ? <span className="text-[11px] text-sky-700 tabular-nums">was {changedFrom}</span> : null}
+      {changedFrom != null ? <span className="text-xs text-sky-700 tabular-nums">was {changedFrom}</span> : null}
     </span>
   );
 }
@@ -133,7 +133,7 @@ function RecommendationControl({ level, label, recommendation }: { level: Level;
   const { value, changedFrom, onChange } = recommendation;
   if (!onChange) {
     return (
-      <p className="mt-0.5 text-xs text-black/50">
+      <p className="mt-0.5 text-xs text-black/60">
         Recommendation: {recommendationLabel(value).toLowerCase()}
         {changedFrom != null ? <span className="text-sky-700"> (was {recommendationLabel(changedFrom).toLowerCase()})</span> : null}
       </p>
@@ -142,7 +142,7 @@ function RecommendationControl({ level, label, recommendation }: { level: Level;
   const known = RECOMMENDATIONS.some((item) => item.value === value);
   return (
     <div className="mt-2 space-y-1">
-      <label htmlFor={`recommendation-${level}`} className="text-xs text-black/50">
+      <label htmlFor={`recommendation-${level}`} className="text-xs text-black/60">
         Recommendation
       </label>
       <NativeSelect
@@ -160,7 +160,7 @@ function RecommendationControl({ level, label, recommendation }: { level: Level;
           </option>
         ))}
       </NativeSelect>
-      {changedFrom != null ? <p className="text-[11px] text-sky-700">was {recommendationLabel(changedFrom).toLowerCase()}</p> : null}
+      {changedFrom != null ? <p className="text-xs text-sky-700">was {recommendationLabel(changedFrom).toLowerCase()}</p> : null}
     </div>
   );
 }
@@ -209,7 +209,7 @@ function RiskScale({
             </div>
           ))}
         </div>
-        <div className="relative mt-1 h-5 text-[11px] text-black/50 tabular-nums">
+        <div className="relative mt-1 h-5 text-xs text-black/60 tabular-nums">
           <span className="absolute left-0">0</span>
           <span className="absolute -translate-x-1/2" style={{ left: pct(medium) }}>
             {medium}
@@ -228,7 +228,7 @@ function RiskScale({
       <div className="grid gap-3 sm:grid-cols-3">
         {bands.map((band, index) => (
           <div key={band.label} className="rounded-lg border border-black/[0.06] p-3">
-            <p className="flex items-center gap-2 text-sm font-medium text-[#001539]">
+            <p className="flex items-center gap-2 text-sm font-medium text-navy">
               <span className={cn("size-2.5 rounded-full", band.color)} />
               {band.label}
             </p>
@@ -280,7 +280,7 @@ function Budget({ sections, values, maxTotal }: { sections: SectionGroup[]; valu
         {sections.map((section, index) => (
           <span key={section.key} className="inline-flex items-center gap-1.5">
             <span className="size-2 rounded-full" style={{ backgroundColor: SECTION_COLORS[index % SECTION_COLORS.length] }} />
-            {section.title} <span className="tabular-nums text-black/45">{values[index]}</span>
+            {section.title} <span className="tabular-nums text-black/60">{values[index]}</span>
           </span>
         ))}
       </div>
@@ -319,8 +319,8 @@ function BandsRows({
   }
   return (
     <div className="space-y-2">
-      <p className="text-sm font-medium text-[#001539]">{label}</p>
-      {value.length === 0 ? <p className="text-sm text-black/50">No bands.</p> : null}
+      <p className="text-sm font-medium text-navy">{label}</p>
+      {value.length === 0 ? <p className="text-sm text-black/60">No bands.</p> : null}
       <ul className="space-y-1.5">
         {value.map((band, index) => (
           <li key={index} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-black/[0.02] px-3 py-2 text-sm text-black/65">
@@ -411,8 +411,8 @@ function SectionCard({
     if (isText(field)) {
       return (
         <li key={field.path} className="flex items-center justify-between gap-4 py-2.5">
-          <span className="text-sm text-[#001539]">{label}</span>
-          <span className="text-sm font-medium text-[#001539]">{recommendationLabel(value)}</span>
+          <span className="text-sm text-navy">{label}</span>
+          <span className="text-sm font-medium text-navy">{recommendationLabel(value)}</span>
         </li>
       );
     }
@@ -420,7 +420,7 @@ function SectionCard({
     return (
       <li key={field.path} className="flex items-center justify-between gap-4 py-2.5">
         <span className="min-w-0">
-          <span className="block text-sm text-[#001539]">{label}</span>
+          <span className="block text-sm text-navy">{label}</span>
           {cap && unit === "pts" ? (
             <span className="mt-1 block h-1 w-40 max-w-full overflow-hidden rounded-full bg-black/[0.06]">
               <span className="block h-full rounded-full" style={{ width: `${Math.min(100, (current / cap) * 100)}%`, backgroundColor: color }} />
@@ -445,11 +445,11 @@ function SectionCard({
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" style={{ boxShadow: `inset 3px 0 0 ${color}` }}>
         <button type="button" onClick={() => setOpen((value) => !value)} className="flex items-center gap-2 text-left" aria-expanded={open}>
           <ChevronDown className={cn("size-4 text-black/40 transition", !open && "-rotate-90")} />
-          <span className="font-semibold text-[#001539]">{section.title}</span>
+          <span className="font-semibold text-navy">{section.title}</span>
           {changedCount > 0 ? <Badge tone="info">{changedCount} changed</Badge> : null}
         </button>
         {section.cap ? (
-          <span className="flex items-center gap-2 text-sm text-black/55">
+          <span className="flex items-center gap-2 text-sm text-black/60">
             Up to
             <Stepper
               label={`${section.title} maximum`}
@@ -478,7 +478,7 @@ function SectionCard({
           {blocks.map((block, index) =>
             block.group ? (
               <div key={`${block.group}-${index}`} className="rounded-lg border border-black/[0.05] px-3 pt-2">
-                <p className="text-xs font-semibold tracking-wide text-black/50 uppercase">{block.group}</p>
+                <p className="text-xs font-semibold tracking-wide text-black/60 uppercase">{block.group}</p>
                 <ul className="divide-y divide-black/[0.04]">{block.fields.map(renderField)}</ul>
               </div>
             ) : (
@@ -546,7 +546,7 @@ export function ScoringDesigner({
             recommendations={recommendations}
           />
         ) : (
-          <p className="text-sm text-black/50">This configuration has no need levels.</p>
+          <p className="text-sm text-black/60">This configuration has no need levels.</p>
         )}
       </Panel>
 
@@ -561,8 +561,8 @@ export function ScoringDesigner({
 
       <div className="space-y-3">
         <div>
-          <h3 className="text-base font-semibold text-[#001539]">{hasCaps ? "3." : "2."} Points for each answer</h3>
-          <p className="text-sm text-black/55">
+          <h3 className="text-base font-semibold text-navy">{hasCaps ? "3." : "2."} Points for each answer</h3>
+          <p className="text-sm text-black/60">
             More points means more need. A field officer&apos;s answer earns the points shown; a section never earns more than its maximum.
           </p>
         </div>

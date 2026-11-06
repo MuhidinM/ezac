@@ -124,7 +124,7 @@ export default function DashboardHomePage() {
     <section className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-[#001539]">
+          <h1 className="text-2xl font-semibold tracking-tight text-navy">
             {name ? `Welcome back, ${name}` : "Overview"}
           </h1>
           <p className="mt-1 text-sm text-black/60">
@@ -207,7 +207,7 @@ function OfficerSummary({ range }: { range: RangeKey }) {
       </div>
       <Panel title="Recent assessments" flush>
         {(data?.recent ?? []).length === 0 ? (
-          <p className="px-5 py-8 text-center text-sm text-black/45">{loading ? "Loading…" : "Nothing yet."}</p>
+          <p className="px-5 py-8 text-center text-sm text-black/60">{loading ? "Loading…" : "Nothing yet."}</p>
         ) : (
           <ul className="divide-y divide-black/[0.05]">
             {(data?.recent ?? []).map((item) => (
@@ -221,10 +221,10 @@ function OfficerSummary({ range }: { range: RangeKey }) {
                   className="flex items-center justify-between gap-3 px-5 py-3 transition hover:bg-black/[0.02]"
                 >
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium text-[#001539]">
+                    <span className="block truncate text-sm font-medium text-navy">
                       {item.beneficiaryName ?? `#${item.assessmentId}`}
                     </span>
-                    <span className="block text-xs text-black/45">{formatDateTime(item.updatedAt)}</span>
+                    <span className="block text-xs text-black/60">{formatDateTime(item.updatedAt)}</span>
                   </span>
                   <AssessmentStatusBadge status={item.status} />
                 </Link>
@@ -366,7 +366,7 @@ function Overview({ scope, range, showAreas }: { scope: string; range: RangeKey;
         </Panel>
         <Panel title="Assessments" description="By current status" actions={<AllTime />}>
           <BarList
-            color="#001539"
+            color="var(--color-navy)"
             items={Object.entries(o?.assessments.byStatus ?? {})
               .map(([key, value]) => ({
                 key,
@@ -500,13 +500,13 @@ function AreaComparison({ scope }: { scope: string }) {
               <TableRow key={row.id}>
                 <TableCell className="pl-5">
                   {by === "branches" ? (
-                    <Link href={`/dashboard/branches/${row.id}`} className="font-medium text-[#001539] hover:underline">
+                    <Link href={`/dashboard/branches/${row.id}`} className="font-medium text-navy hover:underline">
                       {row.name}
                     </Link>
                   ) : (
-                    <span className="font-medium text-[#001539]">{row.name}</span>
+                    <span className="font-medium text-navy">{row.name}</span>
                   )}
-                  {by === "branches" && row.region ? <p className="text-xs text-black/45">{row.region}</p> : null}
+                  {by === "branches" && row.region ? <p className="text-xs text-black/60">{row.region}</p> : null}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">{formatCount(row.beneficiaries)}</TableCell>
                 <TableCell className="text-right tabular-nums">{formatCount(row.pendingAssessment)}</TableCell>
@@ -550,22 +550,22 @@ function QuickActions({ isAdmin }: { isAdmin: boolean }) {
   const actions = ACTIONS.filter((action) => !action.adminOnly || isAdmin);
   return (
     <div>
-      <h2 className="text-sm font-semibold text-[#001539]">Quick actions</h2>
+      <h2 className="text-sm font-semibold text-navy">Quick actions</h2>
       <div className="mt-3 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {actions.map((action) => (
           <Link
             key={action.href}
             href={action.href}
-            className="group flex items-start gap-4 rounded-xl border border-black/[0.06] bg-white p-5 shadow-xs transition hover:border-[#007050]/30 hover:shadow-sm"
+            className="group flex items-start gap-4 rounded-xl border border-black/[0.06] bg-white p-5 shadow-xs transition hover:border-brand/30 hover:shadow-sm"
           >
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[#001539] text-white">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-navy text-white">
               <action.icon className="size-5" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-[#001539]">{action.title}</span>
-              <span className="mt-0.5 block text-sm text-black/55">{action.description}</span>
+              <span className="block text-sm font-semibold text-navy">{action.title}</span>
+              <span className="mt-0.5 block text-sm text-black/60">{action.description}</span>
             </span>
-            <ArrowRight className="mt-0.5 size-4 shrink-0 text-black/30 transition group-hover:translate-x-0.5 group-hover:text-[#007050]" />
+            <ArrowRight className="mt-0.5 size-4 shrink-0 text-black/30 transition group-hover:translate-x-0.5 group-hover:text-brand" />
           </Link>
         ))}
       </div>

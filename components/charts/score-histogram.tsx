@@ -61,7 +61,7 @@ export function ScoreHistogram({ data }: { data: ScoreDistribution }) {
   }
 
   if (data.scored === 0) {
-    return <p className="flex h-[220px] items-center justify-center text-sm text-black/45">No scored assessments yet.</p>;
+    return <p className="flex h-[220px] items-center justify-center text-sm text-black/60">No scored assessments yet.</p>;
   }
 
   return (
@@ -83,8 +83,8 @@ export function ScoreHistogram({ data }: { data: ScoreDistribution }) {
           <svg width={width} height={HEIGHT} aria-hidden="true" className="block">
             {ticks.map((tick) => (
               <g key={tick}>
-                <line x1={PAD.left} x2={width - PAD.right} y1={y(tick)} y2={y(tick)} stroke="#ececec" strokeWidth={1} />
-                <text x={PAD.left - 6} y={y(tick)} dy="0.32em" textAnchor="end" className="fill-black/45 text-[11px] tabular-nums">
+                <line x1={PAD.left} x2={width - PAD.right} y1={y(tick)} y2={y(tick)} stroke="var(--color-surface-muted)" strokeWidth={1} />
+                <text x={PAD.left - 6} y={y(tick)} dy="0.32em" textAnchor="end" className="fill-black/60 text-[11px] tabular-nums">
                   {tick}
                 </text>
               </g>
@@ -110,14 +110,14 @@ export function ScoreHistogram({ data }: { data: ScoreDistribution }) {
             })}
             {[data.thresholds.medium, data.thresholds.high].map((threshold) => (
               <g key={threshold}>
-                <line x1={scale(threshold)} x2={scale(threshold)} y1={PAD.top - 6} y2={PAD.top + innerH} stroke="#001539" strokeOpacity={0.35} strokeWidth={1} />
-                <text x={scale(threshold) + 4} y={PAD.top - 6} className="fill-black/55 text-[10px]">
+                <line x1={scale(threshold)} x2={scale(threshold)} y1={PAD.top - 6} y2={PAD.top + innerH} stroke="var(--color-navy)" strokeOpacity={0.35} strokeWidth={1} />
+                <text x={scale(threshold) + 4} y={PAD.top - 6} className="fill-black/60 text-[10px]">
                   {threshold === data.thresholds.high ? `High ≥ ${threshold}` : `Medium ≥ ${threshold}`}
                 </text>
               </g>
             ))}
             {[0, data.thresholds.medium, data.thresholds.high, data.max].map((tick) => (
-              <text key={tick} x={scale(tick)} y={HEIGHT - 8} textAnchor="middle" className="fill-black/45 text-[11px] tabular-nums">
+              <text key={tick} x={scale(tick)} y={HEIGHT - 8} textAnchor="middle" className="fill-black/60 text-[11px] tabular-nums">
                 {tick}
               </text>
             ))}
@@ -132,7 +132,7 @@ export function ScoreHistogram({ data }: { data: ScoreDistribution }) {
             className="pointer-events-none absolute top-2 z-10 rounded-lg border border-black/[0.08] bg-white px-3 py-2 text-xs shadow-md"
             style={{ left: Math.min(scale(hovered.from) + 12, width - 150) }}
           >
-            <p className="font-medium text-[#001539] tabular-nums">
+            <p className="font-medium text-navy tabular-nums">
               Score {hovered.from}–{hovered.to}
             </p>
             <p className="text-black/60">{BAND_LABEL[bandFor(hovered.from, data.thresholds)]}</p>

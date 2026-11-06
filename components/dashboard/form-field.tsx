@@ -84,7 +84,7 @@ export function FormField({
           {error}
         </p>
       ) : hasHint ? (
-        <p id={messageId} className="text-xs text-black/50">
+        <p id={messageId} className="text-xs text-black/60">
           {hint}
         </p>
       ) : null}

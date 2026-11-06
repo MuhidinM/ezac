@@ -363,11 +363,11 @@ function CauseForm({
                 type="checkbox"
                 checked={form.acceptsZakat}
                 onChange={(e) => set("acceptsZakat", e.target.checked)}
-                className="mt-0.5 size-4 accent-[#007050]"
+                className="mt-0.5 size-4 accent-brand"
               />
               <span>
                 Accepts zakat
-                <span className="block text-xs text-black/50">Only causes accepting zakat appear in the payment project list.</span>
+                <span className="block text-xs text-black/60">Only causes accepting zakat appear in the payment project list.</span>
               </span>
             </label>
           </div>

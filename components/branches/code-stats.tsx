@@ -21,7 +21,7 @@ export function CodeStatTiles({ stats }: { stats: CodeStats | null | undefined }
           <p className="mt-2 text-2xl font-semibold tracking-tight text-navy tabular-nums">
             {stats ? stats[item.key].toLocaleString("en") : "—"}
           </p>
-          <p className="mt-0.5 text-xs text-black/45">{item.hint}</p>
+          <p className="mt-0.5 text-xs text-black/60">{item.hint}</p>
         </div>
       ))}
     </div>
@@ -33,7 +33,7 @@ export function CodeStatTiles({ stats }: { stats: CodeStats | null | undefined }
  * screen readers; pair it with CodeStatsLegend so sighted users can read the dots.
  */
 export function CodeStatsInline({ stats }: { stats: CodeStats | null | undefined }) {
-  if (!stats) return <span className="text-black/40">—</span>;
+  if (!stats) return <span className="text-black/60">—</span>;
   return (
     <span className="inline-flex items-center gap-3 text-xs text-black/60 tabular-nums">
       {ITEMS.map((item) => (
@@ -50,7 +50,7 @@ export function CodeStatsInline({ stats }: { stats: CodeStats | null | undefined
 /** What the coloured dots of CodeStatsInline mean. */
 export function CodeStatsLegend({ className }: { className?: string }) {
   return (
-    <p className={cn("flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-black/55", className)}>
+    <p className={cn("flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-black/60", className)}>
       <span className="font-medium text-black/65">Codes:</span>
       {ITEMS.map((item) => (
         <span key={item.key} className="inline-flex items-center gap-1.5">

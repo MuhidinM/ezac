@@ -86,7 +86,7 @@ export function WhitelistPanel({
       }
     >
       {error ? (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-black/55">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-black/60">
           <span>Couldn&apos;t load the whitelist status. {error.message}</span>
           <Button size="sm" variant="ghost" onClick={reload}>
             Try again
@@ -100,13 +100,13 @@ export function WhitelistPanel({
           hidePoolStatus={stalePool(data.current)}
         />
       ) : data ? (
-        <p className="text-sm text-black/45">Not whitelisted.</p>
+        <p className="text-sm text-black/60">Not whitelisted.</p>
       ) : (
         <div className="h-5 w-32 animate-pulse rounded bg-black/[0.05]" role="status" aria-label="Loading" />
       )}
 
       {mayAsk && loaded && !data.current && blockedReason ? (
-        <p className="mt-2 text-xs text-black/55">{blockedReason}</p>
+        <p className="mt-2 text-xs text-black/60">{blockedReason}</p>
       ) : null}
 
       {history.length > 0 ? (
@@ -114,7 +114,7 @@ export function WhitelistPanel({
           <button
             type="button"
             onClick={() => setShowHistory((value) => !value)}
-            className="inline-flex items-center gap-1 text-xs font-medium text-black/55 hover:text-navy"
+            className="inline-flex items-center gap-1 text-xs font-medium text-black/60 hover:text-navy"
             aria-expanded={showHistory}
           >
             <ChevronDown className={cn("size-3.5 transition", showHistory && "rotate-180")} />

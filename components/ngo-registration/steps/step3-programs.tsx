@@ -16,6 +16,8 @@ import {
   emptyProgram,
 } from "../initial-state";
 import type { AidTypeKey, NgoStepProps } from "../types";
+import { typeScale } from "@/components/backoffice/type-scale";
+import { cn } from "@/lib/utils";
 
 const inputClass =
   "form-input";
@@ -94,12 +96,12 @@ export function Step3Programs({ state, setState, errors }: NgoStepProps) {
 
         {selectedAidTypes.length > 0 ? (
           <section className="space-y-4">
-            <h3 className="text-sm font-semibold text-[#001539]">Program Details</h3>
+            <h3 className={typeScale.panelTitle}>Program Details</h3>
             {selectedAidTypes.map((key) => {
               const program = s.programs[key] ?? emptyProgram();
               return (
                 <div key={key} className="rounded-xl border border-black/10 bg-black/[0.02] p-4">
-                  <h4 className="mb-3 font-medium text-[#001539]">{AID_TYPE_LABELS[key]}</h4>
+                  <h4 className="mb-3 font-medium text-navy">{AID_TYPE_LABELS[key]}</h4>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <FormField label="Program name" htmlFor={`program-${key}-name`}>
                       <input id={`program-${key}-name`} type="text" value={program.name} onChange={(e) => updateProgram(key, "name", e.target.value)} className={inputClass} />
@@ -146,7 +148,7 @@ export function Step3Programs({ state, setState, errors }: NgoStepProps) {
         </section>
 
         <section>
-          <h3 className="mb-4 text-sm font-semibold text-[#001539]">Monitoring & Accountability</h3>
+          <h3 className={cn("mb-4", typeScale.panelTitle)}>Monitoring & Accountability</h3>
           <div className="space-y-4">
             <RadioGroup name="followUpVisits" label="Does your organization conduct follow-up visits after aid distribution?" value={s.monitoring.followUpVisits} onChange={(v) => updateMonitoring("followUpVisits", v)} options={yesNo} />
             <RadioGroup name="beneficiaryFeedback" label="Do you collect feedback from beneficiaries?" value={s.monitoring.beneficiaryFeedback} onChange={(v) => updateMonitoring("beneficiaryFeedback", v)} options={yesNo} />

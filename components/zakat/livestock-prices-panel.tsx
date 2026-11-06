@@ -75,7 +75,7 @@ export function LivestockPricesPanel({ onChanged }: { onChanged?: () => void }) 
           }}
         />
       ) : !error ? (
-        <p className="text-sm text-black/45">Loading…</p>
+        <p className="text-sm text-black/60">Loading…</p>
       ) : null}
     </Panel>
   );
@@ -150,7 +150,7 @@ function LivestockForm({
             hint={current?.[key] != null ? `Now ${formatEtb(current[key])}` : undefined}
           >
             <div className="relative">
-              <span className="pointer-events-none absolute top-1/2 start-3 -translate-y-1/2 text-xs text-black/45">ETB</span>
+              <span className="pointer-events-none absolute top-1/2 start-3 -translate-y-1/2 text-xs text-black/60">ETB</span>
               <Input
                 id={`livestock-${key}`}
                 type="number"
@@ -172,7 +172,7 @@ function LivestockForm({
         <Input id="livestock-note" maxLength={160} value={note} onChange={(event) => setNote(event.target.value)} placeholder="e.g. Market survey, Meskerem 2019" />
       </FormField>
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-black/[0.06] pt-4">
-        <p className="text-xs text-black/45">
+        <p className="text-xs text-black/60">
           From rules v{active.version} ({active.name}), {formatDateTime(active.createdAt)}.{" "}
           <Link href="/dashboard/zakat/rules" className="underline underline-offset-2">
             All calculator rules

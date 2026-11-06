@@ -92,7 +92,7 @@ export function CredentialsOnceDialog({
           />
 
           {passwordChangeRequired ? (
-            <p className="text-sm text-black/55">The {recipient} must change this password on first login.</p>
+            <p className="text-sm text-black/60">The {recipient} must change this password on first login.</p>
           ) : null}
 
           {copyError ? (
@@ -141,7 +141,7 @@ function CredentialRow({
           : "rounded-lg border border-black/[0.08] bg-black/[0.02] px-4 py-3"
       }
     >
-      <p className="text-xs font-medium text-black/50">{label}</p>
+      <p className="text-xs font-medium text-black/60">{label}</p>
       <div className="mt-1 flex items-center justify-between gap-3">
         <code className="font-mono text-sm break-all text-navy select-all">{value}</code>
         <Button type="button" variant="outline" size="sm" onClick={onCopy}>

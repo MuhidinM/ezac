@@ -4,6 +4,7 @@ import { type FormEvent, useRef, useState } from "react";
 import { Archive, FileText, Pencil, Plus, Send } from "lucide-react";
 
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -94,7 +95,7 @@ function ImpactReportsAdmin() {
       <Panel flush>
         {error ? (
           <div className="px-5 pt-4">
-            <InlineAlert>{error.message}</InlineAlert>
+            <ErrorAlert error={error} onRetry={reload} />
           </div>
         ) : null}
         <Table>
@@ -124,13 +125,13 @@ function ImpactReportsAdmin() {
                         <FileText className="mt-0.5 size-4 shrink-0 text-black/40" />
                         <span className="min-w-0">
                           {report.fileUrl ? (
-                            <a href={mediaSrc(report.fileUrl) ?? report.fileUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-[#001539] hover:underline">
+                            <a href={mediaSrc(report.fileUrl) ?? report.fileUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-navy hover:underline">
                               {report.title}
                             </a>
                           ) : (
-                            <span className="font-medium text-[#001539]">{report.title}</span>
+                            <span className="font-medium text-navy">{report.title}</span>
                           )}
-                          <span className="block max-w-md truncate text-xs text-black/50">
+                          <span className="block max-w-md truncate text-xs text-black/60">
                             {[report.summary, formatBytes(report.sizeBytes)].filter(Boolean).join(" · ") || "—"}
                           </span>
                         </span>
@@ -280,7 +281,7 @@ function ReportDialog({
       <DialogContent className="max-w-lg">
         <form onSubmit={onSubmit} className="space-y-4">
           <DialogHeader>
-            <DialogTitle className="text-[#001539]">{report ? "Edit report" : "New impact report"}</DialogTitle>
+            <DialogTitle className="text-navy">{report ? "Edit report" : "New impact report"}</DialogTitle>
             <DialogDescription>
               {report
                 ? "Changes apply straight away, also to a published report."
@@ -303,14 +304,19 @@ function ReportDialog({
             required={!report}
             hint={report ? "Optional: pick a new PDF to replace the current one (up to 20 MB)" : "PDF only, up to 20 MB"}
           >
-            <input
-              ref={fileRef}
-              id="report-file"
-              type="file"
-              accept="application/pdf"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="block w-full text-sm text-black/60 file:mr-3 file:rounded-md file:border-0 file:bg-[#001539] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white"
-            />
+            {(control) => (
+              <input
+                id={control.id}
+                aria-describedby={control["aria-describedby"]}
+                aria-invalid={control["aria-invalid"]}
+                aria-required={control["aria-required"]}
+                ref={fileRef}
+                type="file"
+                accept="application/pdf"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                className="block w-full text-sm text-black/60 file:mr-3 file:rounded-md file:border-0 file:bg-navy file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white"
+              />
+            )}
           </FormField>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

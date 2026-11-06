@@ -35,24 +35,24 @@ export function QueueCard({
   return (
     <Link
       href={href}
-      className="group flex items-center gap-4 rounded-xl border border-black/[0.06] bg-white p-5 shadow-xs transition hover:border-[#007050]/30 hover:shadow-sm"
+      className="group flex items-center gap-4 rounded-xl border border-black/[0.06] bg-white p-5 shadow-xs transition hover:border-brand/30 hover:shadow-sm"
     >
-      <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-[#001539] text-white">
+      <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-navy text-white">
         <Icon className="size-5" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold text-[#001539]">{title}</span>
-        <span className="block text-sm text-black/55">{description}</span>
+        <span className="block text-sm font-semibold text-navy">{title}</span>
+        <span className="block text-sm text-black/60">{description}</span>
       </span>
       <span className="text-right">
         {total === undefined && !error ? (
           <span className="block h-7 w-10 animate-pulse rounded bg-black/[0.06]" />
         ) : (
-          <span className="block text-2xl font-semibold text-[#001539] tabular-nums">
+          <span className="block text-2xl font-semibold text-navy tabular-nums">
             {error ? "—" : (total ?? 0).toLocaleString()}
           </span>
         )}
-        <span className="inline-flex items-center gap-1 text-xs text-black/45 group-hover:text-[#007050]">
+        <span className="inline-flex items-center gap-1 text-xs text-black/60 group-hover:text-brand">
           Open <ArrowRight className="size-3" />
         </span>
       </span>

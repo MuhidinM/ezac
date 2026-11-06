@@ -82,6 +82,9 @@ module.exports = {
         ...passed,
         ...(gitSha ? { GIT_SHA: gitSha } : {}),
         NODE_ENV: "production",
+        // Server-rendered dates and log timestamps in Ethiopian time, whatever
+        // zone the host is set to (Ethiopia has no daylight saving).
+        TZ: "Africa/Addis_Ababa",
       },
       // next start finishes in-flight requests on SIGINT; give it time before pm2 kills it.
       kill_timeout: 15000,

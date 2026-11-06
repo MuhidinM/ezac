@@ -94,7 +94,7 @@ export function EditBranchDialog({
       <DialogContent className="max-w-xl">
         <form onSubmit={onSubmit} className="space-y-5">
           <DialogHeader>
-            <DialogTitle className="text-[#001539]">Edit branch</DialogTitle>
+            <DialogTitle className="text-navy">Edit branch</DialogTitle>
             <DialogDescription>
               The region ({branch.region ?? "—"}) and the officer&apos;s login phone ({branchContact(branch).phone ?? "—"}) can&apos;t be changed.
             </DialogDescription>

@@ -235,7 +235,7 @@ export function StepSubmit({
                 return (
                   <li key={step} className="flex flex-wrap items-start justify-between gap-3 py-3 first:pt-0 last:pb-0">
                     <div>
-                      <p className="text-sm font-medium text-[#001539]">{title}</p>
+                      <p className="text-sm font-medium text-navy">{title}</p>
                       <ul className="mt-1 space-y-0.5 text-sm text-black/60">
                         {issues.map((issue) => (
                           <li key={issue.field}>
@@ -340,10 +340,10 @@ export function StepSubmit({
       </FieldSection>
 
       <div className="flex flex-wrap items-center justify-end gap-3 rounded-xl border border-black/[0.06] bg-white px-5 py-4 shadow-xs">
-        <p className="mr-auto flex items-center gap-2 text-sm text-black/55">
+        <p className="mr-auto flex items-center gap-2 text-sm text-black/60">
           {canSubmit ? (
             <>
-              <CheckCircle2 className="size-4 text-[#007050]" />
+              <CheckCircle2 className="size-4 text-brand" />
               Ready to submit. The form becomes read-only afterwards.
             </>
           ) : (

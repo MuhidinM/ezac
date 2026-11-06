@@ -235,9 +235,9 @@ function DuplicateReviewView() {
       {review ? (
         <>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-black/55">Matched on</span>
+            <span className="text-sm text-black/60">Matched on</span>
             {reasons.length === 0 ? (
-              <span className="text-sm text-black/40">—</span>
+              <span className="text-sm text-black/60">—</span>
             ) : (
               reasons.map((reason) => (
                 <Badge key={reason} tone="warning">
@@ -261,18 +261,18 @@ function DuplicateReviewView() {
               <table className="w-full min-w-[640px] text-sm">
                 <thead>
                   <tr className="border-b border-black/[0.06] bg-black/[0.015] text-left">
-                    <th className="w-40 px-5 py-3 font-medium text-black/50">Field</th>
+                    <th className="w-40 px-5 py-3 font-medium text-black/60">Field</th>
                     <th className="px-4 py-3">
-                      <span className="block text-xs font-medium text-[#007050]">This registration</span>
-                      <span className="font-semibold text-[#001539]">{current?.fullName ?? "—"}</span>
+                      <span className="block text-xs font-medium text-brand">This registration</span>
+                      <span className="font-semibold text-navy">{current?.fullName ?? "—"}</span>
                     </th>
                     {candidates.map((candidate, index) => (
                       <th key={candidate.id} className="px-4 py-3">
-                        <span className="block text-xs font-medium text-black/45">Match {index + 1}</span>
+                        <span className="block text-xs font-medium text-black/60">Match {index + 1}</span>
                         <Link
                           href={`/dashboard/beneficiary/${candidate.id}`}
                           target="_blank"
-                          className="inline-flex items-center gap-1 font-semibold text-[#001539] hover:underline"
+                          className="inline-flex items-center gap-1 font-semibold text-navy hover:underline"
                         >
                           {candidate.fullName ?? "Unnamed"}
                           <ExternalLink className="size-3 text-black/35" />
@@ -284,14 +284,14 @@ function DuplicateReviewView() {
                 <tbody>
                   {ROWS.map((row) => (
                     <tr key={row.label} className="border-b border-black/[0.04] last:border-0">
-                      <td className="px-5 py-3 text-black/50">{row.label}</td>
-                      <td className={cn("px-4 py-3 text-[#001539]", row.mono && "font-mono")}>
+                      <td className="px-5 py-3 text-black/60">{row.label}</td>
+                      <td className={cn("px-4 py-3 text-navy", row.mono && "font-mono")}>
                         {(current && row.value(current)) || "—"}
                       </td>
                       {candidates.map((candidate) => {
                         if (row.notSent?.(candidate)) {
                           return (
-                            <td key={candidate.id} className="px-4 py-3 text-black/40">
+                            <td key={candidate.id} className="px-4 py-3 text-black/60">
                               Not shown here
                             </td>
                           );
@@ -307,7 +307,7 @@ function DuplicateReviewView() {
                           <td
                             key={candidate.id}
                             className={cn(
-                              "px-4 py-3 text-[#001539]",
+                              "px-4 py-3 text-navy",
                               row.mono && "font-mono",
                               matches && "bg-amber-50 font-medium text-amber-900",
                             )}

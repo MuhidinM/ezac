@@ -98,9 +98,9 @@ function BeneficiaryPicker({ value, onChange }: { value: Picked | null; onChange
       ) : query.length >= 2 ? (
         <ul aria-label="Search results" className="max-h-56 divide-y divide-black/[0.05] overflow-y-auto rounded-lg border border-black/[0.08]">
           {isLoading && !data ? (
-            <li className="px-3 py-2 text-sm text-black/45">Searching…</li>
+            <li className="px-3 py-2 text-sm text-black/60">Searching…</li>
           ) : (data?.items ?? []).length === 0 ? (
-            <li className="px-3 py-2 text-sm text-black/45">No households found.</li>
+            <li className="px-3 py-2 text-sm text-black/60">No households found.</li>
           ) : (
             data!.items.map((item) => {
               const blocker = whitelistBlocker(item);
@@ -116,10 +116,10 @@ function BeneficiaryPicker({ value, onChange }: { value: Picked | null; onChange
                   >
                     <span>
                       <span className="block font-medium text-navy">{name}</span>
-                      <span className="block text-xs text-black/50">{item.phone ?? "—"}</span>
+                      <span className="block text-xs text-black/60">{item.phone ?? "—"}</span>
                     </span>
                     {blocker || caution ? (
-                      <span className={blocker ? "text-right text-xs text-black/55" : "text-right text-xs text-amber-700"}>
+                      <span className={blocker ? "text-right text-xs text-black/60" : "text-right text-xs text-amber-700"}>
                         {blocker ?? caution}
                       </span>
                     ) : null}
@@ -241,7 +241,7 @@ export function WhitelistFormDialog({
       <DialogContent className="max-h-[90svh] max-w-lg overflow-y-auto">
         <form onSubmit={onSubmit} className="space-y-4">
           <DialogHeader>
-            <DialogTitle className="text-[#001539]">{isAdmin ? "Add to whitelist" : "Request whitelist"}</DialogTitle>
+            <DialogTitle className="text-navy">{isAdmin ? "Add to whitelist" : "Request whitelist"}</DialogTitle>
             <DialogDescription>
               {isAdmin
                 ? "Active straight away. It changes the pool order, never the score."
@@ -300,15 +300,21 @@ export function WhitelistFormDialog({
             hint="1–5 files: PDF, JPEG, PNG or WebP, up to 5 MB each"
             error={fieldErrors.files}
           >
-            <input
-              ref={fileRef}
-              id="wl-files"
-              type="file"
-              multiple
-              accept={ACCEPTED.join(",")}
-              onChange={(event) => setFiles(Array.from(event.target.files ?? []))}
-              className="block w-full text-sm text-black/60 file:mr-3 file:rounded-md file:border-0 file:bg-[#001539] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white"
-            />
+            {/* A raw file input isn't wired by FormField, so it takes the id, hint/error and invalid state here. */}
+            {(control) => (
+              <input
+                id={control.id}
+                aria-describedby={control["aria-describedby"]}
+                aria-invalid={control["aria-invalid"]}
+                aria-required={control["aria-required"]}
+                ref={fileRef}
+                type="file"
+                multiple
+                accept={ACCEPTED.join(",")}
+                onChange={(event) => setFiles(Array.from(event.target.files ?? []))}
+                className="block w-full text-sm text-black/60 file:mr-3 file:rounded-md file:border-0 file:bg-navy file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white"
+              />
+            )}
           </FormField>
 
           <DialogFooter>

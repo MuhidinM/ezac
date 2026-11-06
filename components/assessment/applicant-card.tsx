@@ -67,12 +67,12 @@ export function ApplicantCard({
     <section className="rounded-xl border border-black/[0.06] bg-white shadow-xs">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/[0.06] px-5 py-3">
         <div className="flex items-center gap-3">
-          <span className="flex size-7 items-center justify-center rounded-md bg-[#007050] text-xs font-semibold text-white">
+          <span className="flex size-7 items-center justify-center rounded-md bg-brand text-xs font-semibold text-white">
             B
           </span>
           <div>
-            <p className="text-sm font-semibold text-[#001539]">{a.fullName ?? "Applicant"}</p>
-            <p className="text-xs text-black/50">Basic details</p>
+            <p className="text-sm font-semibold text-navy">{a.fullName ?? "Applicant"}</p>
+            <p className="text-xs text-black/60">Basic details</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -93,8 +93,8 @@ export function ApplicantCard({
       <dl className="grid grid-cols-2 gap-x-6 gap-y-3 px-5 py-4 sm:grid-cols-3 lg:grid-cols-5">
         {items.map((item) => (
           <div key={item.label} className="min-w-0">
-            <dt className="text-[11px] font-medium text-black/45">{item.label}</dt>
-            <dd className="truncate text-sm text-[#001539]" title={item.value ? String(item.value) : undefined}>
+            <dt className="text-xs font-medium text-black/60">{item.label}</dt>
+            <dd className="truncate text-sm text-navy" title={item.value ? String(item.value) : undefined}>
               {item.value || "—"}
             </dd>
           </div>

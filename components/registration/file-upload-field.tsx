@@ -76,7 +76,7 @@ export function FileUploadField({
         {file ? (
           <span className="text-sm text-black/70">{file.name}</span>
         ) : (
-          <span className="text-sm text-black/45">No file selected</span>
+          <span className="text-sm text-black/60">No file selected</span>
         )}
       </div>
       {error ? <p className="text-xs text-red-600">{error}</p> : null}

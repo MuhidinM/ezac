@@ -200,7 +200,7 @@ export function NameCheckAcknowledgement({
         type="checkbox"
         checked={checked}
         onChange={(e) => onCheckedChange(e.target.checked)}
-        className="mt-0.5 size-4 accent-[#007050]"
+        className="mt-0.5 size-4 accent-brand"
       />
       {mismatch
         ? "I compared the names and this is the right account."
@@ -222,9 +222,9 @@ export function PayoutReview({ payout, registeredName }: { payout: Disbursement;
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-black/[0.08] bg-black/[0.015] p-4">
-        <p className="text-xs text-black/50">Amount</p>
+        <p className="text-xs text-black/60">Amount</p>
         <p className="mt-0.5 text-2xl font-semibold tracking-tight text-navy tabular-nums">{formatEtb(payout.amountEtb)}</p>
-        <p className="mt-1 text-xs text-black/50">
+        <p className="mt-1 text-xs text-black/60">
           {RAIL_LABEL[payout.rail] ?? payout.rail} from the {fundLabel(payout.fund)} fund
           {payout.debitAccountName ? `, ${payout.debitAccountName}` : ""}
           {payout.debitAccount ? ` (${payout.debitAccount})` : ""}
@@ -241,7 +241,7 @@ export function PayoutReview({ payout, registeredName }: { payout: Disbursement;
           ...(payout.rail === "IPS"
             ? [
                 {
-                  label: "Paid to (IPS bank code)",
+                  label: "Receiving bank code",
                   value: payout.destinationBankCode ? <span className="font-mono">{payout.destinationBankCode}</span> : "Not sent by the server",
                 },
               ]
@@ -250,7 +250,7 @@ export function PayoutReview({ payout, registeredName }: { payout: Disbursement;
       />
       <div className="flex items-start gap-2">
         <Badge tone={weak ? "warning" : check.tone}>{check.label}</Badge>
-        <span className="text-xs text-black/55">{weak ?? check.hint}</span>
+        <span className="text-xs text-black/60">{weak ?? check.hint}</span>
       </div>
     </div>
   );
@@ -631,7 +631,7 @@ function PayoutOutcome({ payout, test }: { payout: Disbursement; test: boolean }
   if (payout.status === "PROCESSING") {
     return (
       <InlineAlert tone="warning" title="Needs checking">
-        The bank gave no clear answer, so the money may or may not have moved. Ask Coop Bank quoting message id{" "}
+        The bank gave no clear answer, so the money may or may not have moved. Ask Coop Bank quoting bank request number{" "}
         <span className="font-mono">{payout.messageId ?? "—"}</span> and settle it on the Payouts page.
       </InlineAlert>
     );
@@ -642,7 +642,7 @@ function PayoutOutcome({ payout, test }: { payout: Disbursement; test: boolean }
       <span>
         <Badge tone={status.tone}>{status.label}</Badge>
         {payout.failureReason ? <span className="mt-1 block">{payout.failureReason}</span> : null}
-        {payout.status === "FAILED" ? <span className="mt-1 block text-xs text-black/50">The household stays pooled; you can prepare a new payout.</span> : null}
+        {payout.status === "FAILED" ? <span className="mt-1 block text-xs text-black/60">The household stays pooled; you can prepare a new payout.</span> : null}
       </span>
     </div>
   );

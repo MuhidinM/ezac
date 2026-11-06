@@ -29,15 +29,15 @@ export function HouseholdSummaryGrid({ summary }: { summary?: HouseholdSummary |
   );
 
   if (entries.length === 0) {
-    return <p className="text-sm text-black/45">Save this step to see the household summary.</p>;
+    return <p className="text-sm text-black/60">Save this step to see the household summary.</p>;
   }
 
   return (
     <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-black/[0.06] bg-black/[0.06] sm:grid-cols-4">
       {entries.map(([key, value]) => (
         <div key={key} className="bg-white px-4 py-3">
-          <dt className="text-xs text-black/50">{humanize(key)}</dt>
-          <dd className="mt-0.5 text-lg font-semibold text-[#001539] tabular-nums">
+          <dt className="text-xs text-black/60">{humanize(key)}</dt>
+          <dd className="mt-0.5 text-lg font-semibold text-navy tabular-nums">
             {Number.isInteger(value) ? value : (value as number).toFixed(2)}
           </dd>
         </div>

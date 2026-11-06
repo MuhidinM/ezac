@@ -132,7 +132,7 @@ export function ChangePasswordForm() {
           value={currentPassword}
           onChange={(event) => setCurrentPassword(event.target.value)}
           required
-          className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-[#001539] placeholder:text-black/35 outline-none transition focus:border-[#007050] focus:ring-2 focus:ring-[#007050]/20"
+          className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-navy placeholder:text-black/35 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
         />
       </label>
 
@@ -149,9 +149,9 @@ export function ChangePasswordForm() {
           minLength={10}
           required
           aria-describedby="new-password-hint"
-          className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-[#001539] placeholder:text-black/35 outline-none transition focus:border-[#007050] focus:ring-2 focus:ring-[#007050]/20"
+          className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-navy placeholder:text-black/35 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
         />
-        <span id="new-password-hint" className="mt-1.5 block text-xs text-black/55">
+        <span id="new-password-hint" className="mt-1.5 block text-xs text-black/60">
           {STAFF_PASSWORD_HINT}
         </span>
       </label>
@@ -168,18 +168,14 @@ export function ChangePasswordForm() {
           onChange={(event) => setConfirmNewPassword(event.target.value)}
           minLength={10}
           required
-          className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-[#001539] placeholder:text-black/35 outline-none transition focus:border-[#007050] focus:ring-2 focus:ring-[#007050]/20"
+          className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-navy placeholder:text-black/35 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
         />
       </label>
 
       <button
         type="submit"
         disabled={isSubmitting}
-        className="mt-3 w-full rounded-full px-6 py-3 text-sm font-medium transition-transform duration-300 hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
-        style={{
-          backgroundColor: "#007050",
-          color: "#FFFFFF",
-        }}
+        className="mt-3 w-full rounded-full px-6 py-3 text-sm font-medium transition-transform duration-300 hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60 bg-brand text-white"
       >
         {isSubmitting ? "Saving..." : "Change password"}
       </button>

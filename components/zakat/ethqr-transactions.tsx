@@ -197,7 +197,7 @@ export function EthqrTransactions({
               </TableBody>
             </Table>
           </div>
-          <div className="flex items-center justify-between border-t border-black/[0.06] px-5 py-3 text-sm text-black/55">
+          <div className="flex items-center justify-between border-t border-black/[0.06] px-5 py-3 text-sm text-black/60">
             <span>
               Page {page + 1}
               {totalPages != null ? ` of ${Math.max(totalPages, 1)}` : ""}

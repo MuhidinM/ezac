@@ -7,10 +7,10 @@ const DECISION_STYLES: Record<
   Exclude<EligibilityDecision, "">,
   string
 > = {
-  approve: "border-[#27ae60] bg-[#27ae60]/15 text-[#001539]",
-  conditional: "border-[#e18f35] bg-[#e18f35]/20 text-[#001539]",
-  defer: "border-blue-500 bg-blue-500/10 text-[#001539]",
-  reject: "border-[#c0392b] bg-[#c0392b]/10 text-[#001539]",
+  approve: "border-[#27ae60] bg-[#27ae60]/15 text-navy",
+  conditional: "border-accent-fill bg-accent-fill/20 text-navy",
+  defer: "border-blue-500 bg-blue-500/10 text-navy",
+  reject: "border-[#c0392b] bg-[#c0392b]/10 text-navy",
 };
 
 type DecisionBadgeProps = {
@@ -66,7 +66,7 @@ export function DecisionOverride({
 
   return (
     <div className="mt-4 space-y-3">
-      <label htmlFor="decisionOverride" className="block text-sm font-medium text-[#001539]">
+      <label htmlFor="decisionOverride" className="block text-sm font-medium text-navy">
         Override decision (optional)
       </label>
       <select
@@ -83,7 +83,7 @@ export function DecisionOverride({
       </select>
       {showReason ? (
         <div>
-          <label htmlFor="overrideReason" className="block text-sm font-medium text-[#001539]">
+          <label htmlFor="overrideReason" className="block text-sm font-medium text-navy">
             Reason for override *
           </label>
           <textarea

@@ -97,7 +97,7 @@ export function BulkImportUpload({
           <span className="text-sm text-black/70">{selectedFile.name}</span>
         ) : null}
       </div>
-      <p className="mt-2 text-xs text-black/50">
+      <p className="mt-2 text-xs text-black/60">
         Bulk import support coming soon. Select a file to prepare for import.
       </p>
       {error ? <p className="mt-2 text-xs text-red-600">{error}</p> : null}

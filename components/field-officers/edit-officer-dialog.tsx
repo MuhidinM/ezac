@@ -86,7 +86,7 @@ export function EditOfficerDialog({
       <DialogContent>
         <form onSubmit={onSubmit} className="space-y-4">
           <DialogHeader>
-            <DialogTitle className="text-[#001539]">Edit field officer</DialogTitle>
+            <DialogTitle className="text-navy">Edit field officer</DialogTitle>
             <DialogDescription>
               The phone number ({officer.phone ?? "—"}) is the login and can&apos;t be changed.
             </DialogDescription>

@@ -416,6 +416,8 @@ export type AssessmentListItem = {
   totalScore?: number | null;
   maxScore?: number | null;
   riskCategory?: RiskCategory | null;
+  /** The assessment's branch; bulk reassign groups by it. */
+  branchId?: string | null;
   branchName?: string | null;
   officerName?: string | null;
   submittedAt?: string | null;

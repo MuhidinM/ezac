@@ -297,7 +297,7 @@ export function BasicDetailsDialog({
       <DialogContent className="max-w-2xl">
         <form onSubmit={onSubmit} className="space-y-5">
           <DialogHeader>
-            <DialogTitle className="text-[#001539]">Edit basic details</DialogTitle>
+            <DialogTitle className="text-navy">Edit basic details</DialogTitle>
             <DialogDescription>
               Applicant information (section B). Region comes from the
               registration branch and can&apos;t be changed here.
@@ -396,8 +396,8 @@ export function BasicDetailsDialog({
           <fieldset className="space-y-4 rounded-lg bg-black/[0.02] p-4">
             <legend className="sr-only">Bank account</legend>
             <div>
-              <p className="text-sm font-semibold text-[#001539]">Bank account</p>
-              <p className="text-xs text-black/50">
+              <p className="text-sm font-semibold text-navy">Bank account</p>
+              <p className="text-xs text-black/60">
                 Payments go to this account. It is needed to submit the assessment.
               </p>
             </div>

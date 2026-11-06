@@ -21,7 +21,7 @@ export function SignOutLink({ className }: { className?: string }) {
       }}
       className={
         className ??
-        "font-medium text-[#007050] underline-offset-4 hover:underline focus-visible:underline focus-visible:outline-none disabled:opacity-60"
+        "font-medium text-brand underline-offset-4 hover:underline focus-visible:underline focus-visible:outline-none disabled:opacity-60"
       }
     >
       {isLeaving ? "Signing out..." : "Sign out"}

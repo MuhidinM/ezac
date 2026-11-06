@@ -36,14 +36,14 @@ export default function LoginPage() {
           <img src="/logo.svg" alt="EZAC" className="h-10 w-auto" />
           <span className="flex flex-col">
             <span
-              className="font-serif-display text-xl tracking-tight"
-              style={{ color: "#001539", lineHeight: 1.1 }}
+              className="font-serif-display text-xl tracking-tight text-navy"
+              style={{ lineHeight: 1.1 }}
             >
               EZAC
             </span>
             <span
-              className="text-[10px] uppercase tracking-[0.18em]"
-              style={{ color: "#6F6F6F", lineHeight: 1.4 }}
+              className="text-xs uppercase tracking-[0.18em] text-muted-ink"
+              style={{ lineHeight: 1.4 }}
             >
               Ethiopian Zakat &amp; Awqaf Commission
             </span>
@@ -53,17 +53,15 @@ export default function LoginPage() {
         <div className="mt-10 grid gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
           <div>
             <p
-              className="text-xs uppercase tracking-[0.16em]"
-              style={{ color: "#6F6F6F" }}
+              className="text-xs uppercase tracking-[0.16em] text-muted-ink"
             >
               Sign in
             </p>
             <h1
-              className="mt-4 max-w-xl font-serif-display text-5xl leading-[0.98] tracking-tight md:text-6xl"
-              style={{ color: "#001539" }}
+              className="mt-4 max-w-xl font-serif-display text-5xl leading-[0.98] tracking-tight md:text-6xl text-navy"
             >
               Welcome back to your{" "}
-              <span className="italic" style={{ color: "#e18f35" }}>
+              <span className="italic text-accent-ink">
                 account
               </span>
               .
@@ -75,7 +73,7 @@ export default function LoginPage() {
           </div>
 
           <div className="rounded-3xl border border-black/5 bg-white/80 p-6 shadow-xl shadow-black/5 backdrop-blur-xl sm:p-8">
-            <h2 className="text-2xl font-medium tracking-tight text-[#001539]">
+            <h2 className="text-2xl font-medium tracking-tight text-navy">
               Welcome back
             </h2>
             <p className="mt-1 text-sm text-black/60">

@@ -260,12 +260,12 @@ function FieldOfficerDetail() {
         {rowError ? <InlineAlert className="mb-4">{rowError}</InlineAlert> : null}
         {current ? (
           <div className="flex items-center gap-3">
-            <span className="flex size-10 items-center justify-center rounded-lg bg-[#007050]/10 text-[#007050]">
+            <span className="flex size-10 items-center justify-center rounded-lg bg-brand/10 text-brand">
               <Store className="size-5" />
             </span>
             <div>
-              <p className="font-medium text-[#001539]">{assignmentLabel(current)}</p>
-              <p className="text-xs text-black/50">Since {formatDateTime(current.createdAt ?? null)}</p>
+              <p className="font-medium text-navy">{assignmentLabel(current)}</p>
+              <p className="text-xs text-black/60">Since {formatDateTime(current.createdAt ?? null)}</p>
             </div>
           </div>
         ) : (
@@ -274,15 +274,15 @@ function FieldOfficerDetail() {
 
         {extra.length > 0 ? (
           <div className="mt-5 space-y-3 rounded-lg border border-amber-200 bg-amber-50/50 p-4">
-            <p className="text-sm text-[#001539]">
+            <p className="text-sm text-navy">
               This officer still has access set up before the one-branch rule. Remove it so they only work in{" "}
               {current ? assignmentLabel(current) : "one branch"}.
             </p>
             <ul className="space-y-2">
               {extra.map((assignment) => (
                 <li key={assignment.id} className="flex items-center justify-between gap-3 text-sm">
-                  <span className="inline-flex items-center gap-2 text-[#001539]">
-                    {assignment.branchId ? <Store className="size-4 text-[#007050]" /> : <MapPin className="size-4 text-[#001539]/70" />}
+                  <span className="inline-flex items-center gap-2 text-navy">
+                    {assignment.branchId ? <Store className="size-4 text-brand" /> : <MapPin className="size-4 text-navy/70" />}
                     {assignmentLabel(assignment)}
                   </span>
                   <Button
@@ -301,7 +301,7 @@ function FieldOfficerDetail() {
 
         {history.length > 0 ? (
           <div className="mt-5 border-t border-black/[0.06] pt-4">
-            <p className="mb-2 text-xs font-semibold tracking-wide text-black/45 uppercase">Earlier branches</p>
+            <p className="mb-2 text-xs font-semibold tracking-wide text-black/60 uppercase">Earlier branches</p>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -404,7 +404,7 @@ function MoveBranchDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-[#001539]">{current ? "Move to another branch" : "Assign a branch"}</DialogTitle>
+          <DialogTitle className="text-navy">{current ? "Move to another branch" : "Assign a branch"}</DialogTitle>
           <DialogDescription>
             {current
               ? `${officer.fullName} stops seeing ${assignmentLabel(current)} beneficiaries and starts on the new branch.${

@@ -65,7 +65,7 @@ export function ConfirmDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="text-[#001539]">{title}</DialogTitle>
+          <DialogTitle className="text-navy">{title}</DialogTitle>
           {description ? <DialogDescription>{description}</DialogDescription> : null}
         </DialogHeader>
         {children}

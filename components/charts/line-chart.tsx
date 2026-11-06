@@ -129,7 +129,7 @@ export function LineChart({
 
       <div ref={ref} className="relative">
         {empty ? (
-          <p className="flex h-[240px] items-center justify-center text-sm text-black/45">{emptyText}</p>
+          <p className="flex h-[240px] items-center justify-center text-sm text-black/60">{emptyText}</p>
         ) : (
           <>
             <div
@@ -160,15 +160,15 @@ export function LineChart({
               >
                 {ticks.map((tick) => (
                   <g key={tick}>
-                    <line x1={PAD.left} x2={width - PAD.right} y1={y(tick)} y2={y(tick)} stroke="#ececec" strokeWidth={1} />
-                    <text x={PAD.left - 8} y={y(tick)} dy="0.32em" textAnchor="end" className="fill-black/45 text-[11px] tabular-nums">
+                    <line x1={PAD.left} x2={width - PAD.right} y1={y(tick)} y2={y(tick)} stroke="var(--color-surface-muted)" strokeWidth={1} />
+                    <text x={PAD.left - 8} y={y(tick)} dy="0.32em" textAnchor="end" className="fill-black/60 text-[11px] tabular-nums">
                       {formatCount(tick)}
                     </text>
                   </g>
                 ))}
                 {labels.map((value, i) =>
                   i % every === 0 || i === n - 1 ? (
-                    <text key={value} x={x(i)} y={HEIGHT - 8} textAnchor="middle" className="fill-black/45 text-[11px]">
+                    <text key={value} x={x(i)} y={HEIGHT - 8} textAnchor="middle" className="fill-black/60 text-[11px]">
                       {formatLabel(value)}
                     </text>
                   ) : null,

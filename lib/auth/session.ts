@@ -330,3 +330,31 @@ export async function getSessionFromJwt(): Promise<SessionInfo | null> {
   if (!accessToken) return null;
   return sessionFromAccessToken(accessToken);
 }
+
+/**
+ * A first guess at the session for the dashboard layout to hand the browser,
+ * so the sidebar and role checks render without waiting for
+ * /bff/auth/session. Only when the token is valid and carries an EZAC role:
+ * a role-less token may still get roles from /me, and guessing "no access"
+ * would flash the wrong screen. The browser still asks the server and
+ * replaces this with its answer.
+ */
+export function sessionSeedFromAccessToken(accessToken: string | null | undefined): SessionInfo | null {
+  if (!accessToken) return null;
+  const session = sessionFromAccessToken(accessToken);
+  if (!session || session.roles.length === 0 || !hasPortalAccess(session)) return null;
+  const name = decodeJwtPayload(accessToken)?.name;
+  return typeof name === "string" && name.trim() ? { ...session, displayName: name.trim() } : session;
+}
+
+/**
+ * The seed for this request, read from the access cookie only. No refresh:
+ * a server component can't write the rotated cookies, and redeeming the
+ * refresh token here could invalidate the one the browser still holds. An
+ * expired token, or a pending password change, gives no seed.
+ */
+export async function getSessionSeed(): Promise<SessionInfo | null> {
+  const cookieStore = await cookies();
+  if (cookieStore.get(PASSWORD_CHANGE_COOKIE)?.value) return null;
+  return sessionSeedFromAccessToken(cookieStore.get(ACCESS_TOKEN_COOKIE)?.value);
+}

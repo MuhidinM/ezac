@@ -92,7 +92,7 @@ export function CreateOfficerDialog({ open, onOpenChange, onCreated }: Props) {
       <DialogContent className="max-w-xl">
         <form onSubmit={onSubmit} className="space-y-5">
           <DialogHeader>
-            <DialogTitle className="text-[#001539]">New field officer</DialogTitle>
+            <DialogTitle className="text-navy">New field officer</DialogTitle>
             <DialogDescription>
               Creates a login for an assessment officer. They sign in with their
               phone number and work in one branch: they only see beneficiaries

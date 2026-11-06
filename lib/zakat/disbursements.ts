@@ -274,8 +274,8 @@ export function payoutAuditNotes(
 }
 
 export const RAIL_LABEL: Record<Rail, string> = {
-  COOP: "Coop internal transfer",
-  IPS: "IPS interbank transfer",
+  COOP: "Coop Bank transfer",
+  IPS: "Transfer to another bank",
 };
 
 /** Plain-language messages for the payout error codes. */

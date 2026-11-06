@@ -139,7 +139,7 @@ function Disbursements() {
     <section className="space-y-6">
       <PageHeader
         title="Payouts"
-        description="Payments from the Zakat or Awqaf fund account to pooled households. Coop Bank accounts are paid by internal transfer, other banks by IPS. Start a payout from the disbursement pool."
+        description="Payments from the Zakat or Awqaf fund account to pooled households. Coop Bank accounts are paid by internal transfer, other banks by interbank transfer. Start a payout from the disbursement pool."
         actions={
           <>
             <RangeSelect value={range} onChange={(value) => setList({ range: value })} />
@@ -288,17 +288,17 @@ function Disbursements() {
                       <button type="button" className="text-left font-medium text-navy hover:underline" onClick={() => open(payout.disbursementId)}>
                         {payout.beneficiaryName ?? `Beneficiary #${payout.beneficiaryId}`}
                       </button>
-                      <span className="block text-xs text-black/50">
+                      <span className="block text-xs text-black/60">
                         {[payout.assessmentNumber ?? (payout.source === "WHITELIST" ? "Whitelist" : null), payout.branchName].filter(Boolean).join(" · ")}
                       </span>
                     </TableCell>
                     <TableCell>
                       <span className="block">{payout.bankName ?? "—"}</span>
-                      <span className="block font-mono text-xs text-black/50">{payout.creditAccount}</span>
+                      <span className="block font-mono text-xs text-black/60">{payout.creditAccount}</span>
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {formatEtb(payout.amountEtb)}
-                      {payout.fund ? <span className="block text-xs text-black/50">{fundLabel(payout.fund)} fund</span> : null}
+                      {payout.fund ? <span className="block text-xs text-black/60">{fundLabel(payout.fund)} fund</span> : null}
                     </TableCell>
                     <TableCell>
                       <span className="flex flex-wrap items-center gap-1.5">
@@ -438,7 +438,7 @@ function PayoutSheet({
           <ErrorAlert error={error} onRetry={reload} />
           {notice ? <InlineAlert tone="info">{notice}</InlineAlert> : null}
           {actionError ? <InlineAlert>{actionError}</InlineAlert> : null}
-          {!payout && !error ? <p className="text-sm text-black/45">Loading…</p> : null}
+          {!payout && !error ? <p className="text-sm text-black/60">Loading…</p> : null}
           {payout ? (
             <>
               {payout.status === "PROCESSING" ? (
@@ -512,7 +512,7 @@ function PayoutSheet({
               <PayoutReview payout={payout} registeredName={registeredName} />
 
               <div className="space-y-3 border-t border-black/[0.06] pt-4">
-                <p className="text-xs font-semibold tracking-wide text-black/45 uppercase">Who did what</p>
+                <p className="text-xs font-semibold tracking-wide text-black/60 uppercase">Who did what</p>
                 <DetailList
                   columns={2}
                   items={[
@@ -533,7 +533,7 @@ function PayoutSheet({
               </div>
 
               <div className="space-y-3 border-t border-black/[0.06] pt-4">
-                <p className="text-xs font-semibold tracking-wide text-black/45 uppercase">Household</p>
+                <p className="text-xs font-semibold tracking-wide text-black/60 uppercase">Household</p>
                 <DetailList
                   columns={2}
                   items={[
@@ -562,20 +562,20 @@ function PayoutSheet({
               </div>
 
               <div className="space-y-3 border-t border-black/[0.06] pt-4">
-                <p className="text-xs font-semibold tracking-wide text-black/45 uppercase">Bank and timeline</p>
+                <p className="text-xs font-semibold tracking-wide text-black/60 uppercase">Bank and timeline</p>
                 <DetailList
                   columns={2}
                   items={[
                     { label: "Fund", value: payout.fund ? `${fundLabel(payout.fund)} fund` : null },
-                    { label: "Rail", value: RAIL_LABEL[payout.rail] ?? payout.rail },
+                    { label: "Payment method", value: RAIL_LABEL[payout.rail] ?? payout.rail },
                     { label: "Name check", value: nameCheckOf(payout).label },
-                    { label: "Message id", value: payout.messageId ? <span className="font-mono">{payout.messageId}</span> : null },
+                    { label: "Bank request number", value: payout.messageId ? <span className="font-mono">{payout.messageId}</span> : null },
                     { label: "Bank reference (FT)", value: payout.providerReference ? <span className="font-mono">{payout.providerReference}</span> : null },
                     ...(payout.rail === "IPS"
                       ? [
-                          { label: "IPS bank code", value: payout.destinationBankCode ? <span className="font-mono">{payout.destinationBankCode}</span> : null },
-                          { label: "IPS transaction id", value: payout.providerTransactionId ? <span className="font-mono text-xs break-all">{payout.providerTransactionId}</span> : null },
-                          { label: "IPS message id", value: payout.providerMessageId ? <span className="font-mono text-xs break-all">{payout.providerMessageId}</span> : null },
+                          { label: "Receiving bank code", value: payout.destinationBankCode ? <span className="font-mono">{payout.destinationBankCode}</span> : null },
+                          { label: "Interbank transaction number", value: payout.providerTransactionId ? <span className="font-mono text-xs break-all">{payout.providerTransactionId}</span> : null },
+                          { label: "Interbank request number", value: payout.providerMessageId ? <span className="font-mono text-xs break-all">{payout.providerMessageId}</span> : null },
                           { label: "Credited account", value: payout.creditedAccount ? <span className="font-mono">{payout.creditedAccount}</span> : null },
                           { label: "Settled at the bank", value: formatDateTime(payout.bankSettledAt ?? null) },
                         ]
@@ -649,8 +649,8 @@ function SettleForm({ payout, onSettled }: { payout: Disbursement; onSettled: (p
       <form onSubmit={onSubmit} className="space-y-4 rounded-xl border border-amber-200 bg-amber-50/50 p-4">
         <div>
           <p className="text-sm font-semibold text-navy">Settle this payout</p>
-          <p className="mt-0.5 text-xs text-black/55">
-            Ask Coop Bank quoting message id <span className="font-mono">{payout.messageId ?? "—"}</span>, then record their answer. The
+          <p className="mt-0.5 text-xs text-black/60">
+            Ask Coop Bank quoting bank request number <span className="font-mono">{payout.messageId ?? "—"}</span>, then record their answer. The
             bank calls below show what the bank answered.
           </p>
         </div>
@@ -711,7 +711,7 @@ function BankCalls({ payoutId, defaultOpen }: { payoutId: string; defaultOpen: b
   return (
     <div className="space-y-3 border-t border-black/[0.06] pt-4">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold tracking-wide text-black/45 uppercase">Bank calls</p>
+        <p className="text-xs font-semibold tracking-wide text-black/60 uppercase">Bank calls</p>
         <Button variant="ghost" size="sm" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
           {open ? "Hide" : "Show"}
         </Button>
@@ -719,26 +719,26 @@ function BankCalls({ payoutId, defaultOpen }: { payoutId: string; defaultOpen: b
       {open ? (
         <>
           <ErrorAlert error={error} onRetry={reload} />
-          {isLoading && !data ? <p className="text-sm text-black/45">Loading…</p> : null}
-          {data && calls.length === 0 ? <p className="text-sm text-black/45">No calls to the bank yet.</p> : null}
+          {isLoading && !data ? <p className="text-sm text-black/60">Loading…</p> : null}
+          {data && calls.length === 0 ? <p className="text-sm text-black/60">No calls to the bank yet.</p> : null}
           <ol className="space-y-2">
             {calls.map((call) => (
               <li key={call.callId} className="rounded-lg border border-black/[0.08] p-3 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium text-navy">{BANK_CALL_OPERATION[call.operation] ?? call.operation}</span>
                   <Badge tone={BANK_CALL_OUTCOME[call.outcome] ?? "neutral"}>{call.outcome}</Badge>
-                  {call.httpStatus != null ? <span className="font-mono text-xs text-black/50">HTTP {call.httpStatus}</span> : null}
-                  {call.durationMs != null ? <span className="text-xs text-black/50">{formatCount(call.durationMs)} ms</span> : null}
-                  <span className="ml-auto text-xs text-black/50">{formatDateTime(call.at)}</span>
+                  {call.httpStatus != null ? <span className="font-mono text-xs text-black/60">HTTP {call.httpStatus}</span> : null}
+                  {call.durationMs != null ? <span className="text-xs text-black/60">{formatCount(call.durationMs)} ms</span> : null}
+                  <span className="ml-auto text-xs text-black/60">{formatDateTime(call.at)}</span>
                 </div>
                 {call.messageId ? (
-                  <p className="mt-1 text-xs text-black/55">
-                    Message id <span className="font-mono">{call.messageId}</span>
+                  <p className="mt-1 text-xs text-black/60">
+                    Bank request number <span className="font-mono">{call.messageId}</span>
                   </p>
                 ) : null}
                 {call.correlationId ? (
-                  <p className="mt-0.5 text-xs text-black/55">
-                    Correlation id <span className="font-mono">{call.correlationId}</span>
+                  <p className="mt-0.5 text-xs text-black/60">
+                    Tracking number <span className="font-mono">{call.correlationId}</span>
                   </p>
                 ) : null}
                 {call.error ? <p className="mt-1 text-xs text-rose-700">{call.error}</p> : null}
@@ -757,11 +757,11 @@ function CallFields({ label, fields }: { label: string; fields?: PayloadField[] 
   if (!fields?.length) return null;
   return (
     <div className="mt-2">
-      <p className="text-xs font-medium text-black/55">{label}</p>
+      <p className="text-xs font-medium text-black/60">{label}</p>
       <dl className="mt-1 grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-xs">
         {fields.map((field, index) => (
           <div key={`${field.label}-${index}`} className="contents">
-            <dt className="text-black/50">{field.label}</dt>
+            <dt className="text-black/60">{field.label}</dt>
             <dd className="font-mono break-all text-navy">{field.value}</dd>
           </div>
         ))}
@@ -794,7 +794,7 @@ function FundAccountsPanel() {
           {notice}
         </InlineAlert>
       ) : null}
-      {!data && !error ? <p className="text-sm text-black/45">Loading…</p> : null}
+      {!data && !error ? <p className="text-sm text-black/60">Loading…</p> : null}
       {data ? (
         <div className="grid gap-4 sm:grid-cols-2">
           {accounts.map((account) => (
@@ -804,7 +804,7 @@ function FundAccountsPanel() {
                 <Badge tone={account.ready ? "success" : "warning"}>{account.ready ? "Ready" : "Not set"}</Badge>
               </div>
               <p className="mt-2 font-mono text-sm text-navy">{account.accountNumber ?? "—"}</p>
-              <p className="mt-0.5 text-xs text-black/55">
+              <p className="mt-0.5 text-xs text-black/60">
                 {account.accountName || account.bankHolderName || "No name"}
                 {account.bankHolderName && account.accountName && account.bankHolderName !== account.accountName
                   ? ` (bank: ${account.bankHolderName})`
@@ -815,7 +815,7 @@ function FundAccountsPanel() {
         </div>
       ) : null}
       {data?.updatedAt ? (
-        <p className="mt-3 flex flex-wrap items-center gap-1 text-xs text-black/45">
+        <p className="mt-3 flex flex-wrap items-center gap-1 text-xs text-black/60">
           Last changed {formatDateTime(data.updatedAt)}
           {data.updatedBy || data.updatedByName ? <>by {staffRef(data.updatedBy, data.updatedByName)}</> : null}
         </p>

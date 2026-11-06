@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 export function TableMessageRow({ colSpan, children }: { colSpan: number; children: ReactNode }) {
   return (
     <TableRow className="hover:bg-transparent">
-      <TableCell colSpan={colSpan} className="py-12 text-center text-sm text-black/50">
+      <TableCell colSpan={colSpan} className="py-12 text-center text-sm text-black/60">
         {children}
       </TableCell>
     </TableRow>

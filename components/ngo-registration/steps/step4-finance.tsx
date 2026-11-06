@@ -17,6 +17,8 @@ import {
 } from "../initial-state";
 import { getGapColor } from "../scoring";
 import type { NgoStepProps } from "../types";
+import { typeScale } from "@/components/backoffice/type-scale";
+import { cn } from "@/lib/utils";
 
 const inputClass =
   "form-input";
@@ -87,7 +89,7 @@ export function Step4Finance({ state, setState, errors }: NgoStepProps) {
     >
       <div className="space-y-8">
         <section>
-          <h3 className="mb-4 text-sm font-semibold text-[#001539]">Annual Budget (current year)</h3>
+          <h3 className={cn("mb-4", typeScale.panelTitle)}>Annual Budget (current year)</h3>
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Total annual budget" htmlFor="totalBudget" required error={errors.totalBudget}>
               <CurrencyInput id="totalBudget" formatOnBlur value={s.totalBudget} onChange={(v) => update("totalBudget", v)} />
@@ -117,7 +119,7 @@ export function Step4Finance({ state, setState, errors }: NgoStepProps) {
             <div className="mt-4 space-y-4">
               {s.fundingSources.map((src) => (
                 <div key={src.id} className="rounded-xl border border-black/10 bg-black/[0.02] p-4">
-                  <p className="mb-3 font-medium text-[#001539]">
+                  <p className="mb-3 font-medium text-navy">
                     {FUNDING_SOURCE_LABELS[src.sourceKey as keyof typeof FUNDING_SOURCE_LABELS] ?? src.sourceKey}
                   </p>
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -159,7 +161,7 @@ export function Step4Finance({ state, setState, errors }: NgoStepProps) {
         </section>
 
         <section>
-          <h3 className="mb-4 text-sm font-semibold text-[#001539]">Requested Aid</h3>
+          <h3 className={cn("mb-4", typeScale.panelTitle)}>Requested Aid</h3>
           <div className="space-y-4">
             <FormField label="Total amount of aid requested" htmlFor="requestedAmount" required error={errors.requestedAmount}>
               <CurrencyInput id="requestedAmount" formatOnBlur value={s.requestedAmount} onChange={(v) => update("requestedAmount", v)} />
@@ -178,7 +180,7 @@ export function Step4Finance({ state, setState, errors }: NgoStepProps) {
         </section>
 
         <section>
-          <h3 className="mb-4 text-sm font-semibold text-[#001539]">Bank Account Details</h3>
+          <h3 className={cn("mb-4", typeScale.panelTitle)}>Bank Account Details</h3>
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Bank Name" htmlFor="bankName" required error={errors.bankName}><input id="bankName" type="text" value={s.bankName} onChange={(e) => update("bankName", e.target.value)} className={inputClass} /></FormField>
             <FormField label="Account Name" htmlFor="accountName" required error={errors.accountName}><input id="accountName" type="text" value={s.accountName} onChange={(e) => update("accountName", e.target.value)} className={inputClass} /></FormField>

@@ -31,7 +31,7 @@ export function DynamicList<T>({
       <div className="hidden overflow-x-auto md:block">
         <table className="w-full text-left text-sm">
           <thead>
-            <tr className="border-b border-black/10 text-black/55">
+            <tr className="border-b border-black/10 text-black/60">
               {tableHeaders}
               <th className="pb-2" />
             </tr>
@@ -75,7 +75,7 @@ export function DynamicList<T>({
         <button
           type="button"
           onClick={onAdd}
-          className="flex min-h-10 items-center gap-2 rounded-xl border-2 border-dashed border-black/30 px-4 py-2 text-sm font-medium text-[#001539] transition hover:border-black/50 hover:bg-[#007050]/5"
+          className="flex min-h-10 items-center gap-2 rounded-xl border-2 border-dashed border-black/30 px-4 py-2 text-sm font-medium text-navy transition hover:border-black/50 hover:bg-brand/5"
         >
           <Plus className="h-5 w-5" /> {addLabel}
         </button>
@@ -105,7 +105,7 @@ function DynamicListCard({
         aria-expanded={expanded}
         className="flex w-full items-center justify-between px-4 py-3 text-left"
       >
-        <span className="font-medium text-[#001539]">Item {index + 1}</span>
+        <span className="font-medium text-navy">Item {index + 1}</span>
         <ChevronDown
           className={`h-5 w-5 text-black/55 transition ${expanded ? "rotate-180" : ""}`}
         />

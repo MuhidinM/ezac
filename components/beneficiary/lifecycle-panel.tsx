@@ -77,15 +77,15 @@ export function LifecyclePanel({
       }
     >
       {error ? (
-        <p className="text-sm text-black/45">{error.status === 403 ? "History is visible to HQ staff only." : error.message}</p>
+        <p className="text-sm text-black/60">{error.status === 403 ? "History is visible to HQ staff only." : error.message}</p>
       ) : (
         <div className="space-y-4">
           <LifecycleBadge status={data?.lifecycleStatus} />
           {canChange && isPooled ? (
-            <p className="text-sm text-black/55">Remove the household from the pool before changing its status.</p>
+            <p className="text-sm text-black/60">Remove the household from the pool before changing its status.</p>
           ) : null}
           {history.length === 0 ? (
-            <p className="flex items-center gap-1.5 text-sm text-black/45">
+            <p className="flex items-center gap-1.5 text-sm text-black/60">
               <History className="size-3.5" />
               No manual changes yet.
             </p>
@@ -93,12 +93,12 @@ export function LifecyclePanel({
             <ol className="space-y-3">
               {history.map((entry, index) => (
                 <li key={`${entry.changedAt}-${index}`} className="border-l-2 border-black/10 pl-3">
-                  <p className="flex flex-wrap items-center gap-1.5 text-sm text-[#001539]">
+                  <p className="flex flex-wrap items-center gap-1.5 text-sm text-navy">
                     <LifecycleBadge status={entry.fromStatus as LifecycleStatus | null} />
                     <ArrowRight className="size-3 text-black/35" />
                     <LifecycleBadge status={entry.toStatus as LifecycleStatus} />
                   </p>
-                  <p className="mt-1 text-xs text-black/50">
+                  <p className="mt-1 text-xs text-black/60">
                     {[entry.changedByName, formatDateTime(entry.changedAt)].filter(Boolean).join(" · ")}
                   </p>
                   {entry.reason ? <p className="mt-0.5 text-sm text-black/65">{entry.reason}</p> : null}

@@ -51,7 +51,7 @@ export function PasswordForm({
       </div>
 
       {showHints ? (
-        <ul className="space-y-1 text-xs text-black/55">
+        <ul className="space-y-1 text-xs text-black/60">
           {validation.errors.map((error) => (
             <li key={error} className="text-red-600">
               {error}
@@ -62,7 +62,7 @@ export function PasswordForm({
           ) : null}
         </ul>
       ) : (
-        <p className="text-xs text-black/55">
+        <p className="text-xs text-black/60">
           Minimum 10 characters with uppercase, lowercase, digit, and special
           character.
         </p>

@@ -8,9 +8,31 @@ import { ScoringDesigner } from "@/components/scoring/scoring-designer";
 import { Panel } from "@/components/dashboard/panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SegmentedControl, type ChoiceOption } from "@/components/ui/segmented-control";
 import { copyToClipboard } from "@/lib/clipboard";
 import type { ScoringConfigVersion, ScoringSchema } from "@/lib/backoffice/scoring-config";
 import { cn } from "@/lib/utils";
+
+const MODE_OPTIONS: readonly ChoiceOption<"tree" | "json">[] = [
+  {
+    value: "tree",
+    label: (
+      <span className="inline-flex items-center gap-1.5">
+        <ListTree className="size-3.5" aria-hidden />
+        Readable
+      </span>
+    ),
+  },
+  {
+    value: "json",
+    label: (
+      <span className="inline-flex items-center gap-1.5">
+        <Braces className="size-3.5" aria-hidden />
+        Technical
+      </span>
+    ),
+  },
+];
 
 type ScoringConfig = Pick<ScoringConfigVersion, "version" | "name" | "config">;
 
@@ -44,10 +66,13 @@ export function ConfigViewer({
       actions={
         <>
           {actions}
-          <div className="inline-flex rounded-lg border border-black/10 bg-white p-0.5">
-            <ModeButton active={mode === "tree"} onClick={() => setMode("tree")} icon={ListTree} label="Readable" />
-            <ModeButton active={mode === "json"} onClick={() => setMode("json")} icon={Braces} label="Technical" />
-          </div>
+          <SegmentedControl
+            size="sm"
+            aria-label="View"
+            value={mode}
+            onValueChange={setMode}
+            options={MODE_OPTIONS}
+          />
           <Button
             variant="outline"
             size="sm"
@@ -62,7 +87,7 @@ export function ConfigViewer({
       }
     >
       {mode === "json" ? (
-        <pre className="max-h-[32rem] overflow-auto rounded-lg bg-[#001539] p-4 font-mono text-xs leading-relaxed text-white/90">
+        <pre className="max-h-[32rem] overflow-auto rounded-lg bg-navy p-4 font-mono text-xs leading-relaxed text-white/90">
           {json}
         </pre>
       ) : schema ? (
@@ -74,38 +99,11 @@ export function ConfigViewer({
   );
 }
 
-function ModeButton({
-  active,
-  onClick,
-  icon: Icon,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: typeof ListTree;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition",
-        active ? "bg-[#001539] text-white" : "text-black/60 hover:text-[#001539]",
-      )}
-    >
-      <Icon className="size-3.5" />
-      {label}
-    </button>
-  );
-}
-
 function Primitive({ value }: { value: unknown }) {
-  if (value === null || value === undefined) return <span className="text-black/40">—</span>;
+  if (value === null || value === undefined) return <span className="text-black/60">—</span>;
   if (typeof value === "boolean") return <span>{value ? "Yes" : "No"}</span>;
-  if (typeof value === "number") return <span className="font-medium text-[#001539] tabular-nums">{value}</span>;
-  return <span className="text-[#001539]">{String(value)}</span>;
+  if (typeof value === "number") return <span className="font-medium text-navy tabular-nums">{value}</span>;
+  return <span className="text-navy">{String(value)}</span>;
 }
 
 /** Nested config rendered as labelled groups; arrays of primitives inline. */
@@ -141,7 +139,7 @@ function ConfigTree({ value, depth = 0 }: { value: unknown; depth?: number }) {
           const nested = child !== null && typeof child === "object";
           return (
             <div key={key} className={cn("py-2", nested ? "space-y-1.5" : "flex items-baseline justify-between gap-4")}>
-              <dt className={cn("text-sm", nested ? "font-semibold text-[#001539]" : "text-black/60")}>
+              <dt className={cn("text-sm", nested ? "font-semibold text-navy" : "text-black/60")}>
                 {humanize(key)}
               </dt>
               <dd className={cn("text-sm", nested ? undefined : "text-right")}>

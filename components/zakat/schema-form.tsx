@@ -52,6 +52,7 @@ function ScalarInput({
   disabled,
   id,
   compact,
+  ariaLabel,
 }: {
   field: SchemaField;
   value: unknown;
@@ -59,10 +60,12 @@ function ScalarInput({
   disabled?: boolean;
   id: string;
   compact?: boolean;
+  /** A table cell has no <label>; it is named after its column (and row). */
+  ariaLabel?: string;
 }) {
   if (field.type === "enum") {
     return (
-      <NativeSelect id={id} value={typeof value === "string" ? value : ""} onChange={(e) => onChange(e.target.value || null)} disabled={disabled}>
+      <NativeSelect id={id} aria-label={ariaLabel} value={typeof value === "string" ? value : ""} onChange={(e) => onChange(e.target.value || null)} disabled={disabled}>
         {!field.required || field.nullable ? <option value="">—</option> : null}
         {(field.options ?? []).map((option) => (
           <option key={option} value={option}>
@@ -74,12 +77,13 @@ function ScalarInput({
   }
   if (field.type === "text") {
     return (
-      <Input id={id} value={typeof value === "string" ? value : ""} onChange={(e) => onChange(e.target.value)} disabled={disabled} className={cn(compact && "h-8")} />
+      <Input id={id} aria-label={ariaLabel} value={typeof value === "string" ? value : ""} onChange={(e) => onChange(e.target.value)} disabled={disabled} className={cn(compact && "h-8")} />
     );
   }
   return (
     <Input
       id={id}
+      aria-label={ariaLabel}
       type="number"
       step={field.type === "integer" ? 1 : "any"}
       min={field.min ?? undefined}
@@ -122,7 +126,7 @@ function TableInput({
     <div className={cn(!nested && "overflow-x-auto rounded-lg border border-black/[0.08]")}>
       <table className={cn("w-full text-sm", !nested && "min-w-[720px]")}>
         <thead>
-          <tr className={cn("text-left text-xs text-black/50", !nested && "bg-black/[0.015]")}>
+          <tr className={cn("text-left text-xs text-black/60", !nested && "bg-black/[0.015]")}>
             {columns.map((column) => (
               <th key={column.path} className={cn("px-2 py-2 font-medium", !nested && "first:pl-3")} title={column.help ?? undefined}>
                 {column.label}
@@ -155,6 +159,7 @@ function TableInput({
                         onChange={(value) => setCell(index, column, value)}
                         disabled={disabled}
                         id={cellId}
+                        ariaLabel={`${column.label}, row ${index + 1}`}
                         compact
                       />
                     )}
@@ -170,7 +175,7 @@ function TableInput({
                     aria-label={`Remove row ${index + 1}`}
                     onClick={() => onChange(rows.filter((_, i) => i !== index))}
                   >
-                    <Trash2 className="text-black/40" />
+                    <Trash2 className="text-black/60" />
                   </Button>
                 </td>
               ) : null}
@@ -217,7 +222,7 @@ export function SchemaForm({
     <div className="space-y-6">
       {[...sections.entries()].map(([section, sectionFields]) => (
         <fieldset key={section} className="space-y-4">
-          <legend className="mb-2 text-sm font-semibold text-[#001539]">{section}</legend>
+          <legend className="mb-2 text-sm font-semibold text-navy">{section}</legend>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {sectionFields.map((field) => {
               const id = `schema-${field.path}`;
@@ -226,11 +231,11 @@ export function SchemaForm({
               if (field.type === "table") {
                 return (
                   <div key={field.path} className="space-y-1.5 sm:col-span-2 lg:col-span-3">
-                    <p className="text-[13px] font-medium text-[#001539]">{field.label}</p>
+                    <p className="text-[13px] font-medium text-navy">{field.label}</p>
                     {errors?.[field.path] ? (
                       <p className="text-xs text-rose-700">{errors[field.path]}</p>
                     ) : hint ? (
-                      <p className="text-xs text-black/50">{hint}</p>
+                      <p className="text-xs text-black/60">{hint}</p>
                     ) : null}
                     <TableInput
                       field={field}

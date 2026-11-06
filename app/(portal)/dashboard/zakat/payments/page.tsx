@@ -181,9 +181,9 @@ function PaymentsAdmin() {
               <option value="coopbank">Coop account</option>
             </NativeSelect>
           </div>
-          {method ? <span className="text-xs text-black/45">Method filter applies to this page</span> : null}
+          {method ? <span className="text-xs text-black/60">Method filter applies to this page</span> : null}
           {status === "AWAITING_CONFIRMATION" || status === "OTP_SENT" || status === "EXPIRED" ? (
-            <span className="text-xs text-black/45">
+            <span className="text-xs text-black/60">
               {status === "EXPIRED"
                 ? "Old Coop account payments left open over 15 minutes show as Expired, but are counted under Started or Waiting for code until the server closes them."
                 : "Rows marked Expired were left open over 15 minutes and can no longer finish. The server still counts them here."}
@@ -229,7 +229,7 @@ function PaymentsAdmin() {
                       <button type="button" className="text-left font-medium text-navy hover:underline" onClick={() => setOpenId(payment.paymentId)}>
                         {payment.payerFullName ?? payment.paidByName ?? payment.accountHolderName ?? "Unknown payer"}
                       </button>
-                      <span className="block text-xs text-black/50">
+                      <span className="block text-xs text-black/60">
                         {[isQr(payment) ? "QR" : "Coop account", payment.payerPhone, payment.payerType === "guest" ? "Guest" : payment.payerType ? "App user" : null]
                           .filter(Boolean)
                           .join(" · ")}
@@ -237,7 +237,7 @@ function PaymentsAdmin() {
                     </TableCell>
                     <TableCell>
                       <span className="block max-w-56 truncate">{payment.causeTitle ?? "—"}</span>
-                      {payment.zakatType ? <span className="block text-xs capitalize text-black/50">{payment.zakatType.replace(/_/g, " ")}</span> : null}
+                      {payment.zakatType ? <span className="block text-xs capitalize text-black/60">{payment.zakatType.replace(/_/g, " ")}</span> : null}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {formatEtb(payment.amountEtb)}
@@ -296,7 +296,7 @@ function CopyValue({ value }: { value: string | undefined | null }) {
       <button
         type="button"
         aria-label="Copy"
-        className="text-black/35 hover:text-navy"
+        className="text-black/60 hover:text-navy"
         onClick={() => void navigator.clipboard?.writeText(value)}
       >
         <Copy className="size-3.5" />
@@ -368,7 +368,7 @@ function PaymentSheet({
         </SheetHeader>
         <div className="space-y-6 px-4 pb-6">
           <ErrorAlert error={error} onRetry={reload} />
-          {!payment && !error ? <p className="text-sm text-black/45">Loading…</p> : null}
+          {!payment && !error ? <p className="text-sm text-black/60">Loading…</p> : null}
           {payment ? (
             <>
               {payment.sandbox ? (
@@ -437,7 +437,7 @@ function PaymentSheet({
                 ]}
               />
               <div className="space-y-3 border-t border-black/[0.06] pt-4">
-                <p className="text-xs font-semibold tracking-wide text-black/45 uppercase">Bank</p>
+                <p className="text-xs font-semibold tracking-wide text-black/60 uppercase">Bank</p>
                 <DetailList
                   columns={2}
                   items={[
@@ -449,7 +449,7 @@ function PaymentSheet({
                           { label: "QR order id", value: payment.ethqrOrderId ? <CopyValue value={payment.ethqrOrderId} /> : "None (old QR payment)" },
                         ]
                       : []),
-                    { label: "Message id", value: payment.messageId ? <CopyValue value={payment.messageId} /> : null },
+                    { label: "Bank request number", value: payment.messageId ? <CopyValue value={payment.messageId} /> : null },
                     { label: "Bank reference", value: payment.providerReference ? <CopyValue value={payment.providerReference} /> : null },
                     { label: "Debit account", value: payment.debitAccount ? <CopyValue value={payment.debitAccount} /> : null },
                     { label: "Account holder", value: payment.accountHolderName },
@@ -459,7 +459,7 @@ function PaymentSheet({
                 />
               </div>
               <div className="space-y-3 border-t border-black/[0.06] pt-4">
-                <p className="text-xs font-semibold tracking-wide text-black/45 uppercase">Timeline</p>
+                <p className="text-xs font-semibold tracking-wide text-black/60 uppercase">Timeline</p>
                 <DetailList
                   columns={2}
                   items={[
@@ -476,7 +476,7 @@ function PaymentSheet({
               </div>
               {payment.bankAnswer?.length ? (
                 <div className="space-y-3 border-t border-black/[0.06] pt-4">
-                  <p className="text-xs font-semibold tracking-wide text-black/45 uppercase">What the bank answered</p>
+                  <p className="text-xs font-semibold tracking-wide text-black/60 uppercase">What the bank answered</p>
                   <DetailList columns={2} items={payment.bankAnswer.map((field) => ({ label: field.label, value: field.value }))} />
                 </div>
               ) : null}
@@ -573,7 +573,7 @@ function ResolveForm({
     <form onSubmit={onSubmit} className="space-y-4 rounded-xl border border-amber-200 bg-amber-50/50 p-4">
       <div>
         <p className="text-sm font-semibold text-navy">{qr ? "Confirm this QR payment" : "Settle this payment"}</p>
-        <p className="mt-0.5 text-xs text-black/55">
+        <p className="mt-0.5 text-xs text-black/60">
           {qr ? (
             <>
               Only if automatic confirmation failed: find the bank&apos;s transaction of {formatEtb(payment.amountEtb)} around{" "}
@@ -581,7 +581,7 @@ function ResolveForm({
             </>
           ) : (
             <>
-              Ask Coop Bank quoting message id <span className="font-mono">{payment.messageId ?? "—"}</span>, then record their answer.
+              Ask Coop Bank quoting bank request number <span className="font-mono">{payment.messageId ?? "—"}</span>, then record their answer.
             </>
           )}
         </p>

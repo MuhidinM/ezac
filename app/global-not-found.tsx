@@ -24,19 +24,19 @@ export default function GlobalNotFound() {
         <main id="main" className="flex max-w-md flex-col items-center gap-4">
           {/* eslint-disable-next-line @next/next/no-img-element -- brand mark served as a static asset */}
           <img src="/logo.svg" alt="EZAC" width={48} height={48} className="h-12 w-12" />
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#007050]">Page not found</p>
-          <h1 className="font-serif-display text-4xl text-[#001539]">We couldn&apos;t find that page</h1>
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-brand">Page not found</p>
+          <h1 className="font-serif-display text-4xl text-navy">We couldn&apos;t find that page</h1>
           <p className="text-sm text-[#4b5563]">The link may be wrong, or the page may have moved or been taken down.</p>
           <div className="mt-2 flex flex-col gap-3 sm:flex-row">
             <Link
               href="/"
-              className="inline-flex items-center justify-center rounded-full bg-[#007050] px-7 py-3 text-sm font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007050] focus-visible:ring-offset-2"
+              className="inline-flex items-center justify-center rounded-full bg-brand px-7 py-3 text-sm font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
             >
               Go to the home page
             </Link>
             <Link
               href="/login"
-              className="inline-flex items-center justify-center rounded-full border border-black/15 px-7 py-3 text-sm text-[#001539] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007050] focus-visible:ring-offset-2"
+              className="inline-flex items-center justify-center rounded-full border border-black/15 px-7 py-3 text-sm text-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
             >
               Staff sign-in
             </Link>

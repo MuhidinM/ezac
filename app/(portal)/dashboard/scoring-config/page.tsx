@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { CopyPlus, History, PencilLine } from "lucide-react";
 
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
@@ -19,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api/client";
 import { useResource } from "@/lib/api/use-resource";
+import { useLeaveGuard } from "@/lib/hooks/use-leave-guard";
 import { formatDateTime } from "@/lib/beneficiary/format";
 import {
   draftBaseline,
@@ -46,13 +48,15 @@ function ScoringConfigView() {
   const [actionError, setActionError] = useState<unknown>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [rollbackOpen, setRollbackOpen] = useState(false);
-  // Whether the open draft has unsaved edits. Only read when leaving it, so a ref.
-  const draftDirty = useRef(false);
-  const onDirtyChange = useCallback((dirty: boolean) => {
-    draftDirty.current = dirty;
-  }, []);
+  const router = useRouter();
+  // Whether the open draft has unsaved edits. State, so the link guard below
+  // switches on and off with it. setState is stable, so the editor's effect
+  // that reports it doesn't re-run on every render.
+  const [draftDirty, setDraftDirty] = useState(false);
   // What to do once the user agrees to drop those edits.
   const [leaving, setLeaving] = useState<{ run: () => void | Promise<void> } | null>(null);
+  // Sidebar, header, breadcrumb and in-page links ask first, like the assessment wizard.
+  useLeaveGuard(draftDirty, (href) => setLeaving({ run: () => router.push(href) }));
 
   const list = [...(versions.data ?? [])].sort((a, b) => b.version - a.version);
   const active = list.find((item) => item.active) ?? null;
@@ -62,7 +66,7 @@ function ScoringConfigView() {
 
   /** Runs `next` now, or after confirming when the open draft has unsaved edits. */
   function leaveDraft(next: () => void | Promise<void>) {
-    if (draftDirty.current) setLeaving({ run: next });
+    if (draftDirty) setLeaving({ run: next });
     else void next();
   }
 
@@ -134,11 +138,11 @@ function ScoringConfigView() {
               ]}
             />
           ) : (
-            <p className="text-sm text-black/50">{versions.isLoading ? "Loading…" : "No active configuration."}</p>
+            <p className="text-sm text-black/60">{versions.isLoading ? "Loading…" : "No active configuration."}</p>
           )}
         </Panel>
         <Panel title="Need levels" description={levels?.maxTotal != null ? `Out of ${levels.maxTotal} points.` : undefined}>
-          {levels ? <NeedLevelList levels={levels} /> : <p className="text-sm text-black/50">{levelsNote}</p>}
+          {levels ? <NeedLevelList levels={levels} /> : <p className="text-sm text-black/60">{levelsNote}</p>}
         </Panel>
       </div>
 
@@ -155,13 +159,13 @@ function ScoringConfigView() {
                   aria-current={current?.version === item.version ? "true" : undefined}
                   className={cn(
                     "flex w-full items-start justify-between gap-2 px-4 py-3 text-left transition",
-                    current?.version === item.version ? "bg-[#007050]/[0.06]" : "hover:bg-black/[0.02]",
+                    current?.version === item.version ? "bg-brand/[0.06]" : "hover:bg-black/[0.02]",
                   )}
                 >
                   <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-[#001539] tabular-nums">v{item.version}</span>
-                    <span className="block truncate text-xs text-black/55">{item.name ?? "Untitled"}</span>
-                    <span className="block text-[11px] text-black/40">
+                    <span className="block text-sm font-semibold text-navy tabular-nums">v{item.version}</span>
+                    <span className="block truncate text-xs text-black/60">{item.name ?? "Untitled"}</span>
+                    <span className="block text-xs text-black/60">
                       {[item.createdByName, item.createdAt ? formatDateTime(item.createdAt) : null].filter(Boolean).join(" · ")}
                     </span>
                   </span>
@@ -174,7 +178,7 @@ function ScoringConfigView() {
               </li>
             ))}
             {list.length === 0 && !versions.isLoading ? (
-              <li className="px-4 py-6 text-center text-sm text-black/45">No versions.</li>
+              <li className="px-4 py-6 text-center text-sm text-black/60">No versions.</li>
             ) : null}
           </ul>
         </Panel>
@@ -188,7 +192,7 @@ function ScoringConfigView() {
                 baseline={draftBaseline(current, list)}
                 schema={schema.data}
                 apiBase={API}
-                onDirtyChange={onDirtyChange}
+                onDirtyChange={setDraftDirty}
                 onSaved={(saved) => versions.mutate(list.map((item) => (item.version === saved.version ? saved : item)))}
                 onDeleted={() => {
                   setSelected(null);
@@ -202,7 +206,7 @@ function ScoringConfigView() {
                 }}
               />
             ) : schema.error ? (
-              <p className="text-sm text-black/50">The draft opens once the scoring form loads.</p>
+              <p className="text-sm text-black/60">The draft opens once the scoring form loads.</p>
             ) : (
               <PanelSkeleton rows={4} />
             )
@@ -255,7 +259,7 @@ function ScoringConfigView() {
         confirmLabel="Discard changes"
         destructive
         onConfirm={async () => {
-          draftDirty.current = false;
+          setDraftDirty(false);
           await leaving?.run();
         }}
       />
@@ -332,8 +336,8 @@ function Band({ tone, label, range, recommendation }: { tone: string; label: str
     <li className="flex items-center gap-3">
       <span className={cn("h-8 w-1.5 rounded-full", tone)} />
       <span className="flex-1">
-        <span className="block font-medium text-[#001539]">{label}</span>
-        <span className="block text-xs text-black/50 tabular-nums">{range}</span>
+        <span className="block font-medium text-navy">{label}</span>
+        <span className="block text-xs text-black/60 tabular-nums">{range}</span>
       </span>
       <span className="text-xs text-black/60">{recommendation}</span>
     </li>

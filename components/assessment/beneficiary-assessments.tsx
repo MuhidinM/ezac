@@ -31,6 +31,7 @@ import { useResource } from "@/lib/api/use-resource";
 import { useSession } from "@/lib/auth/use-session";
 import { assessmentBlockedReason, isEditable } from "@/lib/backoffice/assessment-steps";
 import { formatDate, todayIso } from "@/lib/backoffice/format";
+import { useScoreMax } from "@/lib/backoffice/score-max";
 
 const CLOSED: AssessmentStatus[] = ["APPROVED", "DEFERRED", "REJECTED", "CANCELLED"];
 
@@ -45,6 +46,7 @@ export function BeneficiaryAssessments({ beneficiary }: { beneficiary: Beneficia
     `/bff/backoffice/beneficiaries/${encodeURIComponent(beneficiary.id)}/assessments`,
   );
   const history = Array.isArray(data) ? data : (data?.items ?? []);
+  const scoreMax = useScoreMax(history.some((item) => item.totalScore != null && !item.maxScore));
 
   const officer = isFieldOfficer(session);
   const open = history.find((item) => !CLOSED.includes(item.status));
@@ -122,7 +124,7 @@ export function BeneficiaryAssessments({ beneficiary }: { beneficiary: Beneficia
                 className="cursor-pointer"
                 onClick={() => router.push(`/dashboard/assessments/${item.id}`)}
               >
-                <TableCell className="pl-5 font-medium text-[#001539]">
+                <TableCell className="pl-5 font-medium text-navy">
                   {/* The link makes the row reachable by keyboard; the row click is a mouse shortcut. */}
                   <Link
                     href={`/dashboard/assessments/${item.id}`}
@@ -136,10 +138,10 @@ export function BeneficiaryAssessments({ beneficiary }: { beneficiary: Beneficia
                   <AssessmentStatusBadge status={item.status} />
                 </TableCell>
                 <TableCell>
-                  <ScoreMeter score={item.totalScore} max={item.maxScore} risk={item.riskCategory} />
+                  <ScoreMeter score={item.totalScore} max={item.maxScore || scoreMax} risk={item.riskCategory} />
                 </TableCell>
                 <TableCell className="pr-5">
-                  {item.totalScore != null ? <RiskBadge risk={item.riskCategory} /> : <span className="text-black/40">—</span>}
+                  {item.totalScore != null ? <RiskBadge risk={item.riskCategory} /> : <span className="text-black/60">—</span>}
                 </TableCell>
               </TableRow>
             ))

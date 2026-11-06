@@ -1,5 +1,7 @@
+import { clearAllSubmitInputs } from "@/components/assessment/steps/step-submit";
 import { clearDraft } from "@/components/ngo-registration/draft-storage";
 import { resetSessionCache } from "@/lib/auth/use-session";
+import { clearNotices } from "@/lib/backoffice/notice";
 import { clearRegistrationSession, consumeRegistrationSuccessFlag } from "@/lib/registration/session";
 
 // Several components can ask to leave at once (logout click, idle timer, a
@@ -23,7 +25,9 @@ function tellOtherTabs() {
 /**
  * Forget everything this browser holds for the signed-in staff member: the
  * cached session (name, roles), the saved institution draft (TIN, national
- * ID, bank account) and the registration setup tokens. Branch PCs are shared,
+ * ID, bank account), the registration setup tokens, the review notes kept for
+ * a pending submit and any notice not yet shown (it can name a household).
+ * Branch PCs are shared,
  * so the next person must not inherit any of it.
  */
 export function clearClientSession(): void {
@@ -39,6 +43,9 @@ export function clearClientSession(): void {
   } catch {
     // Same as above.
   }
+  // Both catch their own storage errors.
+  clearAllSubmitInputs();
+  clearNotices();
 }
 
 /**

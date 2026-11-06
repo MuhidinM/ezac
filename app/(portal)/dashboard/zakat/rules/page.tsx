@@ -5,6 +5,7 @@ import { CheckCircle2, CopyPlus, X } from "lucide-react";
 
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { FormField } from "@/components/dashboard/form-field";
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Panel } from "@/components/dashboard/panel";
@@ -16,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { apiClient } from "@/lib/api/client";
 import { ApiError, errorMessage } from "@/lib/api/errors";
 import { useResource } from "@/lib/api/use-resource";
+import { draftHasChanges } from "@/lib/zakat/rules-draft";
 import { getPath } from "@/lib/backoffice/scoring-config";
 import { formatDateTime } from "@/lib/beneficiary/format";
 import { cn } from "@/lib/utils";
@@ -109,14 +111,14 @@ function ruleChanges(from: Record<string, unknown>, to: Record<string, unknown>,
 }
 
 function ChangeSummary({ changes, livestockNote }: { changes: { path: string; text: string }[]; livestockNote: string }) {
-  if (changes.length === 0) return <p className="text-sm text-black/55">Same rules as the active version.</p>;
+  if (changes.length === 0) return <p className="text-sm text-black/60">Same rules as the active version.</p>;
   const livestock = changes.some((change) => change.path.startsWith(`${LIVESTOCK_PRICES}.`));
   return (
     <div className="space-y-3">
       {livestock ? <InlineAlert tone="warning">{livestockNote}</InlineAlert> : null}
       <div>
-        <p className="mb-1 text-xs font-medium text-black/55">Compared with the active version</p>
-        <ul className="max-h-56 list-disc space-y-0.5 overflow-y-auto pl-5 text-sm text-[#001539]">
+        <p className="mb-1 text-xs font-medium text-black/60">Compared with the active version</p>
+        <ul className="max-h-56 list-disc space-y-0.5 overflow-y-auto pl-5 text-sm text-navy">
           {changes.map((change) => (
             <li key={change.path}>{change.text}</li>
           ))}
@@ -148,6 +150,8 @@ function CalculatorRules() {
   const [isSaving, setIsSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [activateTarget, setActivateTarget] = useState<RulesVersion | null>(null);
+  // A version clicked while a changed draft is open: the draft is only dropped after a confirm.
+  const [switchTarget, setSwitchTarget] = useState<number | null>(null);
 
   const list = versions.data ?? [];
   const fields = schema.data?.fields ?? [];
@@ -156,6 +160,7 @@ function CalculatorRules() {
   const editing = draft !== null;
   const defaultVersion = list.filter(isBuiltIn).sort((a, b) => b.version - a.version)[0] ?? null;
   const checks = (schema.data?.rules ?? []).map(checkText).filter((rule): rule is string => Boolean(rule));
+  const draftChanged = draftHasChanges(draft, name, current?.rules);
 
   function clearErrors() {
     setSaveError(null);
@@ -174,6 +179,15 @@ function CalculatorRules() {
   function cancelDraft() {
     setDraft(null);
     clearErrors();
+  }
+
+  function showVersion(version: number) {
+    if (draftChanged) {
+      setSwitchTarget(version);
+      return;
+    }
+    setSelected(version);
+    cancelDraft();
   }
 
   function onSave(event: FormEvent<HTMLFormElement>) {
@@ -236,7 +250,7 @@ function CalculatorRules() {
         description="Nisab basis, zakat rates, livestock tables and average livestock prices behind the public calculator. A version is never edited: save a new one, then activate it."
       />
 
-      {versions.error ? <InlineAlert>{versions.error.message}</InlineAlert> : null}
+      <ErrorAlert error={versions.error} onRetry={versions.reload} />
       {notice ? <InlineAlert tone="success">{notice}</InlineAlert> : null}
 
       <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
@@ -246,9 +260,9 @@ function CalculatorRules() {
           flush
         >
           {versions.isLoading && list.length === 0 ? (
-            <p className="px-5 py-4 text-sm text-black/45">Loading…</p>
+            <p className="px-5 py-4 text-sm text-black/60">Loading…</p>
           ) : list.length === 0 ? (
-            <p className="px-5 py-4 text-sm text-black/45">No versions yet.</p>
+            <p className="px-5 py-4 text-sm text-black/60">No versions yet.</p>
           ) : (
             <ul className="divide-y divide-black/[0.05]">
               {list.map((item) => {
@@ -257,21 +271,18 @@ function CalculatorRules() {
                   <li key={item.version}>
                     <button
                       type="button"
-                      onClick={() => {
-                        setSelected(item.version);
-                        cancelDraft();
-                      }}
+                      onClick={() => showVersion(item.version)}
                       aria-current={isCurrent ? "true" : undefined}
                       className={cn(
                         "flex w-full items-start justify-between gap-3 px-5 py-3 text-left transition hover:bg-black/[0.02]",
-                        isCurrent && "bg-[#007050]/[0.05] shadow-[inset_2px_0_0_#007050]",
+                        isCurrent && "bg-brand/[0.05] shadow-[inset_2px_0_0_var(--color-brand)]",
                       )}
                     >
                       <span className="min-w-0">
-                        <span className="block truncate text-sm font-medium text-[#001539]">
+                        <span className="block truncate text-sm font-medium text-navy">
                           v{item.version} · {item.name}
                         </span>
-                        <span className="block text-xs text-black/50">{formatDateTime(item.createdAt)}</span>
+                        <span className="block text-xs text-black/60">{formatDateTime(item.createdAt)}</span>
                       </span>
                       <span className="flex shrink-0 flex-col items-end gap-1">
                         {item.active ? <Badge tone="success">Active</Badge> : null}
@@ -290,7 +301,7 @@ function CalculatorRules() {
         </Panel>
 
         <div className="space-y-6">
-          {schema.error ? <InlineAlert>{schema.error.message}</InlineAlert> : null}
+          <ErrorAlert error={schema.error} onRetry={schema.reload} />
 
           {editing ? (
             <form onSubmit={onSave}>
@@ -321,12 +332,12 @@ function CalculatorRules() {
                     <FormField label="Version name" htmlFor="rules-name" required hint="What changed, e.g. “Silver basis”">
                       <Input id="rules-name" value={name} maxLength={160} onChange={(e) => setName(e.target.value)} required />
                     </FormField>
-                    <label className="flex h-9 items-center gap-2 text-sm text-[#001539]">
+                    <label className="flex h-9 items-center gap-2 text-sm text-navy">
                       <input
                         type="checkbox"
                         checked={activate}
                         onChange={(e) => setActivate(e.target.checked)}
-                        className="size-4 accent-[#007050]"
+                        className="size-4 accent-brand"
                       />
                       Activate now
                     </label>
@@ -370,7 +381,7 @@ function CalculatorRules() {
               {schema.data ? (
                 <SchemaForm fields={schema.data.fields} value={current.rules} onChange={() => undefined} disabled />
               ) : schema.isLoading ? (
-                <p className="text-sm text-black/45">Loading form…</p>
+                <p className="text-sm text-black/60">Loading form…</p>
               ) : null}
             </Panel>
           ) : null}
@@ -407,6 +418,20 @@ function CalculatorRules() {
           />
         ) : null}
       </ConfirmDialog>
+
+      <ConfirmDialog
+        open={switchTarget !== null}
+        onOpenChange={(open) => !open && setSwitchTarget(null)}
+        title="Discard the new version?"
+        description={`Your unsaved changes are lost and v${switchTarget ?? ""} is shown instead.`}
+        confirmLabel="Discard changes"
+        destructive
+        onConfirm={async () => {
+          if (switchTarget !== null) setSelected(switchTarget);
+          setSwitchTarget(null);
+          cancelDraft();
+        }}
+      />
 
       <ConfirmDialog
         open={confirmSave}

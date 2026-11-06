@@ -235,7 +235,7 @@ export function BranchCodesPanel({
 
             {listedCodes.length > 0 ? (
               <div className="flex flex-wrap items-center justify-end gap-2 px-5 pt-3">
-                <p className="mr-auto text-xs text-black/50">
+                <p className="mr-auto text-xs text-black/60">
                   {listedCodes.length} code{listedCodes.length === 1 ? "" : "s"} listed
                 </p>
                 <Button
@@ -289,13 +289,13 @@ export function BranchCodesPanel({
                 ) : (
                   rows.map((item) => (
                     <TableRow key={item.id}>
-                      <TableCell className="pl-5 font-mono text-sm text-[#001539]">{item.code}</TableCell>
+                      <TableCell className="pl-5 font-mono text-sm text-navy">{item.code}</TableCell>
                       <TableCell>
                         <Badge tone={STATUS[item.status]?.tone ?? "neutral"}>
                           {STATUS[item.status]?.label ?? item.status}
                         </Badge>
                         {item.status === "REVOKED" && item.revokeReason ? (
-                          <p className="mt-1 max-w-48 truncate text-xs text-black/45" title={item.revokeReason}>
+                          <p className="mt-1 max-w-48 truncate text-xs text-black/60" title={item.revokeReason}>
                             {item.revokeReason}
                           </p>
                         ) : null}
@@ -304,7 +304,7 @@ export function BranchCodesPanel({
                         {item.beneficiaryId ? (
                           <CodeBeneficiary item={item} link={!!linkBeneficiaries} />
                         ) : (
-                          <span className="text-black/40">—</span>
+                          <span className="text-black/60">—</span>
                         )}
                       </TableCell>
                       <TableCell>{formatDateTime(item.consumedAt)}</TableCell>
@@ -449,7 +449,7 @@ function GenerateCodesDialog({
       <DialogContent>
         <form onSubmit={onSubmit} className="space-y-4">
           <DialogHeader>
-            <DialogTitle className="text-[#001539]">Generate registration codes</DialogTitle>
+            <DialogTitle className="text-navy">Generate registration codes</DialogTitle>
             <DialogDescription>
               New codes are available immediately. You can copy or download them after generating.
             </DialogDescription>

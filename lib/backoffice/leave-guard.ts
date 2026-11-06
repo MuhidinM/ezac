@@ -1,7 +1,7 @@
 /**
  * Which link clicks leave the page for another page of this app, so a form
  * with unsaved changes can ask first. Pure, for tests; the hook that listens
- * for clicks is components/assessment/use-leave-guard.ts.
+ * for clicks is lib/hooks/use-leave-guard.ts.
  */
 
 export type LinkClick = {

@@ -9,6 +9,8 @@ import { RadioGroup } from "@/components/wizard/ui/radio-group";
 import { createCoverageArea } from "../initial-state";
 import type { CoverageArea, NgoStepProps } from "../types";
 import { DynamicList } from "../ui/dynamic-list";
+import { typeScale } from "@/components/backoffice/type-scale";
+import { cn } from "@/lib/utils";
 
 const inputClass =
   "form-input";
@@ -51,7 +53,7 @@ export function Step2Coverage({ state, setState, errors }: NgoStepProps) {
     >
       <div className="space-y-8">
         <section>
-          <h3 className="mb-4 text-sm font-semibold text-[#001539]">Coverage Area</h3>
+          <h3 className={cn("mb-4", typeScale.panelTitle)}>Coverage Area</h3>
           <div className="mb-4 grid gap-4 sm:grid-cols-3">
             <FormField label="Number of Regions covered" htmlFor="regionsCount">
               <input id="regionsCount" type="number" min={0} value={s.regionsCount} onChange={(e) => updateStep2("regionsCount", e.target.value)} className={inputClass} />
@@ -123,7 +125,7 @@ export function Step2Coverage({ state, setState, errors }: NgoStepProps) {
         </section>
 
         <section>
-          <h3 className="mb-4 text-sm font-semibold text-[#001539]">Beneficiary Statistics (last 12 months)</h3>
+          <h3 className={cn("mb-4", typeScale.panelTitle)}>Beneficiary Statistics (last 12 months)</h3>
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Total registered beneficiaries" htmlFor="totalRegistered" required error={errors.totalRegistered}>
               <input id="totalRegistered" type="number" min={0} value={s.beneficiaryStats.totalRegistered} onChange={(e) => updateStat("totalRegistered", e.target.value)} className={inputClass} />
@@ -137,7 +139,7 @@ export function Step2Coverage({ state, setState, errors }: NgoStepProps) {
               </FormField>
             ))}
           </div>
-          <div className="mt-4 rounded-xl border border-black/10 bg-[#007050]/5 px-4 py-4 text-[#001539]">
+          <div className="mt-4 rounded-xl border border-black/10 bg-brand/5 px-4 py-4 text-navy">
             <p className="text-base">
               Your organization serves <strong>{active}</strong> active beneficiaries across{" "}
               <strong>{woredas}</strong> woredas in <strong>{regions}</strong> regions.

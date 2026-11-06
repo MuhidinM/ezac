@@ -206,7 +206,7 @@ function FieldOfficers() {
                     >
                       {officer.fullName}
                     </Link>
-                    <p className="text-xs text-black/50">{officer.email ?? "—"}</p>
+                    <p className="text-xs text-black/60">{officer.email ?? "—"}</p>
                   </TableCell>
                   <TableCell className="tabular-nums">{officer.phone ?? "—"}</TableCell>
                   <TableCell>

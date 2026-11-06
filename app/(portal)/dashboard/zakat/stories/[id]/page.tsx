@@ -7,6 +7,7 @@ import { Archive, Send } from "lucide-react";
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { FormField } from "@/components/dashboard/form-field";
 import { useBreadcrumbLabel } from "@/components/dashboard/dashboard-header";
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Panel } from "@/components/dashboard/panel";
@@ -91,8 +92,8 @@ function StoryEditor() {
   useBreadcrumbLabel(isNew ? "New story" : data?.find((item) => item.id === params.id)?.title);
 
   if (isNew) return <StoryForm initial={EMPTY} notice={null} onNotice={setNotice} />;
-  if (error) return <InlineAlert>{error.message}</InlineAlert>;
-  if (!data) return <p className="text-sm text-black/45">Loading…</p>;
+  if (error) return <ErrorAlert error={error} onRetry={reload} />;
+  if (!data) return <p className="text-sm text-black/60">Loading…</p>;
   const story = data.find((item) => item.id === params.id);
   if (!story) return <InlineAlert>Story not found.</InlineAlert>;
   return (
@@ -247,16 +248,16 @@ function StoryForm({
 
         <Panel title="Consent">
           <div className="space-y-4">
-            <label className="flex items-start gap-2 text-sm text-[#001539]">
+            <label className="flex items-start gap-2 text-sm text-navy">
               <input
                 type="checkbox"
                 checked={form.consentConfirmed}
                 onChange={(e) => set("consentConfirmed", e.target.checked)}
-                className="mt-0.5 size-4 accent-[#007050]"
+                className="mt-0.5 size-4 accent-brand"
               />
               <span>
                 The beneficiary agreed to this story being shared
-                <span className="block text-xs text-black/50">Required to publish. A published story can&apos;t be saved without it.</span>
+                <span className="block text-xs text-black/60">Required to publish. A published story can&apos;t be saved without it.</span>
               </span>
             </label>
             <FormField label="How consent was given" htmlFor="consentNote" hint="e.g. signed form kept at the branch" error={fieldErrors.consentNote}>
