@@ -1,22 +1,24 @@
+import { unstable_cache } from "next/cache";
 import { cache } from "react";
 
 import { getApiBaseUrl } from "@/lib/api/config";
 import { INTL_LOCALE, type Locale } from "@/lib/i18n/config";
 import { logGatewayUnreachable } from "@/lib/api/network-error";
 import type { CalculatorConfig } from "@/lib/zakat/calculator-config";
+import { readCalculatorConfig } from "@/lib/zakat/calculator-read";
 import type { PublicCause, PublicStory } from "@/lib/zakat/content";
 import { ZAKAT_PUBLIC_TAG } from "@/lib/zakat/public-cache";
 
 /**
  * Public impact and transparency data from zakat-engine (no login), fetched on
- * the server and revalidated every 5 minutes, or at once when an admin saves a
+ * the server and kept for 5 minutes, or dropped at once when an admin saves a
  * change through the zakat-admin BFF (see lib/zakat/public-cache.ts).
  *
  * Every getter returns null only when there is nothing published: the service
  * answered 404 (or sent no data). When the service can't be reached, times out
  * or fails, the getter throws instead, so a page never tells the public that
  * nothing was published, or that a real cause doesn't exist, during an outage.
- * On a revalidation Next then keeps serving the last good page; a page with no
+ * On a refresh Next then keeps serving the last good copy; a page with no
  * cached copy shows the error page (app/error.tsx) with a Try again button.
  *
  * Two endpoints use 503 `{ success: false }` to mean "nothing yet", not an
@@ -28,6 +30,7 @@ import { ZAKAT_PUBLIC_TAG } from "@/lib/zakat/public-cache";
  */
 
 const REQUEST_TIMEOUT_MS = 10_000;
+const REFRESH_SECONDS = 300;
 
 /** zakat-engine could not answer: unreachable, too slow, or an error status. */
 export class PublicDataUnavailableError extends Error {
@@ -37,30 +40,13 @@ export class PublicDataUnavailableError extends Error {
   }
 }
 
-function unavailable(path: string, cause: unknown): null {
-  if (process.env.NEXT_PHASE === "phase-production-build") return null;
-  throw new PublicDataUnavailableError(path, cause);
-}
-
 /**
- * One request per path per render. The timeout signal opts the fetch out of
- * Next's own request memoization, and the cause and story pages load the same
- * record in generateMetadata and in the page.
+ * What a zakat-engine answer means for the public site: its data, or null
+ * when nothing is published (never published, taken down, or a malformed id).
+ * Throws PublicDataUnavailableError when the answer is an outage.
  */
-const loadPublic = cache(async (path: string, emptyOn503 = false): Promise<unknown> => {
+export async function readPublicAnswer(response: Response, path: string, emptyOn503 = false): Promise<unknown> {
   const label = `zakat${path}`;
-  let response: Response;
-  try {
-    response = await fetch(`${getApiBaseUrl()}/api/zakat/v1${path}`, {
-      // Admin changes expire the tag at once (app/bff/zakat-admin).
-      next: { revalidate: 300, tags: [ZAKAT_PUBLIC_TAG] },
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
-  } catch (error) {
-    logGatewayUnreachable(label, error);
-    return unavailable(path, error);
-  }
-
   // Never published, or taken down. A 400 is a malformed id in the URL.
   if (response.status === 404 || response.status === 410 || response.status === 400) return null;
   // zakat-engine's own "no data yet" answer. An nginx or gateway 503 (HTML, or
@@ -71,7 +57,7 @@ const loadPublic = cache(async (path: string, emptyOn503 = false): Promise<unkno
   }
   if (!response.ok) {
     console.error(`[${label}] the gateway answered HTTP ${response.status}`);
-    return unavailable(path, new Error(`HTTP ${response.status}`));
+    throw new PublicDataUnavailableError(path, new Error(`HTTP ${response.status}`));
   }
 
   let envelope: { success?: boolean; data?: unknown; message?: string };
@@ -79,13 +65,56 @@ const loadPublic = cache(async (path: string, emptyOn503 = false): Promise<unkno
     envelope = await response.json();
   } catch (error) {
     console.error(`[${label}] the gateway answered with a body that isn't JSON`);
-    return unavailable(path, error);
+    throw new PublicDataUnavailableError(path, error);
   }
   if (!envelope.success) {
     console.error(`[${label}] the gateway reported a failure`, envelope.message ?? "");
-    return unavailable(path, new Error(envelope.message ?? "success: false"));
+    throw new PublicDataUnavailableError(path, new Error(envelope.message ?? "success: false"));
   }
   return envelope.data ?? null;
+}
+
+/** One zakat-engine read, uncached: its data, null when not published; throws on an outage. */
+export async function fetchPublic(path: string, emptyOn503 = false): Promise<unknown> {
+  let response: Response;
+  try {
+    response = await fetch(`${getApiBaseUrl()}/api/zakat/v1${path}`, {
+      // Cached below as an answer, not here as a response.
+      cache: "no-store",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch (error) {
+    logGatewayUnreachable(`zakat${path}`, error);
+    throw new PublicDataUnavailableError(path, error);
+  }
+  return readPublicAnswer(response, path, emptyOn503);
+}
+
+/**
+ * The answer is cached, not the HTTP response. Next's fetch cache only ever
+ * stores a 200, so when a story or cause was taken down, the refresh got a
+ * 404 that was never stored and the old copy was served again on every visit
+ * (UAT #15). Here "not published" (null) is cached like any other answer, so a
+ * removed story or cause is gone after the next refresh. An outage throws, and
+ * a refresh that throws is never stored: the last good copy stays up.
+ */
+const cachedPublic = unstable_cache(fetchPublic, ["zakat-public-answer"], {
+  revalidate: REFRESH_SECONDS,
+  // Admin changes expire the tag at once (app/bff/zakat-admin).
+  tags: [ZAKAT_PUBLIC_TAG],
+});
+
+/**
+ * One read per path per render: the cause and story pages load the same
+ * record in generateMetadata and in the page.
+ */
+const loadPublic = cache(async (path: string, emptyOn503 = false): Promise<unknown> => {
+  try {
+    return await cachedPublic(path, emptyOn503);
+  } catch (error) {
+    if (error instanceof PublicDataUnavailableError && process.env.NEXT_PHASE === "phase-production-build") return null;
+    throw error;
+  }
 });
 
 /** null = not published. Throws when the service is unavailable (see above). */
@@ -146,34 +175,55 @@ export type ImpactReport = {
   sizeBytes: number | null;
 };
 
+/** A page of a public list, as zakat-engine sends it. */
+export type PublicPage<T> = {
+  items: T[];
+  pagination: { page: number; limit: number; totalItems: number; totalPages: number };
+};
+
+/** An answer that should be a page; a plain array (as older services sent) becomes one page. */
+function asPage<T>(data: PublicPage<T> | T[] | null, limit: number): PublicPage<T> | null {
+  if (!data) return null;
+  if (!Array.isArray(data)) return data;
+  return { items: data, pagination: { page: 1, limit, totalItems: data.length, totalPages: data.length > 0 ? 1 : 0 } };
+}
+
 // Each getter: the data, or null when it isn't published. Throws when
 // zakat-engine is unavailable at runtime (see PublicDataUnavailableError).
 export const getHomeSummary = () => getPublic<HomeSummary>("/home/summary");
 export const getImpactSummary = () => getPublic<ImpactSummary>("/impact/summary");
 export const getImpactRegions = () => getPublic<ImpactRegion[]>("/impact/regions");
 export const getImpactTimeseries = () => getPublic<ImpactTimeseries>("/impact/timeseries", true);
-export const getCalculatorConfig = () => getPublic<CalculatorConfig>("/calculator/config", true);
-/** Published reports (null: none published); tolerates both a plain array and a paginated page. */
-export async function getImpactReports(page = 1, limit = 50): Promise<ImpactReport[] | null> {
-  const data = await getPublic<ImpactReport[] | { items: ImpactReport[] }>(`/impact/reports?page=${page}&limit=${limit}`);
-  if (!data) return null;
-  return Array.isArray(data) ? data : data.items;
+
+/**
+ * The official calculator config, checked (lib/zakat/calculator-read.ts): null
+ * when none is published, or when a field the site relies on is missing.
+ */
+export async function getCalculatorConfig(): Promise<CalculatorConfig | null> {
+  return readCalculatorConfig(await getPublic<unknown>("/calculator/config", true));
 }
 
-type Page<T> = { items: T[]; pagination: { page: number; limit: number; totalItems: number; totalPages: number } };
+/** One page of published reports (null: none published). */
+export async function getImpactReports(page = 1, limit = 50): Promise<PublicPage<ImpactReport> | null> {
+  return asPage(
+    await getPublic<PublicPage<ImpactReport> | ImpactReport[]>(`/impact/reports?page=${page}&limit=${limit}`),
+    limit,
+  );
+}
 
 /**
  * Public causes (null: none published). The permanent general fund (id
  * "general") is left out of campaign lists.
  */
 export async function getCauses(query: { status?: "active" | "closed"; urgent?: boolean; page?: number; limit?: number } = {}) {
+  const limit = query.limit ?? 24;
   const params = new URLSearchParams({
     status: query.status ?? "active",
     page: String(query.page ?? 1),
-    limit: String(query.limit ?? 24),
+    limit: String(limit),
   });
   if (query.urgent) params.set("urgent", "true");
-  const data = await getPublic<Page<PublicCause>>(`/causes?${params}`);
+  const data = asPage(await getPublic<PublicPage<PublicCause>>(`/causes?${params}`), limit);
   if (!data) return null;
   return { ...data, items: data.items.filter((cause) => cause.id !== "general") };
 }
@@ -196,8 +246,9 @@ export async function isListedClosed(id: string): Promise<boolean> {
   }
 }
 
-export const getStories = (page = 1, limit = 24) =>
-  getPublic<Page<PublicStory>>(`/impact/stories?page=${page}&limit=${limit}`);
+/** One page of published stories (null: none published). */
+export const getStories = async (page = 1, limit = 24) =>
+  asPage(await getPublic<PublicPage<PublicStory>>(`/impact/stories?page=${page}&limit=${limit}`), limit);
 
 /** One story; null means it doesn't exist or isn't public (a real 404). */
 export const getStory = (id: string) => getPublic<PublicStory>(`/impact/stories/${encodeURIComponent(id)}`);

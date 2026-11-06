@@ -190,8 +190,8 @@ export const BANKS = options({
   lion: "Lion International Bank",
   enat: "Enat Bank",
   addis_international: "Addis International Bank",
-  debub_global: "Debub Global Bank",
-  global_bank: "Global Bank Ethiopia",
+  debub_global: "Debub Global Bank (now Global Bank Ethiopia)",
+  global_bank: "Global Bank Ethiopia (formerly Debub Global)",
   amhara: "Amhara Bank",
   siinqee: "Siinqee Bank",
   tsehay: "Tsehay Bank",
@@ -208,6 +208,32 @@ export const BANKS = options({
   development_bank: "Development Bank of Ethiopia",
   other: "Other",
 });
+
+/**
+ * Bank codes no longer offered for new accounts. Debub Global Bank became
+ * Global Bank Ethiopia in 2022: the two codes are one bank, so only
+ * global_bank is offered. The old code keeps its label for accounts saved
+ * with it until the backend moves them (backend-go-live-requests §19).
+ */
+export const RETIRED_BANK_CODES: readonly string[] = ["debub_global"];
+
+/** The banks a bank-account picker offers. */
+export const BANK_CHOICES = BANKS.filter((option) => !RETIRED_BANK_CODES.includes(option.value));
+
+/**
+ * Picker options for an account whose bank is `current`: the offered banks,
+ * plus a retired code when the account already has it, so the select still
+ * shows what is saved.
+ */
+export function bankOptionsFor(current: string | null | undefined): Option[] {
+  const retired = current ? BANKS.find((option) => option.value === current && RETIRED_BANK_CODES.includes(option.value)) : undefined;
+  return retired ? [...BANK_CHOICES, retired] : BANK_CHOICES;
+}
+
+/** A bank account number the backend accepts: 6–30 digits once spaces and dashes are removed. */
+export function isValidAccountNumber(value: string): boolean {
+  return /^\d{6,30}$/.test(value.replace(/[\s-]/g, ""));
+}
 
 export const DOCUMENT_TYPES = [
   ...VERIFIED_DOCUMENTS,

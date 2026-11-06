@@ -7,6 +7,21 @@ import { Panel } from "@/components/dashboard/panel";
 import { Badge } from "@/components/ui/badge";
 import { NativeSelect } from "@/components/ui/native-select";
 import {
+  DEFAULT_RECOMMENDATION,
+  LEVELS,
+  RECOMMENDATIONS,
+  describe,
+  fieldMin,
+  fieldName,
+  groupSchema,
+  isText,
+  num,
+  recommendationLabel,
+  text,
+  type Level,
+  type SectionGroup,
+} from "@/components/scoring/scoring-schema";
+import {
   getPath,
   type Band,
   type SchemaField,
@@ -20,195 +35,7 @@ import { cn } from "@/lib/utils";
  * "points" next to what it rewards, with the earlier value when it changed.
  */
 
-const THRESHOLD_SECTION = /risk|threshold|total/i;
 const SECTION_COLORS = ["#007050", "#2a78d6", "#eb6834", "#eda100", "#7c5cc4", "#0f9fb0", "#c2417a", "#5b7a1f"];
-
-type Level = "LOW" | "MEDIUM" | "HIGH";
-const LEVELS: Level[] = ["LOW", "MEDIUM", "HIGH"];
-
-/** Text values the backend accepts for a need level's preliminary recommendation. */
-const RECOMMENDATIONS = [
-  { value: "approve", label: "Approve" },
-  { value: "conditional_approval", label: "Conditional approval" },
-  { value: "defer", label: "Defer" },
-];
-
-function humanize(key: string) {
-  return key
-    .replace(/[_-]+/g, " ")
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/^\w/, (char) => char.toUpperCase());
-}
-
-function recommendationLabel(value: unknown) {
-  if (typeof value !== "string" || !value) return "—";
-  return RECOMMENDATIONS.find((item) => item.value === value)?.label ?? humanize(value);
-}
-
-/** Text fields hold the preliminary recommendation for a need level. */
-function isText(field: SchemaField) {
-  return field.type === "text";
-}
-
-/** Only `sections.<name>.max` caps a section; deeper `.max` keys (e.g. the asset value cap) are ordinary values. */
-function isCap(field: SchemaField) {
-  return /^sections\.[^.]+\.max$/.test(field.path);
-}
-
-// Plain-language names. Keys are `<section>` or `<section>.<path inside the section>`;
-// anything missing falls back to the schema key made readable.
-const SECTION_TITLES: Record<string, string> = {
-  dependency: "Dependents",
-  social_support: "Support received",
-  expenditure_gap: "Spending gap",
-};
-
-const GROUP_TITLES: Record<string, string> = {
-  "debt.purpose": "What the debt was for",
-  "food.meals": "Meals a day",
-  "assets.value": "Value of assets",
-  "assets.productive": "Productive assets",
-  "assets.productive.deductions": "Points taken off when the household owns",
-  "housing.roof": "Roof",
-  "housing.wall": "Walls",
-  "housing.floor": "Floor",
-  "housing.water": "Water source",
-  "housing.tenure": "Home is",
-  "housing.toilet": "Toilet",
-  "housing.crowding": "Crowding",
-  "housing.electricity": "Electricity",
-  "housing.cooking_fuel": "Cooking fuel",
-  "education.reasons": "Why children miss school",
-  "education.attendance": "Children going to school",
-  "vulnerability.points": "Household situation",
-  "social_support.deductions": "Points taken off for support from",
-};
-
-type FieldCopy = { label?: string; unit?: string; step?: number };
-
-const FIELD_COPY: Record<string, FieldCopy> = {
-  "debt.ratio_bands": { label: "Debt compared with income" },
-  "debt.zero_income_with_debt": { label: "Has debt and no income" },
-  "food.skipped": { label: "Skips meals" },
-  "food.shortage": { label: "Runs short of food" },
-  "assets.value.max": { label: "Most points for asset value" },
-  "assets.value.zero": { label: "No assets" },
-  "assets.value.above": { label: "Above the last band" },
-  "assets.value.per_capita_bands": { label: "Asset value per person (ETB)" },
-  "assets.productive.start": { label: "Starting points" },
-  "health.chronic": { label: "Chronic illness" },
-  "health.no_insurance": { label: "No health insurance" },
-  "health.unaffordable": { label: "Can't afford treatment" },
-  "income.zero": { label: "No income" },
-  "income.above": { label: "Above the last band" },
-  "income.per_capita_bands": { label: "Income per person (ETB)" },
-  "housing.crowding.bands": { label: "People per room" },
-  "housing.crowding.zero_rooms": { label: "No rooms" },
-  "housing.electricity.none": { label: "No electricity" },
-  "dependency.ratio_bands": { label: "Dependents per working-age adult" },
-  "dependency.no_working_age": { label: "No adult of working age" },
-  "dependency.large_household_min": { label: "A large household has at least", unit: "people" },
-  "dependency.large_household_bonus": { label: "Extra points for a large household" },
-  "vulnerability.points.child_headed_household": { label: "Child-headed household" },
-  "vulnerability.points.female_headed_household": { label: "Female-headed household" },
-  "social_support.start": { label: "Starting points" },
-  "social_support.deductions.ngo": { label: "NGO" },
-  "social_support.deductions.mosque_community": { label: "Mosque or community" },
-  "expenditure_gap.deficit_bands": { label: "Spending above income (share of income)" },
-  "expenditure_gap.small_surplus_max": { label: "A small surplus is up to (share of income)", unit: "", step: 0.05 },
-  "expenditure_gap.small_surplus_points": { label: "Points for a small surplus" },
-  "expenditure_gap.zero_income_with_exp": { label: "Has spending and no income" },
-};
-
-function sectionTitle(section: string) {
-  return SECTION_TITLES[section] ?? humanize(section);
-}
-
-/** Label, sub-heading, unit and step for one field, without technical paths. */
-function describe(field: SchemaField) {
-  const prefix = `sections.${field.section}.`;
-  if (!field.path.startsWith(prefix)) {
-    return { label: field.label, group: null as string | null, unit: "pts", step: field.type === "number" ? 0.05 : 1 };
-  }
-  const rel = field.path.slice(prefix.length);
-  const parts = rel.split(".");
-  const parent = parts.slice(0, -1).join(".");
-  const copy = FIELD_COPY[`${field.section}.${rel}`] ?? {};
-  return {
-    label: copy.label ?? humanize(parts[parts.length - 1]),
-    group: parent ? (GROUP_TITLES[`${field.section}.${parent}`] ?? humanize(parts[parts.length - 2])) : null,
-    unit: copy.unit ?? "pts",
-    step: copy.step ?? (field.type === "number" ? 0.05 : 1),
-  };
-}
-
-const TOP_LEVEL_NAMES: Record<string, string> = {
-  max_total: "Maximum score",
-  "risk_thresholds.high_min": "Start of High need",
-  "risk_thresholds.medium_min": "Start of Medium need",
-  "preliminary_recommendation.HIGH": "Recommendation for High need",
-  "preliminary_recommendation.MEDIUM": "Recommendation for Medium need",
-  "preliminary_recommendation.LOW": "Recommendation for Low need",
-};
-
-/** Full plain-language name of a field, for messages: "Thatch (Housing, roof)". */
-export function fieldName(field: SchemaField) {
-  const { label, group } = describe(field);
-  if (TOP_LEVEL_NAMES[field.path]) return TOP_LEVEL_NAMES[field.path];
-  if (isCap(field)) return `${sectionTitle(field.section)} maximum`;
-  if (!field.path.startsWith(`sections.${field.section}.`)) return label;
-  return `${label} (${sectionTitle(field.section)}${group ? `, ${group.toLowerCase()}` : ""})`;
-}
-
-type SectionGroup = { key: string; title: string; cap: SchemaField | null; items: SchemaField[] };
-
-export function groupSchema(schema: ScoringSchema) {
-  const sections = new Map<string, SectionGroup>();
-  let maxTotal: SchemaField | null = null;
-  let high: SchemaField | null = null;
-  let medium: SchemaField | null = null;
-  const recommendations: Partial<Record<Level, SchemaField>> = {};
-  const otherThresholds: SchemaField[] = [];
-
-  for (const field of schema.fields) {
-    if (field.path === "max_total") {
-      maxTotal = field;
-      continue;
-    }
-    if (/high_min$/.test(field.path)) {
-      high = field;
-      continue;
-    }
-    if (/medium_min$/.test(field.path)) {
-      medium = field;
-      continue;
-    }
-    if (isText(field)) {
-      // Preliminary recommendations: text, not points, so never part of the budget.
-      const level = LEVELS.find((item) => field.path.toUpperCase().endsWith(`.${item}`));
-      if (level && !recommendations[level]) recommendations[level] = field;
-      else otherThresholds.push(field);
-      continue;
-    }
-    if (THRESHOLD_SECTION.test(field.section) && field.type !== "bands" && !isCap(field)) {
-      otherThresholds.push(field);
-      continue;
-    }
-    const group = sections.get(field.section) ?? { key: field.section, title: sectionTitle(field.section), cap: null, items: [] };
-    if (isCap(field)) group.cap = field;
-    else group.items.push(field);
-    sections.set(field.section, group);
-  }
-  return { sections: [...sections.values()], maxTotal, high, medium, recommendations, otherThresholds };
-}
-
-function num(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
-function text(value: unknown) {
-  return typeof value === "string" ? value : "";
-}
 
 /** Ascending bounds read "up to X"; descending ones read "X or more". */
 function bandDirection(bands: Band[]) {
@@ -338,11 +165,10 @@ function RecommendationControl({ level, label, recommendation }: { level: Level;
   );
 }
 
-const DEFAULT_RECOMMENDATION: Record<Level, string> = { LOW: "defer", MEDIUM: "conditional_approval", HIGH: "approve" };
-
 /** The three risk bands as one bar, with the two cut-off points. */
 function RiskScale({
   maxTotal,
+  limit,
   medium,
   high,
   onMedium,
@@ -351,6 +177,8 @@ function RiskScale({
   recommendations,
 }: {
   maxTotal: number;
+  /** The most a cut-off can be; null when the configuration has no maximum score. */
+  limit: number | null;
   medium: number;
   high: number;
   onMedium?: (value: number) => void;
@@ -365,7 +193,7 @@ function RiskScale({
     { level: "MEDIUM" as const, label: "Medium need", from: medium, to: high, color: "bg-amber-500" },
     { level: "HIGH" as const, label: "High need", from: high, to: maxTotal, color: "bg-rose-500" },
   ];
-  const invalid = !(medium > 0 && medium < high && high <= maxTotal);
+  const invalid = !(medium > 0 && medium < high && (limit == null || high <= limit));
 
   return (
     <div className="space-y-5">
@@ -393,7 +221,9 @@ function RiskScale({
         </div>
       </div>
       {invalid ? (
-        <p className="text-sm text-rose-700">Medium must start above 0 and below High, and High can&apos;t be above {maxTotal}.</p>
+        <p className="text-sm text-rose-700">
+          Medium must start above 0 and below High{limit != null ? <>, and High can&apos;t be above {limit}</> : null}.
+        </p>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-3">
         {bands.map((band, index) => (
@@ -418,7 +248,7 @@ function RiskScale({
                     value={index === 1 ? medium : high}
                     onChange={index === 1 ? onMedium : onHigh}
                     min={1}
-                    max={maxTotal}
+                    max={limit ?? undefined}
                     changedFrom={base ? ((index === 1 ? base.medium : base.high) !== (index === 1 ? medium : high) ? (index === 1 ? base.medium : base.high) : null) : null}
                   />
                 </>
@@ -469,11 +299,14 @@ function BandsRows({
   field,
   value,
   baseValue,
+  cap,
   onChange,
 }: {
   field: SchemaField;
   value: Band[];
   baseValue: Band[] | null;
+  /** The section maximum: no band gives more. */
+  cap: number | null;
   onChange?: (value: Band[]) => void;
 }) {
   const { label } = describe(field);
@@ -487,6 +320,7 @@ function BandsRows({
   return (
     <div className="space-y-2">
       <p className="text-sm font-medium text-[#001539]">{label}</p>
+      {value.length === 0 ? <p className="text-sm text-black/50">No bands.</p> : null}
       <ul className="space-y-1.5">
         {value.map((band, index) => (
           <li key={index} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-black/[0.02] px-3 py-2 text-sm text-black/65">
@@ -497,6 +331,7 @@ function BandsRows({
                 value={band[0]}
                 unit=""
                 step={step}
+                min={fieldMin(field)}
                 onChange={onChange ? (next) => set(index, 0, next) : undefined}
                 changedFrom={baseValue?.[index] && baseValue[index][0] !== band[0] ? baseValue[index][0] : null}
               />
@@ -507,6 +342,7 @@ function BandsRows({
               <Stepper
                 label={`${label} band ${index + 1} points`}
                 value={band[1]}
+                max={cap ?? undefined}
                 onChange={onChange ? (next) => set(index, 1, next) : undefined}
                 changedFrom={baseValue?.[index] && baseValue[index][1] !== band[1] ? baseValue[index][1] : null}
               />
@@ -541,6 +377,11 @@ function SectionCard({
   const over = section.items.filter(
     (field) => field.type !== "bands" && !isText(field) && describe(field).unit === "pts" && cap != null && num(getPath(config, field.path)) > cap,
   );
+  // Unlike a single answer, a band may not give more than the maximum: saving is refused.
+  const bandsOver = section.items.filter((field) => {
+    const bands = getPath(config, field.path);
+    return field.type === "bands" && cap != null && Array.isArray(bands) && bands.some((band) => num(band?.[1]) > cap);
+  });
   // Consecutive fields under the same sub-heading ("Roof", "Meals a day"…) form one block.
   const blocks: { group: string | null; fields: SchemaField[] }[] = [];
   for (const field of section.items) {
@@ -561,6 +402,7 @@ function SectionCard({
             field={field}
             value={Array.isArray(value) ? (value as Band[]) : []}
             baseValue={Array.isArray(baseValue) ? (baseValue as Band[]) : null}
+            cap={cap}
             onChange={onChange ? (next) => onChange(field.path, next) : undefined}
           />
         </li>
@@ -590,6 +432,7 @@ function SectionCard({
           value={current}
           unit={unit}
           step={step}
+          min={fieldMin(field)}
           onChange={onChange ? (next) => onChange(field.path, next) : undefined}
           changedFrom={baseValue != null && num(baseValue) !== current ? num(baseValue) : null}
         />
@@ -626,6 +469,12 @@ function SectionCard({
               Some answers give more than the section maximum ({cap}); the section total is capped at {cap}.
             </p>
           ) : null}
+          {bandsOver.length > 0 ? (
+            <p className="text-xs text-rose-700">
+              {bandsOver.map((field) => describe(field).label).join(", ")}: a band gives more than the section maximum ({cap}). Lower
+              it to {cap} or less before saving.
+            </p>
+          ) : null}
           {blocks.map((block, index) =>
             block.group ? (
               <div key={`${block.group}-${index}`} className="rounded-lg border border-black/[0.05] px-3 pt-2">
@@ -658,11 +507,13 @@ export function ScoringDesigner({
   onChange?: (path: string, value: unknown) => void;
 }) {
   const groups = useMemo(() => groupSchema(schema), [schema]);
-  const maxTotal = groups.maxTotal ? num(getPath(config, groups.maxTotal.path)) : 270;
   const medium = groups.medium ? num(getPath(config, groups.medium.path)) : 0;
   const high = groups.high ? num(getPath(config, groups.high.path)) : 0;
   const capValues = groups.sections.map((section) => (section.cap ? num(getPath(config, section.cap.path)) : 0));
   const hasCaps = groups.sections.some((section) => section.cap);
+  // Without a maximum score in the schema, the section maximums are the most a household can get.
+  const knownMax = groups.maxTotal ? num(getPath(config, groups.maxTotal.path)) : hasCaps ? capValues.reduce((sum, value) => sum + value, 0) : null;
+  const maxTotal = knownMax ?? Math.max(high, medium, 1);
   const base = baseConfig ?? null;
   const recommendations: Partial<Record<Level, LevelRecommendation>> = {};
   for (const level of LEVELS) {
@@ -681,11 +532,12 @@ export function ScoringDesigner({
     <div className="space-y-6">
       <Panel
         title="1. Need levels"
-        description={`Every household gets a score out of ${maxTotal} points. The score decides the need level and the recommendation the branch sees.`}
+        description={`Every household gets a score${knownMax != null ? ` out of ${knownMax} points` : ""}. The score decides the need level and the recommendation the branch sees.`}
       >
         {groups.medium && groups.high ? (
           <RiskScale
             maxTotal={maxTotal}
+            limit={knownMax}
             medium={medium}
             high={high}
             onMedium={onChange ? (value) => onChange(groups.medium!.path, value) : undefined}
@@ -736,51 +588,4 @@ export function ScoringDesigner({
       </div>
     </div>
   );
-}
-
-/** Mirrors the server's checks so problems show before saving. */
-export function validateScoring(schema: ScoringSchema, config: Record<string, unknown>) {
-  const groups = groupSchema(schema);
-  const problems: string[] = [];
-  const maxTotal = groups.maxTotal ? num(getPath(config, groups.maxTotal.path)) : null;
-  const medium = groups.medium ? num(getPath(config, groups.medium.path)) : null;
-  const high = groups.high ? num(getPath(config, groups.high.path)) : null;
-  if (maxTotal != null && medium != null && high != null && !(medium > 0 && medium < high && high <= maxTotal)) {
-    problems.push("Need levels: Medium must start above 0 and below High, and High can't be above the maximum score.");
-  }
-  if (maxTotal != null && groups.sections.some((section) => section.cap)) {
-    const sum = groups.sections.reduce((total, section) => total + (section.cap ? num(getPath(config, section.cap.path)) : 0), 0);
-    if (sum !== maxTotal) problems.push(`Section maximums add up to ${sum}, but must add up to ${maxTotal}.`);
-  }
-  if (LEVELS.some((level) => groups.recommendations[level] && !text(getPath(config, groups.recommendations[level]!.path)).trim())) {
-    problems.push("Need levels: choose a recommendation for every level.");
-  }
-  for (const field of schema.fields) {
-    const value = getPath(config, field.path);
-    const name = fieldName(field);
-    if (field.type === "bands") {
-      const bands = Array.isArray(value) ? (value as Band[]) : [];
-      const bounds = bands.map((band) => num(band?.[0]));
-      const points = bands.map((band) => num(band?.[1]));
-      if (bounds.some((bound) => bound < 0) || points.some((point) => point < 0)) problems.push(`${name}: values can't be negative.`);
-      if (points.some((point) => !Number.isInteger(point))) problems.push(`${name}: points must be whole numbers.`);
-      const rising = bounds.every((bound, index) => index === 0 || bound > bounds[index - 1]);
-      const falling = bounds.every((bound, index) => index === 0 || bound < bounds[index - 1]);
-      if (!rising && !falling) problems.push(`${name}: keep the bands in order, each with a different value.`);
-      continue;
-    }
-    if (typeof value === "number" && value < 0) problems.push(`${name} can't be negative.`);
-    if (field.type === "integer" && typeof value === "number" && !Number.isInteger(value)) problems.push(`${name} must be a whole number.`);
-  }
-  return problems;
-}
-
-/** Field paths in a server message ("sections.food.skipped must be…") replaced by their plain names. */
-export function describeScoringPaths(schema: ScoringSchema, message: string) {
-  const byPath = new Map(schema.fields.map((field) => [field.path, field]));
-  return message.replace(/\b(?:config\.)?((?:sections|risk_thresholds|preliminary_recommendation)\.[\w.]*\w|max_total)\b/g, (match, path: string) => {
-    // A band row may be named as "…bands[2]" or "…bands.2"; name the band list.
-    const field = byPath.get(path) ?? byPath.get(path.replace(/\.\d+(\.\d+)?$/, ""));
-    return field ? fieldName(field) : match;
-  });
 }

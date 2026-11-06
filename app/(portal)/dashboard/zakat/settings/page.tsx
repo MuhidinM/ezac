@@ -8,8 +8,10 @@ import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { DetailList, Panel } from "@/components/dashboard/panel";
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { RequireRole } from "@/components/dashboard/require-role";
 import { TableMessageRow, TableSkeletonRows } from "@/components/dashboard/table-states";
+import { staffRef } from "@/components/zakat/staff-ref";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,14 +35,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api/client";
 import { ApiError, errorMessage, fieldErrorMap } from "@/lib/api/errors";
 import { useResource } from "@/lib/api/use-resource";
-import { formatDate } from "@/lib/backoffice/format";
+import { formatCount, formatDate, formatEtb } from "@/lib/backoffice/format";
 import { formatDateTime } from "@/lib/beneficiary/format";
+import { fixedCodeOnLiveBank, modeLabel, modeWarning, railMode } from "@/lib/zakat/payment-mode";
 
 type HomeAdjustment = {
   offlineCollectedEtb: number;
   offlineBeneficiaries: number;
   note: string | null;
   createdBy?: string | null;
+  /** Requested from the backend (§20); the id is shown until it comes. */
+  createdByName?: string | null;
   createdAt?: string | null;
 };
 
@@ -51,14 +56,16 @@ type PaymentSettings = {
   minAmountEtb: number | null;
   maxAmountEtb: number | null;
   ready: boolean;
-  bankMode: "live" | "sandbox";
+  /** "live" or "sandbox"; anything else (or nothing) is treated as test. */
+  bankMode: string | null;
   defaultOtpEnabled: boolean;
   /** QR (EthQR): switched on; ready = switched on, account set and registered. */
   qrEnabled?: boolean;
   qrReady?: boolean;
   ethqrPuid?: string | null;
-  ethqrMode?: "live" | "sandbox" | null;
+  ethqrMode?: string | null;
   updatedBy?: string | null;
+  updatedByName?: string | null;
   updatedAt?: string | null;
 };
 
@@ -72,7 +79,7 @@ type EthqrMerchant = {
   registeredAt?: string | null;
   qrEnabled: boolean;
   qrReady: boolean;
-  mode: "live" | "sandbox";
+  mode: string | null;
 };
 
 type FitrSeason = {
@@ -87,7 +94,6 @@ type FitrSeason = {
 };
 
 const SEASON_TONE: Record<FitrSeason["status"], BadgeTone> = { upcoming: "info", open: "success", closed: "neutral" };
-const etb = new Intl.NumberFormat("en-ET", { maximumFractionDigits: 2 });
 
 export default function ZakatSettingsPage() {
   return (
@@ -117,13 +123,15 @@ function PaymentSettingsPanel() {
         description="Donors pay by QR code from any bank app into this commission account. Changes apply to new payments only."
         actions={
           data ? (
-            <>
+            data.qrReady && railMode(data.ethqrMode) === "test" ? (
+              <Badge tone="warning">QR payments: test mode</Badge>
+            ) : (
               <Badge tone={data.qrReady ? "success" : "warning"}>{data.qrReady ? "QR payments: ready" : "QR payments: not ready"}</Badge>
-            </>
+            )
           ) : null
         }
       >
-        {error ? <InlineAlert>{error.message}</InlineAlert> : null}
+        <ErrorAlert error={error} onRetry={reload} />
         {notice ? (
           <InlineAlert tone="success" className="mb-4">
             {notice}
@@ -163,6 +171,7 @@ function PaymentSettingsForm({
   const [confirmAccount, setConfirmAccount] = useState(false);
   const [qrEnabled, setQrEnabled] = useState(settings.qrEnabled ?? false);
   const accountChanged = (settings.creditAccountNumber ?? "") !== account.trim();
+  const warning = modeWarning(settings, ["bank", "qr"]);
   const [min, setMin] = useState(settings.minAmountEtb != null ? String(settings.minAmountEtb) : "");
   const [max, setMax] = useState(settings.maxAmountEtb != null ? String(settings.maxAmountEtb) : "");
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
@@ -178,8 +187,9 @@ function PaymentSettingsForm({
       return;
     }
     setFieldErrors({});
-    // A new commission account clears the EthQR registration, so ask first.
-    if (accountChanged && settings.ethqrPuid) {
+    // Donations are paid into this account, so a change is shown before and after first
+    // (and, when registered, it clears the EthQR registration).
+    if (accountChanged) {
       setConfirmAccount(true);
       return;
     }
@@ -213,18 +223,26 @@ function PaymentSettingsForm({
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
-      {settings.bankMode === "sandbox" ? (
-        <InlineAlert tone="warning" title="TEST MODE">
-          The bank connection is a sandbox: payments are simulated and no money moves.
+      {warning.test ? (
+        <InlineAlert tone="error" title="Test mode: no real money moves">
+          <ul className="list-disc space-y-0.5 pl-4">
+            {warning.reasons.map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
         </InlineAlert>
       ) : null}
-      {settings.ethqrMode === "sandbox" ? (
-        <InlineAlert tone="warning" title="TEST MODE (QR)">
-          EthQR is a sandbox: QR codes are fake and no money moves.
+      {fixedCodeOnLiveBank(settings) ? (
+        // Not dismissable: it stays until the server setting changes (gap-r1-2-3).
+        <InlineAlert tone="error" title="Launch blocker: fixed test code with a live bank connection">
+          The server accepts one fixed confirmation code instead of an SMS code, while the bank connection is live.{" "}
+          {settings.coopEnabled
+            ? "Anyone who knows the code can confirm an old Coop account payment. Switch off the old Coop account payments below now."
+            : "The old Coop account payments that use it are switched off; keep them off."}{" "}
+          The fixed code is a server setting: it must be switched off before launch. It can&apos;t be changed from this page.
         </InlineAlert>
-      ) : null}
-      {settings.defaultOtpEnabled ? (
-        <InlineAlert tone="info" title="Test confirmation code in use">
+      ) : settings.defaultOtpEnabled ? (
+        <InlineAlert tone="warning" title="Test confirmation code in use">
           SMS isn&apos;t connected yet; the server accepts one fixed confirmation code. Don&apos;t treat payments as production.
         </InlineAlert>
       ) : null}
@@ -253,7 +271,7 @@ function PaymentSettingsForm({
         </FormField>
       </div>
       {settings.coopEnabled ? (
-        <label className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-sm text-[#001539]">
+        <label className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-sm text-navy">
           <input type="checkbox" checked={!enabled} onChange={(e) => setEnabled(!e.target.checked)} className="mt-0.5 size-4 accent-[#007050]" />
           <span>
             Switch off the old Coop account payments
@@ -263,7 +281,7 @@ function PaymentSettingsForm({
       ) : (
         <p className="text-xs text-black/45">Old Coop account payments: switched off.</p>
       )}
-      <label className="flex items-start gap-2 text-sm text-[#001539]">
+      <label className="flex items-start gap-2 text-sm text-navy">
         <input
           type="checkbox"
           checked={qrEnabled}
@@ -279,19 +297,29 @@ function PaymentSettingsForm({
         </span>
       </label>
       <div className="flex items-center justify-between border-t border-black/[0.06] pt-4">
-        <p className="text-xs text-black/45">
-          {settings.updatedAt ? `Last changed ${formatDateTime(settings.updatedAt)}` : "Not configured yet"} · bank mode {settings.bankMode}
+        <p className="flex flex-wrap items-center gap-1 text-xs text-black/45">
+          {settings.updatedAt ? <>Last changed {formatDateTime(settings.updatedAt)}</> : "Not configured yet"}
+          {settings.updatedAt && (settings.updatedBy || settings.updatedByName) ? <>by {staffRef(settings.updatedBy, settings.updatedByName)}</> : null}
+          <span>· Bank connection: {modeLabel(settings.bankMode)}</span>
         </p>
-        <Button type="submit" disabled={isSaving}>
+        <Button type="submit" loading={isSaving} loadingText="Saving…">
           <Save />
-          {isSaving ? "Saving…" : "Save"}
+          Save
         </Button>
       </div>
       <ConfirmDialog
         open={confirmAccount}
         onOpenChange={setConfirmAccount}
         title="Change the commission account?"
-        description={`This clears the EthQR registration (merchant ${settings.ethqrPuid}). QR payments stop until the new account is registered with EthQR.`}
+        description={
+          <>
+            Donations are paid into this account from now on: <span className="font-mono">{settings.creditAccountNumber || "none"}</span> →{" "}
+            <span className="font-mono">{account.trim() || "none"}</span>.{" "}
+            {settings.ethqrPuid
+              ? `This clears the EthQR registration (merchant ${settings.ethqrPuid}). QR payments stop until the new account is registered with EthQR.`
+              : "Check the number with the bank statement before saving."}
+          </>
+        }
         confirmLabel="Change account"
         destructive
         onConfirm={save}
@@ -316,9 +344,11 @@ function EthqrPanel({ onRegistered }: { onRegistered: () => void }) {
         </Button>
       }
     >
-      {data?.mode === "sandbox" ? (
-        <InlineAlert tone="warning" title="TEST MODE" className="mb-4">
-          EthQR is a sandbox: QR codes are fake and no money moves.
+      {data && railMode(data.mode) === "test" ? (
+        <InlineAlert tone="error" title="Test mode: no real money moves" className="mb-4">
+          {data.mode === "sandbox"
+            ? "EthQR is a sandbox: QR codes are fake and no money moves."
+            : `EthQR's mode is ${modeLabel(data.mode)}, so QR payments are treated as a test.`}
         </InlineAlert>
       ) : null}
       {data ? (
@@ -329,18 +359,24 @@ function EthqrPanel({ onRegistered }: { onRegistered: () => void }) {
             { label: "Name on QR", value: data.merchantName },
             { label: "Account", value: <span className="font-mono">{data.accountNumber}</span> },
             { label: "Registered", value: formatDateTime(data.registeredAt ?? null) },
+            { label: "Registered by", value: staffRef(data.registeredBy) },
             {
               label: "Status",
-              value: <Badge tone={data.qrReady ? "success" : "warning"}>{data.qrReady ? "Ready" : data.qrEnabled ? "Switched on, not ready" : "Switched off"}</Badge>,
+              value:
+                data.qrReady && railMode(data.mode) === "test" ? (
+                  <Badge tone="warning">Ready (test mode)</Badge>
+                ) : (
+                  <Badge tone={data.qrReady ? "success" : "warning"}>{data.qrReady ? "Ready" : data.qrEnabled ? "Switched on, not ready" : "Switched off"}</Badge>
+                ),
             },
-            { label: "Mode", value: data.mode === "sandbox" ? "Sandbox" : "Live" },
+            { label: "Mode", value: modeLabel(data.mode) },
             { label: "Merchant id", value: data.merchantId ? <span className="font-mono text-xs">{data.merchantId}</span> : null },
           ]}
         />
       ) : notRegistered ? (
         <p className="text-sm text-black/55">The commission account isn&apos;t registered with EthQR yet.</p>
       ) : error ? (
-        <InlineAlert>{error.message}</InlineAlert>
+        <ErrorAlert error={error} />
       ) : (
         <p className="text-sm text-black/45">Loading…</p>
       )}
@@ -360,7 +396,7 @@ function EthqrPanel({ onRegistered }: { onRegistered: () => void }) {
 
 function EthqrRegisterDialog({ onClose, onRegistered }: { onClose: () => void; onRegistered: (merchant: EthqrMerchant) => void }) {
   const [form, setForm] = useState({ phoneNumber: "", email: "", dbaName: "", businessType: "", city: "", region: "" });
-  const [error, setError] = useState<{ text: string; ethqrCode?: string; ethqrResponse?: string } | null>(null);
+  const [error, setError] = useState<{ text: string; ethqrCode?: string } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const set = (key: keyof typeof form, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
@@ -385,12 +421,11 @@ function EthqrRegisterDialog({ onClose, onRegistered }: { onClose: () => void; o
       });
       onRegistered(merchant);
     } catch (saveError) {
-      const details = saveError instanceof ApiError ? (saveError.data as { ethqrCode?: unknown; ethqrResponse?: unknown } | null) : null;
-      const text = (value: unknown) => (value == null ? undefined : typeof value === "string" ? value : JSON.stringify(value, null, 2));
+      const details = saveError instanceof ApiError ? (saveError.data as { ethqrCode?: unknown } | null) : null;
+      const code = details?.ethqrCode;
       setError({
         text: errorMessage(saveError, "Couldn't register with EthQR"),
-        ethqrCode: text(details?.ethqrCode),
-        ethqrResponse: text(details?.ethqrResponse),
+        ethqrCode: typeof code === "string" || typeof code === "number" ? String(code) : undefined,
       });
       if (saveError instanceof ApiError) setFieldErrors(fieldErrorMap(saveError.errors));
     } finally {
@@ -403,7 +438,7 @@ function EthqrRegisterDialog({ onClose, onRegistered }: { onClose: () => void; o
       <DialogContent className="max-w-lg">
         <form onSubmit={onSubmit} className="space-y-4">
           <DialogHeader>
-            <DialogTitle className="text-[#001539]">Register with EthQR</DialogTitle>
+            <DialogTitle className="text-navy">Register with EthQR</DialogTitle>
             <DialogDescription>
               Registers the commission account set above. Doing it again returns the same merchant.
             </DialogDescription>
@@ -415,9 +450,7 @@ function EthqrRegisterDialog({ onClose, onRegistered }: { onClose: () => void; o
                   EthQR code: <span className="font-mono">{error.ethqrCode}</span>
                 </span>
               ) : null}
-              {error.ethqrResponse ? (
-                <pre className="mt-1 max-h-40 overflow-auto rounded bg-white/60 p-2 text-xs whitespace-pre-wrap break-all">{error.ethqrResponse}</pre>
-              ) : null}
+
             </InlineAlert>
           ) : null}
           <div className="grid gap-3 sm:grid-cols-2">
@@ -444,8 +477,8 @@ function EthqrRegisterDialog({ onClose, onRegistered }: { onClose: () => void; o
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSaving}>
-              {isSaving ? "Registering…" : "Register"}
+            <Button type="submit" loading={isSaving} loadingText="Registering…">
+              Register
             </Button>
           </DialogFooter>
         </form>
@@ -455,7 +488,7 @@ function EthqrRegisterDialog({ onClose, onRegistered }: { onClose: () => void; o
 }
 
 function HomeFiguresPanel() {
-  const { data, error, mutate } = useResource<HomeAdjustment>("/bff/zakat-admin/home/adjustment");
+  const { data, error, mutate, reload } = useResource<HomeAdjustment>("/bff/zakat-admin/home/adjustment");
   // Kept here: the form remounts after a save, so its own state is lost.
   const [notice, setNotice] = useState<string | null>(null);
   return (
@@ -463,7 +496,7 @@ function HomeFiguresPanel() {
       title="Home figures (offline)"
       description="Collections and households from outside the app (cash, history before the app). Added to the live totals on the public home screen within about a minute. Saving replaces the previous values."
     >
-      {error ? <InlineAlert>{error.message}</InlineAlert> : null}
+      <ErrorAlert error={error} onRetry={reload} />
       {notice ? (
         <InlineAlert tone="success" className="mb-4">
           {notice}
@@ -495,36 +528,44 @@ function HomeFiguresForm({
 }) {
   const [collected, setCollected] = useState(String(adjustment.offlineCollectedEtb ?? 0));
   const [households, setHouseholds] = useState(String(adjustment.offlineBeneficiaries ?? 0));
-  const [note, setNote] = useState(adjustment.note ?? "");
+  // A fresh note for each change: where the new figures come from.
+  const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [householdsError, setHouseholdsError] = useState<string | undefined>();
-  const [isSaving, setIsSaving] = useState(false);
+  const [noteError, setNoteError] = useState<string | undefined>();
+  const [confirming, setConfirming] = useState(false);
+  const nextCollected = Number(collected || 0);
+  const nextHouseholds = Number(households || 0);
+  const changed = nextCollected !== (adjustment.offlineCollectedEtb ?? 0) || nextHouseholds !== (adjustment.offlineBeneficiaries ?? 0);
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+  // These figures go public, so a save first shows the change and needs a source (gap-r1-3-2).
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     onEdit();
     setError(null);
-    if (households.trim() && !Number.isInteger(Number(households))) {
-      setHouseholdsError("Enter a whole number of households.");
-      return;
-    }
-    setHouseholdsError(undefined);
-    setIsSaving(true);
+    const householdsProblem = households.trim() && !Number.isInteger(Number(households)) ? "Enter a whole number of households." : undefined;
+    const noteProblem = note.trim().length < 10 ? "Say where these figures come from (at least 10 characters)." : undefined;
+    setHouseholdsError(householdsProblem);
+    setNoteError(noteProblem);
+    if (householdsProblem || noteProblem) return;
+    setConfirming(true);
+  }
+
+  async function save() {
     try {
       onSaved(
         await apiClient<HomeAdjustment>("/bff/zakat-admin/home/adjustment", {
           method: "PUT",
           body: JSON.stringify({
-            offlineCollectedEtb: Number(collected || 0),
-            offlineBeneficiaries: Number(households || 0),
-            note: note.trim() || undefined,
+            offlineCollectedEtb: nextCollected,
+            offlineBeneficiaries: nextHouseholds,
+            note: note.trim(),
           }),
         }),
       );
     } catch (saveError) {
+      // Shown on the form once the confirm step closes.
       setError(errorMessage(saveError, "Couldn't save the figures"));
-    } finally {
-      setIsSaving(false);
     }
   }
 
@@ -539,20 +580,56 @@ function HomeFiguresForm({
           <Input id="hf-households" type="number" min={0} step={1} value={households} onChange={(e) => setHouseholds(e.target.value)} className="tabular-nums" />
         </FormField>
       </div>
-      <FormField label="Note" htmlFor="hf-note" hint="Where these figures come from">
+      <FormField
+        label="Source of these figures"
+        htmlFor="hf-note"
+        required
+        hint="Where the new figures come from, e.g. the report or ledger and its date"
+        error={noteError}
+      >
         <Textarea id="hf-note" rows={2} maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} />
       </FormField>
-      <div className="flex items-center justify-between border-t border-black/[0.06] pt-4">
-        <p className="text-xs text-black/45">
-          {adjustment.createdAt
-            ? `Currently ETB ${etb.format(adjustment.offlineCollectedEtb)} and ${adjustment.offlineBeneficiaries.toLocaleString()} households, set ${formatDateTime(adjustment.createdAt)}`
-            : "Not set yet"}
-        </p>
-        <Button type="submit" disabled={isSaving}>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-black/[0.06] pt-4">
+        <div className="space-y-0.5 text-xs text-black/45">
+          {adjustment.createdAt ? (
+            <>
+              <p className="flex flex-wrap items-center gap-1">
+                Currently {formatEtb(adjustment.offlineCollectedEtb)} and {formatCount(adjustment.offlineBeneficiaries)} households, set{" "}
+                {formatDateTime(adjustment.createdAt)}
+                {adjustment.createdBy || adjustment.createdByName ? <>by {staffRef(adjustment.createdBy, adjustment.createdByName)}</> : null}
+              </p>
+              {adjustment.note ? <p>Source given: {adjustment.note}</p> : null}
+            </>
+          ) : (
+            <p>Not set yet</p>
+          )}
+        </div>
+        <Button type="submit" disabled={!changed} title={changed ? undefined : "Change a figure first"}>
           <Save />
-          {isSaving ? "Saving…" : "Save"}
+          Review and save
         </Button>
       </div>
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title="Publish the new home figures?"
+        description="The public home screen shows them within about a minute, added to the live totals. Saving replaces the previous values."
+        confirmLabel="Publish figures"
+        onConfirm={save}
+      >
+        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm text-navy">
+          <dt className="text-black/55">Collected offline</dt>
+          <dd className="tabular-nums">
+            {formatEtb(adjustment.offlineCollectedEtb ?? 0)} → <strong>{formatEtb(nextCollected)}</strong>
+          </dd>
+          <dt className="text-black/55">Households</dt>
+          <dd className="tabular-nums">
+            {formatCount(adjustment.offlineBeneficiaries ?? 0)} → <strong>{formatCount(nextHouseholds)}</strong>
+          </dd>
+          <dt className="text-black/55">Source</dt>
+          <dd className="break-words">{note.trim()}</dd>
+        </dl>
+      </ConfirmDialog>
     </form>
   );
 }
@@ -576,7 +653,7 @@ function FitrSeasonsPanel() {
     >
       {error ? (
         <div className="px-5 pt-4">
-          <InlineAlert>{error.message}</InlineAlert>
+          <ErrorAlert error={error} onRetry={reload} />
         </div>
       ) : null}
       <Table>
@@ -600,7 +677,7 @@ function FitrSeasonsPanel() {
           ) : (
             seasons.map((season) => (
               <TableRow key={season.hijriYear}>
-                <TableCell className="pl-5 font-semibold text-[#001539] tabular-nums">{season.hijriYear} AH</TableCell>
+                <TableCell className="pl-5 font-semibold text-navy tabular-nums">{season.hijriYear} AH</TableCell>
                 <TableCell>
                   <Badge tone={SEASON_TONE[season.status] ?? "neutral"} className="capitalize">
                     {season.status}
@@ -609,7 +686,7 @@ function FitrSeasonsPanel() {
                 <TableCell className="text-sm">
                   {formatDate(season.startsOn)} – {formatDate(season.dueBy)}
                 </TableCell>
-                <TableCell className="text-right tabular-nums">ETB {etb.format(season.perPersonAmountEtb)}</TableCell>
+                <TableCell className="text-right tabular-nums">{formatEtb(season.perPersonAmountEtb)}</TableCell>
                 <TableCell className="max-w-xs truncate text-sm text-black/60">{season.basis ?? "—"}</TableCell>
                 <TableCell className="pr-5 text-right">
                   <Button variant="ghost" size="sm" onClick={() => setEditing(season)}>
@@ -728,7 +805,7 @@ function FitrSeasonDialog({
       <DialogContent className="max-w-lg">
         <form onSubmit={onSubmit} className="space-y-4">
           <DialogHeader>
-            <DialogTitle className="text-[#001539]">{season ? `Zakat al-Fitr ${season.hijriYear} AH` : "New Zakat al-Fitr season"}</DialogTitle>
+            <DialogTitle className="text-navy">{season ? `Zakat al-Fitr ${season.hijriYear} AH` : "New Zakat al-Fitr season"}</DialogTitle>
             <DialogDescription>The status (upcoming, open, closed) follows today&apos;s date.</DialogDescription>
           </DialogHeader>
           {error ? <InlineAlert>{error}</InlineAlert> : null}
@@ -742,7 +819,7 @@ function FitrSeasonDialog({
                 </Button>
               }
             >
-              ETB {etb.format(existing.perPersonAmountEtb)} per person, {formatDate(existing.startsOn)} – {formatDate(existing.dueBy)}. Saving
+              {formatEtb(existing.perPersonAmountEtb)} per person, {formatDate(existing.startsOn)} – {formatDate(existing.dueBy)}. Saving
               here would replace it.
             </InlineAlert>
           ) : null}
@@ -776,8 +853,8 @@ function FitrSeasonDialog({
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSaving || existing !== null}>
-              {isSaving ? "Saving…" : warnings.length > 0 ? "Save anyway" : "Save season"}
+            <Button type="submit" disabled={existing !== null} loading={isSaving} loadingText="Saving…">
+              {warnings.length > 0 ? "Save anyway" : "Save season"}
             </Button>
           </DialogFooter>
         </form>

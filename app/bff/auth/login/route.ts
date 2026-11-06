@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { getApiBaseUrl } from "@/lib/api/config";
-import { logGatewayUnreachable } from "@/lib/api/network-error";
+import { ApiError } from "@/lib/api/errors";
+import { gatewayRequest } from "@/lib/api/gateway";
+import { logEvent, oneLine } from "@/lib/api/log";
 import type { MeProfile } from "@/lib/api/types";
-import { authError, clientIp, isJsonRequest, isTimeout } from "@/lib/auth/http";
+import { newRequestId, readUpstreamJson, upstreamFetch } from "@/lib/api/upstream";
+import { authError, clientIp, isJsonRequest } from "@/lib/auth/http";
 import { type AttemptOutcome, UNKNOWN_IP, loginLimiter, tooManyAttemptsMessage } from "@/lib/auth/rate-limit";
 import {
   AUTH_REQUEST_TIMEOUT_MS,
@@ -52,26 +54,24 @@ async function checkPortalRole(accessToken: string, ip: string): Promise<RoleChe
   const tokenRoles = fromToken?.allRoles ?? [];
   if (hasPortalAccess(fromToken)) return { kind: "allowed" };
 
-  let response: Response;
+  let meRoles: string[] = [];
   try {
-    response = await fetch(`${getApiBaseUrl()}/api/auth/v1/me`, {
-      headers: { Authorization: `Bearer ${accessToken}`, ...forwardedHeaders(ip) },
-      cache: "no-store",
-      signal: AbortSignal.timeout(AUTH_REQUEST_TIMEOUT_MS),
+    const profile = await gatewayRequest<MeProfile>("/api/auth/v1/me", {
+      accessToken,
+      headers: forwardedHeaders(ip),
+      label: "auth/login me",
+      timeoutMs: AUTH_REQUEST_TIMEOUT_MS,
     });
+    meRoles = Array.isArray(profile?.roles) ? profile.roles : [];
   } catch (error) {
-    logGatewayUnreachable("auth/login me", error);
-    return { kind: "unavailable" };
+    // Unreachable, timed out (502/504, already logged), 5xx, 408 or 429: try again later.
+    if (!(error instanceof ApiError) || error.status >= 500 || error.status === 408 || error.status === 429) {
+      return { kind: "unavailable" };
+    }
+    // Any other refusal: /me gives this account no roles.
   }
 
-  if (response.status >= 500 || response.status === 408 || response.status === 429) {
-    return { kind: "unavailable" };
-  }
-
-  const body = (await response.json().catch(() => null)) as { data?: MeProfile } | null;
-  const meRoles = response.ok && Array.isArray(body?.data?.roles) ? body.data.roles : [];
-  const roles = [...tokenRoles, ...meRoles];
-  const flags = sessionFlags(roles);
+  const flags = sessionFlags([...tokenRoles, ...meRoles]);
   return flags.isAdmin || flags.isStaff || flags.isBranch ? { kind: "allowed" } : { kind: "no-role" };
 }
 
@@ -125,36 +125,50 @@ async function signIn(
   account: string,
   outcome: { value: AttemptOutcome },
 ): Promise<NextResponse> {
+  // Sent to the gateway as X-Request-Id and written on every log line below.
+  const requestId = newRequestId();
   let upstream: Response;
+  let payload: unknown = null;
   try {
-    upstream = await fetch(`${getApiBaseUrl()}/api/auth/v1/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...forwardedHeaders(ip) },
-      body: JSON.stringify({ username, password }),
-      cache: "no-store",
-      signal: AbortSignal.timeout(AUTH_REQUEST_TIMEOUT_MS),
-    });
+    const call = await upstreamFetch(
+      "/api/auth/v1/login",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...forwardedHeaders(ip) },
+        body: JSON.stringify({ username, password }),
+      },
+      { label: "auth/login", requestId, timeoutMs: AUTH_REQUEST_TIMEOUT_MS },
+    );
+    upstream = call.response;
+    const body = await readUpstreamJson(call);
+    if (body.kind === "json") payload = body.value;
   } catch (error) {
-    logGatewayUnreachable("auth/login", error);
-    return isTimeout(error) ? authError(504, TIMED_OUT) : authError(502, SERVICE_DOWN);
+    // ApiError 502 (unreachable) or 504 (timed out), already logged with the request id.
+    return error instanceof ApiError && error.status === 504 ? authError(504, TIMED_OUT) : authError(502, SERVICE_DOWN);
   }
-
-  const payload = (await upstream.json().catch(() => null)) as unknown;
 
   if (!upstream.ok) {
     if (upstream.status === 400 || upstream.status === 401 || upstream.status === 403) {
       outcome.value = "failure";
       // The real reason (disabled, locked, unknown user) stays in the server
       // log; the browser gets one message so it can't probe which accounts exist.
-      console.warn(
-        `[auth/login] refused ${upstream.status} for "${account}" from ${ip}: ${errorText(payload, "no reason given")}`,
-      );
+      logEvent("warn", "login_refused", {
+        requestId,
+        status: upstream.status,
+        account,
+        ip,
+        reason: oneLine(errorText(payload, "no reason given"), 200),
+      });
       return authError(401, INVALID_CREDENTIALS);
     }
     if (upstream.status === 429) {
       return authError(429, tooManyAttemptsMessage(15 * 60), { "Retry-After": String(15 * 60) });
     }
-    console.error(`[auth/login] gateway answered ${upstream.status}: ${errorText(payload, "no reason given")}`);
+    logEvent("error", "login_failed", {
+      requestId,
+      status: upstream.status,
+      reason: oneLine(errorText(payload, "no reason given"), 200),
+    });
     if (upstream.status === 504 || upstream.status === 408) return authError(504, TIMED_OUT);
     if (upstream.status >= 500) return authError(502, SERVICE_DOWN);
     return authError(502, "Sign-in failed. Try again.");
@@ -163,8 +177,8 @@ async function signIn(
   const tokens = readTokens(payload);
   if (!tokens) {
     // Log the shape only; the body may hold credentials-adjacent data.
-    const keys = payload && typeof payload === "object" ? Object.keys(payload as object) : typeof payload;
-    console.error("[auth/login] login returned no tokens; response keys:", keys);
+    const keys = payload && typeof payload === "object" ? Object.keys(payload as object).slice(0, 20) : [typeof payload];
+    logEvent("error", "login_unreadable", { requestId, message: "login returned no tokens", keys });
     return authError(502, "The authentication service sent an unexpected response");
   }
 
@@ -173,7 +187,11 @@ async function signIn(
     return authError(503, SERVICE_DOWN);
   }
   if (role.kind === "no-role") {
-    console.warn(`[auth/login] "${account}" signed in but has no ADMIN, FIELD_OFFICER or BRANCH role; refused`);
+    logEvent("warn", "login_no_role", {
+      requestId,
+      account,
+      message: "signed in but has no ADMIN, FIELD_OFFICER or BRANCH role; refused",
+    });
     return authError(403, NO_STAFF_ROLE);
   }
 

@@ -1,6 +1,6 @@
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
-import { getImpactRegions } from "@/lib/zakat/impact";
+import { getCalculatorConfig, getImpactRegions } from "@/lib/zakat/impact";
 
 import { FeaturedCauses } from "./featured-causes";
 import { Hero } from "./hero";
@@ -16,7 +16,12 @@ import { ZakatCalculator } from "./zakat-calculator";
 
 /** The home page. Each section gets its slice of the dictionary in the visitor's language. */
 export async function LandingPage({ locale, dict }: { locale: Locale; dict: Dictionary }) {
-  const regions = await getImpactRegions();
+  const [regions, calculatorConfig] = await Promise.all([
+    getImpactRegions(),
+    // The ticker reads the same config in this render (one request); handing it to the
+    // calculator saves the browser a second fetch. On failure the calculator fetches it itself.
+    getCalculatorConfig().catch(() => null),
+  ]);
   const { home } = dict;
 
   return (
@@ -37,7 +42,7 @@ export async function LandingPage({ locale, dict }: { locale: Locale; dict: Dict
         </div>
         <TrustStrip t={home.trustStrip} locale={locale} />
         <TransparencyTicker t={home.ticker} locale={locale} />
-        <ZakatCalculator t={dict.calculator} />
+        <ZakatCalculator t={dict.calculator} initialConfig={calculatorConfig} />
         <FeaturedCauses t={home.causes} locale={locale} />
         <HowItWorksTrust t={home.howItWorks} locale={locale} />
         <ImpactMapTeaser regions={regions ?? []} t={home.impactMap} />

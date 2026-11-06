@@ -10,10 +10,12 @@ import { EditBranchDialog } from "@/components/branches/edit-branch-dialog";
 import { ResetPasswordButton } from "@/components/dashboard/reset-password-button";
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { useBreadcrumbLabel } from "@/components/dashboard/dashboard-header";
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { DetailList, Panel } from "@/components/dashboard/panel";
 import { RequireRole } from "@/components/dashboard/require-role";
+import { DetailSkeleton } from "@/components/dashboard/skeletons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api/client";
@@ -40,7 +42,7 @@ function BranchDetail() {
   useBreadcrumbLabel(branch?.name);
 
   if (isLoading && !branch) {
-    return <div className="h-72 animate-pulse rounded-xl bg-black/[0.04]" />;
+    return <DetailSkeleton side={false} />;
   }
 
   if (!branch) {
@@ -48,9 +50,11 @@ function BranchDetail() {
     return (
       <section className="space-y-6">
         <PageHeader title="Branch" back={{ href: "/dashboard/branches", label: "Branches" }} />
-        <InlineAlert action={missing ? undefined : <Button variant="outline" size="sm" onClick={reload}>Retry</Button>}>
-          {missing ? "This branch doesn't exist. Check the link, or find the branch in the list." : (error?.message ?? "Branch not found")}
-        </InlineAlert>
+        {missing ? (
+          <InlineAlert>This branch doesn&apos;t exist. Check the link, or find the branch in the list.</InlineAlert>
+        ) : (
+          <ErrorAlert error={error} onRetry={reload} fallback="The branch couldn't be loaded." />
+        )}
       </section>
     );
   }

@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Banknote, CheckCheck, CornerUpLeft, MinusCircle, RefreshCw, SlidersHorizontal, X, XCircle } from "lucide-react";
 
 import { PoolStatusBadge, RiskBadge, ScoreMeter, WhitelistBadge } from "@/components/backoffice/status-badges";
 import { VerificationStatusBadge } from "@/components/beneficiary/verification-status-badge";
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { PayoutDialog, isExpired, useServerNow } from "@/components/disbursements/payout-dialog";
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
@@ -19,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
+import { Tabs, TabsContent, TabsCount, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -35,10 +37,13 @@ import type { BranchListItem, PaginatedItems, VerificationStatus } from "@/lib/a
 import { useResource } from "@/lib/api/use-resource";
 import { useScoreMax } from "@/lib/backoffice/score-max";
 import { ASNAF } from "@/lib/backoffice/options";
+import { formatCount } from "@/lib/backoffice/format";
 import { formatDateTime } from "@/lib/beneficiary/format";
 import { ETHIOPIAN_REGIONS } from "@/lib/constants/regions";
+import { useListState } from "@/lib/hooks/use-list-state";
 import { cn } from "@/lib/utils";
 import type { Disbursement } from "@/lib/zakat/disbursements";
+import { POOL_FILTERS, POOL_LIST_DEFAULTS, POOL_SORTS, poolQuery, poolStepBack } from "@/lib/zakat/pool-list";
 
 const API = "/bff/backoffice/admin/pool";
 const PAYOUTS_API = "/bff/payments-admin/disbursements";
@@ -47,46 +52,32 @@ const PAGE_SIZE = 25;
 type View = "awaiting" | "pooled";
 type RowAction = "decline" | "send-back" | "remove";
 
-type Filters = {
-  branchId: string;
-  region: string;
-  riskCategory: string;
-  scoreMin: string;
-  scoreMax: string;
-  asnaf: string;
-  approvedFrom: string;
-  approvedTo: string;
-  sort: "priority" | "score" | "approvedAt" | "poolStatusAt";
-  order: "desc" | "asc";
-};
+const VIEWS: { value: View; label: string }[] = [
+  { value: "awaiting", label: "Awaiting pool" },
+  { value: "pooled", label: "In the pool" },
+];
 
-const EMPTY: Filters = {
-  branchId: "",
-  region: "",
-  riskCategory: "",
-  scoreMin: "",
-  scoreMax: "",
-  asnaf: "",
-  approvedFrom: "",
-  approvedTo: "",
-  sort: "priority",
-  order: "desc",
-};
+/** How long the score boxes wait after the last keystroke before the list reloads (perf-11). */
+const SCORE_DEBOUNCE_MS = 400;
 
-/** Checked here so a bad range never reaches the server, which answers with a raw validation message. */
-function checkFilters(filters: Filters, scoreMax: number) {
-  const errors: { score?: string; approved?: string } = {};
-  const scores = [filters.scoreMin, filters.scoreMax].map((value) => (value.trim() === "" ? null : Number(value)));
-  const [min, max] = scores;
-  if (scores.some((value) => value !== null && (!Number.isFinite(value) || value < 0 || value > scoreMax))) {
-    errors.score = `Enter scores from 0 to ${scoreMax}. The score filter isn't applied until then.`;
-  } else if (min !== null && max !== null && min > max) {
-    errors.score = "The lowest score can't be above the highest. The score filter isn't applied until you fix it.";
+/**
+ * A text box whose value is written to the URL a moment after typing stops,
+ * so each keystroke doesn't reload the list. Takes the URL's value when it
+ * changes from elsewhere (Clear, Back).
+ */
+function useDebouncedDraft(value: string, commit: (value: string) => void, delay = SCORE_DEBOUNCE_MS) {
+  const [draft, setDraft] = useState(value);
+  const [synced, setSynced] = useState(value);
+  if (value !== synced) {
+    setSynced(value);
+    setDraft(value);
   }
-  if (filters.approvedFrom && filters.approvedTo && filters.approvedFrom > filters.approvedTo) {
-    errors.approved = "The start date can't be after the end date. The date filter isn't applied until you fix it.";
-  }
-  return errors;
+  useEffect(() => {
+    if (draft === value) return;
+    const timer = setTimeout(() => commit(draft), delay);
+    return () => clearTimeout(timer);
+  }, [draft, value, commit, delay]);
+  return [draft, setDraft] as const;
 }
 
 type ActionCopy = { title: string; description: string; confirm: string; destructive?: boolean };
@@ -189,16 +180,23 @@ function openPayoutOf(entry: PoolEntry, payouts: Disbursement[]) {
 export default function PoolPage() {
   return (
     <RequireRole audience={["admin"]}>
-      <Pool />
+      {/* useSearchParams needs a Suspense boundary. */}
+      <Suspense>
+        <Pool />
+      </Suspense>
     </RequireRole>
   );
 }
 
 function Pool() {
-  const [view, setView] = useState<View>("awaiting");
-  const [page, setPage] = useState(1);
-  const [filters, setFilters] = useState<Filters>(EMPTY);
-  const [showFilters, setShowFilters] = useState(false);
+  // Tab, sort, filters and page live in the URL: reload, Back from a household and a shared link show the same list.
+  const [list, setList] = useListState("", POOL_LIST_DEFAULTS, {
+    allowed: { view: VIEWS.map((item) => item.value), sort: POOL_SORTS.map((item) => item.value), riskCategory: ["", "HIGH", "MEDIUM", "LOW"] },
+  });
+  const view = list.view as View;
+  const page = list.page;
+  const activeFilters = POOL_FILTERS.filter((key) => list[key]).length;
+  const [showFilters, setShowFilters] = useState(activeFilters > 0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [poolOpen, setPoolOpen] = useState(false);
@@ -210,17 +208,29 @@ function Pool() {
 
   // The active scoring config's maximum; 270 until it is known.
   const scoreMax = useScoreMax();
-  const filterErrors = checkFilters(filters, scoreMax);
-  const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
-  for (const [key, value] of Object.entries(filters)) {
-    if (!value) continue;
-    if ((key === "sort" && value === "priority") || (key === "order" && value === "desc")) continue;
-    if (filterErrors.score && (key === "scoreMin" || key === "scoreMax")) continue;
-    if (filterErrors.approved && (key === "approvedFrom" || key === "approvedTo")) continue;
-    params.set(key, value);
-  }
+  const commitScoreMin = useCallback((value: string) => setList({ scoreMin: value }), [setList]);
+  const commitScoreMax = useCallback((value: string) => setList({ scoreMax: value }), [setList]);
+  const [scoreMinDraft, setScoreMinDraft] = useDebouncedDraft(list.scoreMin, commitScoreMin);
+  const [scoreMaxDraft, setScoreMaxDraft] = useDebouncedDraft(list.scoreMax, commitScoreMax);
+  const query = poolQuery(list, scoreMax, PAGE_SIZE);
+  // Errors follow what is typed, before it reaches the URL.
+  const filterErrors = poolQuery({ ...list, scoreMin: scoreMinDraft, scoreMax: scoreMaxDraft }, scoreMax, PAGE_SIZE).errors;
   const path = view === "awaiting" ? `${API}/awaiting` : API;
-  const { data, error, isLoading, reload } = useResource<PaginatedItems<PoolEntry>>(`${path}?${params.toString()}`);
+  const listPath = `${path}?${query.params.toString()}`;
+  const { data, error, isLoading, reload } = useResource<PaginatedItems<PoolEntry>>(listPath);
+
+  // A selection belongs to one page of one list: it is cleared when the list changes.
+  const [selectionFor, setSelectionFor] = useState(listPath);
+  if (selectionFor !== listPath) {
+    setSelectionFor(listPath);
+    setSelected(new Set());
+  }
+
+  // After a row action empties the last page, go back to the last page that has rows (logic-backoffice-23).
+  const stepBackTo = poolStepBack(data, page);
+  useEffect(() => {
+    if (stepBackTo !== null) setList({ page: stepBackTo });
+  }, [stepBackTo, setList]);
   const { data: branches } = useResource<PaginatedItems<BranchListItem>>(
     showFilters ? "/bff/admin/branches?page=1&limit=100" : null,
   );
@@ -245,9 +255,6 @@ function Pool() {
   const selectable = view === "awaiting" ? rows.filter((row) => !poolBlock(row, verificationOf(row.beneficiaryId))) : [];
   const selectedRows = selectable.filter((row) => selected.has(rowKey(row)));
   const allSelected = selectable.length > 0 && selectedRows.length === selectable.length;
-  const activeFilters = (["branchId", "region", "riskCategory", "scoreMin", "scoreMax", "asnaf", "approvedFrom", "approvedTo"] as const).filter(
-    (key) => filters[key],
-  ).length;
 
   function reloadAll() {
     reload();
@@ -255,18 +262,18 @@ function Pool() {
     checkingPayouts.reload();
   }
 
-  function update<K extends keyof Filters>(key: K, value: Filters[K]) {
-    setPage(1);
-    setSelected(new Set());
-    setFilters((prev) => ({ ...prev, [key]: value }));
+  function update(key: (typeof POOL_FILTERS)[number], value: string) {
+    setList({ [key]: value });
   }
 
-  function switchView(next: View) {
-    setView(next);
-    setPage(1);
-    setSelected(new Set());
+  /** Each tab starts in its default order; the filters stay. */
+  function switchView(next: string) {
     setNotice(null);
-    setFilters((prev) => ({ ...prev, sort: "priority" }));
+    setList({ view: next, sort: POOL_LIST_DEFAULTS.sort });
+  }
+
+  function clearFilters() {
+    setList(Object.fromEntries(POOL_FILTERS.map((key) => [key, ""])));
   }
 
   function toggle(entry: PoolEntry) {
@@ -297,48 +304,24 @@ function Pool() {
       {notice ? <InlineAlert tone={notice.tone}>{notice.text}</InlineAlert> : null}
 
       <Panel flush>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/[0.06] px-3 pt-2">
-          <div className="flex gap-1" role="tablist">
-            {(
-              [
-                ["awaiting", "Awaiting pool"],
-                ["pooled", "In the pool"],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                role="tab"
-                aria-selected={view === key}
-                onClick={() => switchView(key)}
-                className={cn(
-                  "-mb-px border-b-2 px-3 py-2.5 text-sm transition",
-                  view === key ? "border-[#007050] font-medium text-[#001539]" : "border-transparent text-black/55 hover:text-[#001539]",
-                )}
-              >
-                {label}
-                {view === key && data ? (
-                  <span className="ml-1.5 text-xs text-black/45 tabular-nums">{data.pagination.totalItems}</span>
-                ) : null}
-              </button>
+        <Tabs value={view} onValueChange={switchView} activationMode="manual">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/[0.06] pr-3">
+          <TabsList aria-label="Pool" className="shadow-none">
+            {VIEWS.map((item) => (
+              <TabsTrigger key={item.value} value={item.value}>
+                {item.label}
+                {view === item.value && data ? <TabsCount>{formatCount(data.pagination.totalItems)}</TabsCount> : null}
+              </TabsTrigger>
             ))}
-          </div>
-          <div className="flex items-center gap-2 pb-2">
+          </TabsList>
+          <div className="flex items-center gap-2 py-2">
             <div className="w-48">
-              <NativeSelect
-                aria-label="Sort"
-                value={`${filters.sort}:${filters.order}`}
-                onChange={(event) => {
-                  const [sort, order] = event.target.value.split(":") as [Filters["sort"], Filters["order"]];
-                  setPage(1);
-                  setFilters((prev) => ({ ...prev, sort, order }));
-                }}
-              >
-                <option value="priority:desc">Priority (default)</option>
-                <option value="score:desc">Highest score</option>
-                <option value="approvedAt:asc">Approved longest ago</option>
-                <option value="approvedAt:desc">Approved most recently</option>
-                <option value="poolStatusAt:desc">Last pool change</option>
+              <NativeSelect aria-label="Sort" value={list.sort} onChange={(event) => setList({ sort: event.target.value })}>
+                {POOL_SORTS.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
               </NativeSelect>
             </div>
             <Button variant={showFilters ? "secondary" : "ghost"} size="sm" onClick={() => setShowFilters((value) => !value)}>
@@ -349,18 +332,19 @@ function Pool() {
               ) : null}
             </Button>
             {activeFilters ? (
-              <Button variant="ghost" size="sm" onClick={() => { setPage(1); setFilters({ ...EMPTY, sort: filters.sort, order: filters.order }); }}>
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
                 <X />
                 Clear
               </Button>
             ) : null}
           </div>
         </div>
+        <TabsContent value={view}>
 
         {showFilters ? (
           <div className="grid gap-3 border-b border-black/[0.06] bg-black/[0.015] px-5 py-3 sm:grid-cols-2 lg:grid-cols-4">
             <FormField label="Branch" htmlFor="p-branch">
-              <NativeSelect id="p-branch" value={filters.branchId} onChange={(e) => update("branchId", e.target.value)}>
+              <NativeSelect id="p-branch" value={list.branchId} onChange={(e) => update("branchId", e.target.value)}>
                 <option value="">Any</option>
                 {branches?.items.map((branch) => (
                   <option key={branch.id} value={branch.id}>{branch.name}</option>
@@ -368,7 +352,7 @@ function Pool() {
               </NativeSelect>
             </FormField>
             <FormField label="Region" htmlFor="p-region">
-              <NativeSelect id="p-region" value={filters.region} onChange={(e) => update("region", e.target.value)}>
+              <NativeSelect id="p-region" value={list.region} onChange={(e) => update("region", e.target.value)}>
                 <option value="">Any</option>
                 {ETHIOPIAN_REGIONS.map((region) => (
                   <option key={region} value={region}>{region}</option>
@@ -376,7 +360,7 @@ function Pool() {
               </NativeSelect>
             </FormField>
             <FormField label="Need" htmlFor="p-risk">
-              <NativeSelect id="p-risk" value={filters.riskCategory} onChange={(e) => update("riskCategory", e.target.value)}>
+              <NativeSelect id="p-risk" value={list.riskCategory} onChange={(e) => update("riskCategory", e.target.value)}>
                 <option value="">Any</option>
                 <option value="HIGH">High</option>
                 <option value="MEDIUM">Medium</option>
@@ -384,7 +368,7 @@ function Pool() {
               </NativeSelect>
             </FormField>
             <FormField label="Asnaf" htmlFor="p-asnaf">
-              <NativeSelect id="p-asnaf" value={filters.asnaf} onChange={(e) => update("asnaf", e.target.value)}>
+              <NativeSelect id="p-asnaf" value={list.asnaf} onChange={(e) => update("asnaf", e.target.value)}>
                 <option value="">Any</option>
                 {ASNAF.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
@@ -393,16 +377,16 @@ function Pool() {
             </FormField>
             <FormField label={`Score (0–${scoreMax})`} htmlFor="p-min" error={filterErrors.score}>
               <div className="flex items-center gap-2">
-                <Input id="p-min" type="number" min={0} max={scoreMax} placeholder="Min" value={filters.scoreMin} onChange={(e) => update("scoreMin", e.target.value)} aria-invalid={filterErrors.score ? true : undefined} className="bg-white" />
+                <Input id="p-min" type="number" min={0} max={scoreMax} placeholder="Min" value={scoreMinDraft} onChange={(e) => setScoreMinDraft(e.target.value)} className="bg-white" />
                 <span className="text-black/40">–</span>
-                <Input type="number" min={0} max={scoreMax} placeholder="Max" aria-label="Maximum score" value={filters.scoreMax} onChange={(e) => update("scoreMax", e.target.value)} aria-invalid={filterErrors.score ? true : undefined} className="bg-white" />
+                <Input type="number" min={0} max={scoreMax} placeholder="Max" aria-label="Maximum score" value={scoreMaxDraft} onChange={(e) => setScoreMaxDraft(e.target.value)} className="bg-white" />
               </div>
             </FormField>
             <FormField label="Approved between" htmlFor="p-from" className="lg:col-span-2" error={filterErrors.approved}>
               <div className="flex items-center gap-2">
-                <Input id="p-from" type="date" value={filters.approvedFrom} onChange={(e) => update("approvedFrom", e.target.value)} aria-invalid={filterErrors.approved ? true : undefined} className="bg-white" />
+                <Input id="p-from" type="date" value={list.approvedFrom} onChange={(e) => update("approvedFrom", e.target.value)} className="bg-white" />
                 <span className="text-black/40">–</span>
-                <Input type="date" aria-label="Approved to" value={filters.approvedTo} onChange={(e) => update("approvedTo", e.target.value)} aria-invalid={filterErrors.approved ? true : undefined} className="bg-white" />
+                <Input type="date" aria-label="Approved to" value={list.approvedTo} onChange={(e) => update("approvedTo", e.target.value)} className="bg-white" />
               </div>
             </FormField>
           </div>
@@ -410,7 +394,7 @@ function Pool() {
 
         {view === "awaiting" && selectedRows.length > 0 ? (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/[0.06] bg-[#007050]/[0.05] px-5 py-2.5">
-            <p className="text-sm text-[#001539]">
+            <p className="text-sm text-navy">
               <span className="font-semibold tabular-nums">{selectedRows.length}</span> selected
             </p>
             <div className="flex gap-2">
@@ -433,7 +417,7 @@ function Pool() {
 
         {error ? (
           <div className="px-5 pt-4">
-            <InlineAlert>{error.message}</InlineAlert>
+            <ErrorAlert error={error} onRetry={reloadAll} />
           </div>
         ) : null}
 
@@ -468,7 +452,11 @@ function Pool() {
               <TableSkeletonRows colSpan={8} />
             ) : rows.length === 0 ? (
               <TableMessageRow colSpan={8}>
-                {view === "awaiting" ? "Nothing is waiting to be pooled." : "The pool is empty."}
+                {activeFilters
+                  ? "No households match these filters."
+                  : view === "awaiting"
+                    ? "Nothing is waiting to be pooled."
+                    : "The pool is empty."}
               </TableMessageRow>
             ) : (
               rows.map((entry) => {
@@ -512,7 +500,7 @@ function Pool() {
                     ) : null}
                     <TableCell className={view === "awaiting" ? undefined : "pl-5"}>
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <Link href={`/dashboard/beneficiary/${entry.beneficiaryId}`} className="font-medium text-[#001539] hover:underline">
+                        <Link href={`/dashboard/beneficiary/${entry.beneficiaryId}`} className="font-medium text-navy hover:underline">
                           {entry.fullName ?? `Beneficiary #${entry.beneficiaryId}`}
                         </Link>
                         <WhitelistBadge effect={entry.whitelistEffect} />
@@ -535,7 +523,7 @@ function Pool() {
                       </p>
                     </TableCell>
                     <TableCell>
-                      <p className="text-sm text-[#001539]">{entry.branchName ?? "—"}</p>
+                      <p className="text-sm text-navy">{entry.branchName ?? "—"}</p>
                       <p className="text-xs text-black/45">{[entry.woreda, entry.region].filter(Boolean).join(", ")}</p>
                     </TableCell>
                     <TableCell>
@@ -559,7 +547,7 @@ function Pool() {
                     <TableCell>
                       {entry.bankAccount?.accountNumber ? (
                         <>
-                          <p className="font-mono text-sm text-[#001539]">{entry.bankAccount.accountNumber}</p>
+                          <p className="font-mono text-sm text-navy">{entry.bankAccount.accountNumber}</p>
                           <p className="text-xs text-black/45">
                             {[entry.bankAccount.bankName, entry.bankAccount.accountHolderName].filter(Boolean).join(" · ")}
                           </p>
@@ -578,7 +566,7 @@ function Pool() {
                                 Send back
                               </Button>
                             ) : null}
-                            <Button variant="ghost" size="sm" className="text-rose-700 hover:text-rose-800" onClick={() => setAction({ entry, kind: "decline" })}>
+                            <Button variant="destructive-ghost" size="sm" onClick={() => setAction({ entry, kind: "decline" })}>
                               <XCircle />
                               Decline
                             </Button>
@@ -601,7 +589,7 @@ function Pool() {
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <span className="inline-flex cursor-not-allowed">
-                                  <Button variant="ghost" size="sm" className="text-rose-700" disabled aria-label={`Remove ${name}: not while a payout is open`}>
+                                  <Button variant="destructive-ghost" size="sm" disabled aria-label={`Remove ${name}: not while a payout is open`}>
                                     <MinusCircle />
                                     Remove
                                   </Button>
@@ -622,7 +610,7 @@ function Pool() {
                               <Banknote />
                               Pay
                             </Button>
-                            <Button variant="ghost" size="sm" className="text-rose-700 hover:text-rose-800" onClick={() => setAction({ entry, kind: "remove" })}>
+                            <Button variant="destructive-ghost" size="sm" onClick={() => setAction({ entry, kind: "remove" })}>
                               <MinusCircle />
                               Remove
                             </Button>
@@ -643,11 +631,10 @@ function Pool() {
           totalItems={data?.pagination.totalItems ?? 0}
           totalPages={data?.pagination.totalPages ?? 1}
           disabled={isLoading}
-          onPageChange={(next) => {
-            setPage(next);
-            setSelected(new Set());
-          }}
+          onPageChange={(next) => setList({ page: next })}
         />
+        </TabsContent>
+        </Tabs>
       </Panel>
 
       {paying ? (

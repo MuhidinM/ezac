@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 
 import { JsonLd } from "@/components/seo/json-ld";
+import { isPastLastPage, listPath, pageFromParam } from "@/components/site/list-page";
+import { Pagination } from "@/components/site/pagination";
 import { CtaBand, Section } from "@/components/site/sections";
 import { SitePage } from "@/components/site/site-page";
 import { localizedPath } from "@/lib/i18n/config";
@@ -12,21 +15,38 @@ import { breadcrumbJsonLd } from "@/lib/structured-data";
 import { mediaSrc } from "@/lib/zakat/content";
 import { formatDate, getStories } from "@/lib/zakat/impact";
 
-export async function generateMetadata({ params }: PageProps<"/[lang]/transparency/stories">): Promise<Metadata> {
+const PATH = "/transparency/stories";
+/** Stories per page: fills the 1-, 2- and 3-column grids evenly. */
+const PAGE_SIZE = 24;
+
+export async function generateMetadata({
+  params,
+  searchParams,
+}: PageProps<"/[lang]/transparency/stories">): Promise<Metadata> {
   const locale = localeFromParam((await params).lang);
-  const { meta } = (await getDictionary(locale)).transparency.stories;
-  return pageMetadata({ locale, path: "/transparency/stories", ...meta });
+  const page = pageFromParam((await searchParams).page);
+  const { transparency, common } = await getDictionary(locale);
+  const { meta } = transparency.stories;
+  return pageMetadata({
+    locale,
+    path: listPath(PATH, page),
+    ...meta,
+    title: page > 1 ? format(common.pagination.pageTitle, { title: meta.title, page }) : meta.title,
+  });
 }
 
-export const revalidate = 300;
-
-export default async function ImpactStoriesPage({ params }: PageProps<"/[lang]/transparency/stories">) {
+export default async function ImpactStoriesPage({ params, searchParams }: PageProps<"/[lang]/transparency/stories">) {
   const locale = localeFromParam((await params).lang);
-  const { transparency } = await getDictionary(locale);
+  const page = pageFromParam((await searchParams).page);
+  const { transparency, common } = await getDictionary(locale);
   const t = transparency.stories;
   const categories: Record<string, string> = transparency.categories;
-  // null means none published; an outage throws, so ISR keeps the last good list.
-  const stories = (await getStories(1, 48))?.items ?? [];
+  // null means none published. The list is cached (lib/zakat/impact.ts): an
+  // outage keeps the last good copy, and with none cached shows the error page.
+  const result = await getStories(page, PAGE_SIZE);
+  const stories = result?.items ?? [];
+  const totalPages = result?.pagination.totalPages ?? 0;
+  if (isPastLastPage(page, totalPages)) notFound();
 
   return (
     <SitePage {...t.header}>
@@ -63,7 +83,7 @@ export default async function ImpactStoriesPage({ params }: PageProps<"/[lang]/t
                     <p className="text-xs tracking-[0.14em] text-brand uppercase">
                       {[categories[story.category] ?? story.category, story.region].filter(Boolean).join(" · ")}
                     </p>
-                    <h2 className="font-serif-display text-xl leading-tight tracking-[-0.5px] text-navy sm:text-2xl">
+                    <h2 className="font-serif-display line-clamp-2 text-xl leading-tight tracking-[-0.5px] text-navy sm:text-2xl">
                       <Link
                         href={localizedPath(locale, `/transparency/stories/${encodeURIComponent(story.id)}`)}
                         title={format(t.readTitle, { title: story.title })}
@@ -72,7 +92,7 @@ export default async function ImpactStoriesPage({ params }: PageProps<"/[lang]/t
                         {story.title}
                       </Link>
                     </h2>
-                    <p className="text-sm leading-relaxed text-muted-ink">{story.summary}</p>
+                    <p className="line-clamp-3 text-sm leading-relaxed text-muted-ink">{story.summary}</p>
                     {published ? (
                       <p className="mt-auto text-xs text-muted-ink">
                         <time dateTime={story.publishedAt?.slice(0, 10)}>{published}</time>
@@ -84,6 +104,7 @@ export default async function ImpactStoriesPage({ params }: PageProps<"/[lang]/t
             })}
           </div>
         )}
+        <Pagination locale={locale} t={common.pagination} path={PATH} page={page} totalPages={totalPages} />
       </Section>
       <CtaBand
         title={t.cta.title}
@@ -94,7 +115,7 @@ export default async function ImpactStoriesPage({ params }: PageProps<"/[lang]/t
       <JsonLd
         data={breadcrumbJsonLd(locale, [
           { name: transparency.breadcrumbs.home, path: "/" },
-          { name: transparency.breadcrumbs.stories, path: "/transparency/stories" },
+          { name: transparency.breadcrumbs.stories, path: PATH },
         ])}
       />
     </SitePage>

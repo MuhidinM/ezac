@@ -72,7 +72,7 @@ const about = {
         {
           date: "18/10/2018 E.C. (2026)",
           title: "Certificate of Establishment",
-          body: "The Supreme Council certifies the Ethiopian Zakat Commission as a legal person under Article 80(1) of the Mejlis regulation and Article 2(1) of Proclamation 1207/2020.",
+          body: "The Supreme Council certifies the Ethiopian Zakat Commission as a legal person under Article 80(1) of the Majlis regulation and Article 2(1) of Proclamation 1207/2020.",
           source: "Certificate of Establishment",
         },
         {
@@ -148,7 +148,7 @@ const about = {
       ],
       scope: {
         title: "Where it applies.",
-        body: "The regulation binds the Supreme Council at every level, the regional Islamic affairs councils down to the woreda Mejlis, mosques and their institutions, and Ethiopian Muslims at home and in the diaspora. Existing Zakat committees are registered, recognised and trained by the Commission. The Commission has its head office and may open branch offices in the regions and abroad.",
+        body: "The regulation binds the Supreme Council at every level, the regional Islamic affairs councils down to the woreda Majlis, mosques and their institutions, and Ethiopian Muslims at home and in the diaspora. Existing Zakat committees are registered, recognised and trained by the Commission. The Commission has its head office and may open branch offices in the regions and abroad.",
       },
       source: "Zakat Commission establishment regulation",
     },
@@ -182,7 +182,7 @@ const about = {
       title: "Governance &",
       accent: "Majlis",
       intro:
-        "EZAC operates under clear religious and institutional governance — combining the authority of the Majlis with modern, audited oversight.",
+        "EZAC operates under clear religious and institutional governance — the authority of the Majlis, a Board of Directors and a control committee.",
     },
     structure: {
       eyebrow: "Structure",
@@ -208,7 +208,7 @@ const about = {
         },
         {
           title: "Public accountability",
-          description: "Audited figures and impact reports are published openly so the public can hold us to account.",
+          description: "Live figures and impact reports are published openly so the public can hold us to account.",
         },
       ],
     },
@@ -220,7 +220,7 @@ const about = {
     },
     cta: {
       title: "Religious assurance you can rely on",
-      body: "Our Shari'ah Advisory Board reviews every ruling, product, and disbursement.",
+      body: "Our Shari'ah Advisory Board guides the Commission's rulings on Zakat and Waqf.",
       primary: "Meet the Shari'ah board",
       primaryTitle: "Read about the Shari'ah Advisory Board and its mandate",
       secondary: "Read the legal documents",
@@ -232,7 +232,7 @@ const about = {
     meta: {
       title: "Shari'ah Advisory Board",
       description:
-        "The scholars and mandate behind every EZAC ruling, product, and disbursement — ensuring full Shari'ah compliance.",
+        "The Shari'ah Advisory Board and its mandate: guidance on Zakat and Waqf rulings, review of the calculator's rules and oversight of how funds are distributed.",
       keywords: "Shari'ah Advisory Board, Zakat fatwas, Ulama Assembly, Shari'ah compliance, Islamic scholars Ethiopia",
     },
     header: {
@@ -252,8 +252,8 @@ const about = {
           description: "Issues authoritative guidance on Zakat, Waqf, and contemporary financial questions.",
         },
         {
-          title: "Product certification",
-          description: "Reviews and certifies every calculator rule, Waqf structure, and investment product.",
+          title: "Product review",
+          description: "Reviews calculator rules, Waqf structures and investment products.",
         },
         {
           title: "Disbursement review",
@@ -268,11 +268,11 @@ const about = {
     },
     process: {
       eyebrow: "Assurance process",
-      title: "How is compliance certified?",
+      title: "How does the board review an item?",
       steps: [
         { title: "Review", body: "Each product, rule, or disbursement policy is submitted to the board for study." },
         { title: "Deliberate", body: "Scholars assess it against Qur'an, Sunnah, and established fiqh." },
-        { title: "Certify", body: "Approved items receive a documented Shari'ah opinion before going live." },
+        { title: "Advise", body: "The board gives its opinion before an item goes live." },
       ],
     },
     cta: {

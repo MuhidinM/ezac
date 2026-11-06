@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { Copy } from "lucide-react";
 
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { Panel } from "@/components/dashboard/panel";
 import { TableMessageRow, TableSkeletonRows } from "@/components/dashboard/table-states";
+import { TestBadge } from "@/components/zakat/payment-mode-banner";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -17,26 +19,25 @@ import {
 } from "@/components/ui/table";
 import { useResource } from "@/lib/api/use-resource";
 import { type RangeKey, rangeDates } from "@/lib/backoffice/date-range";
+import { formatCount, formatEtb } from "@/lib/backoffice/format";
 
 const SIZE = 20;
 
-/** One receipt as EthQR sends it; fields may be missing. */
+/**
+ * One receipt from EthQR, as the BFF passes it on: only the fields this table
+ * uses (lib/zakat/redact.ts). Fields may be missing.
+ */
 type EthqrReceipt = {
   id?: string | number | null;
   amount?: number | string | null;
   currency?: string | null;
   referenceNumber?: string | null;
   payerName?: string | null;
-  description?: string | null;
   status?: string | null;
   /** Addis Ababa local time without an offset, e.g. "2026-11-05T12:30:00". */
   transactedAt?: string | null;
   sourceBankBic?: string | null;
   sourceBankCode?: string | null;
-  categoryPurpose?: string | null;
-  endToEndId?: string | null;
-  bizMsgIdr?: string | null;
-  storeLabel?: string | null;
   /** The payment id the QR was made for (e.g. zp_…). */
   terminalLabel?: string | null;
 };
@@ -64,6 +65,7 @@ function formatAddisTime(value: string | null | undefined) {
 function formatAmount(receipt: EthqrReceipt) {
   if (receipt.amount === null || receipt.amount === undefined || receipt.amount === "") return "—";
   const amount = Number(receipt.amount);
+  if (Number.isFinite(amount) && (!receipt.currency || receipt.currency === "ETB")) return formatEtb(amount);
   const text = Number.isFinite(amount) ? amountFormat.format(amount) : String(receipt.amount);
   return `${receipt.currency ?? "ETB"} ${text}`;
 }
@@ -72,11 +74,32 @@ function text(value: string | number | null | undefined) {
   return value === null || value === undefined || value === "" ? "—" : String(value);
 }
 
+/** What "Copy" puts on the clipboard: the reference first, then what identifies the receipt. */
+function receiptSummary(receipt: EthqrReceipt) {
+  return [
+    `Reference: ${text(receipt.referenceNumber ?? receipt.id)}`,
+    `Amount: ${formatAmount(receipt)}`,
+    `Time: ${formatAddisTime(receipt.transactedAt)}`,
+    `Payer: ${text(receipt.payerName)}`,
+    `From bank: ${text(receipt.sourceBankCode ?? receipt.sourceBankBic)}`,
+    `Payment: ${text(receipt.terminalLabel)}`,
+  ].join("\n");
+}
+
 /**
  * What EthQR says it received, so an admin can match QR payments by amount
  * and time and confirm them with the transaction's reference.
  */
-export function EthqrTransactions({ range, onOpenPayment }: { range: RangeKey; onOpenPayment?: (paymentId: string) => void }) {
+export function EthqrTransactions({
+  range,
+  onOpenPayment,
+  test = false,
+}: {
+  range: RangeKey;
+  onOpenPayment?: (paymentId: string) => void;
+  /** EthQR isn't live (sandbox or unknown mode): these receipts may be simulated. */
+  test?: boolean;
+}) {
   const [page, setPage] = useState(0);
   const { from, to } = rangeDates(range);
   // EthQR takes Addis Ababa local times, without an offset; page starts at 0.
@@ -86,7 +109,7 @@ export function EthqrTransactions({ range, onOpenPayment }: { range: RangeKey; o
     from: `${from}T00:00:00`,
     to: `${to}T23:59:59`,
   });
-  const { data, error, isLoading } = useResource<EthqrPage>(`/bff/payments-admin/ethqr/transactions?${params}`);
+  const { data, error, isLoading, reload } = useResource<EthqrPage>(`/bff/payments-admin/ethqr/transactions?${params}`);
   const rows = data?.content ?? [];
   const notRegistered = error?.status === 409;
   const totalPages = data?.pagination?.totalPages ?? data?.totalPages;
@@ -96,7 +119,8 @@ export function EthqrTransactions({ range, onOpenPayment }: { range: RangeKey; o
   return (
     <Panel
       title="Received through EthQR"
-      description="EthQR's own list, newest first, for reconciliation. Times are Addis Ababa time. QR payments confirm themselves; use this only when one needs confirming by hand."
+      description={`EthQR's own list, newest first, for reconciliation. Times are Addis Ababa time. QR payments confirm themselves; use this only when one needs confirming by hand.${test ? " EthQR is in test mode: these receipts may be simulated." : ""}`}
+      actions={test ? <TestBadge title="EthQR isn't live: these receipts may be simulated" /> : undefined}
       flush
     >
       {notRegistered ? (
@@ -105,7 +129,7 @@ export function EthqrTransactions({ range, onOpenPayment }: { range: RangeKey; o
         </div>
       ) : error ? (
         <div className="px-5 py-4">
-          <InlineAlert>{error.message}</InlineAlert>
+          <ErrorAlert error={error} onRetry={reload} />
         </div>
       ) : (
         <>
@@ -146,7 +170,7 @@ export function EthqrTransactions({ range, onOpenPayment }: { range: RangeKey; o
                         {row.terminalLabel && onOpenPayment ? (
                           <button
                             type="button"
-                            className="text-[#007050] underline underline-offset-2 hover:text-[#001539]"
+                            className="text-brand underline underline-offset-2 hover:text-navy"
                             onClick={() => onOpenPayment(row.terminalLabel!)}
                           >
                             {row.terminalLabel}
@@ -160,9 +184,9 @@ export function EthqrTransactions({ range, onOpenPayment }: { range: RangeKey; o
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          aria-label="Copy all details of this transaction"
-                          title="Copy all details"
-                          onClick={() => void navigator.clipboard?.writeText(JSON.stringify(row, null, 2))}
+                          aria-label={`Copy the reference and details of ${text(row.referenceNumber ?? row.id)}`}
+                          title="Copy the reference and details"
+                          onClick={() => void navigator.clipboard?.writeText(receiptSummary(row))}
                         >
                           <Copy className="text-black/40" />
                         </Button>
@@ -177,7 +201,7 @@ export function EthqrTransactions({ range, onOpenPayment }: { range: RangeKey; o
             <span>
               Page {page + 1}
               {totalPages != null ? ` of ${Math.max(totalPages, 1)}` : ""}
-              {totalElements != null ? ` · ${totalElements.toLocaleString("en")} received` : ""}
+              {totalElements != null ? ` · ${formatCount(totalElements)} received` : ""}
             </span>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" disabled={page === 0 || isLoading} onClick={() => setPage((value) => value - 1)}>

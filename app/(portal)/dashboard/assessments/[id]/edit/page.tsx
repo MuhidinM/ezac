@@ -4,10 +4,11 @@ import { useParams } from "next/navigation";
 
 import { AssessmentLocked, AssessmentWizard } from "@/components/assessment/assessment-wizard";
 import { useBreadcrumbLabel } from "@/components/dashboard/dashboard-header";
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { RequireRole } from "@/components/dashboard/require-role";
-import { Button } from "@/components/ui/button";
+import { DetailSkeleton } from "@/components/dashboard/skeletons";
 import type { Assessment } from "@/lib/api/backoffice-types";
 import { useResource } from "@/lib/api/use-resource";
 import { assessmentCrumb, isEditable } from "@/lib/backoffice/assessment-steps";
@@ -29,21 +30,19 @@ function EditAssessment() {
   useBreadcrumbLabel(assessmentCrumb(assessment), `/dashboard/assessments/${id}`);
 
   if (isLoading && !assessment) {
-    return (
-      <div className="space-y-4">
-        <div className="h-24 animate-pulse rounded-xl bg-black/[0.04]" />
-        <div className="h-96 animate-pulse rounded-xl bg-black/[0.04]" />
-      </div>
-    );
+    return <DetailSkeleton side={false} />;
   }
 
   if (!assessment) {
     return (
       <section className="space-y-6">
         <PageHeader title="Household assessment" back={{ href: "/dashboard/assessments", label: "Assessments" }} />
-        <InlineAlert action={<Button variant="outline" size="sm" onClick={reload}>Retry</Button>}>
-          {error?.message ?? "Assessment not found"}
-        </InlineAlert>
+        {error?.status === 404 ? (
+          // Retrying can't make a missing record appear.
+          <InlineAlert>This assessment doesn&apos;t exist. Check the link, or find it in the Assessments list.</InlineAlert>
+        ) : (
+          <ErrorAlert error={error} onRetry={reload} fallback="The assessment couldn't be loaded." />
+        )}
       </section>
     );
   }

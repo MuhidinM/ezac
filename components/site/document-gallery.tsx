@@ -59,7 +59,7 @@ export function DocumentGallery({ documents, t }: { documents: LegalDocument[]; 
           <article
             key={doc.src}
             id={doc.id}
-            className="flex scroll-mt-28 flex-col overflow-hidden rounded-3xl border border-black/5 bg-white shadow-xl shadow-black/5"
+            className="flex flex-col overflow-hidden rounded-3xl border border-black/5 bg-white shadow-xl shadow-black/5"
           >
             <button
               type="button"

@@ -46,7 +46,7 @@ const common = {
       waqfRegister: { label: "Register a Waqf Asset", title: "Register an asset as Waqf with the Commission" },
       dashboard: { label: "Live Dashboard", title: "See live collection and distribution figures" },
       howItWorks: { label: "How It Works", title: "How Zakat is collected, checked and paid out" },
-      stories: { label: "Impact Stories", title: "Read stories of the people and projects Zakat reached" },
+      stories: { label: "Impact Stories", title: "Read stories of the people and causes Zakat reached" },
       reports: { label: "Impact Reports", title: "Read the Commission's published reports" },
       about: { label: "About the Commission", title: "Who we are and what the Commission does" },
       documents: { label: "Legal Documents", title: "Read the Commission's legal documents" },
@@ -79,6 +79,18 @@ const common = {
     copyright: "© {year} EZAC. All rights reserved.",
     developedBy: "Developed and sponsored by DX Valley.",
     developedByTitle: "Visit the DX Valley website (opens in a new tab)",
+  },
+  /** Page links under a long list (causes, impact stories, reports). */
+  pagination: {
+    label: "Pages",
+    /** "Page 2 of 5". */
+    status: "Page {page} of {pages}",
+    previous: "Previous",
+    next: "Next",
+    /** Tooltip on the previous and next links. */
+    goTo: "Go to page {page}",
+    /** The browser title of page 2 onwards. */
+    pageTitle: "{title} (page {page})",
   },
   errors: {
     notFound: {

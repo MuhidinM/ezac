@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { ACCESS_TOKEN_COOKIE, PASSWORD_CHANGE_COOKIE, REFRESH_TOKEN_COOKIE } from "@/lib/auth/constants";
+import { logEvent } from "@/lib/api/log";
+import { ACCESS_TOKEN_COOKIE, PASSWORD_CHANGE_COOKIE, REFRESH_TOKEN_COOKIE, defaultDashboardPath } from "@/lib/auth/constants";
+import { decodeJwtPayload, getAppRolesFromPayload } from "@/lib/auth/jwt";
 import { DEFAULT_LOCALE, LOCALE_COOKIE, isLocale, isUnlocalizedPath, splitLocale } from "@/lib/i18n/config";
 
 /** BFF calls an account with a temporary password may still make. */
@@ -18,17 +20,20 @@ const PUBLIC_BFF_READS = ["/bff/media/", "/bff/zakat/calculator-config", "/bff/c
 
 /**
  * Cookieless endpoints a browser posts to on its own, where a forged request
- * has nothing to abuse: the CSP report sink.
+ * has nothing to abuse: the CSP report sink and the browser error report.
+ * They work during a password change too, so its errors are reported.
  */
-const COOKIELESS_POSTS = new Set(["/bff/csp-report"]);
+const COOKIELESS_POSTS = new Set(["/bff/csp-report", "/bff/client-error"]);
 
 /**
  * Writes the Origin check never blocks. Sign-out must always work: if a
  * misconfigured proxy made the check refuse it, the cookies would stay and
  * /login would send the user straight back to the dashboard. The worst a
- * forged sign-out can do is sign someone out.
+ * forged sign-out can do is sign someone out. CSP reports are sent by the
+ * browser itself, which may leave Origin out. (Our own error reports do send
+ * it, so other sites can't use them to fill the log.)
  */
-const ORIGIN_CHECK_EXEMPT = new Set([...COOKIELESS_POSTS, "/bff/auth/logout"]);
+const ORIGIN_CHECK_EXEMPT = new Set(["/bff/csp-report", "/bff/auth/logout"]);
 
 function bffError(status: number, message: string) {
   return NextResponse.json({ success: false, message }, { status, headers: { "Cache-Control": "no-store" } });
@@ -102,12 +107,15 @@ const refusedOrigins = new Set<string>();
 function logRefusal(request: NextRequest, origin: string) {
   if (refusedOrigins.has(origin) || refusedOrigins.size >= 50) return;
   refusedOrigins.add(origin);
-  console.warn(
-    `[proxy] refused a /bff write from Origin ${origin.slice(0, 100)} ` +
-      `(Host ${request.headers.get("host") ?? "-"}, X-Forwarded-Host ${request.headers.get("x-forwarded-host") ?? "-"}, ` +
-      `SITE_URL ${process.env.SITE_URL ?? "unset"}). If this is the site's own address, set SITE_URL to that exact ` +
+  logEvent("warn", "origin_refused", {
+    origin: origin.slice(0, 100),
+    host: request.headers.get("host")?.slice(0, 100),
+    forwardedHost: request.headers.get("x-forwarded-host")?.slice(0, 100),
+    siteUrl: process.env.SITE_URL ?? "unset",
+    message:
+      "refused a /bff write from another origin. If this is the site's own address, set SITE_URL to that exact " +
       "origin (scheme, host and port) or have nginx send `proxy_set_header Host $http_host;`.",
-  );
+  });
 }
 
 function isLoopbackHost(host: string | null): boolean {
@@ -120,9 +128,10 @@ let originWarningLogged = false;
 function warnOriginUnverifiable() {
   if (originWarningLogged) return;
   originWarningLogged = true;
-  console.warn(
-    "[proxy] cannot check the Origin of /bff writes: the reverse proxy sends Host as a loopback address and no X-Forwarded-Host. Set SITE_URL to the exact public origin (scheme, host and port), or add `proxy_set_header Host $http_host;` in nginx ($host drops the port).",
-  );
+  logEvent("warn", "origin_unverifiable", {
+    message:
+      "cannot check the Origin of /bff writes: the reverse proxy sends Host as a loopback address and no X-Forwarded-Host. Set SITE_URL to the exact public origin (scheme, host and port), or add `proxy_set_header Host $http_host;` in nginx ($host drops the port).",
+  });
 }
 
 function allowedDuringPasswordChange(method: string, pathname: string): boolean {
@@ -188,6 +197,17 @@ function routePublicPage(request: NextRequest): NextResponse {
   return NextResponse.rewrite(url);
 }
 
+/**
+ * The signed-in user's home page (My branch or Overview), read from the
+ * access token's roles. This only picks a page to show: the dashboard checks
+ * the session itself. Without a readable token (only the refresh cookie is
+ * left) it is Overview, and the dashboard's role guard moves a branch officer on.
+ */
+function roleHome(accessToken: string | undefined): string {
+  const payload = accessToken ? decodeJwtPayload(accessToken) : null;
+  return payload ? defaultDashboardPath(getAppRolesFromPayload(payload)) : "/dashboard";
+}
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -227,7 +247,7 @@ export function proxy(request: NextRequest) {
     const destination =
       redirectTo && redirectTo.startsWith("/dashboard")
         ? redirectTo
-        : "/dashboard";
+        : roleHome(request.cookies.get(ACCESS_TOKEN_COOKIE)?.value);
     return NextResponse.redirect(new URL(destination, request.url));
   }
 

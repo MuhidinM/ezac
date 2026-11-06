@@ -54,6 +54,7 @@ set in the process environment wins over the files. See `.env.example` for a tem
 | `pnpm start:uat` | Same, trusting the UAT gateway certificate. |
 | `pnpm lint` | ESLint. CI fails on any error. |
 | `pnpm typecheck` | `tsc --noEmit`. On a fresh checkout run `pnpm exec next typegen` first (it writes `next-env.d.ts`). |
+| `pnpm test` | Unit tests (Vitest, in Node): `tests/<area>/*.test.ts`, mirroring `lib/<area>`. `pnpm test tests/api/body.test.ts` runs one file; `pnpm exec vitest` watches. CI fails on any failure. |
 
 ## Architecture
 

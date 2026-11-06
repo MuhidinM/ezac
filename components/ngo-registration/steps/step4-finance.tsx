@@ -87,7 +87,7 @@ export function Step4Finance({ state, setState, errors }: NgoStepProps) {
     >
       <div className="space-y-8">
         <section>
-          <h3 className="mb-4 text-lg font-semibold text-[#001539]">Annual Budget (current year)</h3>
+          <h3 className="mb-4 text-sm font-semibold text-[#001539]">Annual Budget (current year)</h3>
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Total annual budget" htmlFor="totalBudget" required error={errors.totalBudget}>
               <CurrencyInput id="totalBudget" formatOnBlur value={s.totalBudget} onChange={(v) => update("totalBudget", v)} />
@@ -121,11 +121,11 @@ export function Step4Finance({ state, setState, errors }: NgoStepProps) {
                     {FUNDING_SOURCE_LABELS[src.sourceKey as keyof typeof FUNDING_SOURCE_LABELS] ?? src.sourceKey}
                   </p>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <FormField label="Source name or description">
-                      <input type="text" value={src.description} onChange={(e) => updateFundingSource(src.id, "description", e.target.value)} className={inputClass} />
+                    <FormField label="Source name or description" htmlFor={`source-${src.id}-description`}>
+                      <input id={`source-${src.id}-description`} type="text" value={src.description} onChange={(e) => updateFundingSource(src.id, "description", e.target.value)} className={inputClass} />
                     </FormField>
-                    <FormField label="Annual amount received">
-                      <CurrencyInput formatOnBlur value={src.annualAmount} onChange={(v) => updateFundingSource(src.id, "annualAmount", v)} />
+                    <FormField label="Annual amount received" htmlFor={`source-${src.id}-amount`}>
+                      <CurrencyInput id={`source-${src.id}-amount`} formatOnBlur value={src.annualAmount} onChange={(v) => updateFundingSource(src.id, "annualAmount", v)} />
                     </FormField>
                     <div className="sm:col-span-2">
                       <RadioGroup name={`confirmed-${src.id}`} label="Confirmed for current year?" value={src.confirmed} onChange={(v) => updateFundingSource(src.id, "confirmed", v)}
@@ -147,10 +147,10 @@ export function Step4Finance({ state, setState, errors }: NgoStepProps) {
           <RadioGroup name="previousDonorAid" label="Has your organization received aid from a large donor before?" value={s.previousDonorAid.received} onChange={(v) => updateDonor("received", v)} options={yesNo} />
           {s.previousDonorAid.received === "yes" ? (
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <FormField label="Donor organization name"><input type="text" value={s.previousDonorAid.donorName} onChange={(e) => updateDonor("donorName", e.target.value)} className={inputClass} /></FormField>
-              <FormField label="Year received"><input type="number" min={1900} value={s.previousDonorAid.year} onChange={(e) => updateDonor("year", e.target.value)} className={inputClass} /></FormField>
-              <FormField label="Amount received"><CurrencyInput formatOnBlur value={s.previousDonorAid.amount} onChange={(v) => updateDonor("amount", v)} /></FormField>
-              <FormField label="Purpose"><input type="text" value={s.previousDonorAid.purpose} onChange={(e) => updateDonor("purpose", e.target.value)} className={inputClass} /></FormField>
+              <FormField label="Donor organization name" htmlFor="donorName"><input id="donorName" type="text" value={s.previousDonorAid.donorName} onChange={(e) => updateDonor("donorName", e.target.value)} className={inputClass} /></FormField>
+              <FormField label="Year received" htmlFor="donorYear"><input id="donorYear" type="number" min={1900} value={s.previousDonorAid.year} onChange={(e) => updateDonor("year", e.target.value)} className={inputClass} /></FormField>
+              <FormField label="Amount received" htmlFor="donorAmount"><CurrencyInput id="donorAmount" formatOnBlur value={s.previousDonorAid.amount} onChange={(v) => updateDonor("amount", v)} /></FormField>
+              <FormField label="Purpose" htmlFor="donorPurpose"><input id="donorPurpose" type="text" value={s.previousDonorAid.purpose} onChange={(e) => updateDonor("purpose", e.target.value)} className={inputClass} /></FormField>
               <div className="sm:col-span-2">
                 <RadioGroup name="reportingOnTime" label="Was reporting submitted on time?" value={s.previousDonorAid.reportingOnTime} onChange={(v) => updateDonor("reportingOnTime", v)} options={yesNo} />
               </div>
@@ -159,7 +159,7 @@ export function Step4Finance({ state, setState, errors }: NgoStepProps) {
         </section>
 
         <section>
-          <h3 className="mb-4 text-lg font-semibold text-[#001539]">Requested Aid</h3>
+          <h3 className="mb-4 text-sm font-semibold text-[#001539]">Requested Aid</h3>
           <div className="space-y-4">
             <FormField label="Total amount of aid requested" htmlFor="requestedAmount" required error={errors.requestedAmount}>
               <CurrencyInput id="requestedAmount" formatOnBlur value={s.requestedAmount} onChange={(v) => update("requestedAmount", v)} />
@@ -178,7 +178,7 @@ export function Step4Finance({ state, setState, errors }: NgoStepProps) {
         </section>
 
         <section>
-          <h3 className="mb-4 text-lg font-semibold text-[#001539]">Bank Account Details</h3>
+          <h3 className="mb-4 text-sm font-semibold text-[#001539]">Bank Account Details</h3>
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Bank Name" htmlFor="bankName" required error={errors.bankName}><input id="bankName" type="text" value={s.bankName} onChange={(e) => update("bankName", e.target.value)} className={inputClass} /></FormField>
             <FormField label="Account Name" htmlFor="accountName" required error={errors.accountName}><input id="accountName" type="text" value={s.accountName} onChange={(e) => update("accountName", e.target.value)} className={inputClass} /></FormField>

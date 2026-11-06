@@ -173,3 +173,41 @@ export function tooManyAttemptsMessage(retryAfterSeconds: number, what = "sign-i
   const minutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
   return `Too many ${what}. Wait ${minutes} minute${minutes === 1 ? "" : "s"} and try again.`;
 }
+
+export type RequestLimiter = {
+  /**
+   * True when one more request from `key` fits in this minute's budget, and
+   * counts it. `key` null (unknown IP) is only counted against the total.
+   */
+  allow(key: string | null, now?: number): boolean;
+};
+
+/**
+ * Fixed one-minute windows: at most `perKey` requests per key and `total`
+ * for everyone together, so one browser (or a flood of made-up IPs) can't
+ * fill the log. For cookieless report endpoints, not sign-in.
+ */
+export function createRequestLimiter({ perKey, total, windowMs = 60_000 }: { perKey: number; total: number; windowMs?: number }): RequestLimiter {
+  let windowStart = 0;
+  let totalCount = 0;
+  const counts = new Map<string, number>();
+
+  return {
+    allow(key, now = Date.now()) {
+      if (now - windowStart >= windowMs) {
+        windowStart = now;
+        totalCount = 0;
+        counts.clear();
+      }
+      if (totalCount >= total) return false;
+      if (key !== null) {
+        const used = counts.get(key) ?? 0;
+        if (used >= perKey) return false;
+        // Bounded by `total`: a key is only added when the total has room.
+        counts.set(key, used + 1);
+      }
+      totalCount += 1;
+      return true;
+    },
+  };
+}

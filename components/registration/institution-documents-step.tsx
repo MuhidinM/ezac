@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Upload } from "lucide-react";
@@ -190,6 +190,8 @@ function DocumentCard({
   onUpload: (file: File) => void;
 }) {
   const inputId = `doc-${document.code}`;
+  // The file input stays hidden; a real button opens it, so the keyboard can reach it.
+  const fileInput = useRef<HTMLInputElement>(null);
 
   return (
     <div className="rounded-xl border border-black/10 p-4">
@@ -211,10 +213,13 @@ function DocumentCard({
       {!document.uploaded ? (
         <div className="mt-3">
           <input
+            ref={fileInput}
             id={inputId}
             type="file"
             accept={KYC_FILE_TYPES.join(",")}
             className="hidden"
+            tabIndex={-1}
+            aria-hidden="true"
             disabled={isUploading}
             onChange={(event) => {
               const file = event.target.files?.[0];
@@ -222,10 +227,16 @@ function DocumentCard({
               event.target.value = "";
             }}
           />
-          <Button type="button" variant="outline" size="sm" disabled={isUploading} asChild>
-            <label htmlFor={inputId} className="cursor-pointer">
-              {isUploading ? "Uploading..." : "Upload file"}
-            </label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            loading={isUploading}
+            loadingText="Uploading…"
+            onClick={() => fileInput.current?.click()}
+          >
+            <Upload />
+            Upload file<span className="sr-only">: {document.label}</span>
           </Button>
         </div>
       ) : null}

@@ -20,7 +20,7 @@ const giving: Messages<typeof en> = {
       title: "Zakaa keessan",
       accent: "amma kaffalaa",
       intro:
-        "Dirqama keessan tuqaa muraasaan, karaalee amanamoo fi odiitiin mirkanaa'aniin raawwadhaa — qarshiin hundi harka keessanii irraa kaasee hanga maatiiwwanii fi egeree inni ijaaruutti ni hordofama.",
+        "Appii baankii keessaniin tuqaa muraasaan kallattiin herrega Komishinichaatti kaffalaa; kaffaltiin hundi galmee baankichaa mataa isaa wajjin ni walsimsiifama.",
     },
     channels: {
       eyebrow: "Karaalee kennaa",
@@ -90,7 +90,7 @@ const giving: Messages<typeof en> = {
     meta: {
       title: "Zakaa Dhaabbilee",
       description:
-        "Kubbaaniyyootaa fi dhaabbileef: shallaggii Zakaa qabeenya tokkoon tokkoon isaatiin, raabsa odiitiin mirkanaa'e, akkasumas gabaasa bu'aa boordiif dhiyaachuuf qophaa'e.",
+        "Kubbaaniyyootaa fi dhaabbileef: shallaggii Zakaa qabeenya tokkoon tokkoon isaatiin, raabsa maatiiwwan madaalamaniif, akkasumas gabaasa bu'aa boordiif dhiyaachuuf qophaa'e.",
       keywords:
         "Zakaa dhaabbilee, Zakaa kubbaaniyyaa, Zakaa daldalaa, Zakaa institiyuushinii, madaallii Zakaa, gabaasa CSR, Itoophiyaa, corporate Zakat",
     },
@@ -109,9 +109,9 @@ const giving: Messages<typeof en> = {
         "Galmee herregaa tokko irraa kaasee hanga sagantaa CSR biyya guutuutti, Zakaan dhaabbilee jalqabaa hanga xumuraatti nuun geggeeffama.",
       items: [
         {
-          title: "Shallaggii odiitiin mirkanaa'e",
+          title: "Shallaggii ifa ta'e",
           description:
-            "Qabeenyi kubbaaniyyaa ulaagaalee beekamaniin ni madaalama; sanadoonni hojii odiitaroonni keessan itti amanuu danda'an ni qophaa'u.",
+            "Qabeenyi kubbaaniyyaa tokkoon tokkoon ni madaalama; akka gareen faayinaansii keessanii mirkaneessuu danda'uuf, adeemsi shallaggii ni agarsiifama.",
         },
         {
           title: "Raabsa walitti qabaa",
@@ -123,8 +123,8 @@ const giving: Messages<typeof en> = {
           description: "Gabaasota boordii fi CSR qarshii hunda bu'aa safaramuu fi mirkanaa'uu danda'utti hidhan.",
         },
         {
-          title: "Gamaaggama Shari'aa",
-          description: "Boordiin Gorsa Shari'aa EZAC madaallii hunda gamaagamee mirkaneessa.",
+          title: "Qajeelfama Shari'aa",
+          description: "Madaalliiwwan murtiiwwan Boordii Gorsa Shari'aa EZAC ni hordofu; gaaffiiwwan hin furamne immoo gara boordichaatti ni ergamu.",
         },
       ],
     },
@@ -132,7 +132,7 @@ const giving: Messages<typeof en> = {
       eyebrow: "Adeemsa",
       title: "Zakaan dhaabbilee akkamitti hojjeta?",
       intro:
-        "Tarkaanfiileen afur marii jalqabaa irraa kaasee hanga lakkoofsa mirkanaa'ee fi gabaasa boordii keessaniif qophaa'etti isin geessu.",
+        "Tarkaanfiileen afur marii jalqabaa irraa kaasee hanga lakkoofsa sakatta'amee fi gabaasa boordii keessaniif qophaa'etti isin geessu.",
       items: [
         {
           title: "Garee dhaabbilee keenya quunnamaa",
@@ -143,8 +143,8 @@ const giving: Messages<typeof en> = {
           body: "Qabeenya Zakaan irratti dirqama ta'e madaaluuf ibsota barbaachisan karaa nageenya qabuun nuuf qoodaa.",
         },
         {
-          title: "Gamaagamuu fi mirkaneessuu",
-          body: "Nuti ni shallagna, boordiin Shari'aa ni gamaagama, isinis lakkoofsa mirkanaa'e ni argattu.",
+          title: "Gamaagamuu fi waliigaluu",
+          body: "Lakkoofsa ni shallagna, isin wajjin ni ilaalla, gaaffii Shari'aa kamiyyuu gara boordiitti ni ergina.",
         },
         {
           title: "Raabsuu fi gabaasuu",
@@ -181,7 +181,7 @@ const giving: Messages<typeof en> = {
       eyebrow: "Karaalee kennaa",
       title: "Karaa EZAC maalan kennuu danda'a?",
       intro:
-        "Zakaa, Sadaqaa, Zakaatul Fixrii ykn kennaa Waqfii. Kennaaleen hundi karaalee kaffaltii odiitiin mirkanaa'anii fi seeraan to'atamaniin adeemsifamu.",
+        "Zakaa, Sadaqaa, Zakaatul Fixrii ykn kennaa Waqfii. Kaffaltiiwwan baankota Itoophiyaa keessaan raawwatamu, galmee baankichaa mataa isaa wajjinis ni walsimsiifamu.",
       items: [
         {
           title: "Zakaa",

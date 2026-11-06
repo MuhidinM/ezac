@@ -51,7 +51,7 @@ export function Step2Coverage({ state, setState, errors }: NgoStepProps) {
     >
       <div className="space-y-8">
         <section>
-          <h3 className="mb-4 text-lg font-semibold text-[#001539]">Coverage Area</h3>
+          <h3 className="mb-4 text-sm font-semibold text-[#001539]">Coverage Area</h3>
           <div className="mb-4 grid gap-4 sm:grid-cols-3">
             <FormField label="Number of Regions covered" htmlFor="regionsCount">
               <input id="regionsCount" type="number" min={0} value={s.regionsCount} onChange={(e) => updateStep2("regionsCount", e.target.value)} className={inputClass} />
@@ -96,11 +96,12 @@ export function Step2Coverage({ state, setState, errors }: NgoStepProps) {
             }
             renderTableRow={(area, index) => (
               <>
-                <td className="py-2 pr-2"><input type="text" value={area.region} onChange={(e) => updateArea(index, "region", e.target.value)} className={cellInput} /></td>
-                <td className="py-2 pr-2"><input type="text" value={area.zone} onChange={(e) => updateArea(index, "zone", e.target.value)} className={cellInput} /></td>
-                <td className="py-2 pr-2"><input type="text" value={area.woreda} onChange={(e) => updateArea(index, "woreda", e.target.value)} className={cellInput} /></td>
+                {/* Table cells have only column headings: name each control with its row. */}
+                <td className="py-2 pr-2"><input type="text" aria-label={`Region, area ${index + 1}`} value={area.region} onChange={(e) => updateArea(index, "region", e.target.value)} className={cellInput} /></td>
+                <td className="py-2 pr-2"><input type="text" aria-label={`Zone, area ${index + 1}`} value={area.zone} onChange={(e) => updateArea(index, "zone", e.target.value)} className={cellInput} /></td>
+                <td className="py-2 pr-2"><input type="text" aria-label={`Woreda, area ${index + 1}`} value={area.woreda} onChange={(e) => updateArea(index, "woreda", e.target.value)} className={cellInput} /></td>
                 <td className="py-2 pr-2">
-                  <select value={area.urbanRural} onChange={(e) => updateArea(index, "urbanRural", e.target.value)} className={cellInput}>
+                  <select aria-label={`Urban or rural, area ${index + 1}`} value={area.urbanRural} onChange={(e) => updateArea(index, "urbanRural", e.target.value)} className={cellInput}>
                     <option value="">—</option>
                     <option value="urban">Urban</option>
                     <option value="rural">Rural</option>
@@ -110,9 +111,9 @@ export function Step2Coverage({ state, setState, errors }: NgoStepProps) {
             )}
             renderMobileCard={(area, index) => (
               <div className="grid gap-3">
-                <FormField label="Region"><input type="text" value={area.region} onChange={(e) => updateArea(index, "region", e.target.value)} className={inputClass} /></FormField>
-                <FormField label="Zone"><input type="text" value={area.zone} onChange={(e) => updateArea(index, "zone", e.target.value)} className={inputClass} /></FormField>
-                <FormField label="Woreda"><input type="text" value={area.woreda} onChange={(e) => updateArea(index, "woreda", e.target.value)} className={inputClass} /></FormField>
+                <FormField label="Region" htmlFor={`area-${index}-region`}><input id={`area-${index}-region`} type="text" value={area.region} onChange={(e) => updateArea(index, "region", e.target.value)} className={inputClass} /></FormField>
+                <FormField label="Zone" htmlFor={`area-${index}-zone`}><input id={`area-${index}-zone`} type="text" value={area.zone} onChange={(e) => updateArea(index, "zone", e.target.value)} className={inputClass} /></FormField>
+                <FormField label="Woreda" htmlFor={`area-${index}-woreda`}><input id={`area-${index}-woreda`} type="text" value={area.woreda} onChange={(e) => updateArea(index, "woreda", e.target.value)} className={inputClass} /></FormField>
                 <RadioGroup name={`urbanRural-${index}`} label="Urban/Rural" value={area.urbanRural} onChange={(v) => updateArea(index, "urbanRural", v)}
                   options={[{ value: "urban", label: "Urban" }, { value: "rural", label: "Rural" }]}
                 />
@@ -122,7 +123,7 @@ export function Step2Coverage({ state, setState, errors }: NgoStepProps) {
         </section>
 
         <section>
-          <h3 className="mb-4 text-lg font-semibold text-[#001539]">Beneficiary Statistics (last 12 months)</h3>
+          <h3 className="mb-4 text-sm font-semibold text-[#001539]">Beneficiary Statistics (last 12 months)</h3>
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Total registered beneficiaries" htmlFor="totalRegistered" required error={errors.totalRegistered}>
               <input id="totalRegistered" type="number" min={0} value={s.beneficiaryStats.totalRegistered} onChange={(e) => updateStat("totalRegistered", e.target.value)} className={inputClass} />
@@ -131,8 +132,8 @@ export function Step2Coverage({ state, setState, errors }: NgoStepProps) {
               <input id="activeReceiving" type="number" min={0} value={s.beneficiaryStats.activeReceiving} onChange={(e) => updateStat("activeReceiving", e.target.value)} className={inputClass} />
             </FormField>
             {(["female", "children", "elderly", "disability", "orphans", "widows", "idp"] as const).map((key) => (
-              <FormField key={key} label={key === "idp" ? "Internally displaced persons" : key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, " $1")}>
-                <input type="number" min={0} value={s.beneficiaryStats[key]} onChange={(e) => updateStat(key, e.target.value)} className={inputClass} />
+              <FormField key={key} htmlFor={`stat-${key}`} label={key === "idp" ? "Internally displaced persons" : key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, " $1")}>
+                <input id={`stat-${key}`} type="number" min={0} value={s.beneficiaryStats[key]} onChange={(e) => updateStat(key, e.target.value)} className={inputClass} />
               </FormField>
             ))}
           </div>

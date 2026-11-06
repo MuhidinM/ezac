@@ -1,25 +1,28 @@
 "use client";
 
-import { useState } from "react";
-import { CopyPlus, History } from "lucide-react";
+import { useCallback, useRef, useState } from "react";
+import { CopyPlus, History, PencilLine } from "lucide-react";
 
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { DetailList, Panel } from "@/components/dashboard/panel";
 import { RequireRole } from "@/components/dashboard/require-role";
+import { PanelSkeleton } from "@/components/dashboard/skeletons";
 import { ConfigEditor } from "@/components/scoring/config-editor";
 import { ConfigViewer } from "@/components/scoring/config-viewer";
+import { needLevels, recommendationLabel, type NeedLevels } from "@/components/scoring/scoring-schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api/client";
-import { errorMessage } from "@/lib/api/errors";
 import { useResource } from "@/lib/api/use-resource";
 import { formatDateTime } from "@/lib/beneficiary/format";
 import {
-  getPath,
+  draftBaseline,
+  draftToContinue,
   type ScoringConfigVersion,
   type ScoringSchema,
 } from "@/lib/backoffice/scoring-config";
@@ -40,16 +43,28 @@ function ScoringConfigView() {
   const schema = useResource<ScoringSchema>(`${API}/schema`);
   const [selected, setSelected] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<unknown>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [rollbackOpen, setRollbackOpen] = useState(false);
-  const [reason, setReason] = useState("");
+  // Whether the open draft has unsaved edits. Only read when leaving it, so a ref.
+  const draftDirty = useRef(false);
+  const onDirtyChange = useCallback((dirty: boolean) => {
+    draftDirty.current = dirty;
+  }, []);
+  // What to do once the user agrees to drop those edits.
+  const [leaving, setLeaving] = useState<{ run: () => void | Promise<void> } | null>(null);
 
   const list = [...(versions.data ?? [])].sort((a, b) => b.version - a.version);
   const active = list.find((item) => item.active) ?? null;
   // Open on the live version; a draft shows once someone picks or creates it.
   const current = list.find((item) => item.version === selected) ?? active ?? list[0] ?? null;
-  const base = current?.basedOnVersion != null ? list.find((item) => item.version === current.basedOnVersion) : null;
+  const openDraft = draftToContinue(list);
+
+  /** Runs `next` now, or after confirming when the open draft has unsaved edits. */
+  function leaveDraft(next: () => void | Promise<void>) {
+    if (draftDirty.current) setLeaving({ run: next });
+    else void next();
+  }
 
   async function createDraft(from: ScoringConfigVersion) {
     setIsCreating(true);
@@ -63,16 +78,19 @@ function ScoringConfigView() {
       setSelected(draft.version);
       setNotice(null);
     } catch (createError) {
-      setActionError(errorMessage(createError, "Couldn't create a draft"));
+      setActionError(createError);
     } finally {
       setIsCreating(false);
     }
   }
 
-  const thresholds = active?.config;
-  const high = getPath(thresholds, "risk_thresholds.high_min");
-  const medium = getPath(thresholds, "risk_thresholds.medium_min");
-  const maxTotal = getPath(thresholds, "max_total");
+  const levels = active && schema.data ? needLevels(schema.data, active.config) : null;
+  const levelsNote =
+    versions.error || schema.error
+      ? "Couldn't load the need levels."
+      : versions.isLoading || schema.isLoading
+        ? "Loading…"
+        : "No active version.";
 
   return (
     <section className="space-y-6">
@@ -80,18 +98,27 @@ function ScoringConfigView() {
         title="Scoring"
         description="How a household's answers turn into a need score. To change it, make a draft, adjust the points, check the impact, then activate. Scores already given never change."
         actions={
-          active ? (
-            <Button onClick={() => void createDraft(active)} disabled={isCreating}>
+          // An open draft is continued rather than starting another next to it.
+          openDraft ? (
+            openDraft.version !== current?.version ? (
+              <Button onClick={() => leaveDraft(() => setSelected(openDraft.version))}>
+                <PencilLine />
+                Open draft v{openDraft.version}
+              </Button>
+            ) : null
+          ) : active ? (
+            <Button onClick={() => void createDraft(active)} loading={isCreating} loadingText="Creating…">
               <CopyPlus />
-              {isCreating ? "Creating…" : "Change scoring"}
+              Change scoring
             </Button>
           ) : null
         }
       />
 
       {notice ? <InlineAlert tone="success">{notice}</InlineAlert> : null}
-      {actionError ? <InlineAlert>{actionError}</InlineAlert> : null}
-      {versions.error ? <InlineAlert>{versions.error.message}</InlineAlert> : null}
+      <ErrorAlert error={actionError} title="Couldn't create a draft" />
+      <ErrorAlert error={versions.error} title="Couldn't load the scoring versions" onRetry={versions.reload} />
+      <ErrorAlert error={schema.error} title="Couldn't load the scoring form" onRetry={schema.reload} />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Panel title="Active version" className="lg:col-span-2">
@@ -110,17 +137,8 @@ function ScoringConfigView() {
             <p className="text-sm text-black/50">{versions.isLoading ? "Loading…" : "No active configuration."}</p>
           )}
         </Panel>
-        <Panel title="Need levels" description={`Out of ${typeof maxTotal === "number" ? maxTotal : 270} points.`}>
-          <ul className="space-y-2.5 text-sm">
-            <Band tone="bg-rose-500" label="High" range={`${typeof high === "number" ? high : 180} and above`} recommendation="Approve" />
-            <Band
-              tone="bg-amber-500"
-              label="Medium"
-              range={`${typeof medium === "number" ? medium : 110} – ${typeof high === "number" ? high - 1 : 179}`}
-              recommendation="Conditional approval"
-            />
-            <Band tone="bg-emerald-500" label="Low" range={`Below ${typeof medium === "number" ? medium : 110}`} recommendation="Defer" />
-          </ul>
+        <Panel title="Need levels" description={levels?.maxTotal != null ? `Out of ${levels.maxTotal} points.` : undefined}>
+          {levels ? <NeedLevelList levels={levels} /> : <p className="text-sm text-black/50">{levelsNote}</p>}
         </Panel>
       </div>
 
@@ -131,7 +149,10 @@ function ScoringConfigView() {
               <li key={item.version}>
                 <button
                   type="button"
-                  onClick={() => setSelected(item.version)}
+                  onClick={() => {
+                    if (item.version !== current?.version) leaveDraft(() => setSelected(item.version));
+                  }}
+                  aria-current={current?.version === item.version ? "true" : undefined}
                   className={cn(
                     "flex w-full items-start justify-between gap-2 px-4 py-3 text-left transition",
                     current?.version === item.version ? "bg-[#007050]/[0.06]" : "hover:bg-black/[0.02]",
@@ -164,9 +185,10 @@ function ScoringConfigView() {
               <ConfigEditor
                 key={current.version}
                 draft={current}
-                baseConfig={base?.config ?? active?.config ?? null}
+                baseline={draftBaseline(current, list)}
                 schema={schema.data}
                 apiBase={API}
+                onDirtyChange={onDirtyChange}
                 onSaved={(saved) => versions.mutate(list.map((item) => (item.version === saved.version ? saved : item)))}
                 onDeleted={() => {
                   setSelected(null);
@@ -180,9 +202,9 @@ function ScoringConfigView() {
                 }}
               />
             ) : schema.error ? (
-              <InlineAlert>{schema.error.message}</InlineAlert>
+              <p className="text-sm text-black/50">The draft opens once the scoring form loads.</p>
             ) : (
-              <div className="h-64 animate-pulse rounded-xl bg-black/[0.04]" />
+              <PanelSkeleton rows={4} />
             )
           ) : (
             <ConfigViewer
@@ -191,7 +213,7 @@ function ScoringConfigView() {
               baseConfig={current.active ? null : (active?.config ?? null)}
               actions={
                 <>
-                  <Button variant="outline" size="sm" onClick={() => void createDraft(current)} disabled={isCreating}>
+                  <Button variant="outline" size="sm" onClick={() => void createDraft(current)} loading={isCreating}>
                     <CopyPlus />
                     Make a draft from this
                   </Button>
@@ -209,29 +231,99 @@ function ScoringConfigView() {
       </div>
 
       {current && current.status === "PUBLISHED" && !current.active ? (
-        <ConfirmDialog
+        // Keyed by version: a reason typed for one version never carries over to another.
+        <ReactivateDialog
+          key={current.version}
+          version={current}
+          live={active}
           open={rollbackOpen}
           onOpenChange={setRollbackOpen}
-          title={`Activate v${current.version} again?`}
-          description="New submissions are scored with this older version. Existing scores don't change."
-          confirmLabel="Activate"
-          confirmDisabled={!reason.trim()}
-          onConfirm={async () => {
-            await apiClient(`${API}/${current.version}/activate`, {
-              method: "POST",
-              body: JSON.stringify({ reason: reason.trim() }),
-            });
-            setReason("");
+          onActivated={() => {
             setNotice(`v${current.version} is active again.`);
             versions.reload();
           }}
-        >
-          <FormField label="Reason" htmlFor="rollback-reason" required>
-            <Textarea id="rollback-reason" value={reason} onChange={(event) => setReason(event.target.value)} />
-          </FormField>
-        </ConfirmDialog>
+        />
       ) : null}
+
+      <ConfirmDialog
+        open={leaving != null}
+        onOpenChange={(open) => {
+          if (!open) setLeaving(null);
+        }}
+        title="Discard unsaved changes?"
+        description="The open draft has changes you haven't saved. If you leave it now, they are lost."
+        confirmLabel="Discard changes"
+        destructive
+        onConfirm={async () => {
+          draftDirty.current = false;
+          await leaving?.run();
+        }}
+      />
     </section>
+  );
+}
+
+function ReactivateDialog({
+  version,
+  live,
+  open,
+  onOpenChange,
+  onActivated,
+}: {
+  version: ScoringConfigVersion;
+  live: ScoringConfigVersion | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onActivated: () => void;
+}) {
+  const [reason, setReason] = useState("");
+  return (
+    <ConfirmDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`Activate v${version.version} again?`}
+      description={`New submissions are scored with v${version.version}${live ? ` instead of v${live.version}` : ""}. Existing scores don't change.`}
+      confirmLabel="Activate"
+      confirmDisabled={!reason.trim()}
+      onConfirm={async () => {
+        await apiClient(`${API}/${version.version}/activate`, {
+          method: "POST",
+          body: JSON.stringify({ reason: reason.trim() }),
+        });
+        onActivated();
+      }}
+    >
+      <FormField label="Reason" htmlFor="rollback-reason" required hint="Recorded with the version, e.g. the committee decision number">
+        <Textarea id="rollback-reason" value={reason} onChange={(event) => setReason(event.target.value)} />
+      </FormField>
+    </ConfirmDialog>
+  );
+}
+
+/** The active version's need levels, read at the schema's paths; "—" where the config has no value. */
+function NeedLevelList({ levels }: { levels: NeedLevels }) {
+  const { medium, high, recommendations } = levels;
+  return (
+    <ul className="space-y-2.5 text-sm">
+      <Band
+        tone="bg-rose-500"
+        label="High"
+        range={high != null ? `${high} and above` : "—"}
+        recommendation={recommendationLabel(recommendations.HIGH)}
+      />
+      <Band
+        tone="bg-amber-500"
+        label="Medium"
+        range={medium != null && high != null ? `From ${medium}, below ${high}` : "—"}
+        recommendation={recommendationLabel(recommendations.MEDIUM)}
+      />
+      <Band
+        tone="bg-emerald-500"
+        label="Low"
+        range={medium != null ? `Below ${medium}` : "—"}
+        recommendation={recommendationLabel(recommendations.LOW)}
+      />
+    </ul>
   );
 }
 
@@ -247,4 +339,3 @@ function Band({ tone, label, range, recommendation }: { tone: string; label: str
     </li>
   );
 }
-

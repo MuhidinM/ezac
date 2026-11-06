@@ -1,9 +1,10 @@
 "use client";
 
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { FormField } from "@/components/dashboard/form-field";
 import { NativeSelect } from "@/components/ui/native-select";
-import { useResource } from "@/lib/api/use-resource";
 import type { BranchListItem, PaginatedItems } from "@/lib/api/types";
+import { useResource } from "@/lib/api/use-resource";
 
 /**
  * Picks the one branch a field officer works in. Officers cover a single
@@ -27,7 +28,7 @@ export function BranchPicker({
   label?: string;
   hint?: string;
 }) {
-  const { data: branches, isLoading } = useResource<PaginatedItems<BranchListItem>>(
+  const { data: branches, error: loadError, isLoading, reload } = useResource<PaginatedItems<BranchListItem>>(
     "/bff/admin/branches?page=1&limit=100",
   );
   // Grouped by region so a long branch list stays scannable.
@@ -38,10 +39,21 @@ export function BranchPicker({
     byRegion.set(region, [...(byRegion.get(region) ?? []), branch]);
   }
 
+  // A failed load must not look like "no branches": say so and offer a retry.
+  const failed = !!loadError && !branches;
+
   return (
     <FormField label={label} htmlFor={id} required hint={hint} error={error}>
-      <NativeSelect id={id} value={value} onChange={(event) => onChange(event.target.value)} disabled={isLoading} required>
-        <option value="">{isLoading ? "Loading branches…" : "Select a branch"}</option>
+      <NativeSelect
+        id={id}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={isLoading || failed}
+        required
+      >
+        <option value="">
+          {isLoading ? "Loading branches…" : failed ? "Branches couldn't be loaded" : "Select a branch"}
+        </option>
         {[...byRegion.entries()]
           .sort(([a], [b]) => a.localeCompare(b))
           .map(([region, items]) => (
@@ -56,6 +68,7 @@ export function BranchPicker({
             </optgroup>
           ))}
       </NativeSelect>
+      {loadError ? <ErrorAlert error={loadError} onRetry={reload} fallback="The branch list couldn't be loaded." /> : null}
     </FormField>
   );
 }

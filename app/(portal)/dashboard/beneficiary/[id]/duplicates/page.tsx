@@ -7,13 +7,17 @@ import { CopyCheck, ExternalLink, GitCompareArrows } from "lucide-react";
 
 import { DuplicateBadge } from "@/components/backoffice/status-badges";
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
+import { useBreadcrumbLabel } from "@/components/dashboard/dashboard-header";
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Panel } from "@/components/dashboard/panel";
 import { RequireRole } from "@/components/dashboard/require-role";
+import { DetailSkeleton, PanelSkeleton } from "@/components/dashboard/skeletons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ChoiceCards } from "@/components/ui/segmented-control";
 import { Textarea } from "@/components/ui/textarea";
 import type {
   BankAccount,
@@ -27,6 +31,20 @@ import { useResource } from "@/lib/api/use-resource";
 import { useBranchScope } from "@/lib/backoffice/use-branch-scope";
 import { formatDateTime } from "@/lib/beneficiary/format";
 import { cn } from "@/lib/utils";
+
+const OUTCOMES = [
+  {
+    value: "CONFIRMED_DISTINCT",
+    label: "Different people",
+    description: "Keep both records. This registration can be assessed.",
+  },
+  {
+    value: "CONFIRMED_DUPLICATE",
+    label: "Same person",
+    description: "Mark this registration as a duplicate. It can't be assessed.",
+    tone: "destructive",
+  },
+] as const satisfies readonly { value: DuplicateResolution; label: string; description: string; tone?: "destructive" }[];
 
 const REASON_LABELS: Record<string, string> = {
   bank_account: "Same bank account",
@@ -109,6 +127,8 @@ function DuplicateReviewView() {
   const { data: review, error, isLoading, reload } = useResource<Review>(
     `/bff/backoffice/beneficiaries/${encodedId}/duplicate-review`,
   );
+  // The middle crumb names the household instead of reading "Details".
+  useBreadcrumbLabel(beneficiary?.fullName, `/dashboard/beneficiary/${id}`);
   // The duplicate review is not branch-scoped upstream: same check as the profile.
   const branch = useBranchScope(beneficiary);
   const canResolve = branch.scope === "in";
@@ -171,21 +191,14 @@ function DuplicateReviewView() {
       <PageHeader
         back={{ href: `/dashboard/beneficiary/${id}`, label: "Back to profile" }}
         title="Duplicate review"
+        documentTitle={beneficiary?.fullName ? `Duplicate review · ${beneficiary.fullName}` : undefined}
         meta={<DuplicateBadge status={review?.duplicateStatus} />}
         description="Compare this registration with the records it matched. Confirmed duplicates can't be assessed."
       />
 
-      {error ? (
-        <InlineAlert action={<Button variant="outline" size="sm" onClick={reload}>Retry</Button>}>
-          {error.message}
-        </InlineAlert>
-      ) : null}
+      <ErrorAlert error={error} onRetry={reload} />
 
-      {!beneficiary && beneficiaryError ? (
-        <InlineAlert action={<Button variant="outline" size="sm" onClick={reloadBeneficiary}>Retry</Button>}>
-          {beneficiaryError.message}
-        </InlineAlert>
-      ) : null}
+      {!beneficiary ? <ErrorAlert error={beneficiaryError} onRetry={reloadBeneficiary} /> : null}
       {branch.scope === "out" ? (
         <InlineAlert tone="info" title="This household belongs to another branch.">
           You can view the review, but only staff of its branch can resolve it.
@@ -201,7 +214,7 @@ function DuplicateReviewView() {
         </InlineAlert>
       ) : null}
 
-      {isLoading && !review ? <div className="h-64 animate-pulse rounded-xl bg-black/[0.04]" /> : null}
+      {isLoading && !review ? <DetailSkeleton header={false} side={false} /> : null}
 
       {saved ? (
         <InlineAlert
@@ -311,28 +324,20 @@ function DuplicateReviewView() {
           </Panel>
 
           {isOpen && !canResolve ? (
-            branch.scope === "checking" && !beneficiaryError ? (
-              <div className="h-40 animate-pulse rounded-xl bg-black/[0.04]" />
-            ) : null
+            branch.scope === "checking" && !beneficiaryError ? <PanelSkeleton rows={2} /> : null
           ) : isOpen ? (
             <Panel title="Resolve">
               <form onSubmit={onSubmit} className="space-y-4">
                 {submitError ? <InlineAlert>{submitError}</InlineAlert> : null}
-                <div role="radiogroup" aria-label="Outcome" className="grid gap-3 md:grid-cols-2">
-                  <OutcomeOption
-                    selected={resolution === "CONFIRMED_DISTINCT"}
-                    onSelect={() => setResolution("CONFIRMED_DISTINCT")}
-                    title="Different people"
-                    description="Keep both records. This registration can be assessed."
-                  />
-                  <OutcomeOption
-                    selected={resolution === "CONFIRMED_DUPLICATE"}
-                    onSelect={() => setResolution("CONFIRMED_DUPLICATE")}
-                    title="Same person"
-                    description="Mark this registration as a duplicate. It can't be assessed."
-                    destructive
-                  />
-                </div>
+                {/* Not `required`: Radix then adds hidden native radios with no name, and a
+                    browser that follows the spec (Firefox) treats the unchosen one as missing and
+                    blocks the form. onSubmit checks for an outcome instead. */}
+                <ChoiceCards
+                  aria-label="Outcome"
+                  value={resolution || null}
+                  onValueChange={setResolution}
+                  options={OUTCOMES}
+                />
                 <FormField
                   label="Note"
                   htmlFor="duplicate-note"
@@ -389,39 +394,5 @@ function DuplicateReviewView() {
         </>
       ) : null}
     </section>
-  );
-}
-
-function OutcomeOption({
-  selected,
-  onSelect,
-  title,
-  description,
-  destructive,
-}: {
-  selected: boolean;
-  onSelect: () => void;
-  title: string;
-  description: string;
-  destructive?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      onClick={onSelect}
-      className={cn(
-        "rounded-lg border p-4 text-left transition",
-        selected
-          ? destructive
-            ? "border-rose-500 bg-rose-50/60 ring-1 ring-rose-500"
-            : "border-[#007050] bg-[#007050]/[0.05] ring-1 ring-[#007050]"
-          : "border-black/10 hover:border-black/20",
-      )}
-    >
-      <span className="block text-sm font-semibold text-[#001539]">{title}</span>
-      <span className="mt-0.5 block text-sm text-black/55">{description}</span>
-    </button>
   );
 }

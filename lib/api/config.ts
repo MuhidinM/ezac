@@ -1,3 +1,5 @@
+import { logEvent } from "@/lib/api/log";
+
 const DEV_FALLBACK_URL = "http://localhost:8090";
 const EXAMPLE = "e.g. https://gateway.example";
 
@@ -42,9 +44,9 @@ export function getApiBaseUrl(): string {
     }
     if (!warnedAboutFallback) {
       warnedAboutFallback = true;
-      console.warn(
-        `[config] API_BASE_URL is not set; using ${DEV_FALLBACK_URL}. Set it to the gateway URL, ${EXAMPLE}`,
-      );
+      logEvent("warn", "config", {
+        message: `API_BASE_URL is not set; using ${DEV_FALLBACK_URL}. Set it to the gateway URL, ${EXAMPLE}`,
+      });
     }
     return DEV_FALLBACK_URL;
   }
@@ -58,7 +60,7 @@ export function getApiBaseUrl(): string {
   if (!url || (url.protocol !== "https:" && url.protocol !== "http:")) {
     const message = `API_BASE_URL must be a full http(s) URL, ${EXAMPLE} (it is "${configured}")`;
     if (isBuildPhase()) {
-      console.warn(`[config] ${message}; using ${DEV_FALLBACK_URL} for the build.`);
+      logEvent("warn", "config", { message: `${message}; using ${DEV_FALLBACK_URL} for the build.` });
       return DEV_FALLBACK_URL;
     }
     throw new Error(message);
@@ -67,9 +69,9 @@ export function getApiBaseUrl(): string {
   // Tokens and personal data travel on this connection.
   if (production && !warnedAboutPlainHttp && url.protocol === "http:" && !isLoopback(url.hostname)) {
     warnedAboutPlainHttp = true;
-    console.warn(
-      `[config] API_BASE_URL uses plain http:// to ${url.host}. Access tokens and personal data cross that link unencrypted; use https://.`,
-    );
+    logEvent("warn", "config", {
+      message: `API_BASE_URL uses plain http:// to ${url.host}. Access tokens and personal data cross that link unencrypted; use https://.`,
+    });
   }
 
   return configured;

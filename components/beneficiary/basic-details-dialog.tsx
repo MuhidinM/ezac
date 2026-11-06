@@ -18,7 +18,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { apiClient } from "@/lib/api/client";
 import type { AssessmentStatus, BankAccount, BeneficiaryWhitelist, PoolStatus } from "@/lib/api/backoffice-types";
 import type { BeneficiaryDetail } from "@/lib/api/types";
-import { BANKS, MARITAL_STATUS, PRIMARY_LANGUAGE, SEX } from "@/lib/backoffice/options";
+import { MARITAL_STATUS, PRIMARY_LANGUAGE, SEX, bankOptionsFor, isValidAccountNumber } from "@/lib/backoffice/options";
 import { ageMismatch, formErrors } from "@/lib/registration/form-errors";
 import { isValidEthiopianPhone, normalizePhoneToE164 } from "@/lib/registration/phone";
 
@@ -246,18 +246,28 @@ export function BasicDetailsDialog({
       onOpenChange(false);
       return;
     }
-    // A local number (09…) is sent as +251…, the form the backend accepts.
-    if (typeof changed.phone === "string" && isValidEthiopianPhone(changed.phone)) {
-      changed.phone = normalizePhoneToE164(changed.phone);
+    // Checked here, all at once, so each problem shows on its field.
+    const problems: Record<string, string> = {};
+    // The phone is the household's sign-in: refuse anything that isn't an
+    // Ethiopian mobile number rather than send it.
+    if (typeof changed.phone === "string" && !isValidEthiopianPhone(changed.phone)) {
+      problems.phone = "Enter an Ethiopian mobile number, for example 0911 234 567.";
+    }
+    // Same rule as the backend: 6–30 digits once spaces and dashes are gone.
+    if (typeof changed.bankAccountNumber === "string" && !isValidAccountNumber(changed.bankAccountNumber)) {
+      problems.bankAccountNumber = "Enter 6 to 30 digits. Spaces and dashes are fine.";
     }
     if ("dateOfBirth" in changed || "estimatedAge" in changed) {
       const mismatch = ageMismatch(details.dateOfBirth, details.estimatedAge);
-      if (mismatch) {
-        setError("Check the highlighted fields.");
-        showFieldErrors({ estimatedAge: mismatch });
-        return;
-      }
+      if (mismatch) problems.estimatedAge = mismatch;
     }
+    if (Object.keys(problems).length > 0) {
+      setError("Check the highlighted fields.");
+      showFieldErrors(problems);
+      return;
+    }
+    // A local number (09…) is sent as +251…, the form the backend accepts.
+    if (typeof changed.phone === "string") changed.phone = normalizePhoneToE164(changed.phone);
     // Changing an existing phone changes how the household signs in: warn first.
     const phoneChanged = "phone" in changed && !!before.phone && changed.phone !== before.phone;
     if (phoneChanged && !phoneWarned) {
@@ -416,7 +426,7 @@ export function BasicDetailsDialog({
                   disabled={bankReadOnly}
                 >
                   <option value="">Select</option>
-                  {BANKS.map((option) => (
+                  {bankOptionsFor(details.bankCode).map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
                   ))}
                 </NativeSelect>

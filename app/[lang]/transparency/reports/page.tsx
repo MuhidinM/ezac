@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { DownloadIcon, FileTextIcon } from "lucide-react";
 
 import { JsonLd } from "@/components/seo/json-ld";
+import { isPastLastPage, listPath, pageFromParam } from "@/components/site/list-page";
+import { Pagination } from "@/components/site/pagination";
 import { CtaBand, Section, SectionHeading } from "@/components/site/sections";
 import { SitePage } from "@/components/site/site-page";
 import { INTL_LOCALE, type Locale } from "@/lib/i18n/config";
@@ -12,14 +15,24 @@ import { breadcrumbJsonLd } from "@/lib/structured-data";
 import { mediaSrc } from "@/lib/zakat/content";
 import { formatDate, getImpactReports } from "@/lib/zakat/impact";
 
-export async function generateMetadata({ params }: PageProps<"/[lang]/transparency/reports">): Promise<Metadata> {
-  const locale = localeFromParam((await params).lang);
-  const { meta } = (await getDictionary(locale)).transparency.reports;
-  return pageMetadata({ locale, path: "/transparency/reports", ...meta });
-}
+const PATH = "/transparency/reports";
+const PAGE_SIZE = 20;
 
-// Published reports from zakat-engine, refreshed every 5 minutes.
-export const revalidate = 300;
+export async function generateMetadata({
+  params,
+  searchParams,
+}: PageProps<"/[lang]/transparency/reports">): Promise<Metadata> {
+  const locale = localeFromParam((await params).lang);
+  const page = pageFromParam((await searchParams).page);
+  const { transparency, common } = await getDictionary(locale);
+  const { meta } = transparency.reports;
+  return pageMetadata({
+    locale,
+    path: listPath(PATH, page),
+    ...meta,
+    title: page > 1 ? format(common.pagination.pageTitle, { title: meta.title, page }) : meta.title,
+  });
+}
 
 /** "1.2 MB" or "640 kB" in the page's language; null when the size isn't known. */
 function fileSize(bytes: number | null, locale: Locale) {
@@ -32,12 +45,17 @@ function fileSize(bytes: number | null, locale: Locale) {
   }).format(megabytes ? bytes / (1024 * 1024) : bytes / 1024);
 }
 
-export default async function ImpactReportsPage({ params }: PageProps<"/[lang]/transparency/reports">) {
+export default async function ImpactReportsPage({ params, searchParams }: PageProps<"/[lang]/transparency/reports">) {
   const locale = localeFromParam((await params).lang);
-  const { transparency } = await getDictionary(locale);
+  const page = pageFromParam((await searchParams).page);
+  const { transparency, common } = await getDictionary(locale);
   const t = transparency.reports;
-  // null means none published; an outage throws, so ISR keeps the last good list.
-  const reports = (await getImpactReports()) ?? [];
+  // null means none published. Published reports are cached (lib/zakat/impact.ts):
+  // an outage keeps the last good copy, and with none cached shows the error page.
+  const result = await getImpactReports(page, PAGE_SIZE);
+  const reports = result?.items ?? [];
+  const totalPages = result?.pagination.totalPages ?? 0;
+  if (isPastLastPage(page, totalPages)) notFound();
 
   return (
     <SitePage {...t.header}>
@@ -82,6 +100,7 @@ export default async function ImpactReportsPage({ params }: PageProps<"/[lang]/t
             );
           })}
         </div>
+        <Pagination locale={locale} t={common.pagination} path={PATH} page={page} totalPages={totalPages} />
       </Section>
       <CtaBand
         title={t.cta.title}
@@ -91,7 +110,7 @@ export default async function ImpactReportsPage({ params }: PageProps<"/[lang]/t
       <JsonLd
         data={breadcrumbJsonLd(locale, [
           { name: transparency.breadcrumbs.home, path: "/" },
-          { name: transparency.breadcrumbs.reports, path: "/transparency/reports" },
+          { name: transparency.breadcrumbs.reports, path: PATH },
         ])}
       />
     </SitePage>

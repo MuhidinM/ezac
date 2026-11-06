@@ -29,14 +29,6 @@ export type PaginatedItems<T> = {
   pagination: Pagination;
 };
 
-export type LoginData = {
-  accessToken: string;
-  refreshToken: string;
-  expiresIn: number;
-  tokenType: string;
-  passwordChangeRequired: boolean;
-};
-
 export type VerificationStatus =
   | "pending"
   | "pending_third_party"

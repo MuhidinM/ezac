@@ -52,7 +52,7 @@ export function Step5Shariah({ state, setState, errors }: NgoStepProps) {
     >
       <div className="space-y-8">
         <section>
-          <h3 className="mb-4 text-lg font-semibold text-[#001539]">
+          <h3 className="mb-4 text-sm font-semibold text-[#001539]">
             Part A — Shariah Compliance Declaration
           </h3>
           <CheckboxGroup

@@ -1,5 +1,6 @@
 import type { BadgeTone } from "@/components/ui/badge";
 import { formatEtb } from "@/lib/backoffice/format";
+import type { PayloadField } from "@/lib/zakat/redact";
 
 /** Payouts from the Zakat or Awqaf fund account to pooled households (WEB-ADMIN-ZAKAT-GUIDE §11). */
 
@@ -35,23 +36,65 @@ export type FundAccounts = {
   zakat: FundAccount;
   waqf: FundAccount;
   updatedBy?: string | null;
+  /** Requested from the backend (§20); the id is shown until it comes. */
+  updatedByName?: string | null;
   updatedAt?: string | null;
 };
 
-export type BankCallOperation = "VERIFY_ACCOUNT" | "TRANSFER" | "PUSH_PAYMENT";
+/** The editable part of one fund account. */
+export type FundAccountInput = { accountNumber: string; accountName: string };
+
+export type FundAccountChange = {
+  fund: Fund;
+  field: "accountNumber" | "accountName";
+  from: string;
+  to: string;
+  /** An account number left blank: that fund can't pay out any more. */
+  cleared: boolean;
+};
+
+/**
+ * What saving the fund accounts would change, field by field (blank values
+ * compare as empty). Shown before saving, since payouts are paid from these
+ * accounts and a blank number takes the fund out of use (logic-backoffice-6).
+ */
+export function fundAccountChanges(
+  before: Pick<FundAccounts, "zakat" | "waqf">,
+  after: { zakat: FundAccountInput; waqf: FundAccountInput },
+): FundAccountChange[] {
+  const changes: FundAccountChange[] = [];
+  for (const [key, fund] of [
+    ["zakat", "ZAKAT"],
+    ["waqf", "WAQF"],
+  ] as const) {
+    for (const field of ["accountNumber", "accountName"] as const) {
+      const from = (before[key][field] ?? "").trim();
+      const to = after[key][field].trim();
+      if (from === to) continue;
+      changes.push({ fund, field, from, to, cleared: field === "accountNumber" && from !== "" && to === "" });
+    }
+  }
+  return changes;
+}
+
+export type BankCallOperation ="VERIFY_ACCOUNT" | "TRANSFER" | "PUSH_PAYMENT";
 export type BankCallOutcome = "SUCCESS" | "DECLINED" | "UNKNOWN" | "ERROR";
 
-/** One call made to the bank for a payout (account numbers masked). */
+/**
+ * One call made to the bank for a payout, as the BFF passes it on: the raw
+ * URL and request and response bodies are replaced by the few fields staff
+ * need (lib/zakat/redact.ts), with long digit runs masked.
+ */
 export type BankCall = {
   callId: string;
   operation: BankCallOperation;
-  url?: string | null;
   messageId?: string | null;
   httpStatus?: number | null;
   outcome: BankCallOutcome;
   durationMs?: number | null;
-  request?: unknown;
-  response?: unknown;
+  /** Status, codes, messages and references picked from what was sent and what came back. */
+  requestFields?: PayloadField[];
+  responseFields?: PayloadField[];
   error?: string | null;
   correlationId?: string | null;
   at: string;
@@ -107,6 +150,10 @@ export type Disbursement = {
   resolutionNote?: string | null;
   createdBy?: string | null;
   confirmedBy?: string | null;
+  /** The names of the people above: requested from the backend (§20); the ids are shown until they come. */
+  createdByName?: string | null;
+  confirmedByName?: string | null;
+  resolvedByName?: string | null;
   confirmedAt?: string | null;
   paidAt?: string | null;
   /** false on a paid payout until the pool record catches up (retried every minute). */
@@ -141,10 +188,90 @@ export function disbursementStatus(status: DisbursementStatus) {
 }
 
 export const NAME_CHECK: Record<NameCheck, { label: string; tone: BadgeTone; hint: string }> = {
-  MATCH: { label: "Names match", tone: "success", hint: "Every word of the shorter name is in the longer one." },
+  MATCH: {
+    label: "Names match",
+    tone: "success",
+    hint: "The bank's name and the name on file share words: every word of the shorter one is in the longer one.",
+  },
   MISMATCH: { label: "Names differ", tone: "danger", hint: "Compare both names before paying." },
   NOT_CHECKED: { label: "Not checked", tone: "warning", hint: "The other bank's account couldn't be looked up." },
 };
+
+/** A name's words, lower-cased, without punctuation. */
+function nameWords(name: string | null | undefined) {
+  return (name ?? "")
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+/**
+ * The server's MATCH rule: every word of the shorter name is in the longer
+ * one. Null when either name is blank (nothing to compare).
+ */
+export function namesAgree(a: string | null | undefined, b: string | null | undefined): boolean | null {
+  const left = nameWords(a);
+  const right = nameWords(b);
+  if (left.length === 0 || right.length === 0) return null;
+  const [shorter, longer] = left.length <= right.length ? [left, right] : [right, left];
+  const pool = new Set(longer);
+  return shorter.every((word) => pool.has(word));
+}
+
+/**
+ * Why a "Names match" result still needs a second look, or null. The server
+ * compares the bank's name with the free-text account holder name on file,
+ * not the registered name, so a match proves little when that name has under
+ * two words, or when the bank's name doesn't agree with the household's
+ * registered name (go-live audit gap-r2-3-2). The real fix, a comparison with
+ * the registered name and a "partial" state, is asked of payment-service (§3).
+ */
+export function weakMatchReason(
+  payout: Pick<Disbursement, "nameCheck" | "accountHolderName" | "verifiedName">,
+  registeredName: string | null | undefined,
+): string | null {
+  if (payout.nameCheck !== "MATCH") return null;
+  if (nameWords(payout.accountHolderName).length < 2) {
+    return "The name on file has fewer than two words, so “Names match” proves little.";
+  }
+  if (namesAgree(registeredName, payout.verifiedName) === false) {
+    return "The name at the bank doesn't match the household's registered name.";
+  }
+  return null;
+}
+
+/**
+ * Anything short of a clear match needs a tick before paying: "Names differ",
+ * "Not checked" (no name came back at all) and a weak "Names match". The API
+ * only enforces the tick for "Names differ" (§3, §32).
+ */
+export function needsNameAcknowledgement(
+  payout: Pick<Disbursement, "nameCheck" | "accountHolderName" | "verifiedName">,
+  registeredName: string | null | undefined,
+) {
+  return payout.nameCheck !== "MATCH" || weakMatchReason(payout, registeredName) !== null;
+}
+
+/** True when the same staff account did both steps (no second person checked it). */
+export function sameStaff(a: string | null | undefined, b: string | null | undefined) {
+  return Boolean(a && b && a === b);
+}
+
+/** Lines for the payout record that a reviewer should notice: one person doing two steps, a name check overridden. */
+export function payoutAuditNotes(
+  payout: Pick<Disbursement, "createdBy" | "confirmedBy" | "resolvedBy" | "confirmedAt" | "nameCheck">,
+): string[] {
+  const notes: string[] = [];
+  if (sameStaff(payout.createdBy, payout.confirmedBy)) notes.push("Prepared and paid by the same person.");
+  if (sameStaff(payout.createdBy, payout.resolvedBy) || sameStaff(payout.confirmedBy, payout.resolvedBy)) {
+    notes.push("Settled by the person who prepared or paid it.");
+  }
+  if (payout.confirmedAt && payout.nameCheck === "MISMATCH") notes.push("Paid although the names differed: the person who paid ticked that they compared them.");
+  if (payout.confirmedAt && payout.nameCheck === "NOT_CHECKED") notes.push("Paid without a name check from the bank.");
+  return notes;
+}
 
 export const RAIL_LABEL: Record<Rail, string> = {
   COOP: "Coop internal transfer",

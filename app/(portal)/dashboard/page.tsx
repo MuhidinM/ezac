@@ -31,6 +31,7 @@ import { RangeSelect } from "@/components/dashboard/range-select";
 import { TableMessageRow } from "@/components/dashboard/table-states";
 import { Badge } from "@/components/ui/badge";
 import { NativeSelect } from "@/components/ui/native-select";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import {
   Table,
   TableBody,
@@ -52,7 +53,7 @@ import type {
 import { useResource } from "@/lib/api/use-resource";
 import { useSession } from "@/lib/auth/use-session";
 import { rangeQuery, type RangeKey } from "@/lib/backoffice/date-range";
-import { formatDays } from "@/lib/backoffice/format";
+import { formatCount, formatDays } from "@/lib/backoffice/format";
 import {
   ASNAF,
   OFFICER_RECOMMENDATION,
@@ -258,7 +259,7 @@ function Overview({ scope, range, showAreas }: { scope: string; range: RangeKey;
         <StatTile
           label="Beneficiaries"
           value={formatCompact(o?.beneficiaries.total)}
-          hint={o ? `+${o.beneficiaries.newInRange.toLocaleString()} in this period` : undefined}
+          hint={o ? `+${formatCount(o.beneficiaries.newInRange)} in this period` : undefined}
           icon={Users}
           loading={loading}
         />
@@ -271,7 +272,7 @@ function Overview({ scope, range, showAreas }: { scope: string; range: RangeKey;
         />
         <StatTile
           label="Submitted / decided"
-          value={o ? `${o.assessments.submittedInRange.toLocaleString()} / ${o.assessments.decidedInRange.toLocaleString()}` : "—"}
+          value={o ? `${formatCount(o.assessments.submittedInRange)} / ${formatCount(o.assessments.decidedInRange)}` : "—"}
           hint="In this period"
           icon={ClipboardCheck}
           loading={loading}
@@ -299,14 +300,14 @@ function Overview({ scope, range, showAreas }: { scope: string; range: RangeKey;
         <StatTile
           label="Codes available"
           value={formatCompact(o?.codes.available)}
-          hint={o ? `${o.codes.consumed.toLocaleString()} used · ${o.codes.revoked.toLocaleString()} revoked` : undefined}
+          hint={o ? `${formatCount(o.codes.consumed)} used · ${formatCount(o.codes.revoked)} revoked` : undefined}
           icon={Ticket}
           loading={loading}
         />
         <StatTile
           label="Institutions"
           value={formatCompact(o?.beneficiaries.byType.institution)}
-          hint={o ? `${(o.beneficiaries.byType.individual ?? 0).toLocaleString()} individuals` : undefined}
+          hint={o ? `${formatCount(o.beneficiaries.byType.individual ?? 0)} individuals` : undefined}
           icon={Building2}
           loading={loading}
         />
@@ -332,7 +333,7 @@ function Overview({ scope, range, showAreas }: { scope: string; range: RangeKey;
       <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <Panel
           title="Score distribution"
-          description={distribution.data ? `${distribution.data.scored.toLocaleString()} current scores, by need level` : undefined}
+          description={distribution.data ? `${formatCount(distribution.data.scored)} current scores, by need level` : undefined}
           actions={<AllTime />}
         >
           {distribution.error ? (
@@ -378,7 +379,13 @@ function Overview({ scope, range, showAreas }: { scope: string; range: RangeKey;
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <BreakdownPanel title="Asnaf" description="From registration" data={asnaf.data} error={asnaf.error?.message} allTime />
+        <BreakdownPanel
+          title="Asnaf"
+          description="Each household's current category; an assessment can change the one given at registration"
+          data={asnaf.data}
+          error={asnaf.error?.message}
+          allTime
+        />
         <BreakdownPanel
           title="Vulnerabilities"
           description="From current assessments; a household can count more than once"
@@ -451,22 +458,16 @@ function AreaComparison({ scope }: { scope: string }) {
       actions={
         <>
           <AllTime />
-          <div className="inline-flex rounded-lg border border-black/10 bg-white p-0.5">
-            {(["branches", "regions"] as const).map((key) => (
-              <button
-                key={key}
-                type="button"
-                aria-pressed={by === key}
-                onClick={() => setBy(key)}
-                className={cn(
-                  "rounded-md px-3 py-1 text-xs capitalize transition",
-                  by === key ? "bg-[#001539] text-white" : "text-black/60 hover:text-[#001539]",
-                )}
-              >
-                {key}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            size="sm"
+            aria-label="Compare by"
+            value={by}
+            onValueChange={setBy}
+            options={[
+              { value: "branches", label: "Branches" },
+              { value: "regions", label: "Regions" },
+            ]}
+          />
         </>
       }
     >
@@ -507,12 +508,12 @@ function AreaComparison({ scope }: { scope: string }) {
                   )}
                   {by === "branches" && row.region ? <p className="text-xs text-black/45">{row.region}</p> : null}
                 </TableCell>
-                <TableCell className="text-right tabular-nums">{row.beneficiaries.toLocaleString()}</TableCell>
-                <TableCell className="text-right tabular-nums">{row.pendingAssessment.toLocaleString()}</TableCell>
-                <TableCell className="text-right tabular-nums">{row.underAssessment.toLocaleString()}</TableCell>
-                <TableCell className="text-right tabular-nums">{row.submitted.toLocaleString()}</TableCell>
-                <TableCell className="text-right tabular-nums">{row.approved.toLocaleString()}</TableCell>
-                <TableCell className="text-right tabular-nums">{row.highRisk.toLocaleString()}</TableCell>
+                <TableCell className="text-right tabular-nums">{formatCount(row.beneficiaries)}</TableCell>
+                <TableCell className="text-right tabular-nums">{formatCount(row.pendingAssessment)}</TableCell>
+                <TableCell className="text-right tabular-nums">{formatCount(row.underAssessment)}</TableCell>
+                <TableCell className="text-right tabular-nums">{formatCount(row.submitted)}</TableCell>
+                <TableCell className="text-right tabular-nums">{formatCount(row.approved)}</TableCell>
+                <TableCell className="text-right tabular-nums">{formatCount(row.highRisk)}</TableCell>
                 <TableCell className={cn("text-right tabular-nums", by === "regions" && "pr-5")}>
                   {row.averageScore != null ? row.averageScore.toFixed(1) : "—"}
                 </TableCell>
@@ -520,7 +521,7 @@ function AreaComparison({ scope }: { scope: string }) {
                   <TableCell
                     className={cn("pr-5 text-right tabular-nums", (row.codesAvailable ?? 0) < 10 && "font-medium text-amber-700")}
                   >
-                    {row.codesAvailable ?? "—"}
+                    {formatCount(row.codesAvailable)}
                   </TableCell>
                 ) : null}
               </TableRow>

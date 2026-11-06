@@ -94,18 +94,18 @@ export function Step3Programs({ state, setState, errors }: NgoStepProps) {
 
         {selectedAidTypes.length > 0 ? (
           <section className="space-y-4">
-            <h3 className="text-lg font-semibold text-[#001539]">Program Details</h3>
+            <h3 className="text-sm font-semibold text-[#001539]">Program Details</h3>
             {selectedAidTypes.map((key) => {
               const program = s.programs[key] ?? emptyProgram();
               return (
                 <div key={key} className="rounded-xl border border-black/10 bg-black/[0.02] p-4">
                   <h4 className="mb-3 font-medium text-[#001539]">{AID_TYPE_LABELS[key]}</h4>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <FormField label="Program name">
-                      <input type="text" value={program.name} onChange={(e) => updateProgram(key, "name", e.target.value)} className={inputClass} />
+                    <FormField label="Program name" htmlFor={`program-${key}-name`}>
+                      <input id={`program-${key}-name`} type="text" value={program.name} onChange={(e) => updateProgram(key, "name", e.target.value)} className={inputClass} />
                     </FormField>
-                    <FormField label="Beneficiaries reached">
-                      <input type="number" min={0} value={program.beneficiariesReached} onChange={(e) => updateProgram(key, "beneficiariesReached", e.target.value)} className={inputClass} />
+                    <FormField label="Beneficiaries reached" htmlFor={`program-${key}-reached`}>
+                      <input id={`program-${key}-reached`} type="number" min={0} value={program.beneficiariesReached} onChange={(e) => updateProgram(key, "beneficiariesReached", e.target.value)} className={inputClass} />
                     </FormField>
                     <div className="sm:col-span-2">
                       <RadioGroup name={`freq-${key}`} label="Frequency" value={program.frequency} onChange={(v) => updateProgram(key, "frequency", v)}
@@ -117,8 +117,8 @@ export function Step3Programs({ state, setState, errors }: NgoStepProps) {
                         ]}
                       />
                     </div>
-                    <FormField label="Average value per beneficiary per cycle" className="sm:col-span-2">
-                      <CurrencyInput formatOnBlur value={program.avgValuePerBeneficiary} onChange={(v) => updateProgram(key, "avgValuePerBeneficiary", v)} />
+                    <FormField label="Average value per beneficiary per cycle" htmlFor={`program-${key}-value`} className="sm:col-span-2">
+                      <CurrencyInput id={`program-${key}-value`} formatOnBlur value={program.avgValuePerBeneficiary} onChange={(v) => updateProgram(key, "avgValuePerBeneficiary", v)} />
                     </FormField>
                   </div>
                 </div>
@@ -146,7 +146,7 @@ export function Step3Programs({ state, setState, errors }: NgoStepProps) {
         </section>
 
         <section>
-          <h3 className="mb-4 text-lg font-semibold text-[#001539]">Monitoring & Accountability</h3>
+          <h3 className="mb-4 text-sm font-semibold text-[#001539]">Monitoring & Accountability</h3>
           <div className="space-y-4">
             <RadioGroup name="followUpVisits" label="Does your organization conduct follow-up visits after aid distribution?" value={s.monitoring.followUpVisits} onChange={(v) => updateMonitoring("followUpVisits", v)} options={yesNo} />
             <RadioGroup name="beneficiaryFeedback" label="Do you collect feedback from beneficiaries?" value={s.monitoring.beneficiaryFeedback} onChange={(v) => updateMonitoring("beneficiaryFeedback", v)} options={yesNo} />

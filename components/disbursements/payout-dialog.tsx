@@ -7,8 +7,10 @@ import { CircleAlert, Clock } from "lucide-react";
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { DetailList } from "@/components/dashboard/panel";
+import { isTestRail, PaymentModeBanner, usePaymentMode } from "@/components/zakat/payment-mode-banner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ChoiceCards, type ChoiceOption } from "@/components/ui/segmented-control";
 import {
   Dialog,
   DialogContent,
@@ -33,9 +35,11 @@ import {
   FUNDS,
   fundLabel,
   NAME_CHECK,
+  needsNameAcknowledgement,
   payoutErrorCode,
   payoutErrorMessage,
   RAIL_LABEL,
+  weakMatchReason,
 } from "@/lib/zakat/disbursements";
 import { cn, generateId } from "@/lib/utils";
 
@@ -166,30 +170,29 @@ export function nameCheckOf(payout: Pick<Disbursement, "nameCheck">) {
   return NAME_CHECK[payout.nameCheck] ?? UNKNOWN_NAME_CHECK;
 }
 
-/**
- * Anything short of a clear match needs a tick before paying: "Not checked" is
- * the least verified case (no name came back at all), so it gets the same gate
- * as "Names differ".
- */
-export function needsNameAcknowledgement(payout: Pick<Disbursement, "nameCheck">) {
-  return payout.nameCheck !== "MATCH";
+/** The registered name of the household a payout is for. */
+export function registeredNameOf(payout: Pick<Disbursement, "beneficiaryName">, fallback?: string | null) {
+  return payout.beneficiaryName?.trim() || fallback?.trim() || null;
 }
 
-/** The tickbox that unlocks "Pay" when the name check isn't a match. */
+/** The tickbox that unlocks "Pay" when the name check isn't a clear match. */
 export function NameCheckAcknowledgement({
   payout,
+  registeredName,
   checked,
   onCheckedChange,
 }: {
-  payout: Pick<Disbursement, "nameCheck">;
+  payout: Pick<Disbursement, "nameCheck" | "accountHolderName" | "verifiedName">;
+  registeredName: string | null;
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
 }) {
   const mismatch = payout.nameCheck === "MISMATCH";
+  const weak = weakMatchReason(payout, registeredName);
   return (
     <label
       className={cn(
-        "flex items-start gap-2 rounded-lg border p-3 text-sm text-[#001539]",
+        "flex items-start gap-2 rounded-lg border p-3 text-sm text-navy",
         mismatch ? "border-rose-200 bg-rose-50/60" : "border-amber-200 bg-amber-50/60",
       )}
     >
@@ -201,19 +204,26 @@ export function NameCheckAcknowledgement({
       />
       {mismatch
         ? "I compared the names and this is the right account."
-        : "The bank didn't confirm the name. I checked the account number with the household and it is the right account."}
+        : weak
+          ? "I compared the bank's name with the household's registered name and this is the right account."
+          : "The bank didn't confirm the name. I checked the account number with the household and it is the right account."}
     </label>
   );
 }
 
-/** Bank details of a prepared payout, with the name check made prominent. */
-export function PayoutReview({ payout }: { payout: Disbursement }) {
+/**
+ * Bank details of a prepared payout, with the name check made prominent. The
+ * household's registered name sits next to the bank's name, since the check
+ * itself only compares the bank's name with the free-text name on file.
+ */
+export function PayoutReview({ payout, registeredName }: { payout: Disbursement; registeredName: string | null }) {
   const check = nameCheckOf(payout);
+  const weak = weakMatchReason(payout, registeredName);
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-black/[0.08] bg-black/[0.015] p-4">
         <p className="text-xs text-black/50">Amount</p>
-        <p className="mt-0.5 text-2xl font-semibold tracking-tight text-[#001539] tabular-nums">{formatEtb(payout.amountEtb)}</p>
+        <p className="mt-0.5 text-2xl font-semibold tracking-tight text-navy tabular-nums">{formatEtb(payout.amountEtb)}</p>
         <p className="mt-1 text-xs text-black/50">
           {RAIL_LABEL[payout.rail] ?? payout.rail} from the {fundLabel(payout.fund)} fund
           {payout.debitAccountName ? `, ${payout.debitAccountName}` : ""}
@@ -223,15 +233,24 @@ export function PayoutReview({ payout }: { payout: Disbursement }) {
       <DetailList
         columns={2}
         items={[
-          { label: "Bank", value: payout.bankName },
-          { label: "Account", value: <span className="font-mono">{payout.creditAccount}</span> },
-          { label: "Name on file", value: payout.accountHolderName },
+          { label: "Registered name", value: registeredName },
           { label: "Name at the bank", value: payout.verifiedName ?? "Not available" },
+          { label: "Name on file (bank details)", value: payout.accountHolderName },
+          { label: "Account", value: <span className="font-mono">{payout.creditAccount}</span> },
+          { label: "Bank on file", value: payout.bankName },
+          ...(payout.rail === "IPS"
+            ? [
+                {
+                  label: "Paid to (IPS bank code)",
+                  value: payout.destinationBankCode ? <span className="font-mono">{payout.destinationBankCode}</span> : "Not sent by the server",
+                },
+              ]
+            : []),
         ]}
       />
       <div className="flex items-start gap-2">
-        <Badge tone={check.tone}>{check.label}</Badge>
-        <span className="text-xs text-black/55">{check.hint}</span>
+        <Badge tone={weak ? "warning" : check.tone}>{check.label}</Badge>
+        <span className="text-xs text-black/55">{weak ?? check.hint}</span>
       </div>
     </div>
   );
@@ -268,13 +287,26 @@ export function PayoutDialog({
   // Closing a prepared payout first asks whether to keep or cancel it.
   const [closing, setClosing] = useState(false);
   const now = useServerNow(5_000);
+  const mode = usePaymentMode();
 
   const isWorking = working !== null;
   const name = entry.fullName ?? `Beneficiary #${entry.beneficiaryId}`;
+  const registeredName = payout ? registeredNameOf(payout, entry.fullName) : (entry.fullName ?? null);
   const prepared = payout?.status === "AWAITING_CONFIRMATION";
   const finished = payout && !prepared;
   const expired = payout ? isExpired(payout, now) : false;
   const expiringSoon = payout ? isExpiringSoon(payout, now) : false;
+  const needsTick = payout ? needsNameAcknowledgement(payout, registeredName) : false;
+  const fundOptions: ChoiceOption<Fund>[] = FUNDS.map((item) => {
+    const account = item.value === "ZAKAT" ? funds.data?.zakat : funds.data?.waqf;
+    const ready = account?.ready ?? false;
+    return {
+      value: item.value,
+      label: `${item.label} fund`,
+      description: <span className="font-mono text-xs">{funds.data ? (ready ? account?.accountNumber : "No account set") : "…"}</span>,
+      disabled: Boolean(funds.data) && !ready,
+    };
+  });
 
   function startOver() {
     setPayout(null);
@@ -417,7 +449,7 @@ export function PayoutDialog({
     <Dialog open onOpenChange={(open) => !open && requestClose()}>
       <DialogContent className="max-h-[90svh] max-w-lg overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-[#001539]">{finished ? "Payout result" : prepared ? "Confirm the payout" : `Pay ${name}`}</DialogTitle>
+          <DialogTitle className="text-navy">{finished ? "Payout result" : prepared ? `Confirm the payout to ${name}` : `Pay ${name}`}</DialogTitle>
           <DialogDescription>
             {finished
               ? name
@@ -429,6 +461,7 @@ export function PayoutDialog({
           </DialogDescription>
         </DialogHeader>
 
+        <PaymentModeBanner mode={mode} rails={["bank"]} />
         {notice ? <InlineAlert tone="info">{notice}</InlineAlert> : null}
         {error ? (
           <InlineAlert>
@@ -455,33 +488,8 @@ export function PayoutDialog({
                 { label: "Branch", value: entry.branchName },
               ]}
             />
-            <FormField label="Pay from" htmlFor="payout-fund-ZAKAT" required error={fieldErrors.fund}>
-              <div role="radiogroup" aria-label="Pay from" className="grid grid-cols-2 gap-2">
-                {FUNDS.map((item) => {
-                  const account = item.value === "ZAKAT" ? funds.data?.zakat : funds.data?.waqf;
-                  const ready = account?.ready ?? false;
-                  return (
-                    <button
-                      key={item.value}
-                      id={`payout-fund-${item.value}`}
-                      type="button"
-                      role="radio"
-                      aria-checked={fund === item.value}
-                      disabled={!!funds.data && !ready}
-                      onClick={() => setFund(item.value)}
-                      className={cn(
-                        "rounded-lg border bg-white p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-50",
-                        fund === item.value ? "border-[#007050] ring-1 ring-[#007050]" : "border-black/10 hover:border-black/20",
-                      )}
-                    >
-                      <span className="block text-sm font-semibold text-[#001539]">{item.label} fund</span>
-                      <span className="mt-0.5 block font-mono text-xs text-black/55">
-                        {funds.data ? (ready ? account?.accountNumber : "No account set") : "…"}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+            <FormField label="Pay from" required error={fieldErrors.fund}>
+              {(control) => <ChoiceCards id={control.id} value={fund} onValueChange={setFund} options={fundOptions} required />}
             </FormField>
             {funds.error ? <InlineAlert tone="warning">Couldn&apos;t load the fund accounts: {funds.error.message}</InlineAlert> : null}
             <FormField label="Amount (ETB)" htmlFor="payout-amount" required error={fieldErrors.amountEtb}>
@@ -493,8 +501,6 @@ export function PayoutDialog({
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 required
-                autoFocus
-                aria-invalid={fieldErrors.amountEtb ? true : undefined}
                 className="tabular-nums"
               />
             </FormField>
@@ -507,15 +513,17 @@ export function PayoutDialog({
               </Button>
               <Button
                 type="submit"
-                disabled={isWorking || !(Number(amount) > 0) || (funds.data ? !(fund === "ZAKAT" ? funds.data.zakat : funds.data.waqf)?.ready : false)}
+                loading={working === "prepare"}
+                loadingText="Looking up the account…"
+                disabled={!(Number(amount) > 0) || (funds.data ? !(fund === "ZAKAT" ? funds.data.zakat : funds.data.waqf)?.ready : false)}
               >
-                {working === "prepare" ? "Looking up the account…" : "Review payout"}
+                Review payout
               </Button>
             </DialogFooter>
           </form>
         ) : prepared ? (
           <div className="space-y-4">
-            <PayoutReview payout={payout} />
+            <PayoutReview payout={payout} registeredName={registeredName} />
             {expired ? (
               <>
                 <InlineAlert tone="warning">
@@ -541,28 +549,52 @@ export function PayoutDialog({
                   <Button type="button" variant="outline" onClick={keepAndClose} disabled={isWorking}>
                     Keep it
                   </Button>
-                  <Button type="button" onClick={() => act("cancel")} disabled={isWorking} className="bg-rose-600 text-white hover:bg-rose-700">
-                    {working === "cancel" ? "Cancelling…" : "Cancel payout"}
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => act("cancel")}
+                    disabled={isWorking && working !== "cancel"}
+                    loading={working === "cancel"}
+                    loadingText="Cancelling…"
+                  >
+                    Cancel payout
                   </Button>
                 </DialogFooter>
               </>
             ) : (
               <>
                 {expiringSoon ? <InlineAlert tone="warning">{EXPIRING_SOON}</InlineAlert> : null}
-                {needsNameAcknowledgement(payout) ? (
-                  <NameCheckAcknowledgement payout={payout} checked={acknowledged} onCheckedChange={setAcknowledged} />
+                {needsTick ? (
+                  <NameCheckAcknowledgement
+                    payout={payout}
+                    registeredName={registeredName}
+                    checked={acknowledged}
+                    onCheckedChange={setAcknowledged}
+                  />
                 ) : null}
                 <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => act("cancel")} disabled={isWorking}>
-                    {working === "cancel" ? "Cancelling…" : "Cancel payout"}
+                  <Button
+                    type="button"
+                    variant="destructive-outline"
+                    onClick={() => act("cancel")}
+                    disabled={isWorking && working !== "cancel"}
+                    loading={working === "cancel"}
+                    loadingText="Cancelling…"
+                  >
+                    Cancel payout
                   </Button>
                   {unsure ? (
-                    <Button onClick={checkStatus} disabled={isWorking}>
-                      {working === "check" ? "Checking…" : "Check status"}
+                    <Button onClick={checkStatus} disabled={isWorking && working !== "check"} loading={working === "check"} loadingText="Checking…">
+                      Check status
                     </Button>
                   ) : (
-                    <Button onClick={() => act("confirm")} disabled={isWorking || (needsNameAcknowledgement(payout) && !acknowledged)}>
-                      {working === "confirm" ? "Sending…" : `Pay ${formatEtb(payout.amountEtb)}`}
+                    <Button
+                      onClick={() => act("confirm")}
+                      disabled={(isWorking && working !== "confirm") || (needsTick && !acknowledged)}
+                      loading={working === "confirm"}
+                      loadingText="Sending…"
+                    >
+                      Pay {formatEtb(payout.amountEtb)}
                     </Button>
                   )}
                 </DialogFooter>
@@ -571,7 +603,7 @@ export function PayoutDialog({
           </div>
         ) : payout ? (
           <div className="space-y-4">
-            <PayoutOutcome payout={payout} />
+            <PayoutOutcome payout={payout} test={isTestRail(mode, "bank")} />
             <DialogFooter>
               <Button onClick={onClose}>Done</Button>
             </DialogFooter>
@@ -582,11 +614,15 @@ export function PayoutDialog({
   );
 }
 
-function PayoutOutcome({ payout }: { payout: Disbursement }) {
+function PayoutOutcome({ payout, test }: { payout: Disbursement; test: boolean }) {
   const status = disbursementStatus(payout.status);
   if (payout.status === "SUCCEEDED") {
     return (
-      <InlineAlert tone="success" title={`${formatEtb(payout.amountEtb)} paid`}>
+      <InlineAlert
+        tone={test ? "warning" : "success"}
+        title={test ? `${formatEtb(payout.amountEtb)} paid in test mode` : `${formatEtb(payout.amountEtb)} paid`}
+      >
+        {test ? "The bank connection is a sandbox, so no money moved. " : ""}
         Bank reference <span className="font-mono">{payout.providerReference ?? "—"}</span>. The household has left the pool.
         {payout.poolUpdated === false ? " (The pool updates within a minute.)" : ""}
       </InlineAlert>

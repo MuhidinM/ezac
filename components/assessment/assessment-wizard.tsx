@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Save } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Copy, Save } from "lucide-react";
 
 import { ApplicantCard, applicantDetails } from "@/components/assessment/applicant-card";
 import { StepNav, type StepState } from "@/components/assessment/step-nav";
@@ -16,11 +16,21 @@ import { StepSubmit, clearSubmitInputs } from "@/components/assessment/steps/ste
 import { StepVerification } from "@/components/assessment/steps/step-verification";
 import { StepVulnerability } from "@/components/assessment/steps/step-vulnerability";
 import { StepWellbeing } from "@/components/assessment/steps/step-wellbeing";
+import { useLeaveGuard } from "@/components/assessment/use-leave-guard";
 import { AssessmentStatusBadge } from "@/components/backoffice/status-badges";
 import { BasicDetailsDialog, bankLockFor } from "@/components/beneficiary/basic-details-dialog";
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { requestPath } from "@/components/whitelist/whitelist-form-dialog";
 import type {
   Assessment,
@@ -34,6 +44,7 @@ import { ApiError, fieldErrorMap } from "@/lib/api/errors";
 import type { BeneficiaryDetail, PaginatedItems } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
 import { useSession } from "@/lib/auth/use-session";
+import { leaveNotice } from "@/lib/backoffice/notice";
 import {
   STEPS,
   assessmentBeneficiaryId,
@@ -47,6 +58,7 @@ import {
   type AssessmentDraft,
   type StepId,
 } from "@/lib/backoffice/assessment-steps";
+import { copyToClipboard } from "@/lib/clipboard";
 
 /** Sent by the idle sign-out (components/auth/idle-sign-out.tsx). */
 const IDLE_WARNING_EVENT = "ezac:idle-warning";
@@ -91,7 +103,18 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
   const signingOut = useRef(false);
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  // The last failed save, shown with Retry (and "Sign in again" when the session ended).
+  const [saveError, setSaveError] = useState<unknown>(null);
+  // Set when someone else changed the assessment (409): the officer's answers
+  // stay on screen to copy, and nothing navigates away on its own.
+  const [conflict, setConflict] = useState<string | null>(null);
+  const [conflictCopied, setConflictCopied] = useState<boolean | null>(null);
+  // An in-app link clicked while the step has unsaved changes.
+  const [leaveTo, setLeaveTo] = useState<string | null>(null);
+  const [isLeaving, setIsLeaving] = useState(false);
+  // Moves focus to the new step's heading after the officer changes step.
+  const stepHeading = useRef<HTMLHeadingElement>(null);
+  const focusStepHeading = useRef(false);
   const [saveFieldErrors, setSaveFieldErrors] = useState<Record<string, string>>({});
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [validation, setValidation] = useState<AssessmentValidation | null>(null);
@@ -159,6 +182,7 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
     if (step === 8 || !isDirty) return true;
     setIsSaving(true);
     setSaveError(null);
+    setConflict(null);
     setSaveFieldErrors({});
     try {
       const updated = await apiClient<Assessment>(path, {
@@ -178,11 +202,13 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
       // Cancelled by the sign-out: the page is leaving, and the save may still land.
       if (error instanceof DOMException && error.name === "AbortError") return false;
       if (error instanceof ApiError && error.status === 409) {
-        setSaveError(`${error.message}. Opening the latest version…`);
-        setTimeout(() => router.push(`/dashboard/assessments/${initial.id}`), 1500);
+        // Keep the officer here with their answers: they choose to copy them
+        // and open the latest version, instead of losing them after a timer.
+        setConflict(error.message);
+        setConflictCopied(null);
         return false;
       }
-      setSaveError(error instanceof ApiError ? error.message : "Couldn't save this step");
+      setSaveError(error);
       if (error instanceof ApiError) setSaveFieldErrors(fieldErrorMap(error.errors));
       return false;
     } finally {
@@ -235,8 +261,45 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
       setShowValidation(true);
       void validate();
     }
+    focusStepHeading.current = true;
     setStep(next);
     document.getElementById("assessment-top")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  // After a step change, put focus (and the screen reader) on the new step's
+  // heading instead of leaving it on the button at the bottom of the old one.
+  useEffect(() => {
+    if (!focusStepHeading.current) return;
+    focusStepHeading.current = false;
+    stepHeading.current?.focus({ preventScroll: true });
+  }, [step]);
+
+  // Sidebar, breadcrumb and other links ask first while the step has unsaved answers.
+  useLeaveGuard(isDirty && step !== 8, setLeaveTo);
+
+  async function leave(saveFirst: boolean) {
+    const target = leaveTo;
+    if (!target) return;
+    if (saveFirst) {
+      setIsLeaving(true);
+      const saved = await save();
+      setIsLeaving(false);
+      // The error (or the conflict) shows on the page; stay.
+      if (!saved) {
+        setLeaveTo(null);
+        return;
+      }
+    } else {
+      setIsDirty(false);
+    }
+    setLeaveTo(null);
+    router.push(target);
+  }
+
+  async function copyConflictAnswers() {
+    const definition = STEPS.find((item) => item.id === step);
+    const text = `${name} — step ${step}${definition ? `: ${definition.title}` : ""}\n${JSON.stringify(stepBody(step, draft), null, 2)}`;
+    setConflictCopied(await copyToClipboard(text));
   }
 
   async function refreshApplicant() {
@@ -308,9 +371,9 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
         }
         actions={
           step !== 8 ? (
-            <Button variant="outline" onClick={() => void save()} disabled={!isDirty || isSaving}>
+            <Button variant="outline" onClick={() => void save()} disabled={!isDirty && !isSaving} loading={isSaving} loadingText="Saving…">
               <Save />
-              {isSaving ? "Saving…" : isDirty ? "Save draft" : "Saved"}
+              {isDirty ? "Save draft" : "Saved"}
             </Button>
           ) : null
         }
@@ -335,14 +398,52 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
 
         <div className="min-w-0 space-y-5">
           <div>
-            <p className="text-xs font-medium text-[#007050]">
+            <p className="text-xs font-medium text-brand">
               Step {step} of 8{definition.letters ? ` · Section ${definition.letters}` : ""}
             </p>
-            <h2 className="mt-0.5 text-lg font-semibold tracking-tight text-[#001539]">{definition.title}</h2>
+            <h2
+              ref={stepHeading}
+              tabIndex={-1}
+              aria-describedby="assessment-step-position"
+              className="mt-0.5 text-lg font-semibold tracking-tight text-navy outline-none"
+            >
+              {definition.title}
+            </h2>
             <p className="text-sm text-black/55">{definition.description}</p>
+            <span id="assessment-step-position" className="sr-only">
+              Step {step} of 8
+            </span>
           </div>
 
-          {saveError ? <InlineAlert>{saveError}</InlineAlert> : null}
+          {conflict ? (
+            <InlineAlert
+              tone="warning"
+              title="This step wasn't saved"
+              action={
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => void copyConflictAnswers()}>
+                    {conflictCopied ? <Check /> : <Copy />}
+                    {conflictCopied ? "Copied" : "Copy my answers"}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      setIsDirty(false);
+                      router.push(`/dashboard/assessments/${initial.id}`);
+                    }}
+                  >
+                    Open the latest version
+                  </Button>
+                </div>
+              }
+            >
+              {conflict.replace(/\.?$/, ".")} Your answers on this step are still on screen. Copy them before you open
+              the latest version, which shows what was saved.
+              {conflictCopied === false ? " Copying didn't work: select the answers and copy them by hand." : ""}
+            </InlineAlert>
+          ) : null}
+          <ErrorAlert error={saveError} onRetry={() => void save()} fallback="Couldn't save this step." />
 
           {resuming ? <div className="h-64 animate-pulse rounded-xl bg-black/[0.04]" role="status" aria-label="Loading" /> : null}
           {!resuming && step === 1 ? <StepInfo {...stepProps} /> : null}
@@ -368,7 +469,14 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
               isValidating={isValidating}
               onGoToStep={(next) => void goTo(next)}
               onEditBasicDetails={() => setBasicOpen(true)}
-              onSubmitted={(submitted) => router.push(`/dashboard/assessments/${submitted.id}`)}
+              onRetryValidation={validate}
+              onSubmitted={(submitted) => {
+                leaveNotice(
+                  `assessment:${submitted.id}`,
+                  "Submitted for branch review. The answers are read-only now; if the branch returns the assessment, you can make corrections.",
+                );
+                router.push(`/dashboard/assessments/${submitted.id}`);
+              }}
             />
           ) : null}
 
@@ -404,6 +512,29 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
           )}
         </div>
       </div>
+
+      <Dialog open={leaveTo !== null} onOpenChange={(open) => (open || isLeaving ? null : setLeaveTo(null))}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-navy">Leave without saving?</DialogTitle>
+            <DialogDescription>
+              Your answers on this step aren&apos;t saved yet. Save them first, or leave and lose them.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setLeaveTo(null)} disabled={isLeaving}>
+              Stay
+            </Button>
+            <Button type="button" variant="destructive-outline" onClick={() => void leave(false)} disabled={isLeaving}>
+              Leave without saving
+            </Button>
+            <Button type="button" onClick={() => void leave(true)} loading={isLeaving} loadingText="Saving…">
+              <Save />
+              Save and leave
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {beneficiaryId ? (
         <BasicDetailsDialog

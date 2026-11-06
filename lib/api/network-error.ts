@@ -1,4 +1,7 @@
+import "server-only";
+
 import { describeApiBaseUrl } from "@/lib/api/config";
+import { logEvent, oneLine } from "@/lib/api/log";
 
 const HINTS: Record<string, string> = {
   ECONNREFUSED: "nothing is listening there: check API_BASE_URL",
@@ -19,8 +22,13 @@ const HINTS: Record<string, string> = {
 export function logGatewayUnreachable(label: string, error: unknown, requestId?: string) {
   const cause = (error as { cause?: { code?: string; message?: string } })?.cause;
   const code = cause?.code ?? (error as { code?: string })?.code ?? "UNKNOWN";
-  console.error(
-    `[${label}] cannot reach the gateway at ${describeApiBaseUrl()} (${code}${HINTS[code] ? `: ${HINTS[code]}` : ""})${requestId ? ` request ${requestId}` : ""}`,
-    cause?.message ?? (error instanceof Error ? error.message : error),
-  );
+  const detail = cause?.message ?? (error instanceof Error ? error.message : String(error));
+  logEvent("error", "gateway_unreachable", {
+    label,
+    requestId,
+    gateway: describeApiBaseUrl(),
+    code,
+    hint: HINTS[code],
+    message: oneLine(detail),
+  });
 }

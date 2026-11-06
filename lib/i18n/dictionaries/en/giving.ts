@@ -32,7 +32,7 @@ const giving = {
       title: "Pay Zakat",
       accent: "now",
       intro:
-        "Settle your obligation in a few taps through trusted, audited channels — with every birr traced from your hand to the families and futures it builds.",
+        "Pay in a few taps from your bank app, straight into the Commission's account, where each payment is matched to the bank's own record.",
     },
     channels: {
       eyebrow: "Ways to give",
@@ -102,7 +102,7 @@ const giving = {
     meta: {
       title: "Corporate Zakat",
       description:
-        "Asset-level Zakat calculation, audited disbursement, and board-ready impact reporting for companies and institutions.",
+        "Asset-level Zakat calculation, disbursement to assessed households, and board-ready impact reporting for companies and institutions.",
       keywords:
         "corporate Zakat, company Zakat, business Zakat, institutional Zakat, Zakat assessment, CSR reporting, Ethiopia",
     },
@@ -120,9 +120,9 @@ const giving = {
       intro: "From a single ledger to a nationwide CSR programme, corporate Zakat is handled end to end.",
       items: [
         {
-          title: "Audited calculation",
+          title: "Clear calculation",
           description:
-            "Company assets assessed to recognised standards, with working papers your auditors can rely on.",
+            "Company assets assessed asset by asset, with the working shown so your finance team can check it.",
         },
         {
           title: "Bulk disbursement",
@@ -134,15 +134,15 @@ const giving = {
           description: "Board-ready and CSR reports that tie every birr to measurable, verifiable outcomes.",
         },
         {
-          title: "Shari'ah review",
-          description: "Every assessment is reviewed and certified by the EZAC Shari'ah Advisory Board.",
+          title: "Shari'ah guidance",
+          description: "Assessments follow the rulings of the EZAC Shari'ah Advisory Board, and open questions are referred to it.",
         },
       ],
     },
     process: {
       eyebrow: "The process",
       title: "How does corporate Zakat work?",
-      intro: "Four steps take you from the first conversation to a certified figure and a report for your board.",
+      intro: "Four steps take you from the first conversation to a checked figure and a report for your board.",
       items: [
         {
           title: "Engage our corporate desk",
@@ -153,8 +153,8 @@ const giving = {
           body: "Share the disclosures needed to assess zakatable assets securely.",
         },
         {
-          title: "Review & certify",
-          body: "We compute, the Shari'ah board reviews, and you receive a certified figure.",
+          title: "Review & confirm",
+          body: "We compute the figure, go through it with you, and refer any Shari'ah question to the board.",
         },
         {
           title: "Disburse & report",
@@ -191,7 +191,7 @@ const giving = {
       eyebrow: "Ways to give",
       title: "What can I give through EZAC?",
       intro:
-        "Zakat, Sadaqah, Zakat al-Fitr or a Waqf endowment. All gifts are processed through audited, regulated payment channels.",
+        "Zakat, Sadaqah, Zakat al-Fitr or a Waqf endowment. Payments go through Ethiopian banks and are matched to the bank's own record.",
       items: [
         {
           title: "Zakat",

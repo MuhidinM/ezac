@@ -94,6 +94,13 @@ export function CertificateVerify({ t }: { t: Strings }) {
 
   const shownId = result?.certificateId || checkedId;
   const amount = new Intl.NumberFormat(intlLocale, { maximumFractionDigits: 2 });
+  // Paid dates are Addis Ababa days, whatever the visitor's clock; an unreadable date shows as missing.
+  const paidOn = (value: string | null | undefined) => {
+    const date = value ? new Date(value) : null;
+    return date && !Number.isNaN(date.getTime())
+      ? date.toLocaleDateString(intlLocale, { dateStyle: "medium", timeZone: "Africa/Addis_Ababa" })
+      : t.none;
+  };
 
   return (
     <div className="rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
@@ -135,7 +142,7 @@ export function CertificateVerify({ t }: { t: Strings }) {
                   [t.type, result.zakatType ? result.zakatType.replace(/_/g, " ") : t.none],
                   [
                     t.paidOn,
-                    result.paidAt ? new Date(result.paidAt).toLocaleDateString(intlLocale, { dateStyle: "medium" }) : t.none,
+                    paidOn(result.paidAt),
                   ],
                 ].map(([label, value]) => (
                   <div key={label}>

@@ -9,8 +9,12 @@ import { localizedPath } from "@/lib/i18n/config";
 import { getDictionary, localeFromParam } from "@/lib/i18n/server";
 import { pageMetadata } from "@/lib/seo";
 import { breadcrumbJsonLd } from "@/lib/structured-data";
+import { getCalculatorConfig } from "@/lib/zakat/impact";
 
 const PATH = "/zakat/calculator";
+
+// The official rates come from zakat-engine and refresh every 5 minutes.
+export const revalidate = 300;
 
 export async function generateMetadata({ params }: PageProps<"/[lang]/zakat/calculator">): Promise<Metadata> {
   const locale = localeFromParam((await params).lang);
@@ -26,10 +30,12 @@ export default async function ZakatCalculatorPage({ params }: PageProps<"/[lang]
   const t = await getDictionary(locale);
   const { page } = t.calculator;
   const { guide } = page;
+  // The official rates, so the calculator opens with them. An outage leaves it to fetch them itself.
+  const config = await getCalculatorConfig().catch(() => null);
 
   return (
     <SitePage eyebrow={page.eyebrow} title={page.title} accent={page.accent} intro={page.intro}>
-      <ZakatCalculator t={t.calculator} />
+      <ZakatCalculator t={t.calculator} initialConfig={config} />
 
       {/* The rules in brief: a direct answer for readers (and search and AI engines) before the details. */}
       <section aria-labelledby="calculator-guide-title" className="w-full bg-white">

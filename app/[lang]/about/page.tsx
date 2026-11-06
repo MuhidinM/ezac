@@ -184,7 +184,7 @@ export default async function AboutPage({ params }: PageProps<"/[lang]/about">) 
         </div>
       </Section>
 
-      <div id="documents" className="scroll-mt-24">
+      <div id="documents">
         <Section>
           <SectionHeading eyebrow={t.documents.eyebrow} title={t.documents.title} intro={t.documents.intro} />
           <div className="mt-12">

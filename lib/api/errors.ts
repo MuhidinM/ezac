@@ -61,3 +61,25 @@ export function errorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.name === "Error" && error.message) return error.message;
   return fallback;
 }
+
+/** The session is over (401): the user must sign in again before retrying. */
+export function isSessionEnded(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 401;
+}
+
+/**
+ * Whether text shown to the user is the session-ended message ("Your session
+ * has ended. Sign in again."), for alerts that only got the message string.
+ */
+export function asksToSignInAgain(text: unknown): boolean {
+  return typeof text === "string" && /\bsign in again\b/i.test(text);
+}
+
+/**
+ * The id to quote to support for a failure on our side (5xx), when the
+ * server sent one. Validation errors and the like don't need one.
+ */
+export function errorReference(error: unknown): string | null {
+  if (!(error instanceof ApiError) || !error.requestId) return null;
+  return error.status >= 500 ? error.requestId : null;
+}

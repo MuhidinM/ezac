@@ -5,7 +5,7 @@ import { RotateCcw } from "lucide-react";
 
 import { LineChart } from "@/components/charts/line-chart";
 import { StatTile } from "@/components/charts/stat-tile";
-import { InlineAlert } from "@/components/dashboard/inline-alert";
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { ListPagination } from "@/components/dashboard/list-pagination";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Panel } from "@/components/dashboard/panel";
@@ -29,6 +29,7 @@ import { ApiError } from "@/lib/api/errors";
 import type { PaginatedItems } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
 import { rangeQuery, type RangeKey } from "@/lib/backoffice/date-range";
+import { formatEtb } from "@/lib/backoffice/format";
 import { formatDateTime } from "@/lib/beneficiary/format";
 import type { CalculatorConfig } from "@/lib/zakat/calculator-config";
 
@@ -51,13 +52,26 @@ type PriceRecord = {
   createdAt: string;
 };
 
-const etb = new Intl.NumberFormat("en-ET", { maximumFractionDigits: 2 });
-
 function gold24(record: PriceRecord) {
   const gold = record.goldPricePerGramEtb;
   if (typeof gold === "number") return gold;
   return gold?.["24k"] ?? null;
 }
+
+/**
+ * One chart series: the points that have a value, oldest first. A missing
+ * price is left out instead of drawn as 0 (gap-r1-4-2), so each chart gets
+ * its own dates.
+ */
+function chartSeries(points: PriceRecord[], value: (point: PriceRecord) => number | null) {
+  const kept = points.flatMap((point) => {
+    const amount = value(point);
+    return amount != null && Number.isFinite(amount) ? [{ label: point.pricesAsOf, amount }] : [];
+  });
+  return { labels: kept.map((point) => point.label), values: kept.map((point) => point.amount), skipped: points.length - kept.length };
+}
+
+const chartDate = (label: string) => new Date(label).toLocaleDateString("en", { month: "short", day: "numeric" });
 
 function toPriceValues(record: PriceRecord): PriceValues {
   const gold = record.goldPricePerGramEtb;
@@ -143,6 +157,8 @@ function Prices() {
   const c = config.data;
   const rows = history.data?.items ?? [];
   const points = [...chart.points].reverse();
+  const goldSeries = chartSeries(points, gold24);
+  const silverSeries = chartSeries(points, (point) => point.silverPricePerGramEtb);
 
   return (
     <section className="space-y-6">
@@ -163,25 +179,25 @@ function Prices() {
         }}
       />
 
-      {config.error ? <InlineAlert>{config.error.message}</InlineAlert> : null}
+      <ErrorAlert error={config.error} onRetry={config.reload} />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile
           label={`Nisab (${c?.nisab.basis ?? "—"})`}
-          value={c ? `ETB ${etb.format(Math.round(c.nisab.valueEtb))}` : "—"}
-          hint={c ? `Gold ${c.nisab.goldGrams}g · silver ${c.nisab.silverGrams}g` : undefined}
+          value={c ? formatEtb(Math.round(c.nisab.valueEtb), { compact: true }) : "—"}
+          hint={c ? `${formatEtb(Math.round(c.nisab.valueEtb))} · gold ${c.nisab.goldGrams}g · silver ${c.nisab.silverGrams}g` : undefined}
           loading={config.isLoading && !c}
         />
         <StatTile
           label="Gold 24k"
-          value={c ? `ETB ${etb.format(c.goldPricePerGramEtb["24k"] ?? 0)}` : "—"}
+          value={c ? formatEtb(c.goldPricePerGramEtb["24k"] ?? null) : "—"}
           hint="Per gram"
           loading={config.isLoading && !c}
         />
         <StatTile
           label="Silver"
-          value={c ? `ETB ${etb.format(c.silverPricePerGramEtb)}` : "—"}
-          hint={c ? `Silver nisab ETB ${etb.format(Math.round(c.nisab.silverValueEtb))}` : "Per gram"}
+          value={c ? formatEtb(c.silverPricePerGramEtb) : "—"}
+          hint={c ? `Per gram · silver nisab ${formatEtb(Math.round(c.nisab.silverValueEtb))}` : "Per gram"}
           loading={config.isLoading && !c}
         />
         <StatTile
@@ -199,31 +215,44 @@ function Prices() {
         description={`ETB, from the stored price history${chart.capped ? ` (the latest ${CHART_PAGE_SIZE * CHART_MAX_PAGES} prices)` : ""}`}
       >
         {chart.error ? (
-          <InlineAlert>{chart.error.message}</InlineAlert>
+          <ErrorAlert error={chart.error} onRetry={chart.reload} />
         ) : chart.isLoading && points.length === 0 ? (
           <p className="text-sm text-black/45">Loading…</p>
         ) : (
-          <div className="grid gap-6 lg:grid-cols-2">
-            <LineChart
-              labels={points.map((point) => point.pricesAsOf)}
-              formatLabel={(label) => new Date(label).toLocaleDateString("en", { month: "short", day: "numeric" })}
-              series={[{ key: "gold", label: "Gold 24k", values: points.map((point) => gold24(point) ?? 0) }]}
-              emptyText="No prices stored in this period."
-            />
-            <LineChart
-              labels={points.map((point) => point.pricesAsOf)}
-              formatLabel={(label) => new Date(label).toLocaleDateString("en", { month: "short", day: "numeric" })}
-              series={[{ key: "silver", label: "Silver", values: points.map((point) => point.silverPricePerGramEtb ?? 0), color: "#2a78d6" }]}
-              emptyText="No prices stored in this period."
-            />
-          </div>
+          <>
+            <div className="grid gap-6 lg:grid-cols-2">
+              <LineChart
+                label="Gold 24k price per gram"
+                labels={goldSeries.labels}
+                formatLabel={chartDate}
+                formatValue={(value) => formatEtb(value)}
+                series={[{ key: "gold", label: "Gold 24k", values: goldSeries.values }]}
+                emptyText="No gold prices stored in this period."
+              />
+              <LineChart
+                label="Silver price per gram"
+                labels={silverSeries.labels}
+                formatLabel={chartDate}
+                formatValue={(value) => formatEtb(value)}
+                series={[{ key: "silver", label: "Silver", values: silverSeries.values, color: "#2a78d6" }]}
+                emptyText="No silver prices stored in this period."
+              />
+            </div>
+            {goldSeries.skipped || silverSeries.skipped ? (
+              <p className="mt-3 text-xs text-black/45">
+                Prices with no gold or silver value are left out of that chart
+                {goldSeries.skipped ? ` (gold: ${goldSeries.skipped})` : ""}
+                {silverSeries.skipped ? ` (silver: ${silverSeries.skipped})` : ""}.
+              </p>
+            ) : null}
+          </>
         )}
       </Panel>
 
       <Panel title="Price history" flush>
         {history.error ? (
           <div className="px-5 pt-4">
-            <InlineAlert>{history.error.message}</InlineAlert>
+            <ErrorAlert error={history.error} onRetry={history.reload} />
           </div>
         ) : null}
         <Table>
@@ -249,10 +278,8 @@ function Prices() {
               rows.map((row, index) => (
                 <TableRow key={row.id}>
                   <TableCell className="pl-5">{formatDateTime(row.pricesAsOf)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{gold24(row) != null ? etb.format(gold24(row)!) : "—"}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {row.silverPricePerGramEtb != null ? etb.format(row.silverPricePerGramEtb) : "—"}
-                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{formatEtb(gold24(row))}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatEtb(row.silverPricePerGramEtb)}</TableCell>
                   <TableCell className="text-right tabular-nums">{row.usdEtbRate != null ? row.usdEtbRate.toFixed(2) : "—"}</TableCell>
                   <TableCell>
                     <span className="flex flex-wrap items-center gap-1.5">

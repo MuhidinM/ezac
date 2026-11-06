@@ -30,8 +30,12 @@ export function filterAppRoles(roles: string[]): AppRole[] {
   return APP_ROLES.filter((role) => set.has(role));
 }
 
-/** Default post-login destination based on roles from /me. */
+/**
+ * Each role's home in the portal, the same page the sidebar logo and the
+ * breadcrumb root lead to: My branch for branch officers, Overview (which
+ * also holds a field officer's drafts and returned work) for everyone else.
+ */
 export function defaultDashboardPath(roles: string[]): string {
   if (isBranchRole(roles) && !hasStaffRole(roles)) return "/dashboard/branch";
-  return "/dashboard/beneficiary";
+  return "/dashboard";
 }

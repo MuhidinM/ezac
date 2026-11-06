@@ -1,3 +1,5 @@
+import { logEvent } from "@/lib/api/log";
+
 /**
  * Receives Content-Security-Policy violation reports (see next.config.ts) and
  * writes one short JSON line per violation to the server log. Browsers send
@@ -132,15 +134,7 @@ export async function POST(request: Request) {
   const now = Date.now();
   for (const violation of violations) {
     if (!allowLine(now)) break;
-    console.warn(
-      JSON.stringify({
-        level: "warn",
-        event: "csp_violation",
-        time: new Date(now).toISOString(),
-        release: process.env.GIT_SHA || undefined,
-        ...violation,
-      }),
-    );
+    logEvent("warn", "csp_violation", violation);
   }
 
   return new Response(null, { status: 204 });

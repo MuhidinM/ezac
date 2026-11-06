@@ -41,10 +41,10 @@ const transparency = {
     poor: "Poor (Faqir)",
     needy: "Needy (Miskin)",
     zakat_administrator: "Zakat administrator (Amil)",
-    muallaf: "Muallaf",
+    muallaf: "Hearts to be reconciled (Muallaf)",
     freeing_captives: "Freeing captives (Riqab)",
     debtor: "Debtor (Gharim)",
-    fi_sabilillah: "Fi sabilillah",
+    fi_sabilillah: "In the cause of Allah (Fi sabilillah)",
     stranded_traveler: "Stranded traveller (Ibn sabil)",
     other: "Other",
   },
@@ -76,7 +76,7 @@ const transparency = {
       familiesSupported: "Families supported",
       fundsDistributed: "Funds distributed",
       livesTouched: "Lives touched",
-      activeProjects: "Active projects",
+      activeProjects: "Active causes",
     },
     /** {percent} is the change, e.g. "12.5%". */
     trend: "{percent} vs last month",
@@ -95,7 +95,7 @@ const transparency = {
       region: "Region",
       beneficiaries: "Beneficiaries",
       fundsDistributed: "Funds distributed",
-      activeProjects: "Active projects",
+      activeProjects: "Active causes",
     },
     cta: {
       title: "Want the detail behind the numbers?",
@@ -111,16 +111,16 @@ const transparency = {
     meta: {
       title: "Impact Reports",
       description:
-        "Audited quarterly and annual reports detailing how Zakat and Waqf funds were collected, invested, and disbursed.",
+        "Reports on how Zakat and Waqf funds were collected and distributed, published here for download as the Commission releases them.",
       keywords:
-        "Zakat impact report, Waqf report, audited report, annual report, quarterly report, Zakat transparency, EZAC reports",
+        "Zakat impact report, Waqf report, annual report, quarterly report, Zakat transparency, EZAC reports",
     },
     header: {
       eyebrow: "Transparency & Impact",
       title: "Impact",
       accent: "reports",
       intro:
-        "Audited, downloadable reports detailing exactly how funds were collected, invested, and distributed — published on a regular cycle.",
+        "Downloadable reports on how funds were collected and distributed, posted here as the Commission publishes them.",
     },
     library: {
       eyebrow: "Library",

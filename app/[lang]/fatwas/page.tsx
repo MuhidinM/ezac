@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { readCalculatorConfig } from "@/components/landing/read-calculator-config";
 import { JsonLd } from "@/components/seo/json-ld";
 import { CtaBand, FaqAccordion, Section, SectionHeading } from "@/components/site/sections";
 import { SitePage } from "@/components/site/site-page";
@@ -74,7 +73,7 @@ export default async function FatwasPage({ params }: PageProps<"/[lang]/fatwas">
   // null means no prices are published yet. The catch keeps this page up during
   // an outage too: its wording without figures is still correct, unlike an empty
   // figure on the other pages, so it may be cached for the 5-minute window.
-  const config = readCalculatorConfig(await getCalculatorConfig().catch(() => null));
+  const config = await getCalculatorConfig().catch(() => null);
 
   return (
     <SitePage {...t.header}>

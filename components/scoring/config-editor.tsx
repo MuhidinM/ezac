@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, FlaskConical, Rocket, Save, Trash2 } from "lucide-react";
 
+import { BEFORE_SIGN_OUT_EVENT } from "@/components/auth/idle-sign-out";
 import { RiskBadge } from "@/components/backoffice/status-badges";
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { Panel } from "@/components/dashboard/panel";
-import { ScoringDesigner, describeScoringPaths, validateScoring } from "@/components/scoring/scoring-designer";
+import { ScoringDesigner } from "@/components/scoring/scoring-designer";
+import { describeScoringPaths, fieldName, validateScoring } from "@/components/scoring/scoring-schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,30 +22,37 @@ import {
   changedPaths,
   ruleText,
   setPath,
+  type DraftBaseline,
   type ScoringConfigVersion,
   type ScoringPreview,
   type ScoringSchema,
 } from "@/lib/backoffice/scoring-config";
 import { cn } from "@/lib/utils";
 
+/** How many changed settings the activate dialog names before "and N more". */
+const LISTED_CHANGES = 8;
+
 /** Edit a DRAFT in three steps: change the points, check the impact, activate. */
 export function ConfigEditor({
   draft,
-  baseConfig,
+  baseline,
   schema,
   apiBase,
   onSaved,
   onDeleted,
   onActivated,
+  onDirtyChange,
 }: {
   draft: ScoringConfigVersion;
-  /** Config of the version the draft was based on, to count changes. */
-  baseConfig: Record<string, unknown> | null;
+  /** The live version (which activation replaces) and the one the draft was copied from. */
+  baseline: DraftBaseline;
   schema: ScoringSchema;
   apiBase: string;
   onSaved: (version: ScoringConfigVersion) => void;
   onDeleted: () => void;
   onActivated: () => void;
+  /** Told whether there are unsaved edits, so the page can ask before leaving the draft. */
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [name, setName] = useState(draft.name ?? "");
   const [config, setConfig] = useState<Record<string, unknown>>(draft.config);
@@ -54,12 +63,43 @@ export function ConfigEditor({
   const [activateOpen, setActivateOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [reason, setReason] = useState("");
+  const [acknowledged, setAcknowledged] = useState(false);
+  const signingOut = useRef(false);
 
   const versionPath = `${apiBase}/${draft.version}`;
   const isDirty = name !== (draft.name ?? "") || JSON.stringify(config) !== JSON.stringify(draft.config);
-  const changes = baseConfig ? changedPaths(schema.fields, baseConfig, config) : [];
+  const { live, stale, compareWith } = baseline;
+  // Counted against the live version: that is what activating this draft changes.
+  const changes = compareWith ? changedPaths(schema.fields, compareWith.config, config) : [];
+  const fieldsByPath = new Map(schema.fields.map((field) => [field.path, field]));
+  const changeNames = changes.map((path) => {
+    const field = fieldsByPath.get(path);
+    return field ? fieldName(field) : path;
+  });
   const problems = validateScoring(schema, config);
   const step = isDirty || changes.length === 0 ? 1 : preview ? 3 : 2;
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
+
+  // Closing or reloading the tab would lose the edits; signing out may go ahead.
+  useEffect(() => {
+    if (!isDirty) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      if (!signingOut.current) event.preventDefault();
+    };
+    const onSignOut = () => {
+      signingOut.current = true;
+    };
+    window.addEventListener("beforeunload", warn);
+    window.addEventListener(BEFORE_SIGN_OUT_EVENT, onSignOut);
+    return () => {
+      window.removeEventListener("beforeunload", warn);
+      window.removeEventListener(BEFORE_SIGN_OUT_EVENT, onSignOut);
+    };
+  }, [isDirty]);
 
   /** The server's message, with field paths and per-field errors in plain words. */
   function scoringError(error: unknown, fallback: string) {
@@ -124,27 +164,29 @@ export function ConfigEditor({
           <span className="flex items-center gap-2">
             Draft v{draft.version}
             <Badge tone="warning">Draft</Badge>
-            {changes.length > 0 ? (
+            {changes.length > 0 && compareWith ? (
               <Badge tone="info">
-                {changes.length} change{changes.length === 1 ? "" : "s"} from v{draft.basedOnVersion}
+                {changes.length} change{changes.length === 1 ? "" : "s"} from {live ? "live " : ""}v{compareWith.version}
               </Badge>
             ) : null}
           </span>
         }
-        description={`A copy of v${draft.basedOnVersion ?? "—"} you can change. Nothing affects households until you activate it, and even then only new assessments are scored with it.`}
+        description={`A copy of v${draft.basedOnVersion ?? "—"} you can change.${
+          compareWith ? ` Values marked “was” show ${live ? `the live version, v${live.version}` : `v${compareWith.version}`}.` : ""
+        } Nothing affects households until you activate it, and even then only new assessments are scored with it.`}
         actions={
           <>
-            <Button variant="ghost" size="sm" className="text-rose-700 hover:text-rose-800" onClick={() => setDeleteOpen(true)}>
+            <Button variant="destructive-ghost" size="sm" onClick={() => setDeleteOpen(true)}>
               <Trash2 />
               Delete
             </Button>
-            <Button variant="outline" size="sm" onClick={() => void save()} disabled={!isDirty || isSaving}>
+            <Button variant="outline" size="sm" onClick={() => void save()} disabled={!isDirty} loading={isSaving} loadingText="Saving…">
               <Save />
-              {isSaving ? "Saving…" : isDirty ? "Save" : "Saved"}
+              {isDirty ? "Save" : "Saved"}
             </Button>
-            <Button variant="outline" size="sm" onClick={() => void runPreview()} disabled={isPreviewing}>
+            <Button variant="outline" size="sm" onClick={() => void runPreview()} loading={isPreviewing} loadingText="Running…">
               <FlaskConical />
-              {isPreviewing ? "Running…" : "Preview impact"}
+              Preview impact
             </Button>
             <Button size="sm" onClick={() => setActivateOpen(true)} disabled={isDirty || problems.length > 0}>
               <Rocket />
@@ -155,6 +197,13 @@ export function ConfigEditor({
       >
         <div className="space-y-4">
           <Steps current={step} />
+          {stale && live ? (
+            <InlineAlert tone="warning" title={`This draft isn't a copy of the live version (v${live.version})`}>
+              {draft.basedOnVersion != null ? `It was copied from v${draft.basedOnVersion}. ` : null}
+              Activating it replaces all of v{live.version}&apos;s settings, so every value marked “was” changes back, including ones
+              you didn&apos;t edit. To keep v{live.version}&apos;s settings, delete this draft and make a new one from v{live.version}.
+            </InlineAlert>
+          ) : null}
           {message ? <InlineAlert tone={message.tone}>{message.text}</InlineAlert> : null}
           {problems.length > 0 ? (
             <InlineAlert tone="warning" title="To fix before saving">
@@ -178,7 +227,7 @@ export function ConfigEditor({
 
       {preview ? <PreviewResults preview={preview} /> : null}
 
-      <ScoringDesigner schema={schema} config={config} baseConfig={baseConfig} onChange={update} />
+      <ScoringDesigner schema={schema} config={config} baseConfig={compareWith?.config ?? null} onChange={update} />
 
       {schema.rules.length > 0 ? (
         <details className="rounded-xl border border-black/[0.08] bg-white p-4">
@@ -193,17 +242,60 @@ export function ConfigEditor({
 
       <ConfirmDialog
         open={activateOpen}
-        onOpenChange={setActivateOpen}
+        onOpenChange={(open) => {
+          setActivateOpen(open);
+          if (!open) setAcknowledged(false);
+        }}
         title={`Activate v${draft.version}?`}
-        description="It becomes the active configuration for every new submission. Existing scores keep the version they were calculated with. To go back, activate an older version."
+        description={
+          live
+            ? `It replaces v${live.version}, the live version, for every new submission. Existing scores keep the version they were calculated with. To go back, activate v${live.version} again.`
+            : "It becomes the active configuration for every new submission. Existing scores keep the version they were calculated with. To go back, activate an older version."
+        }
         confirmLabel="Activate"
-        confirmDisabled={!reason.trim()}
+        confirmDisabled={!reason.trim() || (stale && !acknowledged)}
         onConfirm={async () => {
           await apiClient(`${versionPath}/activate`, { method: "POST", body: JSON.stringify({ reason: reason.trim() }) });
           setReason("");
           onActivated();
         }}
       >
+        {compareWith ? (
+          <div className="text-sm text-black/65">
+            {changes.length === 0 ? (
+              <p>It has the same settings as v{compareWith.version}, so scores don&apos;t change.</p>
+            ) : (
+              <>
+                <p className="font-medium text-[#001539]">
+                  {changes.length} setting{changes.length === 1 ? "" : "s"} differ{changes.length === 1 ? "s" : ""} from{" "}
+                  {live ? "live " : ""}v{compareWith.version}:
+                </p>
+                <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                  {changeNames.slice(0, LISTED_CHANGES).map((changeName) => (
+                    <li key={changeName}>{changeName}</li>
+                  ))}
+                </ul>
+                {changes.length > LISTED_CHANGES ? <p className="mt-1">and {changes.length - LISTED_CHANGES} more.</p> : null}
+              </>
+            )}
+          </div>
+        ) : null}
+        {stale && live ? (
+          <label className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <input
+              type="checkbox"
+              className="mt-0.5 accent-brand"
+              checked={acknowledged}
+              onChange={(event) => setAcknowledged(event.target.checked)}
+            />
+            <span>
+              {draft.basedOnVersion != null
+                ? `This draft was copied from v${draft.basedOnVersion}, not from the live v${live.version}.`
+                : `This draft wasn't copied from the live v${live.version}.`}{" "}
+              I&apos;ve checked every setting that differs from v{live.version}, including ones I didn&apos;t edit.
+            </span>
+          </label>
+        ) : null}
         <FormField label="Reason" htmlFor="activate-reason" required hint="Recorded with the version, e.g. the committee decision number">
           <Textarea id="activate-reason" value={reason} onChange={(event) => setReason(event.target.value)} />
         </FormField>

@@ -1,13 +1,14 @@
 "use client";
 
 import { type FormEvent, Suspense, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Plus, RefreshCw, Search, X } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Plus, RefreshCw, X } from "lucide-react";
 
 import { CodeStatsInline, CodeStatsLegend } from "@/components/branches/code-stats";
 import { CreateBranchDialog } from "@/components/branches/create-branch-form";
 import { CredentialsOnceDialog } from "@/components/branches/credentials-once-dialog";
-import { InlineAlert } from "@/components/dashboard/inline-alert";
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { ListPagination } from "@/components/dashboard/list-pagination";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Panel } from "@/components/dashboard/panel";
@@ -15,8 +16,8 @@ import { RequireRole } from "@/components/dashboard/require-role";
 import { TableMessageRow, TableSkeletonRows } from "@/components/dashboard/table-states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
+import { SearchInput } from "@/components/ui/search-input";
 import {
   Table,
   TableBody,
@@ -29,6 +30,7 @@ import type { BranchCreateResponse, BranchListItem, PaginatedItems } from "@/lib
 import { useResource } from "@/lib/api/use-resource";
 import { ETHIOPIAN_REGIONS } from "@/lib/constants/regions";
 import { branchContact } from "@/lib/branches/contact";
+import { useListState } from "@/lib/hooks/use-list-state";
 
 const PAGE_SIZE = 20;
 
@@ -43,19 +45,21 @@ export default function BranchesPage() {
   );
 }
 
-type Filters = { page: number; search: string; region: string; active: "" | "true" | "false" };
-
 function Branches() {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   // Filters live in the address so Back, reload and shared links keep them.
-  const page = Math.max(1, Number(searchParams.get("page")) || 1);
-  const search = searchParams.get("search") ?? "";
-  const region = searchParams.get("region") ?? "";
-  const activeParam = searchParams.get("active");
-  const active: Filters["active"] = activeParam === "true" || activeParam === "false" ? activeParam : "";
+  const [filters, setFilters, { reset, isDefault }] = useListState(
+    "",
+    { search: "", region: "", active: "", page: 1 },
+    { allowed: { active: ["", "true", "false"] } },
+  );
+  const { search, region, active, page } = filters;
   const [draftSearch, setDraftSearch] = useState(search);
+  const [seenSearch, setSeenSearch] = useState(search);
+  if (seenSearch !== search) {
+    setSeenSearch(search);
+    setDraftSearch(search);
+  }
   const [createOpen, setCreateOpen] = useState(false);
   const [credentials, setCredentials] = useState<BranchCreateResponse | null>(null);
 
@@ -67,27 +71,16 @@ function Branches() {
     `/bff/backoffice/admin/branches?${params.toString()}`,
   );
   const rows = data?.items ?? [];
-  const query = search || region || active;
-
-  function setFilters(next: Partial<Filters>) {
-    const merged: Filters = { page, search, region, active, ...next };
-    const address = new URLSearchParams();
-    if (merged.search) address.set("search", merged.search);
-    if (merged.region) address.set("region", merged.region);
-    if (merged.active) address.set("active", merged.active);
-    if (merged.page > 1) address.set("page", String(merged.page));
-    const qs = address.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  }
+  const query = !isDefault;
 
   function onSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setFilters({ page: 1, search: draftSearch.trim() });
+    setFilters({ search: draftSearch.trim() });
   }
 
   function clearFilters() {
     setDraftSearch("");
-    setFilters({ page: 1, search: "", region: "", active: "" });
+    reset();
   }
 
   return (
@@ -133,21 +126,19 @@ function Branches() {
       />
 
       <Panel flush>
-        <form onSubmit={onSearch} className="flex flex-wrap items-center gap-3 border-b border-black/[0.06] px-5 py-3">
-          <div className="relative min-w-60 flex-[2]">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-black/35" />
-            <Input
-              value={draftSearch}
-              onChange={(event) => setDraftSearch(event.target.value)}
-              placeholder="Search name or location"
-              className="bg-white pl-9"
-            />
-          </div>
+        <form role="search" onSubmit={onSearch} className="flex flex-wrap items-center gap-3 border-b border-black/[0.06] px-5 py-3">
+          <SearchInput
+            label="Search branches"
+            wrapperClassName="min-w-60 flex-[2]"
+            value={draftSearch}
+            onChange={(event) => setDraftSearch(event.target.value)}
+            placeholder="Search name or location"
+          />
           <div className="min-w-44 flex-1">
             <NativeSelect
               aria-label="Region"
               value={region}
-              onChange={(event) => setFilters({ page: 1, region: event.target.value })}
+              onChange={(event) => setFilters({ region: event.target.value })}
             >
               <option value="">All regions</option>
               {ETHIOPIAN_REGIONS.map((item) => (
@@ -161,7 +152,7 @@ function Branches() {
             <NativeSelect
               aria-label="Status"
               value={active}
-              onChange={(event) => setFilters({ page: 1, active: event.target.value as Filters["active"] })}
+              onChange={(event) => setFilters({ active: event.target.value })}
             >
               <option value="">All statuses</option>
               <option value="true">Active</option>
@@ -181,7 +172,7 @@ function Branches() {
 
         {error ? (
           <div className="px-5 pt-4">
-            <InlineAlert>{error.message}</InlineAlert>
+            <ErrorAlert error={error} onRetry={reload} />
           </div>
         ) : null}
 
@@ -206,14 +197,19 @@ function Branches() {
               rows.map((item) => (
                 <TableRow
                   key={item.id}
-                  tabIndex={0}
                   className="cursor-pointer"
+                  // A mouse shortcut; the name link is the keyboard and screen-reader way in.
                   onClick={() => router.push(`/dashboard/branches/${item.id}`)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") router.push(`/dashboard/branches/${item.id}`);
-                  }}
                 >
-                  <TableCell className="pl-5 font-medium text-[#001539]">{item.name}</TableCell>
+                  <TableCell className="pl-5">
+                    <Link
+                      href={`/dashboard/branches/${item.id}`}
+                      onClick={(event) => event.stopPropagation()}
+                      className="font-medium text-navy hover:underline"
+                    >
+                      {item.name}
+                    </Link>
+                  </TableCell>
                   <TableCell className="text-sm text-black/65">
                     {[item.woreda, item.zone, item.region].filter(Boolean).join(", ") || "—"}
                   </TableCell>

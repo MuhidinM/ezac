@@ -3,6 +3,8 @@
 import { FormEvent, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { forgetLoginName, rememberLoginName } from "@/components/auth/login-name";
+import { RESUME_REASON, announceSignedIn, closeResumeTab } from "@/components/auth/resume-sign-in";
 import { defaultDashboardPath } from "@/lib/auth/constants";
 import { fetchSession } from "@/lib/auth/use-session";
 
@@ -23,6 +25,8 @@ export function LoginForm() {
   const passwordChanged = searchParams.get("passwordChanged") === "1";
   const signedOutIdle = searchParams.get("reason") === "idle";
   const sessionEnded = searchParams.get("reason") === "ended";
+  // Opened from a form whose save met an ended session (sign-in-again.tsx).
+  const resuming = searchParams.get("reason") === RESUME_REASON;
 
   function requestedPage(): string | null {
     const redirectTo = searchParams.get("redirect");
@@ -35,7 +39,7 @@ export function LoginForm() {
     const session = await fetchSession({ force: true });
     const requested = requestedPage();
     if (requested) return requested;
-    return session ? defaultDashboardPath(session.allRoles) : "/dashboard/beneficiary";
+    return session ? defaultDashboardPath(session.allRoles) : "/dashboard";
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -62,13 +66,22 @@ export function LoginForm() {
 
       const requested = requestedPage();
       if (payload.data?.passwordChangeRequired) {
-        const redirectQuery = requested ? `?redirect=${encodeURIComponent(requested)}` : "";
-        router.push(`/login/change-password${redirectQuery}`);
+        // Lets the change-password form sign in with the new password straight away.
+        rememberLoginName(username.trim());
+        const next = new URLSearchParams();
+        if (requested) next.set("redirect", requested);
+        if (resuming) next.set("reason", RESUME_REASON);
+        const query = next.toString();
+        router.push(`/login/change-password${query ? `?${query}` : ""}`);
         router.refresh();
         return;
       }
 
+      forgetLoginName();
       const destination = await resolveDestination();
+      // Other tabs waiting on a sign-in (an unsaved form) can carry on now.
+      announceSignedIn();
+      if (closeResumeTab(searchParams.get("reason"))) return;
       router.push(destination);
       router.refresh();
     } catch {
@@ -95,6 +108,16 @@ export function LoginForm() {
           className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
         >
           You were signed out after 15 minutes without activity.
+        </p>
+      ) : null}
+
+      {resuming && !passwordChanged ? (
+        <p
+          role="status"
+          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+        >
+          Your session has ended. Sign in to carry on: this tab closes afterwards and your
+          unsaved work is still in the other tab.
         </p>
       ) : null}
 

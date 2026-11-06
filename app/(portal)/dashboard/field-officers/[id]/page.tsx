@@ -3,16 +3,19 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowRightLeft, MapPin, Pencil, Power, Store } from "lucide-react";
+import { ArrowRightLeft, MapPin, Pencil, Power, Store, UserRoundCog } from "lucide-react";
 
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { useBreadcrumbLabel } from "@/components/dashboard/dashboard-header";
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { DetailList, Panel } from "@/components/dashboard/panel";
 import { RequireRole } from "@/components/dashboard/require-role";
 import { ResetPasswordButton } from "@/components/dashboard/reset-password-button";
+import { DetailSkeleton } from "@/components/dashboard/skeletons";
 import { assignmentLabel } from "@/components/field-officers/assignment-badges";
+import { BulkReassignDialog } from "@/components/field-officers/bulk-reassign-dialog";
 import { EditOfficerDialog } from "@/components/field-officers/edit-officer-dialog";
 import { OfficerStatsPanel } from "@/components/field-officers/officer-stats";
 import { BranchPicker } from "@/components/field-officers/branch-picker";
@@ -62,10 +65,12 @@ function FieldOfficerDetail() {
   const [rowError, setRowError] = useState<string | null>(null);
   // Bumped after a move so the performance panel reloads its coverage.
   const [statsKey, setStatsKey] = useState(0);
+  const [reassignOpen, setReassignOpen] = useState(false);
+  const [reassignNotice, setReassignNotice] = useState<{ message: string; complete: boolean } | null>(null);
   useBreadcrumbLabel(officer?.fullName);
 
   if (isLoading && !officer) {
-    return <div className="h-64 animate-pulse rounded-xl bg-black/[0.04]" />;
+    return <DetailSkeleton side={false} />;
   }
 
   if (!officer) {
@@ -76,11 +81,11 @@ function FieldOfficerDetail() {
           title="Field officer"
           back={{ href: "/dashboard/field-officers", label: "Field officers" }}
         />
-        <InlineAlert action={missing ? undefined : <Button variant="outline" size="sm" onClick={reload}>Retry</Button>}>
-          {missing
-            ? "This field officer doesn't exist. Check the link, or find the officer in the list."
-            : (error?.message ?? "Field officer not found")}
-        </InlineAlert>
+        {missing ? (
+          <InlineAlert>This field officer doesn&apos;t exist. Check the link, or find the officer in the list.</InlineAlert>
+        ) : (
+          <ErrorAlert error={error} onRetry={reload} fallback="The field officer couldn't be loaded." />
+        )}
       </section>
     );
   }
@@ -88,8 +93,14 @@ function FieldOfficerDetail() {
   const openCount = officer.openAssessments ?? 0;
   const openNote =
     openCount > 0
-      ? ` They have ${openCount} open assessment${openCount === 1 ? "" : "s"}: reassign ${openCount === 1 ? "it" : "them"} to another officer first, from each assessment's page.`
+      ? ` They have ${openCount} open assessment${openCount === 1 ? "" : "s"}: reassign ${openCount === 1 ? "it" : "them"} to another officer first.`
       : "";
+
+  /** Opens the bulk reassignment, closing whichever dialog asked for it. */
+  function reassignFirst(close: () => void) {
+    close();
+    setReassignOpen(true);
+  }
 
   async function toggleActive() {
     if (!officer) return;
@@ -137,6 +148,24 @@ function FieldOfficerDetail() {
         confirmLabel={wasActive ? "Deactivate" : "Reactivate"}
         destructive={wasActive}
         onConfirm={toggleActive}
+      >
+        {wasActive && openCount > 0 ? (
+          <Button type="button" variant="outline" size="sm" onClick={() => reassignFirst(() => setConfirmToggle(false))}>
+            <UserRoundCog />
+            Reassign their {openCount} open assessment{openCount === 1 ? "" : "s"} first
+          </Button>
+        ) : null}
+      </ConfirmDialog>
+
+      <BulkReassignDialog
+        officer={officer}
+        open={reassignOpen}
+        onOpenChange={setReassignOpen}
+        onFinished={(summary) => {
+          setReassignNotice(summary);
+          reload();
+          setStatsKey((value) => value + 1);
+        }}
       />
 
       <PageHeader
@@ -173,7 +202,21 @@ function FieldOfficerDetail() {
         }
       />
 
-      <Panel title="Account">
+      {reassignNotice ? (
+        <InlineAlert tone={reassignNotice.complete ? "success" : "warning"}>{reassignNotice.message}</InlineAlert>
+      ) : null}
+
+      <Panel
+        title="Account"
+        actions={
+          openCount > 0 ? (
+            <Button size="sm" variant="outline" onClick={() => setReassignOpen(true)}>
+              <UserRoundCog />
+              Reassign open assessments
+            </Button>
+          ) : null
+        }
+      >
         <DetailList
           columns={4}
           items={[
@@ -243,10 +286,9 @@ function FieldOfficerDetail() {
                     {assignmentLabel(assignment)}
                   </span>
                   <Button
-                    variant="ghost"
+                    variant="destructive-ghost"
                     size="sm"
-                    className="text-rose-700 hover:text-rose-800"
-                    disabled={busyAssignment === assignment.id}
+                    loading={busyAssignment === assignment.id}
                     onClick={() => void toggleAssignment(assignment)}
                   >
                     Remove access
@@ -288,6 +330,7 @@ function FieldOfficerDetail() {
           current={current}
           others={extra}
           onClose={() => setMoveOpen(false)}
+          onReassignFirst={() => reassignFirst(() => setMoveOpen(false))}
           onMoved={(message) => {
             setMoveOpen(false);
             setRowError(message);
@@ -310,11 +353,14 @@ function MoveBranchDialog({
   others,
   onClose,
   onMoved,
+  onReassignFirst,
 }: {
   officer: FieldOfficer;
   current: StaffAssignment | null;
   others: StaffAssignment[];
   onClose: () => void;
+  /** Leaves this dialog for the bulk reassignment of the officer's open assessments. */
+  onReassignFirst: () => void;
   /** Called with an error message when the move only partly worked, else null. */
   onMoved: (message: string | null) => void;
 }) {
@@ -363,20 +409,28 @@ function MoveBranchDialog({
             {current
               ? `${officer.fullName} stops seeing ${assignmentLabel(current)} beneficiaries and starts on the new branch.${
                   (officer.openAssessments ?? 0) > 0
-                    ? ` Their ${officer.openAssessments} open assessment${officer.openAssessments === 1 ? "" : "s"} stay in their name, but they lose access to those households. Reassign them to an officer of ${assignmentLabel(current)} first, from each assessment's page.`
+                    ? ` Their ${officer.openAssessments} open assessment${officer.openAssessments === 1 ? "" : "s"} stay in their name, but they lose access to those households. Reassign them to an officer of ${assignmentLabel(current)} first.`
                     : ""
                 }`
               : `${officer.fullName} will see beneficiaries registered in this branch.`}
           </DialogDescription>
         </DialogHeader>
+        {current && (officer.openAssessments ?? 0) > 0 ? (
+          <div>
+            <Button type="button" variant="outline" size="sm" onClick={onReassignFirst}>
+              <UserRoundCog />
+              Reassign their open assessments first
+            </Button>
+          </div>
+        ) : null}
         {error ? <InlineAlert>{error}</InlineAlert> : null}
         <BranchPicker value={branchId} onChange={setBranchId} exclude={current?.branchId ?? null} label="New branch" error={fieldErrors.branchId} />
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={() => void move()} disabled={isSaving || !branchId}>
-            {isSaving ? "Saving…" : current ? "Move" : "Assign"}
+          <Button onClick={() => void move()} disabled={!branchId} loading={isSaving} loadingText="Saving…">
+            {current ? "Move" : "Assign"}
           </Button>
         </DialogFooter>
       </DialogContent>

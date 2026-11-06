@@ -1,12 +1,11 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 
-const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
+import { formatCount } from "@/lib/backoffice/format";
 
-/** Thousands become 12.9K etc.; small numbers stay exact. */
+/** Thousands become 12.9K etc.; small numbers stay exact. Same as formatCount(value, { compact: true }). */
 export function formatCompact(value: number | null | undefined) {
-  if (value === null || value === undefined) return "—";
-  return Math.abs(value) >= 10_000 ? compact.format(value) : value.toLocaleString();
+  return formatCount(value, { compact: true });
 }
 
 export function StatTile({

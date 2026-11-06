@@ -43,6 +43,19 @@ export function EditBranchDialog({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
 
+  // Start from the saved branch every time the dialog opens. The page opens it
+  // by setting `open`, which never calls onOpenChange, and the dialog stays
+  // mounted while closed: without this a cancelled edit came back next time.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setForm(initial);
+      setError(null);
+      setFieldErrors({});
+    }
+  }
+
   function set(key: keyof typeof initial, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
@@ -77,13 +90,7 @@ export function EditBranchDialog({
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (next) setForm(initial);
-        onOpenChange(next);
-      }}
-    >
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <form onSubmit={onSubmit} className="space-y-5">
           <DialogHeader>
@@ -114,8 +121,8 @@ export function EditBranchDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSaving}>
-              {isSaving ? "Saving…" : "Save changes"}
+            <Button type="submit" loading={isSaving} loadingText="Saving…">
+              Save changes
             </Button>
           </DialogFooter>
         </form>

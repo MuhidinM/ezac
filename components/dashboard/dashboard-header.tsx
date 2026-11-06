@@ -16,6 +16,7 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SEGMENT_LABELS, SECTION_SEGMENT_LABELS, UNLINKED_SEGMENTS } from "@/components/dashboard/nav-config";
 import { useSession } from "@/lib/auth/use-session";
+import { useFallbackPageTitle } from "@/lib/hooks/use-page-title";
 
 // A detail page can name its own crumb (the record's name) instead of "Details".
 type PageLabel = { pathname: string; label: string } | null;
@@ -90,6 +91,13 @@ export function DashboardHeader() {
       linked: !isUnlinked(href, pathname),
     };
   });
+
+  // The tab title when the page sets none (PageHeader does): the last crumb,
+  // with its parent when the crumb alone says little ("Edit · Amina Yusuf").
+  const last = crumbs[crumbs.length - 1];
+  const parent = crumbs[crumbs.length - 2];
+  const generic = last?.label === "Details" || last?.label === "Edit";
+  useFallbackPageTitle(!last ? "Overview" : generic && parent ? `${last.label} · ${parent.label}` : last.label);
 
   return (
     <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b border-black/[0.06] bg-(--dashboard-canvas)/85 px-4 backdrop-blur-md md:px-6">

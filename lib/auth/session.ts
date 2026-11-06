@@ -1,3 +1,5 @@
+import "server-only";
+
 import { cookies, headers } from "next/headers";
 
 import { getApiBaseUrl } from "@/lib/api/config";
@@ -317,12 +319,14 @@ export function sessionFromAccessToken(accessToken: string): SessionInfo | null 
   };
 }
 
+/**
+ * The signed-in user's session from the access token, for a server component
+ * (e.g. the dashboard layout, to render before /bff/auth/session answers).
+ * Roles come from the token only: an account whose roles are only on /me
+ * reads as role-less here, so treat it as a first guess, not a decision.
+ */
 export async function getSessionFromJwt(): Promise<SessionInfo | null> {
   const accessToken = await getAccessToken();
   if (!accessToken) return null;
   return sessionFromAccessToken(accessToken);
-}
-
-export async function getSession(): Promise<SessionInfo | null> {
-  return getSessionFromJwt();
 }

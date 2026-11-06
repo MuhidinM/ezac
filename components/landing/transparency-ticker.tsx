@@ -5,8 +5,6 @@ import type { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { format } from "@/lib/i18n/messages";
 import { getCalculatorConfig, getHomeSummary, getImpactSummary } from "@/lib/zakat/impact";
 
-import { readCalculatorConfig } from "./read-calculator-config";
-
 type Strings = Dictionary["home"]["ticker"];
 
 type Stat = {
@@ -28,11 +26,13 @@ function formatters(locale: Locale, t: Strings) {
   };
 }
 
-/** Live figures from zakat-engine; unpublished ones are left out. */
+/**
+ * Live figures from zakat-engine. One rule for every figure: a published value
+ * is shown, zero included; an unpublished one (null) is left out.
+ */
 async function loadStats(locale: Locale, t: Strings): Promise<Stat[]> {
-  const [home, impact, rawConfig] = await Promise.all([getHomeSummary(), getImpactSummary(), getCalculatorConfig()]);
-  // A partial config would throw here and take the home page down with it.
-  const config = readCalculatorConfig(rawConfig);
+  // The config comes checked: a partial one is null, not a crash.
+  const [home, impact, config] = await Promise.all([getHomeSummary(), getImpactSummary(), getCalculatorConfig()]);
   const { has, birr, birrPerGram, birrCompact, count } = formatters(locale, t);
   const month = home?.currentMonth;
   const gold24k = config?.goldPricePerGramEtb["24k"];
@@ -43,7 +43,7 @@ async function loadStats(locale: Locale, t: Strings): Promise<Stat[]> {
       : null,
     has(gold24k) ? { value: birrPerGram(gold24k), label: t.gold24k } : null,
     has(home?.totalCollectedEtb) ? { value: birrCompact(home.totalCollectedEtb), label: t.collected } : null,
-    month?.collectedEtb
+    has(month?.collectedEtb)
       ? {
           value: `${birrCompact(month.collectedEtb)}${
             month.changePercent != null ? ` ${month.changePercent >= 0 ? "▲" : "▼"} ${Math.abs(month.changePercent)}%` : ""
@@ -52,9 +52,9 @@ async function loadStats(locale: Locale, t: Strings): Promise<Stat[]> {
         }
       : null,
     has(home?.totalBeneficiariesSupported) ? { value: count(home.totalBeneficiariesSupported), label: t.families } : null,
-    impact?.distributedFundsEtb ? { value: birrCompact(impact.distributedFundsEtb), label: t.distributed } : null,
+    has(impact?.distributedFundsEtb) ? { value: birrCompact(impact.distributedFundsEtb), label: t.distributed } : null,
     has(impact?.livesTouched) ? { value: count(impact.livesTouched), label: t.lives } : null,
-    impact?.activeProjects ? { value: count(impact.activeProjects), label: t.projects } : null,
+    has(impact?.activeProjects) ? { value: count(impact.activeProjects), label: t.projects } : null,
   ];
   return stats.filter((stat): stat is Stat => stat !== null);
 }

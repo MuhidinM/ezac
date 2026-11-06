@@ -29,10 +29,10 @@ const transparency: Messages<typeof en> = {
     poor: "Hiyyeessa (Faqiir)",
     needy: "Rakkataa (Miskiin)",
     zakat_administrator: "Hojjetaa Zakaa (Aamil)",
-    muallaf: "Mu'allaf",
+    muallaf: "Warra onneen isaanii Islaamatti dhiyeeffamu (Mu'allaf)",
     freeing_captives: "Garbummaa irraa bilisoomsuu (Riqaab)",
     debtor: "Liqaan kan ulfaate (Gaarim)",
-    fi_sabilillah: "Fii sabiilillaah",
+    fi_sabilillah: "Karaa Allaah irratti (Fii sabiilillaah)",
     stranded_traveler: "Imaltuu karaatti hafe (Ibn sabiil)",
     other: "Kan biraa",
   },
@@ -64,7 +64,7 @@ const transparency: Messages<typeof en> = {
       familiesSupported: "Maatiiwwan deeggaraman",
       fundsDistributed: "Maallaqa raabsame",
       livesTouched: "Namoota fayyadaman",
-      activeProjects: "Pirojektoota hojiirra jiran",
+      activeProjects: "Kaayyoolee banaa",
     },
     trend: "{percent} ji'a darbe irraa",
     trendUp: "Ol ka'e",
@@ -81,7 +81,7 @@ const transparency: Messages<typeof en> = {
       region: "Naannoo",
       beneficiaries: "Fayyadamtoota",
       fundsDistributed: "Maallaqa raabsame",
-      activeProjects: "Pirojektoota hojiirra jiran",
+      activeProjects: "Kaayyoolee banaa",
     },
     cta: {
       title: "Ibsa lakkoofsota kana duuba jiru barbaadduu?",
@@ -97,16 +97,16 @@ const transparency: Messages<typeof en> = {
     meta: {
       title: "Gabaasota Bu'aa",
       description:
-        "Gabaasota kurmaanaa fi waggaa odiitiin mirkanaa'an, kanneen akkaataa maallaqni Zakaa fi Waqfii itti sassaabame, invastii godhamee fi raabsame ibsan.",
+        "Gabaasota akkaataa maallaqni Zakaa fi Waqfii itti sassaabamee fi raabsame ibsan; yeroo Komishiniin maxxansu asitti buufachuuf ni dhiyaatu.",
       keywords:
-        "gabaasa bu'aa Zakaa, gabaasa Waqfii, gabaasa odiitiin mirkanaa'e, gabaasa waggaa, gabaasa kurmaanaa, iftoomina Zakaa, gabaasota EZAC",
+        "gabaasa bu'aa Zakaa, gabaasa Waqfii, gabaasa waggaa, gabaasa kurmaanaa, iftoomina Zakaa, gabaasota EZAC",
     },
     header: {
       eyebrow: "Iftoominaa fi Bu'aa",
       title: "Gabaasota",
       accent: "bu'aa",
       intro:
-        "Gabaasota odiitiin mirkanaa'anii fi buufatamuu danda'an, akkaataa maallaqni itti sassaabame, invastii godhamee fi raabsame sirriitti ibsan — yeroo murtaa'aa irratti kan maxxanfaman.",
+        "Gabaasota buufatamuu danda'an kanneen akkaataa maallaqni itti sassaabamee fi raabsame ibsan; yeroo Komishiniin maxxansu asitti ni kaa'amu.",
     },
     library: {
       eyebrow: "Kuusaa gabaasotaa",

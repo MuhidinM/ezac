@@ -50,7 +50,7 @@ const common: Messages<typeof en> = {
       waqfRegister: { label: "تسجيل أصل وقفي", title: "سجّل أصلًا بصفته وقفًا لدى الهيئة" },
       dashboard: { label: "لوحة البيانات المباشرة", title: "اطّلع على أرقام الجمع والتوزيع أولًا بأول" },
       howItWorks: { label: "آلية العمل", title: "كيف تُجمع الزكاة وتُراجَع وتُصرف" },
-      stories: { label: "قصص الأثر", title: "اقرأ قصص الأشخاص والمشاريع التي وصلتها الزكاة" },
+      stories: { label: "قصص الأثر", title: "اقرأ قصص الأشخاص والحملات التي وصلتها الزكاة" },
       reports: { label: "تقارير الأثر", title: "اقرأ التقارير التي نشرتها الهيئة" },
       about: { label: "عن الهيئة", title: "من نحن وما الذي تقوم به الهيئة" },
       documents: { label: "الوثائق القانونية", title: "اقرأ الوثائق القانونية للهيئة" },
@@ -83,6 +83,14 @@ const common: Messages<typeof en> = {
     copyright: "© {year} EZAC. جميع الحقوق محفوظة.",
     developedBy: "من تطوير DX Valley ورعايتها.",
     developedByTitle: "زُر موقع DX Valley (يُفتح في علامة تبويب جديدة)",
+  },
+  pagination: {
+    label: "الصفحات",
+    status: "الصفحة {page} من {pages}",
+    previous: "السابق",
+    next: "التالي",
+    goTo: "الانتقال إلى الصفحة {page}",
+    pageTitle: "{title} (الصفحة {page})",
   },
   errors: {
     notFound: {

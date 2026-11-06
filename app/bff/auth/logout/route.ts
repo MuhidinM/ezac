@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { errorFields, logEvent } from "@/lib/api/log";
 import { ACCESS_TOKEN_COOKIE, PASSWORD_CHANGE_COOKIE, REFRESH_TOKEN_COOKIE } from "@/lib/auth/constants";
 import { clearAuthCookies } from "@/lib/auth/session";
 
@@ -17,7 +18,8 @@ export async function POST() {
   try {
     await clearAuthCookies();
   } catch (error) {
-    console.error("[auth/logout] could not clear the auth cookies through next/headers", error);
+    // Could not clear the cookies through next/headers.
+    logEvent("error", "logout_cookie_clear_failed", errorFields(error));
     // Fall back to expiring them on the response itself.
     for (const name of [ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, PASSWORD_CHANGE_COOKIE]) {
       response.cookies.delete(name);

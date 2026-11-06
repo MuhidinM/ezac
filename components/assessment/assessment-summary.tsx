@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import type { Assessment } from "@/lib/api/backoffice-types";
 import { draftFromAssessment } from "@/lib/backoffice/assessment-steps";
 import { formatDate, formatEtb } from "@/lib/backoffice/format";
+import { roundCoordinate, sharedMapLink } from "@/lib/backoffice/gps";
 import {
   ASNAF,
   ASSETS,
@@ -249,14 +250,26 @@ export function AssessmentSummary({ assessment }: { assessment: Assessment }) {
               label: "GPS",
               value: d.verification.gpsRecorded && d.verification.gpsLat != null
                 ? (
-                    <a
-                      className="text-[#007050] hover:underline"
-                      href={`https://www.openstreetmap.org/?mlat=${d.verification.gpsLat}&mlon=${d.verification.gpsLng}#map=17/${d.verification.gpsLat}/${d.verification.gpsLng}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {d.verification.gpsLat}, {d.verification.gpsLng}
-                    </a>
+                    <span>
+                      <span className="tabular-nums">
+                        {roundCoordinate(d.verification.gpsLat)}, {roundCoordinate(d.verification.gpsLng)}
+                      </span>
+                      {sharedMapLink(d.verification.gpsLat, d.verification.gpsLng) ? (
+                        <>
+                          {" · "}
+                          {/* Only the area (about 11 m) leaves the portal, never the exact point. */}
+                          <a
+                            className="text-brand hover:underline"
+                            href={sharedMapLink(d.verification.gpsLat, d.verification.gpsLng)!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Show the area on OpenStreetMap
+                            <span className="sr-only"> (opens another site)</span>
+                          </a>
+                        </>
+                      ) : null}
+                    </span>
                   )
                 : "Not recorded",
             },

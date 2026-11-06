@@ -1,23 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { Plus, RefreshCw } from "lucide-react";
 
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { ListPagination } from "@/components/dashboard/list-pagination";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Panel } from "@/components/dashboard/panel";
 import { RequireRole } from "@/components/dashboard/require-role";
+import { PanelSkeleton } from "@/components/dashboard/skeletons";
 import { WHITELIST_STATUS, WhitelistEntryCard } from "@/components/whitelist/whitelist-entry-card";
 import { WhitelistFormDialog } from "@/components/whitelist/whitelist-form-dialog";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { WhitelistEntry, WhitelistStatus } from "@/lib/api/backoffice-types";
 import type { PaginatedItems } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
 import { formatDateTime } from "@/lib/beneficiary/format";
-import { cn } from "@/lib/utils";
+import { useListState } from "@/lib/hooks/use-list-state";
 
 const PAGE_SIZE = 20;
 const STATUSES: WhitelistStatus[] = ["PENDING_APPROVAL", "ACTIVE", "REJECTED", "REVOKED"];
@@ -25,15 +28,23 @@ const STATUSES: WhitelistStatus[] = ["PENDING_APPROVAL", "ACTIVE", "REJECTED", "
 export default function WhitelistQueuePage() {
   return (
     <RequireRole audience={["admin"]}>
-      <WhitelistQueue />
+      {/* useListState reads the address through useSearchParams. */}
+      <Suspense>
+        <WhitelistQueue />
+      </Suspense>
     </RequireRole>
   );
 }
 
 function WhitelistQueue() {
-  const [status, setStatus] = useState<WhitelistStatus>("PENDING_APPROVAL");
-  const [effect, setEffect] = useState("");
-  const [page, setPage] = useState(1);
+  // Tab, effect and page live in the address, so Back from a household keeps them.
+  const [list, setList] = useListState(
+    "",
+    { status: "PENDING_APPROVAL", effect: "", page: 1 },
+    { allowed: { status: STATUSES, effect: ["", "FAST_TRACK", "PRIORITY"] } },
+  );
+  const status = list.status as WhitelistStatus;
+  const { effect, page } = list;
   const [notice, setNotice] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
 
@@ -73,96 +84,93 @@ function WhitelistQueue() {
         onSaved={(entry) => {
           setAddOpen(false);
           setNotice(`${entry.beneficiaryName ?? "Household"} added to the whitelist.`);
-          setStatus(entry.status);
-          setPage(1);
+          setList({ status: entry.status, page: 1 });
           reload();
         }}
       />
 
       <Panel flush>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/[0.06] px-3 pt-2">
-          <div className="flex gap-1 overflow-x-auto" role="tablist">
-            {STATUSES.map((key) => (
-              <button
-                key={key}
-                type="button"
-                role="tab"
-                aria-selected={status === key}
-                onClick={() => {
-                  setStatus(key);
-                  setPage(1);
-                  setNotice(null);
-                }}
-                className={cn(
-                  "-mb-px shrink-0 border-b-2 px-3 py-2.5 text-sm transition",
-                  status === key ? "border-[#007050] font-medium text-[#001539]" : "border-transparent text-black/55 hover:text-[#001539]",
-                )}
-              >
-                {WHITELIST_STATUS[key].label}
-              </button>
-            ))}
+        <Tabs
+          value={status}
+          onValueChange={(value) => {
+            setList({ status: value });
+            setNotice(null);
+          }}
+          activationMode="manual"
+        >
+          <div className="flex flex-wrap items-end justify-between gap-3 shadow-[inset_0_-1px_0_rgb(0_0_0/0.06)]">
+            <TabsList aria-label="Request status" className="shadow-none">
+              {STATUSES.map((key) => (
+                <TabsTrigger key={key} value={key}>
+                  {WHITELIST_STATUS[key].label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <div className="w-40 px-3 pb-2">
+              <NativeSelect aria-label="Effect" value={effect} onChange={(event) => setList({ effect: event.target.value })}>
+                <option value="">Any effect</option>
+                <option value="FAST_TRACK">Fast track</option>
+                <option value="PRIORITY">Priority</option>
+              </NativeSelect>
+            </div>
           </div>
-          <div className="w-40 pb-2">
-            <NativeSelect aria-label="Effect" value={effect} onChange={(event) => { setEffect(event.target.value); setPage(1); }}>
-              <option value="">Any effect</option>
-              <option value="FAST_TRACK">Fast track</option>
-              <option value="PRIORITY">Priority</option>
-            </NativeSelect>
-          </div>
-        </div>
 
-        {error ? (
-          <div className="px-5 pt-4">
-            <InlineAlert>{error.message}</InlineAlert>
-          </div>
-        ) : null}
+          <TabsContent value={status}>
+            {error ? (
+              <div className="px-5 pt-4">
+                <ErrorAlert error={error} onRetry={reload} />
+              </div>
+            ) : null}
 
-        {isLoading && rows.length === 0 ? (
-          <div className="space-y-3 p-5">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <div key={index} className="h-28 animate-pulse rounded-lg bg-black/[0.04]" />
-            ))}
-          </div>
-        ) : rows.length === 0 ? (
-          <p className="px-5 py-12 text-center text-sm text-black/45">Nothing here.</p>
-        ) : (
-          <ul className="divide-y divide-black/[0.06]">
-            {rows.map((entry) => (
-              <li key={entry.id} className="grid gap-4 px-5 py-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
-                <div>
-                  <Link href={`/dashboard/beneficiary/${entry.beneficiaryId}`} className="font-semibold text-[#001539] hover:underline">
-                    {entry.beneficiaryName ?? `Beneficiary #${entry.beneficiaryId}`}
-                  </Link>
-                  <p className="text-xs text-black/50">{[entry.branchName, entry.region].filter(Boolean).join(" · ") || "—"}</p>
-                  <p className="mt-1 text-xs text-black/45">
-                    Requested {formatDateTime(entry.requestedAt ?? null)}
-                    {entry.requestedByName ? ` by ${entry.requestedByName}` : ""}
-                  </p>
-                </div>
-                <WhitelistEntryCard
-                  entry={entry}
-                  canDecide
-                  compact
-                  onChanged={(updated) => {
-                    setNotice(
-                      `${entry.beneficiaryName ?? "Request"}: ${WHITELIST_STATUS[updated.status]?.label.toLowerCase() ?? "updated"}.`,
-                    );
-                    reload();
-                  }}
-                />
-              </li>
-            ))}
-          </ul>
-        )}
+            {isLoading && rows.length === 0 ? (
+              <div role="status" className="space-y-3 p-5">
+                <span className="sr-only">Loading…</span>
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <PanelSkeleton key={index} rows={1} />
+                ))}
+              </div>
+            ) : rows.length === 0 ? (
+              <p className="px-5 py-12 text-center text-sm text-black/45">Nothing here.</p>
+            ) : (
+              <ul className="divide-y divide-black/[0.06]">
+                {rows.map((entry) => (
+                  <li key={entry.id} className="grid gap-4 px-5 py-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
+                    <div>
+                      <Link href={`/dashboard/beneficiary/${entry.beneficiaryId}`} className="font-semibold text-navy hover:underline">
+                        {entry.beneficiaryName ?? `Beneficiary #${entry.beneficiaryId}`}
+                      </Link>
+                      <p className="text-xs text-black/50">{[entry.branchName, entry.region].filter(Boolean).join(" · ") || "—"}</p>
+                      <p className="mt-1 text-xs text-black/45">
+                        Requested {formatDateTime(entry.requestedAt ?? null)}
+                        {entry.requestedByName ? ` by ${entry.requestedByName}` : ""}
+                      </p>
+                    </div>
+                    <WhitelistEntryCard
+                      entry={entry}
+                      canDecide
+                      compact
+                      onChanged={(updated) => {
+                        setNotice(
+                          `${entry.beneficiaryName ?? "Request"}: ${WHITELIST_STATUS[updated.status]?.label.toLowerCase() ?? "updated"}.`,
+                        );
+                        reload();
+                      }}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
 
-        <ListPagination
-          page={page}
-          pageSize={PAGE_SIZE}
-          totalItems={data?.pagination.totalItems ?? 0}
-          totalPages={data?.pagination.totalPages ?? 1}
-          disabled={isLoading}
-          onPageChange={setPage}
-        />
+            <ListPagination
+              page={page}
+              pageSize={PAGE_SIZE}
+              totalItems={data?.pagination.totalItems ?? 0}
+              totalPages={data?.pagination.totalPages ?? 1}
+              disabled={isLoading}
+              onPageChange={(next) => setList({ page: next })}
+            />
+          </TabsContent>
+        </Tabs>
       </Panel>
     </section>
   );

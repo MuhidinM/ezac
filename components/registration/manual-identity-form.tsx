@@ -10,17 +10,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { apiClient } from "@/lib/api/client";
+import { leaveNotice } from "@/lib/backoffice/notice";
 import { ASNAF, MARITAL_STATUS, PRIMARY_LANGUAGE, SEX } from "@/lib/backoffice/options";
 import { REGISTRATION_STEPS } from "@/lib/registration/constants";
+import { registeredNotice } from "@/lib/registration/notices";
 import { ageMismatch, formErrors } from "@/lib/registration/form-errors";
-import { normalizePhoneToE164 } from "@/lib/registration/phone";
+import { isValidEthiopianPhone, normalizePhoneToE164 } from "@/lib/registration/phone";
 import {
   getSelectedBranch,
   passwordSetupHref,
   savePendingPasswordSetup,
   type SelectedBranch,
   setRegistrationSession,
-  setRegistrationSuccessFlag,
 } from "@/lib/registration/session";
 import type { CreateBeneficiaryResponse } from "@/lib/registration/types";
 
@@ -120,6 +121,12 @@ export function ManualIdentityForm() {
     setError(null);
     setFieldErrors({});
 
+    // The phone is the household's sign-in: refuse anything that isn't an
+    // Ethiopian mobile number rather than send a made-up one.
+    if (!isValidEthiopianPhone(form.phone.trim())) {
+      showFieldErrors({ phone: "Enter an Ethiopian mobile number, for example 0911 234 567." });
+      return;
+    }
     const mismatch = ageMismatch(form.dateOfBirth, form.estimatedAge);
     if (mismatch) {
       showFieldErrors({ estimatedAge: mismatch });
@@ -181,7 +188,8 @@ export function ManualIdentityForm() {
         });
         router.push(passwordSetupHref(created.id));
       } else {
-        setRegistrationSuccessFlag();
+        // Said on the new profile, where the next step (the assessment) starts.
+        leaveNotice(`beneficiary:${created.id}`, registeredNotice(data.fullName, created.bin));
         router.push(`/dashboard/beneficiary/${created.id}`);
       }
     } catch (submitError) {

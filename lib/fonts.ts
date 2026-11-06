@@ -1,18 +1,23 @@
-import { Geist, Geist_Mono, Instrument_Serif, Inter, Noto_Naskh_Arabic, Noto_Sans_Arabic, Noto_Sans_Ethiopic, Noto_Serif_Ethiopic } from "next/font/google";
+import { Geist_Mono, Instrument_Serif, Inter, Noto_Naskh_Arabic, Noto_Sans_Arabic, Noto_Sans_Ethiopic, Noto_Serif_Ethiopic } from "next/font/google";
 
 /**
- * Fonts for both root layouts (public site and staff portal). Each one is a
- * download, so only the weights the site uses are listed.
+ * Fonts of the public site (app/[lang]/layout.tsx and app/global-not-found.tsx).
+ * The staff portal has its own set in lib/portal-fonts.ts. They are separate
+ * modules because Next preloads every font a root layout's imports declare,
+ * whether the page uses it or not: one shared module made the public site
+ * preload the portal's Geist and the portal preload the public serif.
+ *
+ * Each font is a download, so only the weights the site uses are listed.
  */
 
-export const inter = Inter({
+const inter = Inter({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
   variable: "--font-inter",
   display: "swap",
 });
 
-export const instrumentSerif = Instrument_Serif({
+const instrumentSerif = Instrument_Serif({
   subsets: ["latin"],
   weight: "400",
   style: ["normal", "italic"],
@@ -20,16 +25,12 @@ export const instrumentSerif = Instrument_Serif({
   display: "swap",
 });
 
-// Dashboard typeface; swapped in via --font-app-sans in globals.css.
-export const geist = Geist({
-  subsets: ["latin"],
-  variable: "--font-geist-sans",
-  display: "swap",
-});
-
-export const geistMono = Geist_Mono({
+// For the few monospaced bits (certificate numbers, error references): not preloaded.
+const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  display: "swap",
+  preload: false,
 });
 
 /*
@@ -40,7 +41,7 @@ export const geistMono = Geist_Mono({
  * is written in Latin script and needs nothing extra. Not preloaded: most
  * pages never need them.
  */
-export const notoSansEthiopic = Noto_Sans_Ethiopic({
+const notoSansEthiopic = Noto_Sans_Ethiopic({
   subsets: ["ethiopic"],
   weight: ["400", "500", "600"],
   variable: "--font-noto-ethiopic",
@@ -48,7 +49,7 @@ export const notoSansEthiopic = Noto_Sans_Ethiopic({
   preload: false,
 });
 
-export const notoSerifEthiopic = Noto_Serif_Ethiopic({
+const notoSerifEthiopic = Noto_Serif_Ethiopic({
   subsets: ["ethiopic"],
   weight: ["400"],
   variable: "--font-noto-serif-ethiopic",
@@ -56,7 +57,7 @@ export const notoSerifEthiopic = Noto_Serif_Ethiopic({
   preload: false,
 });
 
-export const notoSansArabic = Noto_Sans_Arabic({
+const notoSansArabic = Noto_Sans_Arabic({
   subsets: ["arabic"],
   weight: ["400", "500", "600"],
   variable: "--font-noto-arabic",
@@ -64,7 +65,7 @@ export const notoSansArabic = Noto_Sans_Arabic({
   preload: false,
 });
 
-export const notoNaskhArabic = Noto_Naskh_Arabic({
+const notoNaskhArabic = Noto_Naskh_Arabic({
   subsets: ["arabic"],
   weight: ["400"],
   variable: "--font-noto-naskh-arabic",
@@ -72,11 +73,10 @@ export const notoNaskhArabic = Noto_Naskh_Arabic({
   preload: false,
 });
 
-/** Every font variable, for the <html> className of a root layout. */
+/** The public site's font variables, for the <html> className of its root layout. */
 export const fontVariables = [
   inter,
   instrumentSerif,
-  geist,
   geistMono,
   notoSansEthiopic,
   notoSerifEthiopic,

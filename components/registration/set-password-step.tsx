@@ -12,13 +12,14 @@ import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { RegistrationShell } from "@/components/registration/registration-shell";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api/errors";
+import { leaveNotice } from "@/lib/backoffice/notice";
 import { registerApiJson } from "@/lib/registration/api";
+import { passwordSetNotice } from "@/lib/registration/notices";
 import {
   clearInProgressRegistration,
   clearPendingPasswordSetup,
   getPendingPasswordSetup,
   getRegistrationSession,
-  setRegistrationSuccessFlag,
 } from "@/lib/registration/session";
 import type { RegistrationType } from "@/lib/registration/types";
 
@@ -100,8 +101,9 @@ export function SetPasswordStep({
       if (registrationType === "manual") {
         // A registration started since then belongs to another household: keep it.
         if (getRegistrationSession()?.entityId === setup.entityId) clearInProgressRegistration();
-        setRegistrationSuccessFlag();
-        router.push("/dashboard/beneficiary");
+        // Said on the household's own profile, where the assessment starts.
+        leaveNotice(`beneficiary:${setup.entityId}`, passwordSetNotice(setup.fullName, setup.bin));
+        router.push(`/dashboard/beneficiary/${encodeURIComponent(setup.entityId)}`);
         return;
       }
 

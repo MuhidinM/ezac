@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { readCalculatorConfig } from "@/components/landing/read-calculator-config";
 import { JsonLd } from "@/components/seo/json-ld";
 import { CertificateVerify } from "@/components/site/certificate-verify";
 import { CtaBand, Section, SectionHeading } from "@/components/site/sections";
@@ -264,9 +263,8 @@ export default async function HowItWorksPage({ params }: PageProps<"/[lang]/how-
   const t = transparency.howItWorks;
   // null means not published (the section is left out); an outage throws, so
   // ISR keeps serving the last good page.
-  const [rawConfig, home, impact] = await Promise.all([getCalculatorConfig(), getHomeSummary(), getImpactSummary()]);
-  // A partial config would crash the rules table; leave the section out instead.
-  const config = readCalculatorConfig(rawConfig);
+  // The config comes checked: a partial one is null, so the rules table is left out instead of crashing.
+  const [config, home, impact] = await Promise.all([getCalculatorConfig(), getHomeSummary(), getImpactSummary()]);
   const live = [
     { value: formatEtbCompact(home?.totalCollectedEtb, locale), label: t.live.collected },
     { value: formatCount(home?.totalBeneficiariesSupported, locale), label: t.live.familiesSupported },
@@ -312,7 +310,7 @@ export default async function HowItWorksPage({ params }: PageProps<"/[lang]/how-
         ) : null}
       </Section>
 
-      <div id="giving" className="scroll-mt-24">
+      <div id="giving">
         <Section muted>
           <SectionHeading eyebrow={t.giving.eyebrow} title={t.giving.title} intro={t.giving.intro} />
           <Timeline steps={t.giving.steps} icons={GIVING_ICONS} accent="brand" stepLabel={t.step} />
@@ -326,7 +324,7 @@ export default async function HowItWorksPage({ params }: PageProps<"/[lang]/how-
         </Section>
       ) : null}
 
-      <div id="check-certificate" className="scroll-mt-24">
+      <div id="check-certificate">
         <Section muted>
           <SectionHeading {...t.certificate} />
           <div className="mx-auto mt-10 max-w-2xl">
@@ -335,7 +333,7 @@ export default async function HowItWorksPage({ params }: PageProps<"/[lang]/how-
         </Section>
       </div>
 
-      <div id="receiving" className="scroll-mt-24">
+      <div id="receiving">
         <Section>
           <SectionHeading eyebrow={t.receiving.eyebrow} title={t.receiving.title} intro={t.receiving.intro} />
           <Timeline steps={t.receiving.steps} icons={RECEIVING_ICONS} accent="navy" stepLabel={t.step} />

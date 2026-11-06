@@ -1,8 +1,13 @@
+"use client";
+
 import * as React from "react";
 
+import { useFieldControl } from "@/components/ui/field-context";
 import { cn } from "@/lib/utils";
 
-function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
+/** Inside a dashboard FormField it picks up the label, hint/error and required state. */
+function Textarea({ className, ...rest }: React.ComponentProps<"textarea">) {
+  const props = useFieldControl(rest);
   return (
     <textarea
       data-slot="textarea"

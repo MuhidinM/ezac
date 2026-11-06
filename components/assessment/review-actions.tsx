@@ -130,7 +130,7 @@ export function BranchReview({
           <Clock />
           Defer
         </Button>
-        <Button variant="outline" className="text-rose-700 hover:text-rose-800" onClick={() => setMode("REJECTED")}>
+        <Button variant="destructive-outline" onClick={() => setMode("REJECTED")}>
           <XCircle />
           Reject
         </Button>
@@ -138,7 +138,12 @@ export function BranchReview({
 
       <ConfirmDialog
         open={mode !== null}
-        onOpenChange={(open) => (open ? null : setMode(null))}
+        onOpenChange={(open) => {
+          if (open) return;
+          // A cancelled decision's comment must not reappear under the next one.
+          setMode(null);
+          setComment("");
+        }}
         title={copy?.title ?? ""}
         description={copy?.description}
         confirmLabel={copy?.confirm ?? "Confirm"}
@@ -213,7 +218,7 @@ export function AssessmentManagement({
           </Button>
         ) : null}
         {canCancel ? (
-          <Button variant="outline" className="text-rose-700 hover:text-rose-800" onClick={() => setCancelOpen(true)}>
+          <Button variant="destructive-outline" onClick={() => setCancelOpen(true)}>
             <Ban />
             Cancel draft
           </Button>
@@ -222,7 +227,10 @@ export function AssessmentManagement({
 
       <ConfirmDialog
         open={cancelOpen}
-        onOpenChange={setCancelOpen}
+        onOpenChange={(open) => {
+          setCancelOpen(open);
+          if (!open) setReason("");
+        }}
         title="Cancel this draft?"
         description="The assessment is kept as Cancelled and the beneficiary goes back to their previous state. A new assessment can be started later."
         confirmLabel="Cancel draft"
@@ -244,7 +252,10 @@ export function AssessmentManagement({
 
       <ConfirmDialog
         open={reassignOpen}
-        onOpenChange={setReassignOpen}
+        onOpenChange={(open) => {
+          setReassignOpen(open);
+          if (!open) setOfficerId("");
+        }}
         title="Reassign to another officer"
         description={`Only active officers working in ${where} are listed.`}
         confirmLabel="Reassign"

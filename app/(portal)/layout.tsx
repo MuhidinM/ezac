@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 import "../globals.css";
 
-import { fontVariables } from "@/lib/fonts";
+import { portalFontVariables } from "@/lib/portal-fonts";
 import { siteUrl } from "@/lib/site";
 
 /**
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 
 export default function PortalRootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en" className={`${fontVariables} h-full antialiased`}>
+    <html lang="en" className={`${portalFontVariables} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
         {/* First stop for keyboard users: jumps past the navigation to the page's <main id="main">. */}
         <a

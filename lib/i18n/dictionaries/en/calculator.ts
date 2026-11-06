@@ -71,8 +71,12 @@ const calculator = {
     silver: "Silver {price} ETB/g",
     nisab: "Nisab ({basis}) ETB {amount}",
     loading: "Loading the official rates…",
-    unavailable:
-      "The official rates could not be loaded. Totals below use estimated prices and are only a rough guide.",
+    /** Without the official rates there is no Nisab in birr, so wealth Zakat can't be judged. */
+    unavailable: "The official rates could not be loaded, so the Nisab in birr can't be checked yet.",
+    /** Button that loads the official rates again. */
+    retry: "Try again",
+    /** Shown when the official prices are more than two days old. {date} is when they were set (Addis Ababa time). */
+    stale: "These official prices date from {date}, more than two days ago, so the totals may be out of date.",
     /** Added to every "Why is X due?" explanation while the calculator uses estimates. */
     estimateNote: "These are typical figures: the official rates could not be loaded.",
     basis: { gold: "gold", silver: "silver" },
@@ -159,7 +163,7 @@ const calculator = {
     fineMetal: "fine metal",
     /** {basis} is shown in bold: "gold" or "silver" from rates.basis. */
     basisOfficial: "The commission currently applies the {basis} nisab.",
-    basisEstimate: "Until the official rates load, this estimate uses the {basis} nisab.",
+    basisEstimate: "The Commission's Nisab basis is shown once the official rates load.",
     loading: "Loading official rates...",
     /** Shown when the official rates failed: the metals can't be valued, so the total leaves them out. */
     errorExcluded: "{error} Gold and silver are left out of the total until the official prices load.",
@@ -266,6 +270,13 @@ const calculator = {
     nisabMet: "met",
     nisabBelow: "below",
     nisabStatus: "ETB {amount} · {status}",
+    /** The Nisab row while the official rates are missing. */
+    nisabUnknown: "Waiting for the official rates",
+    /** In place of the total when part of it weighs against a Nisab the calculator doesn't have. */
+    needsRates: "Your total needs the official Nisab, which could not be loaded.",
+    /** Under every result: the calculator's standing. */
+    guidance:
+      "This calculator is a guide only. For a ruling on your own situation, ask a qualified scholar or contact the Commission.",
     noHawl: "Wealth has not completed a full lunar year — no wealth Zakat is due yet.",
     belowNisab: "Your net wealth is below Nisab — no wealth Zakat is due yet.",
     noHawlLivestock: "Your animals have not been held for a full lunar year — no livestock Zakat is due yet.",

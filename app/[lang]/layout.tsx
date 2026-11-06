@@ -49,7 +49,8 @@ export default async function PublicRootLayout({ children, params }: LayoutProps
   const { common } = await getDictionary(locale);
 
   return (
-    <html lang={locale} dir={localeDirection(locale)} className={`${fontVariables} h-full antialiased`}>
+    // scroll-pt-28 keeps anchor targets and keyboard focus below the fixed navbar (76-98px tall).
+    <html lang={locale} dir={localeDirection(locale)} className={`${fontVariables} h-full scroll-pt-28 antialiased`}>
       <body className="flex min-h-full flex-col">
         {/* First stop for keyboard users: jumps past the navigation to the page's <main id="main">. */}
         <a

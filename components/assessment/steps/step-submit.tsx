@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowRight, CheckCircle2, Send, TriangleAlert } from "lucide-react";
+import { ArrowRight, CheckCircle2, RotateCw, Send, TriangleAlert } from "lucide-react";
 
 import { FieldSection, SelectField, TextAreaField } from "@/components/assessment/fields";
 import { ScoreBreakdown, ScoreHeadline } from "@/components/assessment/score-breakdown";
@@ -24,6 +24,7 @@ import {
   type StepId,
 } from "@/lib/backoffice/assessment-steps";
 import { OFFICER_RECOMMENDATION } from "@/lib/backoffice/options";
+import { SIGNED_OUT_KEY } from "@/lib/auth/client-session";
 
 const MIN_DISAGREE_REASON = 20;
 
@@ -38,15 +39,35 @@ type SubmitInputs = {
   acknowledgements: Record<string, string>;
 };
 
+const STORAGE_PREFIX = "ezac_assessment_submit_";
+
 function storageKey(assessmentId: string) {
-  return `ezac_assessment_submit_${assessmentId}`;
+  return `${STORAGE_PREFIX}${assessmentId}`;
+}
+
+/** When this browser last signed out (any tab, any way), from client-session's broadcast key. */
+function lastSignOut(): number {
+  try {
+    return Number(window.localStorage.getItem(SIGNED_OUT_KEY)) || 0;
+  } catch {
+    return 0;
+  }
 }
 
 function readSubmitInputs(assessmentId: string): Partial<SubmitInputs> | null {
   try {
     const raw = window.sessionStorage.getItem(storageKey(assessmentId));
     const value = raw ? (JSON.parse(raw) as unknown) : null;
-    return value && typeof value === "object" ? (value as Partial<SubmitInputs>) : null;
+    if (!value || typeof value !== "object") return null;
+    // Inputs typed before a sign-out (the menu, the idle timer, an ended
+    // session) belong to the person who signed out: on a shared PC the next
+    // person must not inherit them.
+    const savedAt = Number((value as { savedAt?: unknown }).savedAt) || 0;
+    if (savedAt <= lastSignOut()) {
+      clearSubmitInputs(assessmentId);
+      return null;
+    }
+    return value as Partial<SubmitInputs>;
   } catch {
     return null;
   }
@@ -54,7 +75,7 @@ function readSubmitInputs(assessmentId: string): Partial<SubmitInputs> | null {
 
 function writeSubmitInputs(assessmentId: string, inputs: SubmitInputs) {
   try {
-    window.sessionStorage.setItem(storageKey(assessmentId), JSON.stringify(inputs));
+    window.sessionStorage.setItem(storageKey(assessmentId), JSON.stringify({ ...inputs, savedAt: Date.now() }));
   } catch {
     // Storage blocked: the inputs just don't survive a reload.
   }
@@ -69,12 +90,28 @@ export function clearSubmitInputs(assessmentId: string) {
   }
 }
 
+/** Forget the kept inputs of every assessment in this tab (at sign-out). */
+export function clearAllSubmitInputs() {
+  try {
+    const store = window.sessionStorage;
+    const keys: string[] = [];
+    for (let index = 0; index < store.length; index += 1) {
+      const key = store.key(index);
+      if (key?.startsWith(STORAGE_PREFIX)) keys.push(key);
+    }
+    for (const key of keys) store.removeItem(key);
+  } catch {
+    // Nothing was kept.
+  }
+}
+
 export function StepSubmit({
   assessment,
   validation,
   isValidating,
   onGoToStep,
   onEditBasicDetails,
+  onRetryValidation,
   onSubmitted,
 }: {
   assessment: Assessment;
@@ -82,6 +119,8 @@ export function StepSubmit({
   isValidating: boolean;
   onGoToStep: (step: StepId) => void;
   onEditBasicDetails: () => void;
+  /** Runs the completeness check again after it failed. */
+  onRetryValidation: () => Promise<void>;
   onSubmitted: (assessment: Assessment) => void;
 }) {
   const preview = validation?.scorePreview ?? null;
@@ -102,6 +141,18 @@ export function StepSubmit({
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // The wizard's re-checks keep isValidating false (they keep the old result on
+  // screen), so the Retry button tracks its own request.
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  async function retryValidation() {
+    setIsRetrying(true);
+    try {
+      await onRetryValidation();
+    } finally {
+      setIsRetrying(false);
+    }
+  }
 
   useEffect(() => {
     writeSubmitInputs(assessment.id, { recommendation, reason, acknowledgements });
@@ -111,7 +162,18 @@ export function StepSubmit({
     return <div className="h-64 animate-pulse rounded-xl bg-black/[0.04]" />;
   }
   if (!validation) {
-    return <InlineAlert>Couldn&apos;t check this assessment. Try again in a moment.</InlineAlert>;
+    return (
+      <InlineAlert
+        action={
+          <Button type="button" variant="outline" size="sm" onClick={() => void retryValidation()} loading={isRetrying}>
+            <RotateCw />
+            Retry
+          </Button>
+        }
+      >
+        Couldn&apos;t check this assessment. Your answers are saved; try the check again.
+      </InlineAlert>
+    );
   }
 
   // Pre-select the system's recommendation until the officer picks one.
@@ -288,9 +350,9 @@ export function StepSubmit({
             "Complete the items above to enable submission."
           )}
         </p>
-        <Button onClick={() => void submit()} disabled={!canSubmit || isSubmitting}>
+        <Button onClick={() => void submit()} disabled={!canSubmit} loading={isSubmitting} loadingText="Submitting…">
           <Send />
-          {isSubmitting ? "Submitting…" : "Submit for review"}
+          Submit for review
         </Button>
       </div>
     </div>

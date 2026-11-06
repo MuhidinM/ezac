@@ -43,7 +43,7 @@ const home: Messages<typeof en> = {
       households: { label: "Maatiiwwan Madaalaman", sub: "Daawwataman, qabxiin kennameef, dameetti raggaasifaman" },
       qr: { label: "Karaa QR Kaffalaa", sub: "Appii baankii Itoophiyaa kamiinuu" },
       languages: { label: "Afaanota Afur", sub: "Ingiliffaa, Afaan Amaaraa, Afaan Oromoo fi Arabiffaa" },
-      dashboard: { label: "Daashboordii Kallattii", sub: "Ummataaf banaa, odiitiin mirkanaa'e, hordofamaa" },
+      dashboard: { label: "Daashboordii Kallattii", sub: "Lakkoofsota ummataaf banaa, daqiiqaa muraasa hundaan haaromfaman" },
     },
   },
   ticker: {
@@ -60,7 +60,7 @@ const home: Messages<typeof en> = {
     families: "Maatiiwwan Deeggaraman",
     distributed: "Maallaqa Raabsame",
     lives: "Namoota Fayyadaman",
-    projects: "Pirojektoota Hojiirra Jiran",
+    projects: "Kaayyoolee Banaa",
   },
   causes: {
     eyebrowUrgent: "Fedhiiwwan hatattamaa",
@@ -68,7 +68,7 @@ const home: Messages<typeof en> = {
     eyebrowEmpty: "Kaayyoolee",
     title: { before: "Kaayyoolee", accent: "Zakaan", after: "keessan ga'u." },
     intro:
-      "Pirojektoota mirkanaa'an Itoophiyaa guutuu keessaa; tokkoon tokkoon isaanii galma isaatti hammam akka dhihaate ifatti agarsiisa.",
+      "Kaayyoolee Itoophiyaa guutuu keessaa; tokkoon tokkoon isaanii osoo hin tarreeffamin dura ni gamaagamu, galma isaaniitti hammam akka dhihaatan ni agarsiisu.",
     introEmpty:
       "Ammatti kaayyoon banaa ta'e hin jiru. Kaayyooleen haaraan akkuma Komishiniin maxxanseen asitti mul'atu.",
     seeAll: { label: "Kaayyoolee hunda ilaalaa", title: "Kaayyoolee banaa hunda sakatta'aa" },
@@ -81,13 +81,13 @@ const home: Messages<typeof en> = {
     eyebrow: "Iftoomina, mirkaneessa, nageenya",
     title: "Zakaan keessan akkamitti nagaan eegama?",
     intro:
-      "Duulli gargaarsaa hundi ulaagaalee Shari'aatiin ni qoratama, maatiin hundi osoo kaffaltii hin argatin dura ni madaalama, kaffaltiin hundis galmee baankii wajjin ni walsimsiifama.",
+      "Beektonni Shari'aa seerota ni qajeelchu, maatiin hundi osoo kaffaltii hin argatin dura ni madaalama, kaffaltiin hundis galmee baankii wajjin ni walsimsiifama.",
     step: "Tarkaanfii {n}",
     steps: [
       {
-        title: "Shari'aa 100% Kan Hordofu",
+        title: "Qajeelfama Shari'aa",
         description:
-          "Duulli gargaarsaa hundi fi sochiin maallaqaa hundi ulaagaalee bulchiinsa Shari'aa raggaasifamaniin ni qoratama.",
+          "Boordiin Gorsa Shari'aa dambii hundeeffama Komishinichaa jalatti hundeeffame, akkaataa Zakaan itti shallagamuu fi raabsamu ni qajeelcha.",
       },
       {
         title: "Maatiiwwan Madaalamanii Qabxii Argatan",
@@ -95,7 +95,7 @@ const home: Messages<typeof en> = {
           "Maatiin hundi ni daawwatama, gabatee qabxii maxxanfame irratti hundaa'uun qabxiin itti kennama, dame isaatti ni raggaasifama; achiis waajjirri muummee karaa daddabarsa baankii kaffaltii raawwata.",
       },
       {
-        title: "Baankii fi Odiitiin Mirkanaa'e",
+        title: "Baankii Wajjin Walsimsiifame, Galmaa'e",
         description:
           "Kaffaltiin seenu daddabarsa baankii wajjin ni walsimsiifama, kaffaltiin bahu herrega baankiin mirkanaa'e qofatti ni ergama, jijjiiramni hundis ni galmaa'a.",
       },
@@ -111,7 +111,7 @@ const home: Messages<typeof en> = {
     mapLabel: "Kaartaa naannolee deeggarsi ga'e",
     beneficiaries: "fayyadamtoota {count}",
     distributed: "ETB {amount} raabsame",
-    projects: "pirojektoota hojiirra jiran {count}",
+    projects: "kaayyoolee banaa {count}",
     noFigures: "Hanga ammaatti lakkoofsi hin maxxanfamne",
     dashboardLink: {
       label: "Daashboordii Iftoominaa Guutuu Ilaalaa",

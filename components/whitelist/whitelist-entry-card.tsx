@@ -33,7 +33,8 @@ type Decision = "approve" | "reject" | "revoke";
 const DECISION_COPY: Record<Decision, { title: string; description: string; confirm: string; field: "comment" | "reason"; required: boolean; destructive?: boolean }> = {
   approve: {
     title: "Approve whitelist request",
-    description: "The badge is added. A fast-track household appears in the disbursement pool queue straight away.",
+    // Replaced per effect below (approveDescription).
+    description: "",
     confirm: "Approve",
     field: "comment",
     required: false,
@@ -56,6 +57,13 @@ const DECISION_COPY: Record<Decision, { title: string; description: string; conf
     destructive: true,
   },
 };
+
+/** What approving does, which depends on the entry's effect. */
+function approveDescription(effect: WhitelistEntry["effect"]): string {
+  return effect === "PRIORITY"
+    ? "The Priority badge is added. Priority doesn't skip the assessment: once the branch approves it, the household is listed after fast-track households and before the rest in the disbursement pool queue."
+    : "The Fast track badge is added. The household appears in the disbursement pool queue straight away, before an assessment.";
+}
 
 /** One whitelist entry with its evidence; ADMIN gets approve / reject / revoke. */
 export function WhitelistEntryCard({
@@ -140,13 +148,13 @@ export function WhitelistEntryCard({
                 <Check />
                 Approve
               </Button>
-              <Button size="sm" variant="outline" onClick={() => setDecision("reject")}>
+              <Button size="sm" variant="destructive-outline" onClick={() => setDecision("reject")}>
                 <X />
                 Reject
               </Button>
             </>
           ) : (
-            <Button size="sm" variant="outline" className="text-rose-700 hover:text-rose-800" onClick={() => setDecision("revoke")}>
+            <Button size="sm" variant="destructive-outline" onClick={() => setDecision("revoke")}>
               <Ban />
               Revoke
             </Button>
@@ -163,7 +171,7 @@ export function WhitelistEntryCard({
           }
         }}
         title={copy?.title ?? ""}
-        description={copy?.description}
+        description={decision === "approve" ? approveDescription(entry.effect) : copy?.description}
         confirmLabel={copy?.confirm ?? "Confirm"}
         destructive={copy?.destructive}
         confirmDisabled={!!copy?.required && !text.trim()}

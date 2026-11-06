@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api/client";
 import { ApiError, errorMessage, fieldErrorMap } from "@/lib/api/errors";
 import { useResource } from "@/lib/api/use-resource";
+import { formatEtb } from "@/lib/backoffice/format";
 import { formatDateTime } from "@/lib/beneficiary/format";
 import { cn } from "@/lib/utils";
 
@@ -304,7 +305,7 @@ function priceWarnings(values: Values, current: PriceValues | null): string[] {
     if (price === null || Number.isNaN(price)) continue;
     if (purer && price > purer.price) {
       warnings.push(
-        `Gold ${karat} (ETB ${etb.format(price)}) costs more than gold ${purer.karat} (ETB ${etb.format(purer.price)}). Purer gold should cost more, so check for a typing mistake.`,
+        `Gold ${karat} (${formatEtb(price)}) costs more than gold ${purer.karat} (${formatEtb(purer.price)}). Purer gold should cost more, so check for a typing mistake.`,
       );
     }
     purer = { karat, price };
@@ -444,6 +445,8 @@ function ManualPricesForm({
       if (value === null && required) problems[field] = "Enter a price.";
       else if (Number.isNaN(value)) problems[field] = "Enter a number above 0.";
     }
+    // Prices typed by hand go live for every calculator user, so the reason is required (gap-r1-4-1).
+    if (note.trim().length < 10) problems.note = "Say why the prices are set by hand and where they come from (at least 10 characters).";
     setFieldErrors(problems);
     if (Object.keys(problems).length > 0) return;
     if (current && changedFields.length === 0) {
@@ -470,7 +473,7 @@ function ManualPricesForm({
           goldPricePerGramEtb: goldBody,
           silverPricePerGramEtb: parse(values.silver),
           ...(usd !== null ? { usdEtbRate: usd } : {}),
-          ...(note.trim() ? { note: note.trim() } : {}),
+          note: note.trim(),
         }),
       });
       onSaved();
@@ -554,7 +557,13 @@ function ManualPricesForm({
           onChange={(value) => set("usd", value)}
         />
       </div>
-      <FormField label="Note" htmlFor="price-note" hint="Why the prices were changed by hand" error={fieldErrors.note}>
+      <FormField
+        label="Reason and source"
+        htmlFor="price-note"
+        required
+        hint="Why the prices are set by hand, and where they come from"
+        error={fieldErrors.note}
+      >
         <Textarea id="price-note" rows={2} maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} />
       </FormField>
       {warnings.length > 0 ? <WarningList warnings={warnings} /> : null}
@@ -576,13 +585,16 @@ function ManualPricesForm({
       {error ? <InlineAlert>{error}</InlineAlert> : null}
       <ChangeTable values={values} current={current} changed={changedFields} />
       <NisabChange values={values} current={current} nisab={nisab} />
+      <p className="text-sm text-navy">
+        <span className="text-black/55">Reason and source:</span> {note.trim()}
+      </p>
       {warnings.length > 0 ? <WarningList warnings={warnings} /> : null}
       <DialogFooter>
         <Button type="button" variant="outline" onClick={() => setStep("edit")} disabled={isSaving}>
           Back
         </Button>
-        <Button type="button" onClick={() => void save()} disabled={isSaving}>
-          {isSaving ? "Saving…" : warnings.length > 0 ? "Save anyway" : "Save prices"}
+        <Button type="button" onClick={() => void save()} loading={isSaving} loadingText="Saving…">
+          {warnings.length > 0 ? "Save anyway" : "Save prices"}
         </Button>
       </DialogFooter>
     </div>
@@ -702,8 +714,8 @@ function NisabChange({ values, current, nisab }: { values: Values; current: Pric
       </p>
       <p className="mt-0.5 font-semibold text-[#001539] tabular-nums">
         {before !== null && Math.round(before) !== Math.round(after)
-          ? `ETB ${etb.format(Math.round(before))} → ETB ${etb.format(Math.round(after))} (${percent(before, after)})`
-          : `ETB ${etb.format(Math.round(after))} (no change)`}
+          ? `${formatEtb(Math.round(before))} → ${formatEtb(Math.round(after))} (${percent(before, after)})`
+          : `${formatEtb(Math.round(after))} (no change)`}
       </p>
     </div>
   );

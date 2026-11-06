@@ -1,9 +1,9 @@
 "use client";
 
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Landmark, RefreshCw, Search, SlidersHorizontal, UserPlus, X } from "lucide-react";
+import { Landmark, RefreshCw, SlidersHorizontal, UserPlus, X } from "lucide-react";
 
 import {
   AssessmentStatusBadge,
@@ -15,6 +15,7 @@ import {
   WhitelistBadge,
 } from "@/components/backoffice/status-badges";
 import { VerificationStatusBadge } from "@/components/beneficiary/verification-status-badge";
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { ListPagination } from "@/components/dashboard/list-pagination";
@@ -24,6 +25,7 @@ import { TableMessageRow, TableSkeletonRows } from "@/components/dashboard/table
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
+import { SearchInput } from "@/components/ui/search-input";
 import {
   Table,
   TableBody,
@@ -35,32 +37,19 @@ import {
 import type { BeneficiaryListItem, BranchListItem, PaginatedItems } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
 import { useSession } from "@/lib/auth/use-session";
+import { scoreRangeProblem } from "@/lib/backoffice/list-filters";
 import { ASNAF } from "@/lib/backoffice/options";
 import { useScoreMax } from "@/lib/backoffice/score-max";
 import { formatBeneficiaryCategory, formatDateTime } from "@/lib/beneficiary/format";
 import { ETHIOPIAN_REGIONS } from "@/lib/constants/regions";
+import { useListState } from "@/lib/hooks/use-list-state";
 import { phoneSearchTerm } from "@/lib/registration/phone";
 import { consumeRegistrationSuccessFlag } from "@/lib/registration/session";
 
 const PAGE_SIZE = 20;
 
-type Filters = {
-  search: string;
-  lifecycleStatus: string;
-  riskCategory: string;
-  assessmentStatus: string;
-  assessed: "" | "assessed" | "not_assessed";
-  verificationStatus: string;
-  beneficiaryType: string;
-  minScore: string;
-  maxScore: string;
-  asnaf: string;
-  branchId: string;
-  region: string;
-  whitelistEffect: string;
-};
-
-const EMPTY_FILTERS: Filters = {
+/** The list's filters and page, kept in the address (see useListState). */
+const DEFAULTS = {
   search: "",
   lifecycleStatus: "",
   riskCategory: "",
@@ -74,9 +63,22 @@ const EMPTY_FILTERS: Filters = {
   branchId: "",
   region: "",
   whitelistEffect: "",
+  page: 1,
 };
 
-const ADVANCED_KEYS: (keyof Filters)[] = [
+type Filters = typeof DEFAULTS;
+
+const ALLOWED = {
+  lifecycleStatus: ["", "PENDING_ASSESSMENT", "UNDER_ASSESSMENT", "ASSESSED", "ACTIVE", "INACTIVE", "GRADUATED", "EXITED"],
+  riskCategory: ["", "HIGH", "MEDIUM", "LOW"],
+  assessmentStatus: ["", "DRAFT", "SUBMITTED", "RETURNED", "APPROVED", "CANCELLED", "DEFERRED", "REJECTED"],
+  assessed: ["", "assessed", "not_assessed"],
+  verificationStatus: ["", "pending", "verified", "rejected"],
+  beneficiaryType: ["", "individual", "institution"],
+  whitelistEffect: ["", "any", "FAST_TRACK", "PRIORITY", "none"],
+} as const;
+
+const ADVANCED_KEYS = [
   "assessmentStatus",
   "assessed",
   "verificationStatus",
@@ -87,13 +89,16 @@ const ADVANCED_KEYS: (keyof Filters)[] = [
   "branchId",
   "region",
   "whitelistEffect",
-];
+] as const satisfies readonly (keyof Filters)[];
 
-function toQuery(filters: Filters, page: number) {
-  const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
+function toQuery(filters: Filters) {
+  const params = new URLSearchParams({ page: String(filters.page), limit: String(PAGE_SIZE) });
+  // A reversed score range can't match anything: leave it out until it's fixed.
+  const scoreOk = !scoreRangeProblem(filters.minScore, filters.maxScore);
   for (const [key, value] of Object.entries(filters)) {
-    if (!value || key === "assessed" || key === "whitelistEffect") continue;
-    params.set(key, value);
+    if (!value || key === "page" || key === "assessed" || key === "whitelistEffect") continue;
+    if ((key === "minScore" || key === "maxScore") && !scoreOk) continue;
+    params.set(key, String(value));
   }
   if (filters.assessed) params.set("notAssessed", String(filters.assessed === "not_assessed"));
   if (filters.whitelistEffect === "any") params.set("whitelisted", "true");
@@ -103,14 +108,36 @@ function toQuery(filters: Filters, page: number) {
 }
 
 export default function BeneficiaryPage() {
+  return (
+    // useListState reads the address through useSearchParams.
+    <Suspense>
+      <Beneficiaries />
+    </Suspense>
+  );
+}
+
+function Beneficiaries() {
   const router = useRouter();
   const { session } = useSession();
   const isAdmin = session?.isAdmin ?? false;
 
-  const [page, setPage] = useState(1);
-  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
-  const [draftSearch, setDraftSearch] = useState("");
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [list, setFilters, { reset, isDefault }] = useListState("", DEFAULTS, { allowed: ALLOWED });
+  // Only ADMIN has the branch filter, so only ADMIN takes it from a link: for
+  // anyone else it would narrow the list by a filter they can't see or change.
+  // Kept while the session is still loading, so an admin's link doesn't load twice.
+  const filters = session && !isAdmin ? { ...list, branchId: "" } : list;
+  const [draftSearch, setDraftSearch] = useState(filters.search);
+  // Score bounds apply on Enter or when the field is left, not on every keystroke.
+  const [draftScore, setDraftScore] = useState({ min: filters.minScore, max: filters.maxScore });
+  // Keep the drafts in step when the address changes (Clear, Back, a link).
+  const [seen, setSeen] = useState({ search: filters.search, min: filters.minScore, max: filters.maxScore });
+  if (seen.search !== filters.search || seen.min !== filters.minScore || seen.max !== filters.maxScore) {
+    setSeen({ search: filters.search, min: filters.minScore, max: filters.maxScore });
+    setDraftSearch(filters.search);
+    setDraftScore({ min: filters.minScore, max: filters.maxScore });
+  }
+  const activeAdvanced = ADVANCED_KEYS.filter((key) => filters[key]).length;
+  const [showAdvanced, setShowAdvanced] = useState(activeAdvanced > 0);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -122,27 +149,35 @@ export default function BeneficiaryPage() {
   }, []);
 
   const { data, error, isLoading, reload } = useResource<PaginatedItems<BeneficiaryListItem>>(
-    `/bff/backoffice/beneficiaries?${toQuery(filters, page)}`,
+    `/bff/backoffice/beneficiaries?${toQuery(filters)}`,
   );
   const { data: branches } = useResource<PaginatedItems<BranchListItem>>(
     isAdmin ? "/bff/admin/branches?page=1&limit=100" : null,
   );
   // The active scoring config's maximum, read once the score filter is shown.
   const scoreMax = useScoreMax(showAdvanced);
+  const scoreProblem = scoreRangeProblem(draftScore.min, draftScore.max, scoreMax);
 
   function update<K extends keyof Filters>(key: K, value: Filters[K]) {
-    setPage(1);
-    setFilters((prev) => ({ ...prev, [key]: value }));
+    setFilters({ [key]: value } as Partial<Filters>);
+  }
+
+  function applyScore() {
+    if (scoreRangeProblem(draftScore.min, draftScore.max, scoreMax)) return;
+    setFilters({ minScore: draftScore.min.trim(), maxScore: draftScore.max.trim() });
   }
 
   function onSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     // Phones are stored as +251…, so a local 09… number finds nothing as typed.
-    update("search", phoneSearchTerm(draftSearch));
+    const valid = !scoreRangeProblem(draftScore.min, draftScore.max, scoreMax);
+    setFilters({
+      search: phoneSearchTerm(draftSearch),
+      ...(valid ? { minScore: draftScore.min.trim(), maxScore: draftScore.max.trim() } : {}),
+    });
   }
 
-  const activeAdvanced = ADVANCED_KEYS.filter((key) => filters[key]).length;
-  const hasFilters = Object.values(filters).some(Boolean);
+  const hasFilters = !isDefault;
   const rows = data?.items ?? [];
 
   return (
@@ -169,17 +204,15 @@ export default function BeneficiaryPage() {
       {successMessage ? <InlineAlert tone="success">{successMessage}</InlineAlert> : null}
 
       <Panel flush>
-        <div className="space-y-3 border-b border-black/[0.06] px-5 py-3">
-          <form onSubmit={onSearch} className="flex flex-wrap items-center gap-3">
-            <div className="relative min-w-60 flex-[2]">
-              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-black/35" />
-              <Input
-                value={draftSearch}
-                onChange={(event) => setDraftSearch(event.target.value)}
-                placeholder="Search name, phone or bank account number"
-                className="bg-white pl-9"
-              />
-            </div>
+        <form role="search" onSubmit={onSearch} className="space-y-3 border-b border-black/[0.06] px-5 py-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <SearchInput
+              label="Search beneficiaries"
+              wrapperClassName="min-w-60 flex-[2]"
+              value={draftSearch}
+              onChange={(event) => setDraftSearch(event.target.value)}
+              placeholder="Search name, phone or bank account number"
+            />
             <div className="min-w-44 flex-1">
               <NativeSelect
                 aria-label="Lifecycle"
@@ -216,33 +249,34 @@ export default function BeneficiaryPage() {
               variant={showAdvanced ? "secondary" : "ghost"}
               onClick={() => setShowAdvanced((value) => !value)}
               aria-expanded={showAdvanced}
+              aria-controls="beneficiary-filters"
             >
               <SlidersHorizontal />
               Filters
               {activeAdvanced ? (
-                <span className="rounded-full bg-[#007050] px-1.5 text-[11px] text-white tabular-nums">
+                <span className="rounded-full bg-brand px-1.5 text-[11px] text-white tabular-nums">
                   {activeAdvanced}
                 </span>
               ) : null}
             </Button>
-            {hasFilters ? (
+            {hasFilters || draftSearch ? (
               <Button
                 type="button"
                 variant="ghost"
                 onClick={() => {
                   setDraftSearch("");
-                  setPage(1);
-                  setFilters(EMPTY_FILTERS);
+                  setDraftScore({ min: "", max: "" });
+                  reset();
                 }}
               >
                 <X />
                 Clear
               </Button>
             ) : null}
-          </form>
+          </div>
 
           {showAdvanced ? (
-            <div className="grid gap-3 rounded-lg bg-black/[0.02] p-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div id="beneficiary-filters" className="grid gap-3 rounded-lg bg-black/[0.02] p-3 sm:grid-cols-2 lg:grid-cols-4">
               <FormField label="Assessment status" htmlFor="f-assessment">
                 <NativeSelect
                   id="f-assessment"
@@ -263,14 +297,19 @@ export default function BeneficiaryPage() {
                 <NativeSelect
                   id="f-assessed"
                   value={filters.assessed}
-                  onChange={(event) => update("assessed", event.target.value as Filters["assessed"])}
+                  onChange={(event) => update("assessed", event.target.value)}
                 >
                   <option value="">All</option>
                   <option value="assessed">Has a score</option>
                   <option value="not_assessed">Not assessed yet</option>
                 </NativeSelect>
               </FormField>
-              <FormField label={`Score range (0–${scoreMax})`} htmlFor="f-min">
+              <FormField
+                label={`Score range (0–${scoreMax})`}
+                htmlFor="f-min"
+                error={scoreProblem}
+                hint={scoreProblem ? undefined : "Applied when you press Enter or leave the field"}
+              >
                 <div className="flex items-center gap-2">
                   <Input
                     id="f-min"
@@ -279,11 +318,12 @@ export default function BeneficiaryPage() {
                     max={scoreMax}
                     inputMode="numeric"
                     placeholder="Min"
-                    value={filters.minScore}
-                    onChange={(event) => update("minScore", event.target.value)}
+                    value={draftScore.min}
+                    onChange={(event) => setDraftScore((prev) => ({ ...prev, min: event.target.value }))}
+                    onBlur={applyScore}
                     className="bg-white"
                   />
-                  <span className="text-black/40">–</span>
+                  <span aria-hidden="true" className="text-black/40">–</span>
                   <Input
                     type="number"
                     min={0}
@@ -291,8 +331,9 @@ export default function BeneficiaryPage() {
                     inputMode="numeric"
                     placeholder="Max"
                     aria-label="Maximum score"
-                    value={filters.maxScore}
-                    onChange={(event) => update("maxScore", event.target.value)}
+                    value={draftScore.max}
+                    onChange={(event) => setDraftScore((prev) => ({ ...prev, max: event.target.value }))}
+                    onBlur={applyScore}
                     className="bg-white"
                   />
                 </div>
@@ -370,6 +411,9 @@ export default function BeneficiaryPage() {
                     onChange={(event) => update("branchId", event.target.value)}
                   >
                     <option value="">Any</option>
+                    {filters.branchId && !branches?.items.some((branch) => branch.id === filters.branchId) ? (
+                      <option value={filters.branchId}>{branches ? "Branch from the link" : "Loading…"}</option>
+                    ) : null}
                     {branches?.items.map((branch) => (
                       <option key={branch.id} value={branch.id}>
                         {branch.name}
@@ -380,11 +424,11 @@ export default function BeneficiaryPage() {
               ) : null}
             </div>
           ) : null}
-        </div>
+        </form>
 
         {error ? (
           <div className="px-5 pt-4">
-            <InlineAlert>{error.message}</InlineAlert>
+            <ErrorAlert error={error} onRetry={reload} />
           </div>
         ) : null}
 
@@ -412,13 +456,14 @@ export default function BeneficiaryPage() {
                 <TableRow
                   key={item.id}
                   className="cursor-pointer"
+                  // A mouse shortcut; the name link is the keyboard and screen-reader way in.
                   onClick={() => router.push(`/dashboard/beneficiary/${item.id}`)}
                 >
                   <TableCell className="pl-5">
                     <div className="flex flex-wrap items-center gap-2">
                       <Link
                         href={`/dashboard/beneficiary/${item.id}`}
-                        className="font-medium text-[#001539] hover:underline"
+                        className="font-medium text-navy hover:underline"
                         onClick={(event) => event.stopPropagation()}
                       >
                         {item.fullName ?? "Unnamed beneficiary"}
@@ -467,12 +512,12 @@ export default function BeneficiaryPage() {
         </Table>
 
         <ListPagination
-          page={page}
+          page={filters.page}
           pageSize={PAGE_SIZE}
           totalItems={data?.pagination.totalItems ?? 0}
           totalPages={data?.pagination.totalPages ?? 1}
           disabled={isLoading}
-          onPageChange={setPage}
+          onPageChange={(page) => setFilters({ page })}
         />
       </Panel>
     </section>

@@ -1,7 +1,10 @@
+import "server-only";
+
 import { STATUS_CODES } from "node:http";
 
 import { getApiBaseUrl } from "@/lib/api/config";
 import { ApiError, parseFieldErrors } from "@/lib/api/errors";
+import { logEvent, oneLine } from "@/lib/api/log";
 import { logGatewayUnreachable } from "@/lib/api/network-error";
 
 /**
@@ -25,8 +28,6 @@ export const UPSTREAM_MESSAGES = {
   serverError: "Something went wrong on our side. Try again in a moment.",
   unreadable: "The service sent an answer we couldn't read. Try again in a moment.",
 } as const;
-
-const LOG_MESSAGE_LIMIT = 200;
 
 export function newRequestId(): string {
   return crypto.randomUUID();
@@ -65,9 +66,12 @@ function isTimeoutError(error: unknown): boolean {
 
 function failure(call: Omit<UpstreamCall, "response">, error: unknown, timedOut: boolean): ApiError {
   if (timedOut || isTimeoutError(error)) {
-    console.error(
-      `[${call.label}] the gateway did not answer in time: ${call.method} ${call.path} (request ${call.requestId})`,
-    );
+    logEvent("error", "gateway_timeout", {
+      label: call.label,
+      requestId: call.requestId,
+      method: call.method,
+      path: call.path,
+    });
     return new ApiError(UPSTREAM_MESSAGES.timeout, 504, [], null, null, call.requestId);
   }
   logGatewayUnreachable(call.label, error, call.requestId);
@@ -163,11 +167,6 @@ function safeCode(value: unknown): string | null {
   return typeof value === "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(value) ? value : null;
 }
 
-function oneLine(value: string): string {
-  const flat = value.replace(/\s+/g, " ").trim();
-  return flat.length > LOG_MESSAGE_LIMIT ? `${flat.slice(0, LOG_MESSAGE_LIMIT)}…` : flat;
-}
-
 /**
  * Logs an upstream failure: method, path without the query, status, request
  * ids and the upstream message cut to 200 characters. Never the bodies.
@@ -176,9 +175,15 @@ export function logUpstreamFailure(call: UpstreamCall, body: unknown, note?: str
   const record = isRecord(body) ? body : {};
   const upstreamId = text(record.requestId);
   const message = text(record.message) ?? text(record.error) ?? note ?? "(no message)";
-  console.error(
-    `[${call.label}] ${call.response.status} ${call.method} ${call.path} (request ${call.requestId}${upstreamId ? `, upstream ${oneLine(upstreamId)}` : ""}): ${oneLine(message)}`,
-  );
+  logEvent("error", "gateway_error", {
+    label: call.label,
+    requestId: call.requestId,
+    upstreamRequestId: upstreamId ? oneLine(upstreamId, 100) : undefined,
+    method: call.method,
+    path: call.path,
+    status: call.response.status,
+    message: oneLine(message, 200),
+  });
 }
 
 export function fallbackMessage(status: number): string {

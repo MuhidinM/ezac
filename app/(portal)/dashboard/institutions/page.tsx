@@ -1,12 +1,12 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { type FormEvent, Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { RefreshCw, Search } from "lucide-react";
+import { RefreshCw, X } from "lucide-react";
 
 import { VerificationStatusBadge } from "@/components/beneficiary/verification-status-badge";
-import { InlineAlert } from "@/components/dashboard/inline-alert";
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { ListPagination } from "@/components/dashboard/list-pagination";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Panel } from "@/components/dashboard/panel";
@@ -14,8 +14,8 @@ import { RequireRole } from "@/components/dashboard/require-role";
 import { TableMessageRow, TableSkeletonRows } from "@/components/dashboard/table-states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
+import { SearchInput } from "@/components/ui/search-input";
 import {
   Table,
   TableBody,
@@ -24,23 +24,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { InstitutionListItem, PaginatedItems, VerificationStatus } from "@/lib/api/types";
+import type { InstitutionListItem, PaginatedItems } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
 import { useSession } from "@/lib/auth/use-session";
 import { formatDateTime } from "@/lib/beneficiary/format";
+import { useListState } from "@/lib/hooks/use-list-state";
 
 const PAGE_SIZE = 20;
-
-type Filters = {
-  search: string;
-  verificationStatus: VerificationStatus | "";
-  kycComplete: "" | "true" | "false";
-};
 
 export default function InstitutionsPage() {
   return (
     <RequireRole audience={["hq"]}>
-      <Institutions />
+      {/* useListState reads the address through useSearchParams. */}
+      <Suspense>
+        <Institutions />
+      </Suspense>
     </RequireRole>
   );
 }
@@ -48,27 +46,33 @@ export default function InstitutionsPage() {
 function Institutions() {
   const router = useRouter();
   const { session } = useSession();
-  const [page, setPage] = useState(1);
-  const [filters, setFilters] = useState<Filters>({ search: "", verificationStatus: "", kycComplete: "" });
-  const [draftSearch, setDraftSearch] = useState("");
+  // Filters live in the address so Back, reload and shared links keep them.
+  const [filters, setFilters, { reset, isDefault }] = useListState(
+    "",
+    { search: "", verificationStatus: "", kycComplete: "", page: 1 },
+    { allowed: { verificationStatus: ["", "pending", "verified", "rejected"], kycComplete: ["", "true", "false"] } },
+  );
+  const [draftSearch, setDraftSearch] = useState(filters.search);
+  const [seenSearch, setSeenSearch] = useState(filters.search);
+  if (seenSearch !== filters.search) {
+    setSeenSearch(filters.search);
+    setDraftSearch(filters.search);
+  }
 
-  const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
-  for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value);
+  const params = new URLSearchParams({ page: String(filters.page), limit: String(PAGE_SIZE) });
+  if (filters.search) params.set("search", filters.search);
+  if (filters.verificationStatus) params.set("verificationStatus", filters.verificationStatus);
+  if (filters.kycComplete) params.set("kycComplete", filters.kycComplete);
 
   const { data, error, isLoading, reload } = useResource<PaginatedItems<InstitutionListItem>>(
     `/bff/beneficiaries/institutions?${params.toString()}`,
   );
   const rows = data?.items ?? [];
-  const hasFilters = Object.values(filters).some(Boolean);
-
-  function update<K extends keyof Filters>(key: K, value: Filters[K]) {
-    setPage(1);
-    setFilters((prev) => ({ ...prev, [key]: value }));
-  }
+  const hasFilters = !isDefault;
 
   function onSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    update("search", draftSearch.trim());
+    setFilters({ search: draftSearch.trim() });
   }
 
   return (
@@ -89,21 +93,19 @@ function Institutions() {
       />
 
       <Panel flush>
-        <form onSubmit={onSearch} className="flex flex-wrap items-center gap-3 border-b border-black/[0.06] px-5 py-3">
-          <div className="relative min-w-60 flex-[2]">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-black/35" />
-            <Input
-              value={draftSearch}
-              onChange={(event) => setDraftSearch(event.target.value)}
-              placeholder="Search name, trading name or phone"
-              className="bg-white pl-9"
-            />
-          </div>
+        <form role="search" onSubmit={onSearch} className="flex flex-wrap items-center gap-3 border-b border-black/[0.06] px-5 py-3">
+          <SearchInput
+            label="Search institutions"
+            wrapperClassName="min-w-60 flex-[2]"
+            value={draftSearch}
+            onChange={(event) => setDraftSearch(event.target.value)}
+            placeholder="Search name, trading name or phone"
+          />
           <div className="min-w-40 flex-1">
             <NativeSelect
               aria-label="Verification status"
               value={filters.verificationStatus}
-              onChange={(event) => update("verificationStatus", event.target.value as Filters["verificationStatus"])}
+              onChange={(event) => setFilters({ verificationStatus: event.target.value })}
             >
               <option value="">All statuses</option>
               <option value="pending">Pending review</option>
@@ -116,7 +118,7 @@ function Institutions() {
             <NativeSelect
               aria-label="KYC"
               value={filters.kycComplete}
-              onChange={(event) => update("kycComplete", event.target.value as Filters["kycComplete"])}
+              onChange={(event) => setFilters({ kycComplete: event.target.value })}
             >
               <option value="">Any KYC</option>
               <option value="true">KYC complete</option>
@@ -126,11 +128,24 @@ function Institutions() {
           <Button type="submit" variant="secondary">
             Search
           </Button>
+          {hasFilters || draftSearch ? (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setDraftSearch("");
+                reset();
+              }}
+            >
+              <X />
+              Clear
+            </Button>
+          ) : null}
         </form>
 
         {error ? (
           <div className="px-5 pt-4">
-            <InlineAlert>{error.message}</InlineAlert>
+            <ErrorAlert error={error} onRetry={reload} />
           </div>
         ) : null}
 
@@ -193,12 +208,12 @@ function Institutions() {
         </Table>
 
         <ListPagination
-          page={page}
+          page={filters.page}
           pageSize={PAGE_SIZE}
           totalItems={data?.pagination.totalItems ?? 0}
           totalPages={data?.pagination.totalPages ?? 1}
           disabled={isLoading}
-          onPageChange={setPage}
+          onPageChange={(page) => setFilters({ page })}
         />
       </Panel>
     </section>

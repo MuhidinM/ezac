@@ -1,5 +1,12 @@
 import { PHONE_PREFIX } from "@/lib/registration/constants";
 
+/**
+ * An Ethiopian number in the +251… form the backend stores: "0911 22 33 44",
+ * "911223344" and "+251 911-223-344" all become "+251911223344". Anything
+ * that isn't a whole Ethiopian number is returned as typed (trimmed), never
+ * padded into a number nobody entered ("12345" stays "12345", not
+ * "+25112345"); check isValidEthiopianPhone before sending a phone.
+ */
 export function normalizePhoneToE164(input: string): string {
   const digits = input.replace(/\D/g, "");
 
@@ -19,9 +26,10 @@ export function normalizePhoneToE164(input: string): string {
     return `+${digits}`;
   }
 
-  return input.startsWith("+") ? input : `${PHONE_PREFIX}${digits}`;
+  return input.trim();
 }
 
+/** An Ethiopian mobile number (+2519… or +2517…), in any of the forms normalizePhoneToE164 reads. */
 export function isValidEthiopianPhone(input: string): boolean {
   const normalized = normalizePhoneToE164(input);
   return /^\+251[79]\d{8}$/.test(normalized);

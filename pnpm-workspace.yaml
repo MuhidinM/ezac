@@ -1,5 +1,12 @@
+# Install scripts run only for the packages marked true: the ones the build or
+# the running app needs. Everything else installs without running its scripts.
 allowBuilds:
-  '@tsparticles/engine': true
-  msw: true
+  # Image optimisation in `next start` (native binary).
   sharp: true
+  # Native resolver used by ESLint's import rules.
   unrs-resolver: true
+  # Development-only, pulled in by the shadcn CLI. Its script copies a mock
+  # service worker the app doesn't use.
+  msw: false
+  # Its script only prints links; the particles work without it.
+  '@tsparticles/engine': false

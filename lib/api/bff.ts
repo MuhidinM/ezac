@@ -1,7 +1,10 @@
+import "server-only";
+
 import { NextResponse } from "next/server";
 
 import { ApiError } from "@/lib/api/errors";
-import { gatewayRequest, type GatewayRequestOptions } from "@/lib/api/gateway";
+import { gatewayRequest } from "@/lib/api/gateway";
+import { errorFields, logEvent } from "@/lib/api/log";
 import type { MeProfile, SessionInfo } from "@/lib/api/types";
 import {
   UPSTREAM_FILE_TIMEOUT_MS,
@@ -68,7 +71,9 @@ async function clearSession() {
 
 /** Token expired and the sign-in service is down: keep the session, ask to retry. */
 function authUnavailable(error: AuthUnavailableError): NextResponse {
-  console.error("[bff] the sign-in service is not responding; answered 503 and kept the session");
+  logEvent("error", "auth_unavailable", {
+    message: "the sign-in service is not responding; answered 503 and kept the session",
+  });
   return bffJson({ success: false, message: error.message }, { status: 503 });
 }
 
@@ -98,6 +103,8 @@ type MeRoles =
   | { kind: "roles"; roles: string[] }
   /** /me said 401: the token is no longer accepted. */
   | { kind: "ended" }
+  /** /me accepted the token but refused the account (403 blocked, other 4xx). */
+  | { kind: "refused" }
   /** /me timed out, failed or answered 5xx: can't tell, try again later. */
   | { kind: "unavailable" };
 
@@ -133,19 +140,32 @@ async function rolesFromMe(accessToken: string): Promise<MeRoles> {
       if (error.status === 401) return { kind: "ended" };
       // 403 (blocked account) and other 4xx: /me gives this token no roles.
       if (error.status >= 400 && error.status < 500 && error.status !== 408 && error.status !== 429) {
-        return { kind: "roles", roles: [] };
+        return { kind: "refused" };
       }
     }
     return { kind: "unavailable" };
   }
 }
 
+export type AuthorizeOptions = {
+  /**
+   * Confirm the token with the gateway (/me) even when its own roles already
+   * allow the call. The BFF only decodes tokens, it can't check their
+   * signature: that is the gateway's job, and it does it on every call that
+   * carries the token. A route that calls a public gateway endpoint without
+   * the token (registration) gets no such check, so a hand-made token with an
+   * ADMIN claim would pass. /me answers are cached per token, so this costs
+   * one gateway call per token.
+   */
+  verify?: boolean;
+};
+
 /**
  * The caller's access token and session (roles from the token, as the
  * gateway reads them), or the response to send instead: 401 not signed in,
  * 403 role not allowed, 503 sign-in service down.
  */
-export async function authorizeCaller(access: BffAccess): Promise<Authorization> {
+export async function authorizeCaller(access: BffAccess, options: AuthorizeOptions = {}): Promise<Authorization> {
   let accessToken: string | null;
   try {
     accessToken = await getAccessToken();
@@ -162,8 +182,13 @@ export async function authorizeCaller(access: BffAccess): Promise<Authorization>
     return { ok: false, response: bffJson({ success: false, message: SESSION_ENDED_MESSAGE }, { status: 401 }) };
   }
 
+  const noAccess = (): Authorization => ({
+    ok: false,
+    response: bffJson({ success: false, message: NO_ACCESS_MESSAGE }, { status: 403 }),
+  });
+
   let effective = session;
-  if (!allows(session, access)) {
+  if (options.verify || !allows(session, access)) {
     const me = await rolesFromMe(accessToken);
     if (me.kind === "ended") {
       await clearSession();
@@ -173,14 +198,14 @@ export async function authorizeCaller(access: BffAccess): Promise<Authorization>
       // Can't confirm the role right now: "no access" would be wrong and alarming.
       return { ok: false, response: authUnavailable(new AuthUnavailableError()) };
     }
+    // A blocked account: its token's roles no longer count.
+    if (me.kind === "refused") return noAccess();
     if (me.roles.length > 0) {
       const names = Array.from(new Set([...session.allRoles, ...me.roles]));
       effective = { ...session, roles: filterAppRoles(names), allRoles: names, ...sessionFlags(names) };
     }
   }
-  if (!allows(effective, access)) {
-    return { ok: false, response: bffJson({ success: false, message: NO_ACCESS_MESSAGE }, { status: 403 }) };
-  }
+  if (!allows(effective, access)) return noAccess();
 
   return { ok: true, caller: { accessToken, session: effective } };
 }
@@ -193,7 +218,7 @@ async function failureResponse(error: unknown, label: string, clearSessionOn401:
     return bffError(error);
   }
   const requestId = newRequestId();
-  console.error(`[${label}] unexpected error (request ${requestId}):`, error);
+  logEvent("error", "bff_unexpected_error", { label, requestId, ...errorFields(error, { stack: true }) });
   return bffJson({ success: false, message: UPSTREAM_MESSAGES.serverError, requestId }, { status: 500 });
 }
 
@@ -225,29 +250,12 @@ export async function withStaffAccess<T>(
   }
 }
 
-/** Gateway call with the caller's token, for code that has no route context. Throws ApiError. */
-export async function staffGatewayRequest<T>(
-  path: string,
-  init?: Omit<GatewayRequestOptions, "accessToken">,
-): Promise<T> {
-  let accessToken: string | null;
-  try {
-    accessToken = await getAccessToken();
-  } catch (error) {
-    if (error instanceof AuthUnavailableError) throw new ApiError(error.message, 503);
-    throw error;
-  }
-  if (!accessToken) {
-    throw new ApiError(SESSION_ENDED_MESSAGE, 401);
-  }
-
-  return gatewayRequest<T>(path, { ...init, accessToken });
-}
-
 /**
  * Like withStaffAccess, for public gateway endpoints that a signed-in staff
- * flow calls without the user's token (registration). An upstream 401 here
- * is about the registration token, not our session, so cookies are kept.
+ * flow calls without the user's token (registration). The gateway never sees
+ * the token there, so the role is confirmed with /me first (see
+ * AuthorizeOptions.verify). An upstream 401 here is about the registration
+ * token, not our session, so cookies are kept.
  */
 export async function withStaffAccessPublic<T>(
   handler: () => Promise<T>,
@@ -255,7 +263,7 @@ export async function withStaffAccessPublic<T>(
 ): Promise<NextResponse> {
   const label = options.label ?? "bff";
   try {
-    const auth = await authorizeCaller(options.access ?? "portal");
+    const auth = await authorizeCaller(options.access ?? "portal", { verify: true });
     if (!auth.ok) return auth.response;
     const data = await handler();
     return bffJson({ success: true, data });

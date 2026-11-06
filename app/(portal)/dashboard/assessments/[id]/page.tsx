@@ -12,18 +12,21 @@ import { ScoreHistory, ScorePanel, SignOffTimeline } from "@/components/assessme
 import { WhitelistPanel } from "@/components/whitelist/whitelist-panel";
 import { AssessmentStatusBadge, PoolStatusBadge } from "@/components/backoffice/status-badges";
 import { useBreadcrumbLabel } from "@/components/dashboard/dashboard-header";
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { isFieldOfficer } from "@/components/dashboard/nav-config";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Panel } from "@/components/dashboard/panel";
 import { RequireRole } from "@/components/dashboard/require-role";
+import { DetailSkeleton } from "@/components/dashboard/skeletons";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Assessment } from "@/lib/api/backoffice-types";
 import { useResource } from "@/lib/api/use-resource";
 import { useSession } from "@/lib/auth/use-session";
 import { assessmentBeneficiaryId, assessmentCrumb, isEditable, reviewInfo } from "@/lib/backoffice/assessment-steps";
 import { formatDate } from "@/lib/backoffice/format";
-import { cn } from "@/lib/utils";
+import { useNotice } from "@/lib/backoffice/notice";
 
 type TabKey = "score" | "responses" | "documents" | "history";
 
@@ -39,23 +42,27 @@ function AssessmentDetail() {
   const { id } = useParams<{ id: string }>();
   const { session } = useSession();
   const [tab, setTab] = useState<TabKey | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  // Also shows the notice the wizard leaves after a submission.
+  const [notice, setNotice] = useNotice(`assessment:${id}`);
   const { data: assessment, error, isLoading, reload, mutate } = useResource<Assessment>(
     `/bff/backoffice/assessments/${encodeURIComponent(id)}`,
   );
   useBreadcrumbLabel(assessmentCrumb(assessment));
 
   if (isLoading && !assessment) {
-    return <div className="h-96 animate-pulse rounded-xl bg-black/[0.04]" />;
+    return <DetailSkeleton />;
   }
 
   if (!assessment) {
     return (
       <section className="space-y-6">
         <PageHeader title="Assessment" back={{ href: "/dashboard/assessments", label: "Assessments" }} />
-        <InlineAlert action={<Button variant="outline" size="sm" onClick={reload}>Retry</Button>}>
-          {error?.message ?? "Assessment not found"}
-        </InlineAlert>
+        {error?.status === 404 ? (
+          // Retrying can't make a missing record appear.
+          <InlineAlert>This assessment doesn&apos;t exist. Check the link, or find it in the Assessments list.</InlineAlert>
+        ) : (
+          <ErrorAlert error={error} onRetry={reload} fallback="The assessment couldn't be loaded." />
+        )}
       </section>
     );
   }
@@ -134,33 +141,27 @@ function AssessmentDetail() {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <Panel flush className="min-w-0">
-          <div className="flex gap-1 overflow-x-auto border-b border-black/[0.06] px-3 pt-2" role="tablist">
-            {tabs.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                role="tab"
-                aria-selected={activeTab === item.key}
-                onClick={() => setTab(item.key)}
-                className={cn(
-                  "-mb-px shrink-0 border-b-2 px-3 py-2.5 text-sm whitespace-nowrap transition",
-                  activeTab === item.key
-                    ? "border-brand font-medium text-navy"
-                    : "border-transparent text-black/55 hover:text-navy",
-                )}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-          {activeTab === "score" ? <ScorePanel assessment={assessment} /> : null}
-          {activeTab === "responses" ? <AssessmentSummary assessment={assessment} /> : null}
-          {activeTab === "documents" ? (
-            <div className="p-5">
+          <Tabs value={activeTab} onValueChange={(value) => setTab(value as TabKey)}>
+            <TabsList aria-label="Assessment details">
+              {tabs.map((item) => (
+                <TabsTrigger key={item.key} value={item.key}>
+                  {item.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <TabsContent value="score">
+              <ScorePanel assessment={assessment} />
+            </TabsContent>
+            <TabsContent value="responses">
+              <AssessmentSummary assessment={assessment} />
+            </TabsContent>
+            <TabsContent value="documents" className="p-5">
               <DocumentsList assessmentId={assessment.id} documents={documents} />
-            </div>
-          ) : null}
-          {activeTab === "history" ? <ScoreHistory assessmentId={assessment.id} /> : null}
+            </TabsContent>
+            <TabsContent value="history">
+              <ScoreHistory assessmentId={assessment.id} />
+            </TabsContent>
+          </Tabs>
         </Panel>
 
         <div className="space-y-6">

@@ -1,3 +1,5 @@
+import "server-only";
+
 import { gatewayRequest } from "@/lib/api/gateway";
 import { UPSTREAM_FILE_TIMEOUT_MS } from "@/lib/api/upstream";
 

@@ -1,8 +1,11 @@
+import "server-only";
+
 import type { NextRequest } from "next/server";
 
 import { authorizeCaller, bffError, bffJson, safeFileResponse, type BffAccess } from "@/lib/api/bff";
 import { JSON_BODY_LIMIT, MULTIPART_BODY_LIMIT, isMultipart, readBodyCapped } from "@/lib/api/body";
 import { ApiError } from "@/lib/api/errors";
+import { errorFields, logEvent } from "@/lib/api/log";
 import { isSafePathSegment } from "@/lib/api/path";
 import {
   UPSTREAM_FILE_TIMEOUT_MS,
@@ -133,7 +136,7 @@ export function createProxy({
     } catch (error) {
       // ApiError: body too large, gateway unreachable or timed out (already logged).
       if (error instanceof ApiError) return bffError(error);
-      console.error(`[${label}] unexpected error (request ${requestId}):`, error);
+      logEvent("error", "bff_unexpected_error", { label, requestId, ...errorFields(error, { stack: true }) });
       return bffJson({ success: false, message: UPSTREAM_MESSAGES.serverError, requestId }, { status: 500 });
     }
   }

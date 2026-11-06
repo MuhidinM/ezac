@@ -1,3 +1,5 @@
+import "server-only";
+
 import { NextResponse } from "next/server";
 
 import { UNKNOWN_IP } from "@/lib/auth/rate-limit";
@@ -45,9 +47,4 @@ export function clientIp(request: Request): string {
 export function isJsonRequest(request: Request): boolean {
   const type = request.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase();
   return type === "application/json";
-}
-
-/** True when the fetch failed because AbortSignal.timeout fired. */
-export function isTimeout(error: unknown): boolean {
-  return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
 }

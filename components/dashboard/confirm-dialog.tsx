@@ -75,11 +75,12 @@ export function ConfirmDialog({
             Cancel
           </Button>
           <Button
+            variant={destructive ? "destructive" : "default"}
             onClick={() => void confirm()}
-            disabled={isWorking || confirmDisabled}
-            className={destructive ? "bg-rose-600 text-white hover:bg-rose-700" : undefined}
+            disabled={confirmDisabled && !isWorking}
+            loading={isWorking}
           >
-            {isWorking ? "Working…" : confirmLabel}
+            {confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

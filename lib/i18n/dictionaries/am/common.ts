@@ -48,7 +48,7 @@ const common: Messages<typeof en> = {
       waqfRegister: { label: "የወቅፍ ንብረት ያስመዝግቡ", title: "ንብረትዎን በኮሚሽኑ ዘንድ ወቅፍ አድርገው ያስመዝግቡ" },
       dashboard: { label: "የቀጥታ ዳሽቦርድ", title: "የዘካ አሰባሰብና ክፍፍል አኃዞችን በቀጥታ ይመልከቱ" },
       howItWorks: { label: "እንዴት እንደሚሠራ", title: "ዘካ እንዴት እንደሚሰበሰብ፣ እንደሚጣራ እና እንደሚከፈል" },
-      stories: { label: "የለውጥ ታሪኮች", title: "ዘካ የደረሰላቸውን ሰዎችና ፕሮጀክቶች ታሪክ ያንብቡ" },
+      stories: { label: "የለውጥ ታሪኮች", title: "ዘካ የደረሰላቸውን ሰዎችና የድጋፍ ዓላማዎች ታሪክ ያንብቡ" },
       reports: { label: "የውጤት ሪፖርቶች", title: "ኮሚሽኑ ይፋ ያደረጋቸውን ሪፖርቶች ያንብቡ" },
       about: { label: "ስለ ኮሚሽኑ", title: "እኛ ማን እንደሆንንና ኮሚሽኑ ምን እንደሚሠራ" },
       documents: { label: "የሕግ ሰነዶች", title: "የኮሚሽኑን የሕግ ሰነዶች ያንብቡ" },
@@ -81,6 +81,14 @@ const common: Messages<typeof en> = {
     copyright: "© {year} EZAC። መብቱ በሕግ የተጠበቀ ነው።",
     developedBy: "ያለማው እና ስፖንሰር ያደረገው DX Valley ነው።",
     developedByTitle: "ወደ DX Valley ድረ ገጽ ይሂዱ (በአዲስ ትር ይከፈታል)",
+  },
+  pagination: {
+    label: "ገጾች",
+    status: "ገጽ {page} / {pages}",
+    previous: "ቀዳሚ",
+    next: "ቀጣይ",
+    goTo: "ወደ ገጽ {page} ይሂዱ",
+    pageTitle: "{title} (ገጽ {page})",
   },
   errors: {
     notFound: {

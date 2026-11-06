@@ -174,7 +174,7 @@ const about: Messages<typeof en> = {
       title: "Bulchiinsaa fi",
       accent: "Majlisa",
       intro:
-        "EZAC bulchiinsa amantii fi dhaabbataa ifa ta'e jalatti hojjeta: aangoo Majlisaa to'annoo ammayyaa fi odiitii qabu wajjin walitti fida.",
+        "EZAC bulchiinsa amantii fi dhaabbataa ifa ta'e jalatti hojjeta: aangoo Majlisaa, Boordii Daarektarootaa fi koree to'annoo.",
     },
     structure: {
       eyebrow: "Caasaa",
@@ -200,7 +200,7 @@ const about: Messages<typeof en> = {
         {
           title: "Itti gaafatamummaa ummataa",
           description:
-            "Lakkoofsota odiitiin mirkanaa'anii fi gabaasota bu'aa ifatti ni maxxansina, akka ummanni itti gaafatamummaa nu gaafachuu danda'uuf.",
+            "Lakkoofsota yeroo ammaa fi gabaasota bu'aa ifatti ni maxxansina, akka ummanni itti gaafatamummaa nu gaafachuu danda'uuf.",
         },
       ],
     },
@@ -216,7 +216,7 @@ const about: Messages<typeof en> = {
     },
     cta: {
       title: "Wabii amantii itti amanamuu dandeessan",
-      body: "Boordiin Gorsa Shari'aa keenya murtii, oomishaa fi raabsa hunda ni gamaagama.",
+      body: "Boordiin Gorsa Shari'aa keenya murtiiwwan Zakaa fi Waqfii Komishinichaa ni qajeelcha.",
       primary: "Boordii Shari'aa beekaa",
       primaryTitle: "Waa'ee Boordii Gorsa Shari'aa fi aangoo isaa dubbisaa",
       secondary: "Sanadoota seeraa dubbisaa",
@@ -228,7 +228,7 @@ const about: Messages<typeof en> = {
     meta: {
       title: "Boordii Gorsa Shari'aa",
       description:
-        "Beektotaa fi aangoo murtii, oomishaa fi raabsa EZAC hunda duuba jiran: Shari'aa guutummaatti hordofuun isaa ni mirkanaa'a.",
+        "Boordii Gorsa Shari'aa fi aangoo isaa: murtiiwwan Zakaa fi Waqfii irratti qajeelfama kennuu, seerota shallagduu gamaaguu fi akkaataa maallaqni itti raabsamu hordofuu.",
       keywords:
         "Boordii Gorsa Shari'aa, fatwaa Zakaa, Gumii Ulamaa, Shari'aa hordofuu, beektota Islaamaa Itoophiyaa, ulamaa'ota",
     },
@@ -248,8 +248,8 @@ const about: Messages<typeof en> = {
           description: "Zakaa, Waqfii fi gaaffiiwwan faayinaansii yeroo ammaa irratti qajeelfama aangoo qabu kenna.",
         },
         {
-          title: "Mirkaneessa oomishaa",
-          description: "Seera shallagduu hunda, caasaa Waqfii hunda fi oomisha invastimantii hunda gamaagamee mirkaneessa.",
+          title: "Gamaaggama oomishaa",
+          description: "Seerota shallagduu, caasaalee Waqfii fi oomishaalee invastimantii ni gamaagama.",
         },
         {
           title: "Gamaaggama raabsaa",
@@ -264,13 +264,13 @@ const about: Messages<typeof en> = {
     },
     process: {
       eyebrow: "Adeemsa mirkaneessaa",
-      title: "Shari'aa hordofuun akkamitti mirkanaa'a?",
+      title: "Boordiin waan tokko akkamitti gamaagama?",
       steps: [
         { title: "Gamaaggama", body: "Oomishni, seerri ykn imaammanni raabsaa hundi qorannoof boordiitti dhiyaata." },
         { title: "Marii", body: "Beektonni Qur'aana, Sunnaa fi fiqhii beekamaa wajjin madaalu." },
         {
-          title: "Mirkaneessa",
-          body: "Wantoonni raggaasifaman osoo hojiirra hin oolin yaada Shari'aa barreeffamaan galmaa'e argatu.",
+          title: "Gorsa",
+          body: "Boordiin osoo wanti tokko hojiirra hin oolin dura yaada isaa ni kenna.",
         },
       ],
     },

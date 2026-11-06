@@ -49,7 +49,7 @@ const common: Messages<typeof en> = {
         label: "Akkaataa Hojii",
         title: "Akkaataa Zakaan itti sassaabamu, itti mirkanaa'uu fi itti kaffalamu",
       },
-      stories: { label: "Seenaalee Bu'aa", title: "Seenaa namootaa fi pirojektoota Zakaan ga'e dubbisaa" },
+      stories: { label: "Seenaalee Bu'aa", title: "Seenaa namootaa fi kaayyoolee Zakaan ga'e dubbisaa" },
       reports: { label: "Gabaasota Bu'aa", title: "Gabaasota Komishinichi maxxanse dubbisaa" },
       about: { label: "Waa'ee Komishinichaa", title: "Eenyu akka taanee fi Komishinichi maal akka hojjetu" },
       documents: { label: "Sanadoota Seeraa", title: "Sanadoota seeraa Komishinichaa dubbisaa" },
@@ -88,6 +88,14 @@ const common: Messages<typeof en> = {
     copyright: "© {year} EZAC. Mirgi hundi seeraan eegamaadha.",
     developedBy: "Misoomaa fi deeggarsa: DX Valley.",
     developedByTitle: "Weebsaayitii DX Valley daawwadhaa (tabii haaraa keessatti banama)",
+  },
+  pagination: {
+    label: "Fuulota",
+    status: "Fuula {page} / {pages}",
+    previous: "Isa duraa",
+    next: "Isa itti aanu",
+    goTo: "Gara fuula {page} deemaa",
+    pageTitle: "{title} (fuula {page})",
   },
   errors: {
     notFound: {

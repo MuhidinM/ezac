@@ -1,10 +1,11 @@
 "use client";
 
 import { type FormEvent, Suspense, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Plus, RefreshCw, Search, X } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Plus, RefreshCw, X } from "lucide-react";
 
-import { InlineAlert } from "@/components/dashboard/inline-alert";
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { ListPagination } from "@/components/dashboard/list-pagination";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Panel } from "@/components/dashboard/panel";
@@ -15,8 +16,8 @@ import { AssignmentBadges } from "@/components/field-officers/assignment-badges"
 import { CreateOfficerDialog } from "@/components/field-officers/create-officer-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
+import { SearchInput } from "@/components/ui/search-input";
 import {
   Table,
   TableBody,
@@ -31,6 +32,7 @@ import type {
 } from "@/lib/api/backoffice-types";
 import type { PaginatedItems } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
+import { useListState } from "@/lib/hooks/use-list-state";
 
 const PAGE_SIZE = 20;
 
@@ -45,18 +47,21 @@ export default function FieldOfficersPage() {
   );
 }
 
-type Filters = { page: number; search: string; active: "" | "true" | "false" };
-
 function FieldOfficers() {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   // Filters live in the address so Back, reload and shared links keep them.
-  const page = Math.max(1, Number(searchParams.get("page")) || 1);
-  const search = searchParams.get("search") ?? "";
-  const activeParam = searchParams.get("active");
-  const active: Filters["active"] = activeParam === "true" || activeParam === "false" ? activeParam : "";
+  const [filters, setFilters, { reset, isDefault }] = useListState(
+    "",
+    { search: "", active: "", page: 1 },
+    { allowed: { active: ["", "true", "false"] } },
+  );
+  const { search, active, page } = filters;
   const [draftSearch, setDraftSearch] = useState(search);
+  const [seenSearch, setSeenSearch] = useState(search);
+  if (seenSearch !== search) {
+    setSeenSearch(search);
+    setDraftSearch(search);
+  }
   const [createOpen, setCreateOpen] = useState(false);
   const [created, setCreated] = useState<CreateFieldOfficerResponse | null>(null);
 
@@ -68,24 +73,14 @@ function FieldOfficers() {
     `/bff/backoffice/admin/field-officers?${params.toString()}`,
   );
 
-  function setFilters(next: Partial<Filters>) {
-    const merged: Filters = { page, search, active, ...next };
-    const address = new URLSearchParams();
-    if (merged.search) address.set("search", merged.search);
-    if (merged.active) address.set("active", merged.active);
-    if (merged.page > 1) address.set("page", String(merged.page));
-    const qs = address.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  }
-
   function onSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setFilters({ page: 1, search: draftSearch.trim() });
+    setFilters({ search: draftSearch.trim() });
   }
 
   function clearFilters() {
     setDraftSearch("");
-    setFilters({ page: 1, search: "", active: "" });
+    reset();
   }
 
   const rows = data?.items ?? [];
@@ -136,23 +131,22 @@ function FieldOfficers() {
 
       <Panel flush>
         <form
+          role="search"
           onSubmit={onSearch}
           className="flex flex-wrap items-center gap-3 border-b border-black/[0.06] px-5 py-3"
         >
-          <div className="relative min-w-60 flex-1">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-black/35" />
-            <Input
-              value={draftSearch}
-              onChange={(event) => setDraftSearch(event.target.value)}
-              placeholder="Search name, phone or email"
-              className="bg-white pl-9"
-            />
-          </div>
+          <SearchInput
+            label="Search field officers"
+            wrapperClassName="min-w-60 flex-1"
+            value={draftSearch}
+            onChange={(event) => setDraftSearch(event.target.value)}
+            placeholder="Search name, phone or email"
+          />
           <div className="w-40">
             <NativeSelect
               aria-label="Status"
               value={active}
-              onChange={(event) => setFilters({ page: 1, active: event.target.value as Filters["active"] })}
+              onChange={(event) => setFilters({ active: event.target.value })}
             >
               <option value="">All statuses</option>
               <option value="true">Active</option>
@@ -162,7 +156,7 @@ function FieldOfficers() {
           <Button type="submit" variant="secondary">
             Search
           </Button>
-          {search || active || draftSearch ? (
+          {!isDefault || draftSearch ? (
             <Button type="button" variant="ghost" onClick={clearFilters}>
               <X />
               Clear
@@ -172,7 +166,7 @@ function FieldOfficers() {
 
         {error ? (
           <div className="px-5 pt-4">
-            <InlineAlert>{error.message}</InlineAlert>
+            <ErrorAlert error={error} onRetry={reload} />
           </div>
         ) : null}
 
@@ -192,7 +186,7 @@ function FieldOfficers() {
               <TableSkeletonRows colSpan={6} />
             ) : rows.length === 0 ? (
               <TableMessageRow colSpan={6}>
-                {search || active
+                {!isDefault
                   ? "No field officers match your filters."
                   : "No field officers yet. Create one to start assigning assessments."}
               </TableMessageRow>
@@ -200,15 +194,18 @@ function FieldOfficers() {
               rows.map((officer) => (
                 <TableRow
                   key={officer.id}
-                  tabIndex={0}
                   className="cursor-pointer"
+                  // A mouse shortcut; the name link is the keyboard and screen-reader way in.
                   onClick={() => router.push(`/dashboard/field-officers/${officer.id}`)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") router.push(`/dashboard/field-officers/${officer.id}`);
-                  }}
                 >
                   <TableCell className="pl-5">
-                    <p className="font-medium text-[#001539]">{officer.fullName}</p>
+                    <Link
+                      href={`/dashboard/field-officers/${officer.id}`}
+                      onClick={(event) => event.stopPropagation()}
+                      className="font-medium text-navy hover:underline"
+                    >
+                      {officer.fullName}
+                    </Link>
                     <p className="text-xs text-black/50">{officer.email ?? "—"}</p>
                   </TableCell>
                   <TableCell className="tabular-nums">{officer.phone ?? "—"}</TableCell>

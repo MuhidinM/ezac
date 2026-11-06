@@ -3,12 +3,15 @@
 import { type FormEvent, useState } from "react";
 import { Pencil } from "lucide-react";
 
+import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Panel } from "@/components/dashboard/panel";
 import { RequireRole } from "@/components/dashboard/require-role";
 import { TableMessageRow, TableSkeletonRows } from "@/components/dashboard/table-states";
+import { staffRef } from "@/components/zakat/staff-ref";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,7 +34,7 @@ import {
 import { apiClient } from "@/lib/api/client";
 import { ApiError, errorMessage, fieldErrorMap } from "@/lib/api/errors";
 import { useResource } from "@/lib/api/use-resource";
-import { formatEtb } from "@/lib/backoffice/format";
+import { formatCount, formatEtb } from "@/lib/backoffice/format";
 import { formatDateTime } from "@/lib/beneficiary/format";
 
 const API = "/bff/zakat-admin/impact/regions";
@@ -46,6 +49,8 @@ type ImpactRegion = {
   sortOrder: number | null;
   active: boolean;
   updatedBy: string | null;
+  /** Requested from the backend (§20); the id is shown until it comes. */
+  updatedByName?: string | null;
   updatedAt: string | null;
 };
 
@@ -75,7 +80,7 @@ function ImpactRegions() {
       <Panel flush>
         {error ? (
           <div className="px-5 pt-4">
-            <InlineAlert>{error.message}</InlineAlert>
+            <ErrorAlert error={error} onRetry={reload} />
           </div>
         ) : null}
         <Table>
@@ -99,16 +104,18 @@ function ImpactRegions() {
             ) : (
               regions.map((region) => (
                 <TableRow key={region.code}>
-                  <TableCell className="pl-5">
-                    <span className="font-medium text-[#001539]">{region.name}</span>
-                    <span className="block font-mono text-xs text-black/45">{region.code}</span>
-                  </TableCell>
+                  <TableCell className="pl-5 font-medium text-navy">{region.name}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatEtb(region.distributedFundsEtb)}</TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {region.livesTouched != null ? region.livesTouched.toLocaleString("en") : <span className="text-xs text-black/45">Live count</span>}
+                    {region.livesTouched != null ? formatCount(region.livesTouched) : <span className="text-xs text-black/45">Live count</span>}
                   </TableCell>
                   <TableCell>{region.active ? <Badge tone="success">Shown</Badge> : <Badge tone="neutral">Hidden</Badge>}</TableCell>
-                  <TableCell className="text-sm text-black/60">{formatDateTime(region.updatedAt)}</TableCell>
+                  <TableCell className="text-sm text-black/60">
+                    {formatDateTime(region.updatedAt)}
+                    {region.updatedBy || region.updatedByName ? (
+                      <span className="block text-xs text-black/45">by {staffRef(region.updatedBy, region.updatedByName)}</span>
+                    ) : null}
+                  </TableCell>
                   <TableCell className="pr-5 text-right">
                     <Button size="sm" variant="ghost" onClick={() => setEditing(region)}>
                       <Pencil />
@@ -159,12 +166,40 @@ function RegionDialog({
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const set = (key: keyof typeof form, value: string | boolean) => setForm((prev) => ({ ...prev, [key]: value }));
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+  // The two public figures, before and after; a blank funds figure is saved as 0, blank lives as the live count.
+  const nextFunds = form.distributedFundsEtb.trim() ? Number(form.distributedFundsEtb) : 0;
+  const nextLives = form.livesTouched.trim() ? Number(form.livesTouched) : null;
+  const figureChanges = [
+    ...(nextFunds !== (region.distributedFundsEtb ?? 0)
+      ? [{ label: "Funds distributed", from: formatEtb(region.distributedFundsEtb ?? 0), to: formatEtb(nextFunds) }]
+      : []),
+    ...(nextLives !== region.livesTouched
+      ? [
+          {
+            label: "Lives touched",
+            from: region.livesTouched != null ? formatCount(region.livesTouched) : "Live count",
+            to: nextLives != null ? formatCount(nextLives) : "Live count",
+          },
+        ]
+      : []),
+  ];
+
+  // The public map shows these figures straight away, so a change is shown before and after first (gap-r1-3-2).
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setFieldErrors({});
+    if (figureChanges.length > 0) {
+      setConfirming(true);
+      return;
+    }
+    void save();
+  }
+
+  async function save() {
     setIsSaving(true);
     try {
       // PUT replaces the region, so every field is sent.
@@ -174,8 +209,8 @@ function RegionDialog({
           name: form.name.trim(),
           latitude: Number(form.latitude),
           longitude: Number(form.longitude),
-          distributedFundsEtb: form.distributedFundsEtb.trim() ? Number(form.distributedFundsEtb) : 0,
-          livesTouched: form.livesTouched.trim() ? Number(form.livesTouched) : null,
+          distributedFundsEtb: nextFunds,
+          livesTouched: nextLives,
           ...(form.sortOrder.trim() ? { sortOrder: Number(form.sortOrder) } : {}),
           active: form.active,
         }),
@@ -190,12 +225,12 @@ function RegionDialog({
   }
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
+    <Dialog open onOpenChange={(open) => !open && !confirming && onClose()}>
       <DialogContent className="max-w-lg">
         <form onSubmit={onSubmit} className="space-y-4">
           <DialogHeader>
-            <DialogTitle className="text-[#001539]">{region.name}</DialogTitle>
-            <DialogDescription>Usually only the two figures change. The public map updates straight away.</DialogDescription>
+            <DialogTitle className="text-navy">{region.name}</DialogTitle>
+            <DialogDescription>Usually only the two figures change. The public map updates straight away when you save.</DialogDescription>
           </DialogHeader>
           {error ? <InlineAlert>{error}</InlineAlert> : null}
           <div className="grid gap-3 sm:grid-cols-2">
@@ -233,7 +268,7 @@ function RegionDialog({
             <FormField label="Sort order" htmlFor="rg-sort" error={fieldErrors.sortOrder}>
               <Input id="rg-sort" type="number" step={1} value={form.sortOrder} onChange={(e) => set("sortOrder", e.target.value)} />
             </FormField>
-            <label className="flex items-center gap-2 self-end pb-2 text-sm text-[#001539]">
+            <label className="flex items-center gap-2 self-end pb-2 text-sm text-navy">
               <input type="checkbox" checked={form.active} onChange={(e) => set("active", e.target.checked)} className="size-4 accent-[#007050]" />
               Show on the public site
             </label>
@@ -242,11 +277,27 @@ function RegionDialog({
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSaving}>
-              {isSaving ? "Saving…" : "Save region"}
+            <Button type="submit" loading={isSaving} loadingText="Saving…">
+              Save region
             </Button>
           </DialogFooter>
         </form>
+        <ConfirmDialog
+          open={confirming}
+          onOpenChange={setConfirming}
+          title={`Publish new figures for ${region.name}?`}
+          description="The public impact map shows them straight away."
+          confirmLabel="Save region"
+          onConfirm={save}
+        >
+          <ul className="list-disc space-y-1 pl-5 text-sm text-navy">
+            {figureChanges.map((change) => (
+              <li key={change.label}>
+                {change.label}: {change.from} → <strong>{change.to}</strong>
+              </li>
+            ))}
+          </ul>
+        </ConfirmDialog>
       </DialogContent>
     </Dialog>
   );

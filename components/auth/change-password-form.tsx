@@ -3,12 +3,38 @@
 import { FormEvent, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { forgetLoginName, readLoginName } from "@/components/auth/login-name";
 import { PasswordProblems, passwordProblemsFrom } from "@/components/auth/password-problems";
+import { announceSignedIn, closeResumeTab } from "@/components/auth/resume-sign-in";
 import { ApiError } from "@/lib/api/errors";
 import { apiClient } from "@/lib/api/client";
 import { sendToSignIn } from "@/lib/auth/client-session";
+import { defaultDashboardPath } from "@/lib/auth/constants";
 import { STAFF_PASSWORD_HINT, staffPasswordProblems } from "@/lib/auth/password-policy";
-import { resetSessionCache } from "@/lib/auth/use-session";
+import { fetchSession, resetSessionCache } from "@/lib/auth/use-session";
+
+/**
+ * Sign in with the password just set. The change ends the old session (the
+ * BFF clears its cookies), so without this the user would have to sign in a
+ * second time. False when it didn't work; the caller then sends them to /login.
+ */
+async function signInWithNewPassword(username: string | null, password: string): Promise<boolean> {
+  if (!username) return false;
+  try {
+    const response = await fetch("/bff/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    const payload = (await response.json().catch(() => null)) as {
+      success?: boolean;
+      data?: { passwordChangeRequired?: boolean };
+    } | null;
+    return response.ok && payload?.success === true && !payload.data?.passwordChangeRequired;
+  } catch {
+    return false;
+  }
+}
 
 export function ChangePasswordForm() {
   const router = useRouter();
@@ -46,6 +72,18 @@ export function ChangePasswordForm() {
       resetSessionCache();
 
       const redirect = searchParams.get("redirect");
+      const requested = redirect?.startsWith("/dashboard") ? redirect : null;
+      const loginName = readLoginName();
+      forgetLoginName();
+      if (await signInWithNewPassword(loginName, newPassword)) {
+        announceSignedIn();
+        if (closeResumeTab(searchParams.get("reason"))) return;
+        const session = await fetchSession({ force: true });
+        router.push(requested ?? (session ? defaultDashboardPath(session.allRoles) : "/dashboard"));
+        router.refresh();
+        return;
+      }
+
       const loginUrl = new URL("/login", window.location.origin);
       loginUrl.searchParams.set("passwordChanged", "1");
       if (redirect?.startsWith("/dashboard")) {

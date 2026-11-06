@@ -3,7 +3,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { CheckCircle2, CopyCheck, KeyRound, Pencil, XCircle } from "lucide-react";
+import { CheckCircle2, CopyCheck, KeyRound, Pencil, RotateCw, XCircle } from "lucide-react";
 
 import { BeneficiaryAssessments } from "@/components/assessment/beneficiary-assessments";
 import {
@@ -19,10 +19,12 @@ import { WhitelistPanel } from "@/components/whitelist/whitelist-panel";
 import { KycDocumentsCard } from "@/components/beneficiary/kyc-documents-card";
 import { VerificationStatusBadge } from "@/components/beneficiary/verification-status-badge";
 import { useBreadcrumbLabel } from "@/components/dashboard/dashboard-header";
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { DetailList, Panel } from "@/components/dashboard/panel";
+import { DetailSkeleton, PanelSkeleton } from "@/components/dashboard/skeletons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,6 +44,7 @@ import type { BeneficiaryDetail } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
 import { useSession } from "@/lib/auth/use-session";
 import { isLivePoolStatus } from "@/lib/backoffice/assessment-steps";
+import { useNotice } from "@/lib/backoffice/notice";
 import { MARITAL_STATUS, PRIMARY_LANGUAGE, SEX, labelFor } from "@/lib/backoffice/options";
 import { useBranchScope } from "@/lib/backoffice/use-branch-scope";
 import { formatBeneficiaryCategory, formatDateTime } from "@/lib/beneficiary/format";
@@ -93,6 +96,8 @@ export default function BeneficiaryDetailPage() {
   const [basicOpen, setBasicOpen] = useState(false);
   const [verificationAction, setVerificationAction] = useState<VerificationAction | null>(null);
   const [passwordPending, setPasswordPending] = useState(false);
+  // Left by registration ("Abebe K. is registered…"), shown once on the new profile.
+  const [notice] = useNotice(`beneficiary:${id}`);
 
   useEffect(() => {
     // The setup token from registration lives in this tab's sessionStorage.
@@ -101,16 +106,21 @@ export default function BeneficiaryDetailPage() {
   }, [id]);
 
   if (isLoading && !beneficiary) {
-    return <div className="h-72 animate-pulse rounded-xl bg-black/[0.04]" />;
+    return <DetailSkeleton />;
   }
 
   if (!beneficiary) {
     return (
       <section className="space-y-6">
         <PageHeader title="Beneficiary" back={{ href: "/dashboard/beneficiary", label: "Beneficiaries" }} />
-        <InlineAlert action={<Button variant="outline" size="sm" onClick={reload}>Retry</Button>}>
-          {error?.message ?? "Beneficiary not found"}
-        </InlineAlert>
+        {error?.status === 404 ? (
+          // Retrying can't make a missing record appear.
+          <InlineAlert>
+            This beneficiary doesn&apos;t exist. Check the link, or search for the household in the Beneficiaries list.
+          </InlineAlert>
+        ) : (
+          <ErrorAlert error={error} onRetry={reload} fallback="The beneficiary couldn't be loaded." />
+        )}
       </section>
     );
   }
@@ -164,6 +174,7 @@ export default function BeneficiaryDetailPage() {
     <section className="space-y-6">
       <PageHeader
         back={{ href: "/dashboard/beneficiary", label: "Beneficiaries" }}
+        documentTitle={beneficiary.fullName ?? "Unnamed beneficiary"}
         title={
           <span className="flex items-center gap-3">
             {beneficiary.hasProfilePicture ? (
@@ -202,7 +213,7 @@ export default function BeneficiaryDetailPage() {
             ) : null}
             {canVerify ? (
               <>
-                <Button variant="outline" onClick={() => setVerificationAction("rejected")}>
+                <Button variant="destructive-outline" onClick={() => setVerificationAction("rejected")}>
                   <XCircle />
                   Reject
                 </Button>
@@ -216,6 +227,8 @@ export default function BeneficiaryDetailPage() {
         }
       />
 
+      {notice ? <InlineAlert tone="success">{notice}</InlineAlert> : null}
+
       {outOfScope ? (
         <InlineAlert tone="info" title="This household belongs to another branch.">
           You can view it but not change it.
@@ -225,7 +238,12 @@ export default function BeneficiaryDetailPage() {
         <InlineAlert
           tone="warning"
           title="We couldn't check this household's branch."
-          action={<Button variant="outline" size="sm" onClick={branch.reload}>Retry</Button>}
+          action={
+            <Button variant="outline" size="sm" onClick={branch.reload}>
+              <RotateCw />
+              Retry
+            </Button>
+          }
         >
           You can view it, but changes are off until the check works. {branch.error?.message}
         </InlineAlert>
@@ -382,7 +400,7 @@ export default function BeneficiaryDetailPage() {
           {isInstitution ? (
             <KycDocumentsCard beneficiaryId={beneficiary.id} />
           ) : !scopeChecked ? (
-            <div className="h-40 animate-pulse rounded-xl bg-black/[0.04]" />
+            <PanelSkeleton rows={2} />
           ) : outOfScope ? (
             <Panel title="Assessments">
               <p className="text-sm text-black/45">Only staff of this household&apos;s branch can see its assessments.</p>
@@ -394,7 +412,7 @@ export default function BeneficiaryDetailPage() {
 
         <div className="space-y-6">
           {isInstitution ? null : !scopeChecked ? (
-            <div className="h-28 animate-pulse rounded-xl bg-black/[0.04]" />
+            <PanelSkeleton rows={2} columns={1} />
           ) : outOfScope ? (
             <Panel title="Whitelist">
               <p className="text-sm text-black/45">Only staff of this household&apos;s branch can see its whitelist.</p>
@@ -530,8 +548,13 @@ function VerificationDialog({
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Saving…" : "Confirm"}
+            <Button
+              type="submit"
+              variant={action === "rejected" ? "destructive" : "default"}
+              loading={isSubmitting}
+              loadingText="Saving…"
+            >
+              {action === "rejected" ? "Reject" : "Verify"}
             </Button>
           </DialogFooter>
         </form>

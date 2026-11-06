@@ -1,17 +1,24 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { notFound } from "next/navigation";
+
 import { JsonLd } from "@/components/seo/json-ld";
 import { CauseCard } from "@/components/site/cause-card";
+import { isPastLastPage, listPath, pageFromParam } from "@/components/site/list-page";
+import { Pagination } from "@/components/site/pagination";
 import { CtaBand, Section } from "@/components/site/sections";
 import { SitePage } from "@/components/site/site-page";
 import { localizedPath } from "@/lib/i18n/config";
+import { format } from "@/lib/i18n/messages";
 import { getDictionary, localeFromParam } from "@/lib/i18n/server";
 import { pageMetadata } from "@/lib/seo";
 import { breadcrumbJsonLd } from "@/lib/structured-data";
 import { getCauses } from "@/lib/zakat/impact";
 
 const PATH = "/causes";
+/** Causes per page: fills the 1-, 2- and 3-column grids evenly. */
+const PAGE_SIZE = 24;
 
 // Causes come from zakat-engine and refresh every 5 minutes.
 export const revalidate = 300;
@@ -22,19 +29,25 @@ function statusFrom(raw: string | string[] | undefined): Status {
   return raw === "closed" ? "closed" : "active";
 }
 
-function statusPath(status: Status) {
-  return status === "closed" ? `${PATH}?status=closed` : PATH;
+/** The status filter as a query parameter; the active list is the bare path. */
+const statusParam = (status: Status) => ({ status: status === "closed" ? "closed" : undefined });
+
+function statusPath(status: Status, page = 1) {
+  return listPath(PATH, page, statusParam(status));
 }
 
 export async function generateMetadata({ params, searchParams }: PageProps<"/[lang]/causes">): Promise<Metadata> {
   const locale = localeFromParam((await params).lang);
-  const status = statusFrom((await searchParams).status);
-  const { giving } = await getDictionary(locale);
+  const query = await searchParams;
+  const status = statusFrom(query.status);
+  const page = pageFromParam(query.page);
+  const { giving, common } = await getDictionary(locale);
   const { meta } = giving.causes;
+  const title = status === "closed" ? meta.closedTitle : meta.title;
   return pageMetadata({
     locale,
-    path: statusPath(status),
-    title: status === "closed" ? meta.closedTitle : meta.title,
+    path: statusPath(status, page),
+    title: page > 1 ? format(common.pagination.pageTitle, { title, page }) : title,
     description: status === "closed" ? meta.closedDescription : meta.description,
     keywords: meta.keywords,
   });
@@ -42,12 +55,19 @@ export async function generateMetadata({ params, searchParams }: PageProps<"/[la
 
 export default async function CausesPage({ params, searchParams }: PageProps<"/[lang]/causes">) {
   const locale = localeFromParam((await params).lang);
-  const status = statusFrom((await searchParams).status);
-  const { giving } = await getDictionary(locale);
+  const query = await searchParams;
+  const status = statusFrom(query.status);
+  const page = pageFromParam(query.page);
+  const { giving, common } = await getDictionary(locale);
   const t = giving.causes;
-  // null means none published. An outage throws and shows the error page
-  // (this page reads searchParams, so it renders per request, not from ISR).
-  const causes = (await getCauses({ status, limit: 48 }))?.items ?? [];
+  // null means none published. This page reads searchParams, so it renders per
+  // request; the data itself is cached (lib/zakat/impact.ts), and an outage
+  // with nothing cached shows the error page.
+  const result = await getCauses({ status, page, limit: PAGE_SIZE });
+  const causes = result?.items ?? [];
+  const totalPages = result?.pagination.totalPages ?? 0;
+  // A page past the end (an old link after causes closed) is not a page.
+  if (isPastLastPage(page, totalPages)) notFound();
   const primary = { label: t.cta.primary, href: localizedPath(locale, "/zakat/pay"), title: t.cta.primaryTitle };
   const secondary = {
     label: t.cta.secondary,
@@ -93,6 +113,14 @@ export default async function CausesPage({ params, searchParams }: PageProps<"/[
               ))}
             </div>
           )}
+          <Pagination
+            locale={locale}
+            t={common.pagination}
+            path={PATH}
+            page={page}
+            totalPages={totalPages}
+            params={statusParam(status)}
+          />
         </Section>
         <CtaBand title={t.cta.title} body={t.cta.body} primary={primary} secondary={secondary} />
       </SitePage>

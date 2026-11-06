@@ -40,7 +40,7 @@ const home = {
       households: { label: "Assessed Households", sub: "Visited, scored and approved at a branch" },
       qr: { label: "Pay by QR", sub: "From any Ethiopian bank app" },
       languages: { label: "Four Languages", sub: "English, Amharic, Afaan Oromoo and Arabic" },
-      dashboard: { label: "Real-Time Dashboard", sub: "Public, audited, traceable" },
+      dashboard: { label: "Real-Time Dashboard", sub: "Public figures, refreshed every few minutes" },
     },
   },
   ticker: {
@@ -59,14 +59,14 @@ const home = {
     families: "Families Supported",
     distributed: "Funds Distributed",
     lives: "Lives Touched",
-    projects: "Active Projects",
+    projects: "Active Causes",
   },
   causes: {
     eyebrowUrgent: "Urgent needs",
     eyebrowOpen: "Open causes",
     eyebrowEmpty: "Causes",
     title: { before: "Causes your", accent: "Zakat", after: "reaches." },
-    intro: "Verified projects across Ethiopia, each with transparent progress toward its goal.",
+    intro: "Causes across Ethiopia, each reviewed before it is listed and showing its progress toward its goal.",
     introEmpty: "No causes are open right now. New causes appear here as soon as the Commission publishes them.",
     seeAll: { label: "See all causes", title: "Browse every open cause" },
     howReaches: { label: "How Zakat reaches families", title: "How households are assessed and paid" },
@@ -75,12 +75,12 @@ const home = {
     eyebrow: "Transparency, verification, security",
     title: "How is your Zakat kept safe?",
     intro:
-      "Every campaign is screened against Shari'ah standards, every household is assessed before it is paid, and every payment is matched to a bank record.",
+      "Shari'ah scholars guide the rules, every household is assessed before it is paid, and every payment is matched to a bank record.",
     step: "Step {n}",
     steps: [
       {
-        title: "100% Shari'ah Compliant",
-        description: "Every campaign and fund flow is screened against approved Shari'ah governance standards.",
+        title: "Shari'ah Guidance",
+        description: "A Shari'ah Advisory Board, set up under the Commission's establishment regulation, guides how Zakat is calculated and distributed.",
       },
       {
         title: "Assessed, Scored Households",
@@ -88,7 +88,7 @@ const home = {
           "Every household is visited, scored against a published points table and approved at its branch before head office pays it by bank transfer.",
       },
       {
-        title: "Bank-Verified, Audited",
+        title: "Bank-Matched, Logged",
         description:
           "Payments in are matched to bank transactions, payouts go only to bank-checked accounts, and every change is logged.",
       },
@@ -101,7 +101,7 @@ const home = {
     mapLabel: "Map of regions reached",
     beneficiaries: "{count} beneficiaries",
     distributed: "ETB {amount} distributed",
-    projects: "{count} active projects",
+    projects: "{count} active causes",
     noFigures: "No figures published yet",
     dashboardLink: {
       label: "View Full Transparency Dashboard",

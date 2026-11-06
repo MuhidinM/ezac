@@ -2,6 +2,8 @@
 
 import { useEffect } from "react";
 
+import { reportClientError } from "@/components/errors/report-client-error";
+
 /**
  * The digest Next attaches to an error thrown on the server. It matches the
  * server log entry, so it is safe to show as a reference. The message is not:
@@ -15,13 +17,15 @@ export function errorDigest(error: unknown): string | null {
 }
 
 /**
- * For error boundaries: logs the caught error to the browser console once, and
- * returns the reference to show. Server-side errors are logged on the server
- * too, under the same digest.
+ * For error boundaries: logs the caught error to the browser console once,
+ * reports it to the server log (/bff/client-error) when it happened in the
+ * browser, and returns the reference to show. Errors from the server carry a
+ * digest and are already in the server log under it, so they aren't sent again.
  */
 export function useLoggedError(scope: string, error: unknown): string | null {
   useEffect(() => {
     console.error(`[${scope}]`, error);
+    if (!errorDigest(error)) reportClientError(error, "boundary", scope);
   }, [scope, error]);
   return errorDigest(error);
 }

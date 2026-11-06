@@ -1,3 +1,5 @@
+import "server-only";
+
 import { readEnvelope, upstreamFetch } from "@/lib/api/upstream";
 
 export type GatewayRequestOptions = RequestInit & {

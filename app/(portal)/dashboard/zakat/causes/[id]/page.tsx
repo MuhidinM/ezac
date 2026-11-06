@@ -7,10 +7,12 @@ import { Lock, Send } from "lucide-react";
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { FormField } from "@/components/dashboard/form-field";
 import { useBreadcrumbLabel } from "@/components/dashboard/dashboard-header";
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { DetailList, Panel } from "@/components/dashboard/panel";
 import { RequireRole } from "@/components/dashboard/require-role";
+import { DetailSkeleton } from "@/components/dashboard/skeletons";
 import { CauseStatusBadge } from "@/components/zakat/cause-status-badge";
 import { ImageUpload, type MediaRef } from "@/components/zakat/image-upload";
 import { Button } from "@/components/ui/button";
@@ -81,6 +83,20 @@ function toForm(cause: AdminCause): Form {
   };
 }
 
+/** The money figures that change between two versions of the form, as text ("—" for none). */
+function moneyChanges(before: Form, after: Form) {
+  const amount = (value: string, blank: string) => (value.trim() ? formatEtb(Number(value)) : blank);
+  const changes: { label: string; from: string; to: string }[] = [];
+  if (before.goalEtb.trim() !== after.goalEtb.trim()) {
+    changes.push({ label: "Goal", from: amount(before.goalEtb, "No goal"), to: amount(after.goalEtb, "No goal") });
+  }
+  // A blank "raised offline" is saved as 0.
+  if (Number(before.raisedOfflineEtb || 0) !== Number(after.raisedOfflineEtb || 0)) {
+    changes.push({ label: "Raised offline", from: amount(before.raisedOfflineEtb, formatEtb(0)), to: amount(after.raisedOfflineEtb, formatEtb(0)) });
+  }
+  return changes;
+}
+
 /** PUT replaces the cause, so every field is sent; empty optionals become null. */
 function toBody(form: Form) {
   const mediaId = (value: string) => (/^\d+$/.test(value) ? Number(value) : value);
@@ -111,13 +127,13 @@ export default function CauseEditorPage() {
 function CauseEditor() {
   const params = useParams<{ id: string }>();
   const isNew = params.id === "new";
-  const { data: cause, error, mutate } = useResource<AdminCause>(isNew ? null : `${API}/${encodeURIComponent(params.id)}`);
+  const { data: cause, error, mutate, reload } = useResource<AdminCause>(isNew ? null : `${API}/${encodeURIComponent(params.id)}`);
   const [notice, setNotice] = useState<string | null>(null);
   useBreadcrumbLabel(isNew ? "New cause" : cause?.title);
 
   if (isNew) return <CauseForm initial={EMPTY} notice={null} onNotice={setNotice} />;
-  if (error) return <InlineAlert>{error.message}</InlineAlert>;
-  if (!cause) return <p className="text-sm text-black/45">Loading…</p>;
+  if (error && !cause) return <ErrorAlert error={error} onRetry={reload} />;
+  if (!cause) return <DetailSkeleton side={false} />;
   // Keyed so the form resets when the cause is replaced after save/publish.
   return (
     <CauseForm
@@ -150,6 +166,8 @@ function CauseForm({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [action, setAction] = useState<"publish" | "close" | null>(null);
+  // Money figures on a published cause go public on save, so they are shown before and after first (gap-r1-3-2).
+  const [confirmFigures, setConfirmFigures] = useState(false);
   // Impact regions, so causes use the same names the live region counts use.
   const regions = useResource<{ code: string; name: string }[]>("/bff/zakat-admin/impact/regions");
   const regionNames = (regions.data ?? []).map((region) => region.name);
@@ -160,11 +178,22 @@ function CauseForm({
   const dirty = JSON.stringify(form) !== JSON.stringify(initial);
   const set = <K extends keyof Form>(key: K, value: Form[K]) => setForm((prev) => ({ ...prev, [key]: value }));
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+  const published = cause ? cause.status !== "DRAFT" : false;
+  const figureChanges = cause ? moneyChanges(initial, form) : [];
+
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setFieldErrors({});
     onNotice(null);
+    if (published && figureChanges.length > 0) {
+      setConfirmFigures(true);
+      return;
+    }
+    void save();
+  }
+
+  async function save() {
     setIsSaving(true);
     try {
       const saved = await apiClient<AdminCause>(cause ? `${API}/${encodeURIComponent(cause.id)}` : API, {
@@ -313,7 +342,12 @@ function CauseForm({
             <FormField label="Goal (ETB)" htmlFor="goalEtb" hint="Leave empty for no progress bar" error={fieldErrors.goalEtb}>
               <Input id="goalEtb" type="number" min={0} step="0.01" value={form.goalEtb} onChange={(e) => set("goalEtb", e.target.value)} className="tabular-nums" />
             </FormField>
-            <FormField label="Raised offline (ETB)" htmlFor="raisedOfflineEtb" hint="Collected outside the app" error={fieldErrors.raisedOfflineEtb}>
+            <FormField
+              label="Raised offline (ETB)"
+              htmlFor="raisedOfflineEtb"
+              hint="Collected outside the app; added to the public total. Empty counts as 0."
+              error={fieldErrors.raisedOfflineEtb}
+            >
               <Input
                 id="raisedOfflineEtb"
                 type="number"
@@ -324,7 +358,7 @@ function CauseForm({
                 className="tabular-nums"
               />
             </FormField>
-            <label className="flex items-start gap-2 text-sm text-[#001539] sm:col-span-2">
+            <label className="flex items-start gap-2 text-sm text-navy sm:col-span-2">
               <input
                 type="checkbox"
                 checked={form.acceptsZakat}
@@ -356,11 +390,30 @@ function CauseForm({
               Discard changes
             </Button>
           ) : null}
-          <Button type="submit" disabled={isSaving || (cause ? !dirty : false)}>
-            {isSaving ? "Saving…" : cause ? "Save changes" : "Create draft"}
+          <Button type="submit" disabled={cause ? !dirty : false} loading={isSaving} loadingText="Saving…">
+            {cause ? "Save changes" : "Create draft"}
           </Button>
         </div>
       </form>
+
+      {cause ? (
+        <ConfirmDialog
+          open={confirmFigures}
+          onOpenChange={setConfirmFigures}
+          title="Change the published figures?"
+          description="This cause is public: the app and website show the new figures straight away."
+          confirmLabel="Save changes"
+          onConfirm={save}
+        >
+          <ul className="list-disc space-y-1 pl-5 text-sm text-navy">
+            {figureChanges.map((change) => (
+              <li key={change.label}>
+                {change.label}: {change.from} → <strong>{change.to}</strong>
+              </li>
+            ))}
+          </ul>
+        </ConfirmDialog>
+      ) : null}
 
       {cause ? (
         <ConfirmDialog

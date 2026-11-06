@@ -1,23 +1,31 @@
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
+import { LoaderCircle } from "lucide-react"
 import { Slot } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 data-loading:pointer-events-none data-loading:opacity-80 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
+        default: "bg-primary text-primary-foreground hover:bg-primary/90",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:
           "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
+        /** Solid red: the confirm button of an action that can't be undone. */
         destructive:
-          "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
+          "bg-rose-600 text-white hover:bg-rose-700 focus-visible:border-rose-600 focus-visible:ring-rose-600/30",
+        /** Outline button with red text: opens a destructive action (Reject, Revoke…). */
+        "destructive-outline":
+          "border-border bg-background text-rose-700 hover:bg-rose-50 hover:text-rose-800 aria-expanded:bg-rose-50 focus-visible:border-rose-600 focus-visible:ring-rose-600/20",
+        /** Borderless red text, for row actions (Remove, Decline…). */
+        "destructive-ghost":
+          "text-rose-700 hover:bg-rose-50 hover:text-rose-800 aria-expanded:bg-rose-50 focus-visible:ring-rose-600/20",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
@@ -41,16 +49,31 @@ const buttonVariants = cva(
   }
 )
 
+type ButtonProps = React.ComponentProps<"button"> &
+  VariantProps<typeof buttonVariants> & {
+    asChild?: boolean
+    /**
+     * Work in progress (saving, sending…): shows a spinner in place of the
+     * leading icon, sets aria-busy and ignores clicks and form submits. The
+     * button stays focusable (aria-disabled, not disabled), so keyboard focus
+     * isn't lost while it works.
+     */
+    loading?: boolean
+    /** Label while `loading` ("Saving…"); the normal label stays when omitted. */
+    loadingText?: React.ReactNode
+  }
+
 function Button({
   className,
   variant = "default",
   size = "default",
   asChild = false,
+  loading = false,
+  loadingText,
+  children,
+  onClick,
   ...props
-}: React.ComponentProps<"button"> &
-  VariantProps<typeof buttonVariants> & {
-    asChild?: boolean
-  }) {
+}: ButtonProps) {
   const Comp = asChild ? Slot.Root : "button"
 
   return (
@@ -58,10 +81,35 @@ function Button({
       data-slot="button"
       data-variant={variant}
       data-size={size}
-      className={cn(buttonVariants({ variant, size, className }))}
+      data-loading={loading || undefined}
+      className={cn(
+        buttonVariants({ variant, size, className }),
+        // The spinner takes the leading icon's place, so the width barely moves.
+        loading && "[&>[data-spinner]+svg]:hidden"
+      )}
+      aria-busy={loading || undefined}
+      aria-disabled={loading || undefined}
+      onClick={
+        loading
+          ? (event: React.MouseEvent<HTMLButtonElement>) => {
+              // Also cancels the submit of a type="submit" button (Enter in a field clicks it).
+              event.preventDefault()
+            }
+          : onClick
+      }
       {...props}
-    />
+    >
+      {loading && !asChild ? (
+        <>
+          <LoaderCircle data-spinner="" aria-hidden="true" className="animate-spin" />
+          {loadingText ?? children}
+        </>
+      ) : (
+        children
+      )}
+    </Comp>
   )
 }
 
 export { Button, buttonVariants }
+export type { ButtonProps }

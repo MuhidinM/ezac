@@ -10,18 +10,17 @@ permissions:
   contents: read
 
 jobs:
-  # Every pull request and every push: the code must lint, type-check, build
-  # and pass the dependency audit before it can deploy.
+  # Every pull request and every push: the code must lint, type-check, pass the
+  # unit tests, build and pass the dependency audit before it can deploy.
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
-      # The version that wrote pnpm-lock.yaml.
+      # Installs the pnpm version in package.json "packageManager" (the one
+      # that wrote pnpm-lock.yaml), so CI and laptops can't drift apart.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 12.4.1
 
       - uses: actions/setup-node@v4
         with:
@@ -39,6 +38,10 @@ jobs:
         run: |
           pnpm exec next typegen
           pnpm typecheck
+
+      # Unit tests (Vitest, tests/**). They run in Node and need no gateway.
+      - name: Test
+        run: pnpm test
 
       # No gateway is needed: API_BASE_URL is only required when the server runs.
       - name: Build

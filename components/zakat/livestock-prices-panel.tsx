@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { apiClient } from "@/lib/api/client";
 import { ApiError, errorMessage } from "@/lib/api/errors";
 import { useResource } from "@/lib/api/use-resource";
+import { formatEtb } from "@/lib/backoffice/format";
 import { formatDateTime } from "@/lib/beneficiary/format";
 
 type RulesVersion = {
@@ -31,7 +32,6 @@ const ANIMALS = [
 
 type Animal = (typeof ANIMALS)[number]["key"];
 
-const etb = new Intl.NumberFormat("en-ET", { maximumFractionDigits: 0 });
 
 /**
  * Average livestock prices. The calculator works out livestock zakat in
@@ -147,7 +147,7 @@ function LivestockForm({
             label={label}
             htmlFor={`livestock-${key}`}
             required
-            hint={current?.[key] != null ? `Now ETB ${etb.format(current[key])}` : undefined}
+            hint={current?.[key] != null ? `Now ${formatEtb(current[key])}` : undefined}
           >
             <div className="relative">
               <span className="pointer-events-none absolute top-1/2 start-3 -translate-y-1/2 text-xs text-black/45">ETB</span>
