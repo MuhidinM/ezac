@@ -1,8 +1,8 @@
 "use client";
 
 import { type FormEvent, useRef, useState } from "react";
-import { Search } from "lucide-react";
 
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
+import { SearchInput } from "@/components/ui/search-input";
+import { ChoiceCards, type ChoiceOption } from "@/components/ui/segmented-control";
 import { Textarea } from "@/components/ui/textarea";
 import type { WhitelistEffect, WhitelistEntry } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
@@ -23,9 +24,11 @@ import { ApiError, errorMessage, fieldErrorMap } from "@/lib/api/errors";
 import type { BeneficiaryListItem, PaginatedItems } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
 import { WHITELIST_REASONS } from "@/lib/backoffice/options";
-import { cn } from "@/lib/utils";
+import { whitelistBlocker, whitelistCaution } from "@/lib/backoffice/whitelist";
 
 const ACCEPTED = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+/** Per file, as for assessment documents; the server refuses uploads over 25 MB in total. */
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
 /** ADMIN adds directly (active at once); field officers and branches send a request ADMIN decides on. */
 export const ADMIN_WHITELIST_PATH = "/bff/backoffice/admin/whitelist";
@@ -36,18 +39,31 @@ export function requestPath(beneficiaryId: string) {
 
 type Picked = { id: string; name: string };
 
-/** Search-as-you-type picker for the household being whitelisted. */
+const EFFECTS: readonly ChoiceOption<WhitelistEffect>[] = [
+  {
+    value: "FAST_TRACK",
+    label: "Fast track",
+    description: "Emergency. Goes to the pool queue straight away, before an assessment.",
+  },
+  {
+    value: "PRIORITY",
+    label: "Priority",
+    description: "Long-term need. Listed first after fast track; needs a submitted assessment.",
+  },
+];
+
+/** Household search for the admin's direct add; households that can't be whitelisted are listed but not offered. */
 function BeneficiaryPicker({ value, onChange }: { value: Picked | null; onChange: (value: Picked | null) => void }) {
   const [draft, setDraft] = useState("");
   const [query, setQuery] = useState("");
-  const { data, isLoading } = useResource<PaginatedItems<BeneficiaryListItem>>(
+  const { data, error, isLoading, reload } = useResource<PaginatedItems<BeneficiaryListItem>>(
     query.length >= 2 ? `/bff/backoffice/beneficiaries?search=${encodeURIComponent(query)}&page=1&limit=8` : null,
   );
 
   if (value) {
     return (
-      <div className="flex items-center justify-between rounded-lg border border-[#007050]/30 bg-[#007050]/[0.04] px-3 py-2">
-        <span className="text-sm font-medium text-[#001539]">{value.name}</span>
+      <div className="flex items-center justify-between rounded-lg border border-brand/30 bg-brand/[0.04] px-3 py-2">
+        <span className="text-sm font-medium text-navy">{value.name}</span>
         <Button type="button" variant="ghost" size="sm" onClick={() => onChange(null)}>
           Change
         </Button>
@@ -57,50 +73,60 @@ function BeneficiaryPicker({ value, onChange }: { value: Picked | null; onChange
 
   return (
     <div className="space-y-2">
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-black/35" />
-          <Input
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                setQuery(draft.trim());
-              }
-            }}
-            placeholder="Name, phone or beneficiary code"
-            className="pl-9"
-            autoFocus
-          />
-        </div>
+      {/* Not a <form>: this sits inside the whitelist form, so Enter searches by hand. */}
+      <div role="search" className="flex gap-2">
+        <SearchInput
+          label="Search households"
+          wrapperClassName="flex-1"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              setQuery(draft.trim());
+            }
+          }}
+          placeholder="Name, phone or beneficiary code"
+        />
         <Button type="button" variant="secondary" onClick={() => setQuery(draft.trim())}>
           Search
         </Button>
       </div>
-      {query.length >= 2 ? (
-        <ul className="max-h-56 divide-y divide-black/[0.05] overflow-y-auto rounded-lg border border-black/[0.08]">
+      {query.length >= 2 && error ? (
+        // A failed search must not read as "No households found".
+        <ErrorAlert error={error} onRetry={reload} fallback="The search didn't work. Try again." />
+      ) : query.length >= 2 ? (
+        <ul aria-label="Search results" className="max-h-56 divide-y divide-black/[0.05] overflow-y-auto rounded-lg border border-black/[0.08]">
           {isLoading && !data ? (
-            <li className="px-3 py-2 text-sm text-black/45">Searching…</li>
+            <li className="px-3 py-2 text-sm text-black/60">Searching…</li>
           ) : (data?.items ?? []).length === 0 ? (
-            <li className="px-3 py-2 text-sm text-black/45">No households found.</li>
+            <li className="px-3 py-2 text-sm text-black/60">No households found.</li>
           ) : (
-            data!.items.map((item) => (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  disabled={Boolean(item.whitelistEffect)}
-                  onClick={() => onChange({ id: item.id, name: item.fullName ?? `Beneficiary #${item.id}` })}
-                  className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-black/[0.02] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <span>
-                    <span className="block font-medium text-[#001539]">{item.fullName ?? `Beneficiary #${item.id}`}</span>
-                    <span className="block text-xs text-black/50">{item.phone ?? "—"}</span>
-                  </span>
-                  {item.whitelistEffect ? <span className="text-xs text-black/50">Already whitelisted</span> : null}
-                </button>
-              </li>
-            ))
+            data!.items.map((item) => {
+              const blocker = whitelistBlocker(item);
+              const caution = blocker ? null : whitelistCaution(item);
+              const name = item.fullName ?? `Beneficiary #${item.id}`;
+              return (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    disabled={Boolean(blocker)}
+                    onClick={() => onChange({ id: item.id, name })}
+                    className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-black/[0.02] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <span>
+                      <span className="block font-medium text-navy">{name}</span>
+                      <span className="block text-xs text-black/60">{item.phone ?? "—"}</span>
+                    </span>
+                    {blocker || caution ? (
+                      <span className={blocker ? "text-right text-xs text-black/60" : "text-right text-xs text-amber-700"}>
+                        {blocker ?? caution}
+                      </span>
+                    ) : null}
+                  </button>
+                </li>
+              );
+            })
           )}
         </ul>
       ) : null}
@@ -169,6 +195,11 @@ export function WhitelistFormDialog({
       setError("Evidence must be PDF, JPEG, PNG or WebP.");
       return;
     }
+    const tooBig = files.find((file) => file.size > MAX_FILE_BYTES);
+    if (tooBig) {
+      setError(`"${tooBig.name}" is larger than 5 MB. Attach a smaller file or a scan at lower quality.`);
+      return;
+    }
 
     const body = new FormData();
     if (isAdmin) body.append("beneficiaryId", picked.id);
@@ -189,14 +220,17 @@ export function WhitelistFormDialog({
       if (fileRef.current) fileRef.current.value = "";
       onSaved(entry);
     } catch (submitError) {
+      // Direct add is missing (404/405/501) or broken (500 for every input in UAT) upstream;
+      // either way the admin can't fix it from here, so say what to do instead. A 403 is a
+      // real refusal (no permission): show the server's own message for it.
       const unsupported =
-        isAdmin && submitError instanceof ApiError && [403, 404, 405].includes(submitError.status);
+        isAdmin && submitError instanceof ApiError && [404, 405, 500, 501].includes(submitError.status);
       setError(
         unsupported
-          ? "Adding households directly isn't switched on in the backend yet. It has been requested; until then a field officer or branch can send the request for you to approve."
+          ? "Adding a household directly isn't available yet. Until it is, ask a field officer or the branch to send a whitelist request, then approve it on the Whitelist page."
           : errorMessage(submitError, isAdmin ? "Couldn't add to the whitelist" : "Couldn't send the request"),
       );
-      if (submitError instanceof ApiError) setFieldErrors(fieldErrorMap(submitError.errors));
+      if (submitError instanceof ApiError && !unsupported) setFieldErrors(fieldErrorMap(submitError.errors));
     } finally {
       setIsSaving(false);
     }
@@ -207,44 +241,30 @@ export function WhitelistFormDialog({
       <DialogContent className="max-h-[90svh] max-w-lg overflow-y-auto">
         <form onSubmit={onSubmit} className="space-y-4">
           <DialogHeader>
-            <DialogTitle className="text-[#001539]">{isAdmin ? "Add to whitelist" : "Request whitelist"}</DialogTitle>
+            <DialogTitle className="text-navy">{isAdmin ? "Add to whitelist" : "Request whitelist"}</DialogTitle>
             <DialogDescription>
               {isAdmin
                 ? "Active straight away. It changes the pool order, never the score."
-                : "ADMIN reviews the request. You can't decide on your own request."}
+                : "An administrator reviews the request. You can't decide on your own request."}
             </DialogDescription>
           </DialogHeader>
           {error ? <InlineAlert>{error}</InlineAlert> : null}
 
           {isAdmin && !beneficiary ? (
-            <FormField label="Household" required error={fieldErrors.beneficiaryId}>
+            <fieldset className="space-y-1.5">
+              <legend className="text-[13px] font-medium text-navy">
+                Household<span aria-hidden="true" className="text-rose-600">*</span>
+              </legend>
               <BeneficiaryPicker value={picked} onChange={setPicked} />
-            </FormField>
+              {fieldErrors.beneficiaryId ? <p className="text-xs text-rose-700">{fieldErrors.beneficiaryId}</p> : null}
+            </fieldset>
           ) : null}
 
-          <div role="radiogroup" aria-label="Effect" className="grid gap-2 sm:grid-cols-2">
-            {(
-              [
-                ["FAST_TRACK", "Fast track", "Emergency. Goes to the pool queue straight away, before an assessment."],
-                ["PRIORITY", "Priority", "Long-term need. Listed first after fast track; needs a submitted assessment."],
-              ] as const
-            ).map(([value, label, hint]) => (
-              <button
-                key={value}
-                type="button"
-                role="radio"
-                aria-checked={effect === value}
-                onClick={() => setEffect(value)}
-                className={cn(
-                  "rounded-lg border p-3 text-left transition",
-                  effect === value ? "border-[#007050] bg-[#007050]/[0.05] ring-1 ring-[#007050]" : "border-black/10 hover:border-black/20",
-                )}
-              >
-                <span className="block text-sm font-semibold text-[#001539]">{label}</span>
-                <span className="mt-0.5 block text-xs text-black/55">{hint}</span>
-              </button>
-            ))}
-          </div>
+          <FormField label="Effect" required>
+            {/* The name groups the hidden native radios Radix adds for the required field; without
+                it a spec-following browser (Firefox) reads the unchosen effect as missing and blocks Save. */}
+            <ChoiceCards name="effect" value={effect} onValueChange={setEffect} options={EFFECTS} />
+          </FormField>
 
           <FormField label="Reason" htmlFor="wl-reason" required error={fieldErrors.reasonCode}>
             <NativeSelect id="wl-reason" value={reasonCode} onChange={(event) => setReasonCode(event.target.value)} required>
@@ -277,26 +297,32 @@ export function WhitelistFormDialog({
             label="Evidence"
             htmlFor="wl-files"
             required={!noteReplacesFiles}
-            hint="1–5 files: PDF, JPEG, PNG or WebP"
+            hint="1–5 files: PDF, JPEG, PNG or WebP, up to 5 MB each"
             error={fieldErrors.files}
           >
-            <input
-              ref={fileRef}
-              id="wl-files"
-              type="file"
-              multiple
-              accept={ACCEPTED.join(",")}
-              onChange={(event) => setFiles(Array.from(event.target.files ?? []))}
-              className="block w-full text-sm text-black/60 file:mr-3 file:rounded-md file:border-0 file:bg-[#001539] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white"
-            />
+            {/* A raw file input isn't wired by FormField, so it takes the id, hint/error and invalid state here. */}
+            {(control) => (
+              <input
+                id={control.id}
+                aria-describedby={control["aria-describedby"]}
+                aria-invalid={control["aria-invalid"]}
+                aria-required={control["aria-required"]}
+                ref={fileRef}
+                type="file"
+                multiple
+                accept={ACCEPTED.join(",")}
+                onChange={(event) => setFiles(Array.from(event.target.files ?? []))}
+                className="block w-full text-sm text-black/60 file:mr-3 file:rounded-md file:border-0 file:bg-navy file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white"
+              />
+            )}
           </FormField>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSaving || !reasonCode || !picked}>
-              {isSaving ? "Saving…" : isAdmin ? "Add to whitelist" : "Send request"}
+            <Button type="submit" loading={isSaving} loadingText="Saving…" disabled={!reasonCode || !picked}>
+              {isAdmin ? "Add to whitelist" : "Send request"}
             </Button>
           </DialogFooter>
         </form>

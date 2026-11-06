@@ -78,7 +78,7 @@ export function StepHousehold({ draft, patch, errors, summary }: StepProps) {
                 className="rounded-lg border border-black/[0.08] bg-black/[0.015] p-4"
               >
                 <div className="mb-3 flex items-center justify-between gap-2">
-                  <p className="flex items-center gap-2 text-sm font-semibold text-[#001539]">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-navy">
                     <span className="flex size-6 items-center justify-center rounded-full bg-white text-xs ring-1 ring-black/10 tabular-nums">
                       {index + 1}
                     </span>
@@ -93,7 +93,7 @@ export function StepHousehold({ draft, patch, errors, summary }: StepProps) {
                       aria-label={`Remove member ${index + 1}`}
                       onClick={() => removeMember(index)}
                     >
-                      <Trash2 className="text-black/45" />
+                      <Trash2 className="text-black/60" />
                     </Button>
                   ) : null}
                 </div>
@@ -217,12 +217,12 @@ function Check({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-[#001539]">
+    <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-navy">
       <input
         type="checkbox"
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
-        className="size-4 rounded border-black/20 accent-[#007050]"
+        className="size-4 rounded border-black/20 accent-brand"
       />
       {label}
     </label>

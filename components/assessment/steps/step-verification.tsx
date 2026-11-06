@@ -15,6 +15,7 @@ import type { StepProps } from "@/components/assessment/step-props";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { Button } from "@/components/ui/button";
 import type { AssessmentDocument } from "@/lib/api/backoffice-types";
+import { roundCoordinate } from "@/lib/backoffice/gps";
 import { VERIFIED_DOCUMENTS } from "@/lib/backoffice/options";
 
 export function StepVerification({
@@ -47,8 +48,9 @@ export function StepVerification({
         setIsLocating(false);
         patch("verification", {
           gpsRecorded: true,
-          gpsLat: Number(position.coords.latitude.toFixed(6)),
-          gpsLng: Number(position.coords.longitude.toFixed(6)),
+          // No finer than the phone's GPS can tell (about 1 m): it's a home address.
+          gpsLat: roundCoordinate(position.coords.latitude),
+          gpsLng: roundCoordinate(position.coords.longitude),
         });
       },
       (positionError) => {
@@ -179,7 +181,7 @@ export function StepVerification({
                   label="Latitude"
                   min={-90}
                   max={90}
-                  step={0.000001}
+                  step={0.00001}
                   value={verification.gpsLat}
                   onChange={(value) => patch("verification", { gpsLat: value })}
                   error={errors["verification.gpsLat"]}
@@ -190,7 +192,7 @@ export function StepVerification({
                   label="Longitude"
                   min={-180}
                   max={180}
-                  step={0.000001}
+                  step={0.00001}
                   value={verification.gpsLng}
                   onChange={(value) => patch("verification", { gpsLng: value })}
                   error={errors["verification.gpsLng"]}

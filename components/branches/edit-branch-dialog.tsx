@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { apiClient } from "@/lib/api/client";
 import { ApiError, errorMessage, fieldErrorMap } from "@/lib/api/errors";
 import type { Branch } from "@/lib/api/types";
+import { branchContact } from "@/lib/branches/contact";
 
 /** Edit branch details. Region and the officer's phone (their login) are fixed. */
 export function EditBranchDialog({
@@ -34,13 +35,26 @@ export function EditBranchDialog({
     name: branch.name ?? "",
     zone: branch.zone ?? "",
     woreda: branch.woreda ?? "",
-    officerFullName: branch.officerName ?? branch.branchFullName ?? "",
-    officerEmail: branch.branchEmail ?? "",
+    officerFullName: branchContact(branch).fullName ?? "",
+    officerEmail: branchContact(branch).email ?? "",
   };
   const [form, setForm] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
+
+  // Start from the saved branch every time the dialog opens. The page opens it
+  // by setting `open`, which never calls onOpenChange, and the dialog stays
+  // mounted while closed: without this a cancelled edit came back next time.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setForm(initial);
+      setError(null);
+      setFieldErrors({});
+    }
+  }
 
   function set(key: keyof typeof initial, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -76,34 +90,28 @@ export function EditBranchDialog({
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (next) setForm(initial);
-        onOpenChange(next);
-      }}
-    >
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <form onSubmit={onSubmit} className="space-y-5">
           <DialogHeader>
-            <DialogTitle className="text-[#001539]">Edit branch</DialogTitle>
+            <DialogTitle className="text-navy">Edit branch</DialogTitle>
             <DialogDescription>
-              The region ({branch.region ?? "—"}) and the officer&apos;s login phone ({branch.branchPhone ?? "—"}) can&apos;t be changed.
+              The region ({branch.region ?? "—"}) and the officer&apos;s login phone ({branchContact(branch).phone ?? "—"}) can&apos;t be changed.
             </DialogDescription>
           </DialogHeader>
           {error ? <InlineAlert>{error}</InlineAlert> : null}
           <div className="grid gap-4 sm:grid-cols-2">
-            <FormField label="Branch name" htmlFor="eb-name" error={fieldErrors.name} className="sm:col-span-2">
+            <FormField label="Branch name" htmlFor="eb-name" required error={fieldErrors.name} className="sm:col-span-2">
               <Input id="eb-name" value={form.name} onChange={(e) => set("name", e.target.value)} required />
             </FormField>
-            <FormField label="Zone" htmlFor="eb-zone" error={fieldErrors.zone}>
-              <Input id="eb-zone" value={form.zone} onChange={(e) => set("zone", e.target.value)} />
+            <FormField label="Zone" htmlFor="eb-zone" required error={fieldErrors.zone}>
+              <Input id="eb-zone" value={form.zone} onChange={(e) => set("zone", e.target.value)} required />
             </FormField>
-            <FormField label="Woreda" htmlFor="eb-woreda" error={fieldErrors.woreda}>
-              <Input id="eb-woreda" value={form.woreda} onChange={(e) => set("woreda", e.target.value)} />
+            <FormField label="Woreda" htmlFor="eb-woreda" required error={fieldErrors.woreda}>
+              <Input id="eb-woreda" value={form.woreda} onChange={(e) => set("woreda", e.target.value)} required />
             </FormField>
-            <FormField label="Officer full name" htmlFor="eb-officer" error={fieldErrors.officerFullName}>
-              <Input id="eb-officer" value={form.officerFullName} onChange={(e) => set("officerFullName", e.target.value)} />
+            <FormField label="Officer full name" htmlFor="eb-officer" required error={fieldErrors.officerFullName}>
+              <Input id="eb-officer" value={form.officerFullName} onChange={(e) => set("officerFullName", e.target.value)} required />
             </FormField>
             <FormField label="Officer email" htmlFor="eb-email" error={fieldErrors.officerEmail}>
               <Input id="eb-email" type="email" value={form.officerEmail} onChange={(e) => set("officerEmail", e.target.value)} />
@@ -113,8 +121,8 @@ export function EditBranchDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSaving}>
-              {isSaving ? "Saving…" : "Save changes"}
+            <Button type="submit" loading={isSaving} loadingText="Saving…">
+              Save changes
             </Button>
           </DialogFooter>
         </form>

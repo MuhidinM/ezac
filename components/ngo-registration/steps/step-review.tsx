@@ -32,11 +32,11 @@ function AccordionSection({
         aria-expanded={open}
         className="flex w-full items-center justify-between px-4 py-3 text-left"
       >
-        <span className="font-medium text-[#001539]">{title}</span>
+        <span className="font-medium text-navy">{title}</span>
         <ChevronDown className={`h-5 w-5 text-black/55 transition ${open ? "rotate-180" : ""}`} />
       </button>
       {open ? (
-        <div className="space-y-1 border-t border-black/10 px-4 py-3 text-sm text-black/55">
+        <div className="space-y-1 border-t border-black/10 px-4 py-3 text-sm text-black/60">
           {children}
         </div>
       ) : null}
@@ -48,7 +48,7 @@ function Row({ label, value }: { label: string; value: string }) {
   if (!value) return null;
   return (
     <p>
-      <span className="font-medium text-[#001539]">{label}:</span> {value}
+      <span className="font-medium text-navy">{label}:</span> {value}
     </p>
   );
 }
@@ -70,15 +70,15 @@ export function StepReview({ state, onSubmit, isSubmitting }: StepReviewProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight text-[#001539] sm:text-2xl">
+        <h2 className="text-xl font-semibold tracking-tight text-navy sm:text-2xl">
           Review your application
         </h2>
-        <p className="mt-1 text-sm text-black/55">
+        <p className="mt-1 text-sm text-black/60">
           Please review all sections before submitting.
         </p>
       </div>
 
-      <div className="rounded-xl border border-[#e18f35]/40 bg-[#e18f35]/10 px-4 py-3 text-sm text-[#001539]">
+      <div className="rounded-xl border border-accent-fill/40 bg-accent-fill/10 px-4 py-3 text-sm text-navy">
         Please review all information carefully before submitting. You will not be
         able to edit after submission.
       </div>
@@ -125,7 +125,7 @@ export function StepReview({ state, onSubmit, isSubmitting }: StepReviewProps) {
         type="button"
         onClick={onSubmit}
         disabled={isSubmitting}
-        className="min-h-[52px] w-full rounded-xl bg-[#e18f35] px-6 py-3 text-lg font-semibold text-[#001539] transition hover:bg-[#b89030] disabled:opacity-60"
+        className="min-h-[52px] w-full rounded-xl bg-accent-fill px-6 py-3 text-lg font-semibold text-navy transition hover:bg-[#b89030] disabled:opacity-60"
       >
         {isSubmitting ? "Submitting..." : "Submit Application"}
       </button>

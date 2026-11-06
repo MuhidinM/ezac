@@ -36,6 +36,20 @@ export function EditOfficerDialog({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
 
+  // Start from the saved officer every time the dialog opens. The page opens it
+  // by setting `open`, which never calls onOpenChange, and the dialog stays
+  // mounted while closed: without this a cancelled edit came back next time.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setFullName(officer.fullName);
+      setEmail(officer.email ?? "");
+      setError(null);
+      setFieldErrors({});
+    }
+  }
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const body: { fullName?: string; email?: string } = {};
@@ -56,7 +70,11 @@ export function EditOfficerDialog({
       onSaved({ ...officer, ...updated });
       onOpenChange(false);
     } catch (saveError) {
-      setError(errorMessage(saveError, "Failed to update officer"));
+      setError(
+        saveError instanceof ApiError && saveError.status >= 500
+          ? "The changes couldn't be saved because of a problem on the server, and nothing was changed. If this keeps happening, tell the system team."
+          : errorMessage(saveError, "Failed to update officer"),
+      );
       if (saveError instanceof ApiError) setFieldErrors(fieldErrorMap(saveError.errors));
     } finally {
       setIsSaving(false);
@@ -64,20 +82,11 @@ export function EditOfficerDialog({
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (next) {
-          setFullName(officer.fullName);
-          setEmail(officer.email ?? "");
-        }
-        onOpenChange(next);
-      }}
-    >
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <form onSubmit={onSubmit} className="space-y-4">
           <DialogHeader>
-            <DialogTitle className="text-[#001539]">Edit field officer</DialogTitle>
+            <DialogTitle className="text-navy">Edit field officer</DialogTitle>
             <DialogDescription>
               The phone number ({officer.phone ?? "—"}) is the login and can&apos;t be changed.
             </DialogDescription>
@@ -86,15 +95,15 @@ export function EditOfficerDialog({
           <FormField label="Full name" htmlFor="eo-name" required error={fieldErrors.fullName}>
             <Input id="eo-name" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
           </FormField>
-          <FormField label="Email" htmlFor="eo-email" error={fieldErrors.email}>
-            <Input id="eo-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <FormField label="Email" htmlFor="eo-email" required error={fieldErrors.email}>
+            <Input id="eo-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </FormField>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSaving}>
-              {isSaving ? "Saving…" : "Save changes"}
+            <Button type="submit" loading={isSaving} loadingText="Saving…">
+              Save changes
             </Button>
           </DialogFooter>
         </form>

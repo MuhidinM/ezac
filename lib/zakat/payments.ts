@@ -1,6 +1,7 @@
 import type { BadgeTone } from "@/components/ui/badge";
 import type { RangeKey } from "@/lib/backoffice/date-range";
 import { rangeDates } from "@/lib/backoffice/date-range";
+import type { PayloadField } from "@/lib/zakat/redact";
 
 export type PaymentStatus =
   | "AWAITING_CONFIRMATION"
@@ -34,7 +35,6 @@ export type ZakatPayment = {
   creditAccount?: string;
   messageId?: string;
   providerReference?: string;
-  providerResponse?: string;
   failureReason?: string;
   resolvedBy?: string;
   resolutionNote?: string;
@@ -42,8 +42,7 @@ export type ZakatPayment = {
   paidAt?: string;
   createdAt: string;
   updatedAt?: string;
-  /** QR payments: the QR content and the order id it carries (equal to paymentId; absent on old QR payments). */
-  qrPayload?: string;
+  /** QR payments: the order id the QR carries (equal to paymentId; absent on old QR payments). The QR content itself is dropped by the BFF. */
   ethqrOrderId?: string;
   /** From the bank once paid. */
   paidByName?: string;
@@ -54,6 +53,14 @@ export type ZakatPayment = {
   qrLastCheckedAt?: string;
   /** Shown while the payment is open. */
   expiresAt?: string;
+  /** Requested from the backend (§20); the id in resolvedBy is shown until it comes. */
+  resolvedByName?: string;
+  /**
+   * Set by the BFF in place of the raw bank answer (lib/zakat/redact.ts): its
+   * status, amounts and references, and whether EthQR said it was a sandbox payment.
+   */
+  bankAnswer?: PayloadField[];
+  sandbox?: boolean;
 };
 
 export type PaymentSummary = {
@@ -88,6 +95,46 @@ export function isOpenQr(payment: Pick<ZakatPayment, "status" | "methodCode">) {
   return isQr(payment) && (payment.status === "AWAITING_PAYMENT" || payment.status === "EXPIRED");
 }
 
+/** The server keeps asking EthQR about a QR payment until this long after the QR expires. */
+export const QR_CHECK_WINDOW_MS = 24 * 60 * 60_000;
+
+export type QrCloseBlock =
+  /** The donor can still pay, or the server is still checking, until `until` (ms). */
+  | { reason: "still-checking"; until: number }
+  /** "Check now" hasn't been run in this sheet yet. */
+  | { reason: "check-first" };
+
+/**
+ * Why an open QR payment can't be closed as "Not paid" yet, or null when it
+ * can. Closing it while the QR can still be paid, or while the server is
+ * still checking it (until 24 hours after expiry), could turn away a real
+ * payment (go-live audit gap-r1-1-2), so it waits for that and for one
+ * "Check now". Backend §6 asks payment-service to refuse it too.
+ */
+export function qrNotPaidBlock(
+  payment: Pick<ZakatPayment, "status" | "methodCode" | "expiresAt">,
+  now: number,
+  checkedNow: boolean,
+): QrCloseBlock | null {
+  if (!isOpenQr(payment)) return null;
+  const expires = payment.expiresAt ? Date.parse(payment.expiresAt) : Number.NaN;
+  if (Number.isFinite(expires) && now < expires + QR_CHECK_WINDOW_MS) {
+    return { reason: "still-checking", until: expires + QR_CHECK_WINDOW_MS };
+  }
+  if (!checkedNow) return { reason: "check-first" };
+  return null;
+}
+
+/**
+ * Whether a finished "Check now" counts for qrNotPaidBlock: EthQR answered
+ * (`error` null), or it can't be asked about this payment at all (409, a QR
+ * made before automatic confirmation). A call still running, or one that
+ * failed (offline, timeout, server error), doesn't: EthQR wasn't asked.
+ */
+export function checkCountsForNotPaid(error: { status: number } | null): boolean {
+  return error === null || error.status === 409;
+}
+
 /** Payments an admin can settle by hand: anything needing checking, and open or expired QR payments. */
 export function canResolve(payment: Pick<ZakatPayment, "status" | "methodCode">) {
   return payment.status === "PROCESSING" || isOpenQr(payment);
@@ -108,9 +155,31 @@ export function displayStatus(payment: Pick<ZakatPayment, "status" | "createdAt"
  * Ababa, +03:00): `from` inclusive, `to` exclusive, so `to` is the day after.
  */
 export function paymentRangeQuery(key: RangeKey) {
-  const { from, to } = rangeDates(key);
+  return paymentDatesQuery(rangeDates(key));
+}
+
+/** The same for explicit YYYY-MM-DD dates (e.g. the previous period). */
+export function paymentDatesQuery({ from, to }: { from: string; to: string }) {
   const end = new Date(`${to}T00:00:00Z`);
   end.setUTCDate(end.getUTCDate() + 1);
   const toNext = end.toISOString().slice(0, 10);
   return `from=${encodeURIComponent(`${from}T00:00:00+03:00`)}&to=${encodeURIComponent(`${toNext}T00:00:00+03:00`)}`;
+}
+
+/** The commission's receiving account with spaces and dashes removed, as it is saved. */
+export function cleanReceivingAccount(value: string): string {
+  return value.replace(/[\s-]/g, "");
+}
+
+/**
+ * Why a receiving account number can't be saved, or null when it can. Blank is
+ * allowed (payments stay off); otherwise 6–20 digits, the payment-service rule
+ * (logic-backoffice-19).
+ */
+export function receivingAccountProblem(value: string): string | null {
+  const digits = cleanReceivingAccount(value);
+  if (!digits) return null;
+  if (!/^\d+$/.test(digits)) return "Use digits only.";
+  if (digits.length < 6 || digits.length > 20) return "Enter 6 to 20 digits.";
+  return null;
 }

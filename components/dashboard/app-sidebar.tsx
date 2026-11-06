@@ -14,10 +14,13 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarMenu,
+  SidebarGroup,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSkeleton,
 } from "@/components/ui/sidebar";
-import { useSession } from "@/lib/auth/use-session";
+import { Button } from "@/components/ui/button";
+import { fetchSession, useSession } from "@/lib/auth/use-session";
 
 const SECONDARY_ITEMS = [
   { title: "Help & FAQ", url: "/faq", icon: LifeBuoy },
@@ -25,7 +28,7 @@ const SECONDARY_ITEMS = [
 ];
 
 export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
-  const { session } = useSession();
+  const { session, isLoading, unavailable } = useSession();
   const isBranch = session?.isBranch ?? false;
 
   return (
@@ -40,7 +43,7 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
                   <img src="/logo.svg" alt="" className="size-6 object-contain" />
                 </div>
                 <div className="grid flex-1 text-left leading-tight">
-                  <span className="truncate text-sm font-semibold tracking-tight text-[#001539]">
+                  <span className="truncate text-sm font-semibold tracking-tight text-navy">
                     EZAC
                   </span>
                   <span className="truncate text-xs text-sidebar-foreground/70">
@@ -53,13 +56,39 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        {NAV_SECTIONS.map((section) => (
-          <NavMain
-            key={section.label}
-            label={section.label}
-            items={section.items.filter((item) => canSee(item.audience, session))}
-          />
-        ))}
+        {isLoading ? (
+          // The menu depends on the roles; showing a guess first makes items flash in and out.
+          <SidebarGroup>
+            <SidebarMenu className="gap-0.5">
+              {Array.from({ length: 6 }, (_, index) => (
+                <SidebarMenuItem key={index}>
+                  <SidebarMenuSkeleton showIcon />
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroup>
+        ) : !session && unavailable ? (
+          // Offline or the sign-in service is down: not the same as having no access.
+          <div className="space-y-2 px-4 py-3 text-sm text-sidebar-foreground/70" role="status">
+            <p>We couldn&apos;t load your account. Check your connection; we&apos;ll keep trying.</p>
+            <Button type="button" variant="outline" size="sm" onClick={() => void fetchSession({ force: true })}>
+              Try again
+            </Button>
+          </div>
+        ) : !session ? (
+          // Signed in, but the account has no portal role.
+          <p className="px-4 py-3 text-sm text-sidebar-foreground/70">
+            Your account has no access to the staff portal. Ask an administrator to assign a role.
+          </p>
+        ) : (
+          NAV_SECTIONS.map((section) => (
+            <NavMain
+              key={section.label}
+              label={section.label}
+              items={section.items.filter((item) => canSee(item.audience, session))}
+            />
+          ))
+        )}
         <NavSecondary items={SECONDARY_ITEMS} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border">

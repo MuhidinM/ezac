@@ -66,7 +66,7 @@ export function KycDocumentsCard({ beneficiaryId }: { beneficiaryId: string }) {
 
   return (
     <div className="rounded-xl border border-black/[0.06] bg-white p-5 shadow-xs">
-      <h2 className="text-sm font-semibold text-[#001539]">
+      <h2 className="text-sm font-semibold text-navy">
         KYC documents
       </h2>
 
@@ -106,8 +106,8 @@ export function KycDocumentsCard({ beneficiaryId }: { beneficiaryId: string }) {
                 <div className="flex min-w-0 items-start gap-3">
                   <FileText className="mt-0.5 h-4 w-4 shrink-0 text-black/40" />
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-[#001539]">{label}</p>
-                    <p className="text-xs text-black/50">
+                    <p className="text-sm font-medium text-navy">{label}</p>
+                    <p className="text-xs text-black/60">
                       {uploaded ? "Uploaded" : "Missing"}
                       {doc.required ? " · Required" : ""}
                       {doc.uploadedAt
@@ -133,7 +133,7 @@ export function KycDocumentsCard({ beneficiaryId }: { beneficiaryId: string }) {
                     </Button>
                   </div>
                 ) : (
-                  <span className="text-xs text-black/45">Not uploaded</span>
+                  <span className="text-xs text-black/60">Not uploaded</span>
                 )}
               </li>
             );

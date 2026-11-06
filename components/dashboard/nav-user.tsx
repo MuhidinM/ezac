@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ChevronsUpDown, LogOut, UserRound } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -22,7 +21,8 @@ import {
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { roleLabel } from "@/components/dashboard/nav-config";
-import { clearSessionCache, useSession } from "@/lib/auth/use-session";
+import { signOut } from "@/lib/auth/client-session";
+import { useSession } from "@/lib/auth/use-session";
 
 function initials(name: string) {
   const parts = name.split(/[\s._@-]+/).filter(Boolean);
@@ -31,7 +31,6 @@ function initials(name: string) {
 }
 
 export function NavUser() {
-  const router = useRouter();
   const { isMobile } = useSidebar();
   const { session, isLoading } = useSession();
 
@@ -50,22 +49,20 @@ export function NavUser() {
   const name = session?.displayName?.trim() || session?.username || "Staff user";
   const subtitle = session ? roleLabel(session) : "Signed in";
 
-  async function onLogout() {
-    await fetch("/bff/auth/logout", { method: "POST" });
-    clearSessionCache();
-    router.push("/login");
-    router.refresh();
+  // Clears drafts and the cached session too, and always ends on /login.
+  function onLogout() {
+    void signOut();
   }
 
   const identity = (
     <>
       <Avatar className="size-8 rounded-lg">
-        <AvatarFallback className="rounded-lg bg-[#001539] text-xs font-semibold text-white">
+        <AvatarFallback className="rounded-lg bg-navy text-xs font-semibold text-white">
           {initials(name)}
         </AvatarFallback>
       </Avatar>
       <div className="grid flex-1 text-left text-sm leading-tight">
-        <span className="truncate font-medium text-[#001539]">{name}</span>
+        <span className="truncate font-medium text-navy">{name}</span>
         <span className="truncate text-xs text-muted-foreground">{subtitle}</span>
       </div>
     </>
@@ -105,7 +102,7 @@ export function NavUser() {
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => void onLogout()}>
+            <DropdownMenuItem onSelect={onLogout}>
               <LogOut />
               Log out
             </DropdownMenuItem>

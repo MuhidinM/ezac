@@ -1,11 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useId } from "react";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
-import { niceTicks, useWidth } from "@/components/charts/use-width";
+import { ChartDataTable } from "@/components/charts/chart-data-table";
+import { CATEGORICAL } from "@/components/charts/palette";
+import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { formatCount } from "@/lib/backoffice/format";
 
-/** Validated categorical order (adjacent CVD ΔE ≥ 10 on white). Slot 4 is low-contrast: legend + tooltip carry it. */
-export const SERIES_COLORS = ["#007050", "#eb6834", "#2a78d6", "#eda100"] as const;
+/** Kept for callers that colour their own legends to match. */
+export const SERIES_COLORS = CATEGORICAL;
 
 export type LineSeries = {
   key: string;
@@ -14,136 +18,119 @@ export type LineSeries = {
   color?: string;
 };
 
-const HEIGHT = 240;
-const PAD = { top: 12, right: 16, bottom: 28, left: 40 };
-
 /**
- * Multi-series line chart over shared x labels (one axis, ≤ 4 series), with a
- * crosshair + tooltip on hover and a legend for identity.
+ * Trend over time: one area per series (2px line over a light wash), with a
+ * crosshair tooltip listing every series at the hovered period. Keyboard:
+ * focus the chart and use the arrow keys (Recharts' accessibility layer);
+ * "Show the numbers" opens the same data as a table.
  */
 export function LineChart({
   labels,
   series,
-  formatLabel = (label) => label,
+  label,
+  formatLabel = (value) => value,
+  formatValue = (value) => formatCount(value),
   emptyText = "No activity in this period.",
+  height = 260,
+  stacked = false,
 }: {
   labels: string[];
   series: LineSeries[];
+  /** What the chart shows ("Weekly registrations"); names it for screen readers. */
+  label?: string;
   formatLabel?: (label: string) => string;
+  formatValue?: (value: number) => string;
   emptyText?: string;
+  height?: number;
+  /** Stack the areas (parts of one total) instead of overlaying them. */
+  stacked?: boolean;
 }) {
-  const { ref, width } = useWidth<HTMLDivElement>();
-  const [hover, setHover] = useState<number | null>(null);
+  const gradientId = useId().replace(/:/g, "");
+  const styled = series.map((item, index) => ({ ...item, color: item.color ?? CATEGORICAL[index % CATEGORICAL.length] }));
+  const config = Object.fromEntries(styled.map((item) => [item.key, { label: item.label, color: item.color }])) satisfies ChartConfig;
+  const data = labels.map((period, i) => ({
+    period,
+    ...Object.fromEntries(styled.map((item) => [item.key, item.values[i] ?? 0])),
+  }));
+  const max = Math.max(0, ...styled.flatMap((item) => item.values));
+  const name = label ?? `Area chart: ${styled.map((item) => item.label).join(", ")}`;
 
-  const colored = series.map((item, index) => ({ ...item, color: item.color ?? SERIES_COLORS[index % SERIES_COLORS.length] }));
-  const max = Math.max(0, ...colored.flatMap((item) => item.values));
-  const ticks = niceTicks(max);
-  const top = ticks[ticks.length - 1] || 1;
-  const innerW = width - PAD.left - PAD.right;
-  const innerH = HEIGHT - PAD.top - PAD.bottom;
-  const n = labels.length;
-  const x = (i: number) => PAD.left + (n <= 1 ? innerW / 2 : (i / (n - 1)) * innerW);
-  const y = (value: number) => PAD.top + innerH - (value / top) * innerH;
-
-  // Show at most ~6 x labels so they never collide.
-  const every = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(innerW / 90))));
+  if (labels.length === 0 || max === 0) {
+    return <p className="flex items-center justify-center text-sm text-black/60" style={{ height }}>{emptyText}</p>;
+  }
 
   return (
     <div className="space-y-3">
-      <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-black/60">
-        {colored.map((item) => (
-          <li key={item.key} className="flex items-center gap-1.5">
-            <span className="h-0.5 w-3.5 rounded-full" style={{ backgroundColor: item.color }} />
-            {item.label}
-          </li>
-        ))}
-      </ul>
+      {styled.length > 1 ? (
+        <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-black/65" aria-label="Legend">
+          {styled.map((item) => (
+            <li key={item.key} className="flex items-center gap-1.5">
+              <span className="h-0.5 w-3.5 rounded-full" style={{ backgroundColor: item.color }} aria-hidden="true" />
+              {item.label}
+            </li>
+          ))}
+        </ul>
+      ) : null}
 
-      <div ref={ref} className="relative">
-        {n === 0 || max === 0 ? (
-          <p className="flex h-[240px] items-center justify-center text-sm text-black/45">{emptyText}</p>
-        ) : (
-          <>
-            <svg
-              width={width}
-              height={HEIGHT}
-              role="img"
-              aria-label={`Line chart: ${colored.map((item) => item.label).join(", ")}`}
-              onMouseLeave={() => setHover(null)}
-              onMouseMove={(event) => {
-                const box = event.currentTarget.getBoundingClientRect();
-                const px = event.clientX - box.left;
-                const index = n <= 1 ? 0 : Math.round(((px - PAD.left) / innerW) * (n - 1));
-                setHover(Math.min(n - 1, Math.max(0, index)));
-              }}
-            >
-              {ticks.map((tick) => (
-                <g key={tick}>
-                  <line x1={PAD.left} x2={width - PAD.right} y1={y(tick)} y2={y(tick)} stroke="#ececec" strokeWidth={1} />
-                  <text x={PAD.left - 8} y={y(tick)} dy="0.32em" textAnchor="end" className="fill-black/45 text-[11px] tabular-nums">
-                    {tick.toLocaleString()}
-                  </text>
-                </g>
-              ))}
-              {labels.map((label, i) =>
-                i % every === 0 || i === n - 1 ? (
-                  <text key={label} x={x(i)} y={HEIGHT - 8} textAnchor="middle" className="fill-black/45 text-[11px]">
-                    {formatLabel(label)}
-                  </text>
-                ) : null,
-              )}
-              {hover !== null ? (
-                <line x1={x(hover)} x2={x(hover)} y1={PAD.top} y2={PAD.top + innerH} stroke="#c9c9c9" strokeWidth={1} />
-              ) : null}
-              {colored.map((item) => (
-                <polyline
-                  key={item.key}
-                  fill="none"
-                  stroke={item.color}
-                  strokeWidth={2}
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                  points={item.values.map((value, i) => `${x(i)},${y(value)}`).join(" ")}
-                />
-              ))}
-              {hover !== null
-                ? colored.map((item) => (
-                    <circle
-                      key={item.key}
-                      cx={x(hover)}
-                      cy={y(item.values[hover] ?? 0)}
-                      r={4}
-                      fill={item.color}
-                      stroke="#ffffff"
-                      strokeWidth={2}
-                    />
-                  ))
-                : null}
-            </svg>
-            {hover !== null ? (
-              <div
-                className="pointer-events-none absolute top-2 z-10 min-w-36 rounded-lg border border-black/[0.08] bg-white px-3 py-2 text-xs shadow-md"
-                style={{
-                  left: Math.min(Math.max(x(hover) + 12, 0), width - 160),
-                }}
-              >
-                <p className="mb-1 font-medium text-[#001539]">{formatLabel(labels[hover])}</p>
-                {colored.map((item) => (
-                  <p key={item.key} className="flex items-center justify-between gap-4 text-black/65">
-                    <span className="flex items-center gap-1.5">
-                      <span className="size-2 rounded-full" style={{ backgroundColor: item.color }} />
-                      {item.label}
-                    </span>
-                    <span className="font-medium text-[#001539] tabular-nums">
-                      {(item.values[hover] ?? 0).toLocaleString()}
-                    </span>
-                  </p>
-                ))}
-              </div>
-            ) : null}
-          </>
-        )}
-      </div>
+      <ChartContainer config={config} className="aspect-auto w-full" style={{ height }} aria-label={name} role="figure">
+        <AreaChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: 0 }} accessibilityLayer>
+          <defs>
+            {styled.map((item) => (
+              <linearGradient key={item.key} id={`${gradientId}-${item.key}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={item.color} stopOpacity={stacked ? 0.35 : 0.18} />
+                <stop offset="100%" stopColor={item.color} stopOpacity={stacked ? 0.12 : 0.02} />
+              </linearGradient>
+            ))}
+          </defs>
+          <CartesianGrid vertical={false} stroke="var(--color-surface-muted)" />
+          <XAxis
+            dataKey="period"
+            tickLine={false}
+            axisLine={false}
+            tickMargin={8}
+            minTickGap={24}
+            tickFormatter={(value: string) => formatLabel(value)}
+          />
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            width={44}
+            allowDecimals={false}
+            tickFormatter={(value: number) => formatCount(value, { compact: value >= 10_000 })}
+          />
+          <ChartTooltip
+            cursor={{ stroke: "#c9c9c9", strokeWidth: 1 }}
+            content={
+              <ChartTooltipContent
+                indicator="line"
+                labelFormatter={(_, payload) => formatLabel(String(payload?.[0]?.payload?.period ?? ""))}
+                valueFormatter={formatValue}
+              />
+            }
+          />
+          {styled.map((item) => (
+            <Area
+              key={item.key}
+              dataKey={item.key}
+              name={item.key}
+              type="monotone"
+              stackId={stacked ? "total" : undefined}
+              stroke={item.color}
+              strokeWidth={2}
+              fill={`url(#${gradientId}-${item.key})`}
+              dot={false}
+              activeDot={{ r: 4, strokeWidth: 2, stroke: "#ffffff" }}
+              isAnimationActive={false}
+            />
+          ))}
+        </AreaChart>
+      </ChartContainer>
+
+      <ChartDataTable
+        caption={name}
+        columns={["Period", ...styled.map((item) => item.label)]}
+        rows={labels.map((value, i) => [formatLabel(value), ...styled.map((item) => formatValue(item.values[i] ?? 0))])}
+      />
     </div>
   );
 }

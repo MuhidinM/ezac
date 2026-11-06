@@ -53,7 +53,7 @@ export function CurrencyInput({
         aria-describedby={ariaDescribedby}
         className={cn("form-input pr-14", className)}
       />
-      <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-medium text-black/50">
+      <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-medium text-black/60">
         ETB
       </span>
     </div>

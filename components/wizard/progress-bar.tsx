@@ -13,8 +13,8 @@ export function ProgressBar({ currentStep, totalSteps = 7, sectionName, label }:
 
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center justify-between text-xs text-black/55">
-        <span className="font-medium text-[#001539]">{label ?? defaultLabel}</span>
+      <div className="flex items-center justify-between text-xs text-black/60">
+        <span className="font-medium text-navy">{label ?? defaultLabel}</span>
         <span className="tabular-nums">{Math.round(percent)}%</span>
       </div>
       <div
@@ -26,7 +26,7 @@ export function ProgressBar({ currentStep, totalSteps = 7, sectionName, label }:
         aria-label={label ?? defaultLabel}
       >
         <div
-          className="h-full rounded-full bg-[#007050] transition-all duration-500 ease-out"
+          className="h-full rounded-full bg-brand transition-all duration-500 ease-out"
           style={{ width: `${percent}%` }}
         />
       </div>

@@ -1,139 +1,144 @@
-import { NextResponse } from "next/server";
+import "server-only";
+
 import type { NextRequest } from "next/server";
 
-import { safeFileResponse } from "@/lib/api/bff";
-import { getApiBaseUrl } from "@/lib/api/config";
-import { logGatewayUnreachable } from "@/lib/api/network-error";
-import { clearAuthCookies, getAccessToken } from "@/lib/auth/session";
+import { authorizeCaller, bffError, bffJson, safeFileResponse, type BffAccess } from "@/lib/api/bff";
+import { JSON_BODY_LIMIT, MULTIPART_BODY_LIMIT, isMultipart, readBodyCapped } from "@/lib/api/body";
+import { ApiError } from "@/lib/api/errors";
+import { errorFields, logEvent } from "@/lib/api/log";
+import { isSafePathSegment } from "@/lib/api/path";
+import {
+  UPSTREAM_FILE_TIMEOUT_MS,
+  UPSTREAM_MESSAGES,
+  UPSTREAM_TIMEOUT_MS,
+  newRequestId,
+  readUpstreamJson,
+  unreadableAnswer,
+  upstreamError,
+  upstreamFetch,
+} from "@/lib/api/upstream";
+import { clearAuthCookies } from "@/lib/auth/session";
 
 type ProxyOptions = {
   /** Upstream path prefix, e.g. /api/beneficiaries/v1 */
   upstreamPrefix: string;
-  /** First path segments the proxy may reach. */
-  allowedPrefixes: string[];
+  /**
+   * The paths the proxy may reach, by first segments, and who may call each.
+   * The longest matching prefix wins.
+   */
+  allowedPrefixes: Record<string, BffAccess>;
   /** Tag for server logs. */
   label: string;
+  /**
+   * How long to wait for a JSON answer. Defaults to UPSTREAM_TIMEOUT_MS; raise
+   * it for services that wait on a third party (a payout confirm waits on the bank).
+   */
+  timeoutMs?: number;
 };
 
 type RouteContext = {
   params: Promise<{ path: string[] }>;
 };
 
-function isAllowed(segments: string[], allowedPrefixes: string[]) {
-  if (segments.some((segment) => segment === ".." || segment === ".")) {
-    return false;
-  }
+/**
+ * The access rule for a path, or null when the proxy must not reach it.
+ * Segments arrive decoded, so "%2F" would hide a "/" inside one segment;
+ * those, "\", "%", control characters and dot segments are refused.
+ */
+function accessFor(segments: string[], allowedPrefixes: Record<string, BffAccess>): BffAccess | null {
+  if (segments.length === 0 || !segments.every(isSafePathSegment)) return null;
+
   const path = segments.join("/");
-  return allowedPrefixes.some(
-    (prefix) => path === prefix || path.startsWith(`${prefix}/`),
-  );
-}
-
-/** Normalise framework error bodies (`{ status, error }`) into our envelope. */
-function toEnvelope(body: unknown, status: number) {
-  if (body && typeof body === "object" && "success" in body) return body;
-
-  const record = (body ?? {}) as Record<string, unknown>;
-  const message =
-    (typeof record.message === "string" && record.message) ||
-    (typeof record.error === "string" && record.error) ||
-    (status >= 500 ? "Upstream service error" : "Request failed");
-
-  return { success: false, message, errors: record.errors };
+  let match: string | null = null;
+  for (const prefix of Object.keys(allowedPrefixes)) {
+    const matches = path === prefix || path.startsWith(`${prefix}/`);
+    if (matches && (match === null || prefix.length > match.length)) match = prefix;
+  }
+  return match === null ? null : allowedPrefixes[match];
 }
 
 /**
  * Authenticated pass-through from our origin to one upstream service. The
  * browser never holds the access token, so this adds it from the httpOnly
- * cookie (refreshing it when needed). Roles and scoping are enforced
- * upstream; the prefix list only keeps the proxy away from unrelated
- * endpoints. JSON and multipart bodies are forwarded as-is, binary
- * responses are streamed with safe headers.
+ * cookie (refreshing it when needed). Each prefix has a role rule that
+ * mirrors the UI; the gateway still enforces roles and scoping. Bodies are
+ * capped (1 MB JSON, 25 MB multipart), binary responses are streamed with
+ * safe headers, and every error answer carries a request id.
  */
 export function createProxy({
   upstreamPrefix,
   allowedPrefixes,
   label,
+  timeoutMs = UPSTREAM_TIMEOUT_MS,
 }: ProxyOptions) {
-  async function forward(request: NextRequest, context: RouteContext) {
+  async function handle(request: NextRequest, context: RouteContext, requestId: string) {
     const { path } = await context.params;
 
-    if (!isAllowed(path, allowedPrefixes)) {
-      return NextResponse.json(
-        { success: false, message: "Not found" },
-        { status: 404 },
-      );
+    const access = accessFor(path, allowedPrefixes);
+    if (!access) {
+      return bffJson({ success: false, message: "We couldn't find that." }, { status: 404 });
     }
 
-    const accessToken = await getAccessToken();
-    if (!accessToken) {
-      return NextResponse.json(
-        { success: false, message: "Authentication required" },
-        { status: 401 },
-      );
-    }
+    const auth = await authorizeCaller(access);
+    if (!auth.ok) return auth.response;
 
-    const upstreamUrl = new URL(
-      `${getApiBaseUrl()}${upstreamPrefix}/${path.map(encodeURIComponent).join("/")}`,
-    );
-    upstreamUrl.search = request.nextUrl.search;
+    const multipart = isMultipart(request);
+    const hasBody = request.method !== "GET" && request.method !== "HEAD";
+    const body = hasBody
+      ? await readBodyCapped(request, multipart ? MULTIPART_BODY_LIMIT : JSON_BODY_LIMIT)
+      : undefined;
 
-    const headers = new Headers({ Authorization: `Bearer ${accessToken}` });
+    const headers = new Headers({ Authorization: `Bearer ${auth.caller.accessToken}` });
     const contentType = request.headers.get("Content-Type");
     if (contentType) headers.set("Content-Type", contentType);
 
-    const hasBody = request.method !== "GET" && request.method !== "HEAD";
-
-    let upstream: Response;
-    try {
-      upstream = await fetch(upstreamUrl, {
-        method: request.method,
-        headers,
-        body: hasBody ? await request.arrayBuffer() : undefined,
-        cache: "no-store",
-      });
-    } catch (error) {
-      logGatewayUnreachable(label, error);
-      return NextResponse.json(
-        { success: false, message: "Unable to reach the beneficiary service" },
-        { status: 502 },
-      );
-    }
+    const call = await upstreamFetch(
+      `${upstreamPrefix}/${path.map(encodeURIComponent).join("/")}${request.nextUrl.search}`,
+      { method: request.method, headers, body },
+      { label, requestId, timeoutMs: multipart ? Math.max(UPSTREAM_FILE_TIMEOUT_MS, timeoutMs) : timeoutMs },
+    );
+    const upstream = call.response;
 
     if (upstream.status === 401) {
       await clearAuthCookies();
     }
 
+    const noContent =
+      upstream.status === 204 || upstream.status === 205 || upstream.headers.get("Content-Length") === "0";
+    if (upstream.ok && noContent) {
+      call.settle();
+      await upstream.body?.cancel().catch(() => undefined);
+      return bffJson({ success: true, data: null });
+    }
+
     const upstreamType = upstream.headers.get("Content-Type") ?? "";
     if (upstream.ok && !upstreamType.includes("application/json")) {
+      // The timeout covered the wait for an answer; the download itself may be slow.
+      call.settle();
       return safeFileResponse(upstream);
     }
 
-    let body: unknown = null;
-    try {
-      body = await upstream.json();
-    } catch {
-      // empty or non-JSON error body
-    }
+    const parsed = await readUpstreamJson(call);
 
     if (upstream.ok) {
-      return NextResponse.json(body ?? { success: true, data: null }, {
-        status: upstream.status,
-      });
+      if (parsed.kind === "empty") return bffJson({ success: true, data: null });
+      if (parsed.kind === "invalid") return bffError(unreadableAnswer(call));
+      return bffJson(parsed.value ?? { success: true, data: null }, { status: upstream.status });
     }
 
-    const envelope = toEnvelope(body, upstream.status);
-    if (upstream.status >= 500) {
-      // Surface upstream failures in the dev/server log; the browser only
-      // sees the normalised message.
-      console.error(
-        `[${label}] ${upstream.status} ${request.method} ${upstreamUrl.pathname}${upstreamUrl.search}:`,
-        (envelope as { message?: string }).message,
-        body ?? "(empty body)",
-      );
-    }
+    return bffError(upstreamError(call, parsed.kind === "json" ? parsed.value : null));
+  }
 
-    return NextResponse.json(envelope, { status: upstream.status });
+  async function forward(request: NextRequest, context: RouteContext) {
+    const requestId = newRequestId();
+    try {
+      return await handle(request, context, requestId);
+    } catch (error) {
+      // ApiError: body too large, gateway unreachable or timed out (already logged).
+      if (error instanceof ApiError) return bffError(error);
+      logEvent("error", "bff_unexpected_error", { label, requestId, ...errorFields(error, { stack: true }) });
+      return bffJson({ success: false, message: UPSTREAM_MESSAGES.serverError, requestId }, { status: 500 });
+    }
   }
 
   return {

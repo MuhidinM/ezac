@@ -28,7 +28,7 @@ export function DocumentsList({
   documents: AssessmentDocument[];
 }) {
   if (documents.length === 0) {
-    return <p className="text-sm text-black/45">No documents uploaded yet.</p>;
+    return <p className="text-sm text-black/60">No documents uploaded yet.</p>;
   }
 
   return (
@@ -43,10 +43,10 @@ export function DocumentsList({
                 <Icon className="size-4" />
               </span>
               <div className="min-w-0">
-                <p className="text-sm font-medium text-[#001539]">
+                <p className="text-sm font-medium text-navy">
                   {labelFor(DOCUMENT_TYPES, document.documentType)}
                 </p>
-                <p className="truncate text-xs text-black/50">
+                <p className="truncate text-xs text-black/60">
                   {[document.originalFilename, formatBytes(document.sizeBytes), document.uploadedAt ? formatDateTime(document.uploadedAt) : null, document.uploadedByName]
                     .filter(Boolean)
                     .join(" · ")}
@@ -136,14 +136,14 @@ export function DocumentUploader({
           accept={ACCEPTED.join(",")}
           aria-label="File"
           onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-          className="block w-full text-sm text-black/60 file:mr-3 file:rounded-md file:border-0 file:bg-[#001539] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-[#001539]/90"
+          className="block w-full text-sm text-black/60 file:mr-3 file:rounded-md file:border-0 file:bg-navy file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-navy/90"
         />
         <Button type="button" onClick={() => void upload()} disabled={isUploading || !file}>
           <Upload />
           {isUploading ? "Uploading…" : "Upload"}
         </Button>
       </div>
-      <p className="text-xs text-black/45">PDF, JPEG, PNG or WebP, up to 5 MB.</p>
+      <p className="text-xs text-black/60">PDF, JPEG, PNG or WebP, up to 5 MB.</p>
     </div>
   );
 }

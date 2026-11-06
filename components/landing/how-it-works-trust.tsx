@@ -1,106 +1,72 @@
-import { BadgeCheckIcon, ClipboardCheckIcon, LockIcon } from "lucide-react";
+import Link from "next/link";
+import { ArrowRightIcon, BadgeCheckIcon, ClipboardCheckIcon, LockIcon } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-type TrustStep = {
-  title: string;
-  description: string;
-  icon: LucideIcon;
-};
+import { type Locale, localizedPath } from "@/lib/i18n/config";
+import type { Dictionary } from "@/lib/i18n/dictionaries/en";
+import { format } from "@/lib/i18n/messages";
 
-const TRUST_STEPS: TrustStep[] = [
-  {
-    title: "100% Shari'ah Compliant",
-    description:
-      "Every campaign and fund flow is screened against approved Shari'ah governance standards.",
-    icon: BadgeCheckIcon,
-  },
-  {
-    title: "Assessed, Scored Households",
-    description:
-      "Every household is visited, scored against a published points table and approved at its branch before head office pays it by bank transfer.",
-    icon: ClipboardCheckIcon,
-  },
-  {
-    title: "Bank-Verified, Audited",
-    description:
-      "Payments in are matched to bank transactions, payouts go only to bank-checked accounts, and every change is logged.",
-    icon: LockIcon,
-  },
-];
+/** One icon per step in home.howItWorks.steps, in the same order. */
+const STEP_ICONS: LucideIcon[] = [BadgeCheckIcon, ClipboardCheckIcon, LockIcon];
 
-export function HowItWorksTrust() {
+export function HowItWorksTrust({ t, locale }: { t: Dictionary["home"]["howItWorks"]; locale: Locale }) {
   return (
-    <section className="relative z-10 w-full overflow-hidden border-t border-black/5 bg-[#007050]">
-      {/* eslint-disable-next-line @next/next/no-img-element -- decorative brand graphic served as a static asset */}
-      <img
-        src="/bg.png"
-        alt=""
+    <section
+      aria-labelledby="how-it-works-title"
+      className="relative z-10 w-full overflow-hidden border-t border-black/5 bg-brand"
+    >
+      {/* Decorative brand graphic: a CSS background, so it isn't an image without a description. */}
+      <div
         aria-hidden="true"
-        className="pointer-events-none absolute top-1/2 right-[-12%] z-0 h-[150%] w-auto max-w-none -translate-y-1/2 select-none opacity-60"
+        className="pointer-events-none absolute top-1/2 -end-[12%] z-0 aspect-[1200/1038] h-[150%] -translate-y-1/2 bg-[url(/images/bg.webp)] bg-contain bg-no-repeat opacity-60 select-none"
       />
       <div className="relative z-10 mx-auto max-w-7xl px-8 py-24">
         <div className="mx-auto max-w-3xl text-center">
-          <p
-            className="text-[10px] uppercase tracking-[0.18em]"
-            style={{ color: "rgba(255,255,255,0.75)" }}
-          >
-            How It Works
-          </p>
+          <p className="text-xs uppercase tracking-[0.16em] text-white/90">{t.eyebrow}</p>
           <h2
-            className="font-serif-display mt-3 text-4xl sm:text-5xl md:text-6xl"
-            style={{
-              color: "#FFFFFF",
-              lineHeight: 1,
-              letterSpacing: "-1.8px",
-            }}
+            id="how-it-works-title"
+            className="font-serif-display mt-3 text-4xl leading-none tracking-[-1.8px] text-white sm:text-5xl md:text-6xl"
           >
-            Transparency, Verification, Security
+            {t.title}
           </h2>
+          {/* The direct answer to the heading's question, before the detail. */}
+          <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-white/90 sm:text-lg">{t.intro}</p>
         </div>
 
-        <div className="relative mx-auto mt-12 w-full max-w-6xl">
-          <div className="grid gap-5 md:grid-cols-3 md:gap-6">
-            {TRUST_STEPS.map(({ title, description, icon: Icon }, idx) => (
-              <article
-                key={title}
-                className="rounded-3xl border border-black/5 bg-white p-2 shadow-xl shadow-black/5"
-              >
-                <div className="flex h-full flex-col rounded-2xl border border-black/5 bg-white p-6">
+        <ol className="relative mx-auto mt-12 grid w-full max-w-6xl gap-5 md:grid-cols-3 md:gap-6">
+          {t.steps.map(({ title, description }, idx) => {
+            const Icon = STEP_ICONS[idx] ?? BadgeCheckIcon;
+            return (
+              <li key={title} className="rounded-3xl border border-black/5 bg-white p-2 shadow-xl shadow-black/5">
+                <article className="flex h-full flex-col rounded-2xl border border-black/5 bg-white p-6">
                   <div className="mb-4 flex items-center justify-between">
                     <span
-                      className="rounded-full border border-black/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.14em]"
-                      style={{ color: "#6F6F6F" }}
+                      aria-hidden="true"
+                      className="rounded-full border border-black/10 px-2.5 py-1 text-xs uppercase tracking-[0.12em] text-muted-ink"
                     >
-                      Step {idx + 1}
+                      {format(t.step, { n: idx + 1 })}
                     </span>
                     <span className="rounded-full border border-black/10 p-2">
-                      <Icon className="h-4 w-4" style={{ color: "#001539" }} />
+                      <Icon aria-hidden="true" className="h-4 w-4 text-navy" />
                     </span>
                   </div>
-                  <h3
-                    className="font-serif-display text-2xl leading-tight"
-                    style={{ color: "#001539", letterSpacing: "-0.5px" }}
-                  >
-                    {title}
-                  </h3>
-                  <p
-                    className="mt-3 text-sm leading-relaxed"
-                    style={{ color: "#6F6F6F" }}
-                  >
-                    {description}
-                  </p>
-                </div>
-              </article>
-            ))}
-          </div>
-        </div>
+                  <h3 className="font-serif-display text-2xl leading-tight tracking-[-0.5px] text-navy">{title}</h3>
+                  <p className="mt-3 text-sm leading-relaxed text-muted-ink">{description}</p>
+                </article>
+              </li>
+            );
+          })}
+        </ol>
+
         <div className="relative mt-10 text-center">
-          <a
-            href="/how-it-works"
-            className="inline-flex items-center gap-2 rounded-full border border-white/40 px-7 py-3.5 text-sm text-white transition-colors hover:bg-white/10"
+          <Link
+            href={localizedPath(locale, "/how-it-works")}
+            title={t.cta.title}
+            className="inline-flex items-center gap-2 rounded-full border border-white/40 px-7 py-3.5 text-sm text-white transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand"
           >
-            See the full process →
-          </a>
+            {t.cta.label}
+            <ArrowRightIcon aria-hidden="true" className="h-4 w-4 rtl:-scale-x-100" />
+          </Link>
         </div>
       </div>
     </section>

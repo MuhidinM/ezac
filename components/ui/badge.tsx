@@ -9,8 +9,8 @@ const badgeVariants = cva(
     variants: {
       tone: {
         neutral: "border-black/10 bg-black/[0.03] text-black/65",
-        brand: "border-[#007050]/20 bg-[#007050]/[0.08] text-[#00573e]",
-        navy: "border-[#001539]/15 bg-[#001539]/[0.06] text-[#001539]",
+        brand: "border-brand/20 bg-brand/[0.08] text-[#00573e]",
+        navy: "border-navy/15 bg-navy/[0.06] text-navy",
         success: "border-emerald-200 bg-emerald-50 text-emerald-800",
         warning: "border-amber-200 bg-amber-50 text-amber-800",
         danger: "border-rose-200 bg-rose-50 text-rose-800",

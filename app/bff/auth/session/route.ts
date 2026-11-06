@@ -3,22 +3,23 @@ import { NextResponse } from "next/server";
 import { ApiError } from "@/lib/api/errors";
 import { gatewayRequest } from "@/lib/api/gateway";
 import type { MeProfile, SessionInfo } from "@/lib/api/types";
+import { filterAppRoles } from "@/lib/auth/constants";
+import { authError, authUnavailableResponse } from "@/lib/auth/http";
 import {
-  filterAppRoles,
-  hasStaffRole,
-  isAdminRole,
-  isBranchRole,
-} from "@/lib/auth/constants";
-import {
+  AUTH_REQUEST_TIMEOUT_MS,
+  AuthUnavailableError,
+  clearAuthCookies,
   getAccessToken,
-  getSessionFromJwt,
+  sessionFlags,
+  sessionFromAccessToken,
   sessionFromMeProfile,
 } from "@/lib/auth/session";
 
 /**
  * Prefer /me for display fields, but union roles with the access token so the
  * Branches menu still appears when Keycloak puts ADMIN on the JWT and /me
- * returns an empty roles array.
+ * returns an empty roles array. The access flags come from sessionFlags, so an
+ * account with no EZAC role gets no access here either.
  */
 function mergeSessionWithJwt(
   fromMe: SessionInfo,
@@ -26,62 +27,63 @@ function mergeSessionWithJwt(
 ): SessionInfo {
   if (!fromJwt) return fromMe;
 
-  const combined = filterAppRoles([
-    ...fromMe.allRoles,
-    ...fromMe.roles,
-    ...fromJwt.allRoles,
-    ...fromJwt.roles,
-  ]);
-  const allRoles = Array.from(
-    new Set([...fromMe.allRoles, ...fromJwt.allRoles, ...combined]),
-  );
-  const staff = hasStaffRole(combined) || hasStaffRole(allRoles);
-  const branch = isBranchRole(combined) || isBranchRole(allRoles);
+  const allRoles = Array.from(new Set([...fromMe.allRoles, ...fromJwt.allRoles]));
 
   return {
     ...fromMe,
-    roles: combined,
+    roles: filterAppRoles(allRoles),
     allRoles,
-    isAdmin: isAdminRole(combined) || isAdminRole(allRoles),
-    isBranch: branch && !staff,
-    isStaff: staff || !branch,
+    ...sessionFlags(allRoles),
   };
 }
 
-export async function GET() {
-  const accessToken = await getAccessToken();
-  if (!accessToken) {
-    return NextResponse.json(
-      { success: false, message: "Not authenticated" },
-      { status: 401 },
-    );
+async function signedOut(): Promise<NextResponse> {
+  // Without this, a stale cookie keeps proxy.ts treating the browser as signed
+  // in and /login would bounce straight back to the dashboard.
+  try {
+    await clearAuthCookies();
+  } catch {
+    // Nothing more to do; the 401 still tells the page to sign in.
   }
+  return authError(401, "Not authenticated");
+}
 
-  const fromJwt = await getSessionFromJwt();
+export async function GET() {
+  let accessToken: string | null;
+  try {
+    accessToken = await getAccessToken();
+  } catch (error) {
+    if (error instanceof AuthUnavailableError) return authUnavailableResponse();
+    throw error;
+  }
+  if (!accessToken) return signedOut();
+
+  const fromJwt = sessionFromAccessToken(accessToken);
 
   try {
     const profile = await gatewayRequest<MeProfile>("/api/auth/v1/me", {
       accessToken,
+      label: "auth/session",
+      timeoutMs: AUTH_REQUEST_TIMEOUT_MS,
     });
-    return NextResponse.json({
-      success: true,
-      data: mergeSessionWithJwt(sessionFromMeProfile(profile), fromJwt),
-    });
+    return NextResponse.json(
+      { success: true, data: mergeSessionWithJwt(sessionFromMeProfile(profile), fromJwt) },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
-      return NextResponse.json(
-        { success: false, message: "Not authenticated" },
-        { status: 401 },
-      );
+      return signedOut();
     }
 
-    if (!fromJwt) {
-      return NextResponse.json(
-        { success: false, message: "Not authenticated" },
-        { status: 401 },
-      );
+    // A disabled or blocked account: don't fall back to the roles in its token.
+    if (error instanceof ApiError && error.status === 403) {
+      return authError(403, "Your account can't use the staff portal right now. Ask an administrator.");
     }
 
-    return NextResponse.json({ success: true, data: fromJwt });
+    // /me is down or slow (already logged): the token's own roles are still a fair answer.
+    if (fromJwt) {
+      return NextResponse.json({ success: true, data: fromJwt }, { headers: { "Cache-Control": "no-store" } });
+    }
+    return authUnavailableResponse();
   }
 }

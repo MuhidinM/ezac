@@ -14,6 +14,7 @@ import type {
   LifecycleAction,
   LifecycleHistory,
   LifecycleStatus,
+  PoolStatus,
 } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
 import { useResource } from "@/lib/api/use-resource";
@@ -28,20 +29,30 @@ const ACTIONS: { value: LifecycleAction; label: string; hint: string }[] = [
 
 const FINAL: LifecycleStatus[] = ["GRADUATED", "EXITED"];
 
+/** Graduating means leaving self-sufficient, which only a supported household can do. */
+const CAN_GRADUATE: LifecycleStatus[] = ["ACTIVE", "ASSESSED"];
+
 function allowedActions(current: LifecycleStatus | null | undefined) {
   if (!current || FINAL.includes(current)) return [];
-  if (current === "INACTIVE") return ACTIONS.filter((a) => a.value !== "INACTIVE");
-  return ACTIONS.filter((a) => a.value !== "REINSTATED");
+  return ACTIONS.filter((a) => {
+    if (a.value === "REINSTATED") return current === "INACTIVE";
+    if (a.value === "INACTIVE") return current !== "INACTIVE";
+    if (a.value === "GRADUATED") return CAN_GRADUATE.includes(current);
+    return true;
+  });
 }
 
 /** Lifecycle history for staff; ADMIN can pause, reinstate, graduate or exit. */
 export function LifecyclePanel({
   beneficiaryId,
   canChange,
+  poolStatus,
   onChanged,
 }: {
   beneficiaryId: string;
   canChange: boolean;
+  /** A pooled household must leave the pool before its status can change. */
+  poolStatus?: PoolStatus | null;
   onChanged: (status: LifecycleStatus) => void;
 }) {
   const path = `/bff/backoffice/beneficiaries/${encodeURIComponent(beneficiaryId)}/lifecycle`;
@@ -50,7 +61,8 @@ export function LifecyclePanel({
   const [action, setAction] = useState<LifecycleAction | "">("");
   const [reason, setReason] = useState("");
 
-  const options = allowedActions(data?.lifecycleStatus);
+  const isPooled = poolStatus === "POOLED";
+  const options = isPooled ? [] : allowedActions(data?.lifecycleStatus);
   const history = [...(data?.history ?? [])].reverse();
 
   return (
@@ -65,12 +77,15 @@ export function LifecyclePanel({
       }
     >
       {error ? (
-        <p className="text-sm text-black/45">{error.status === 403 ? "History is visible to HQ staff only." : error.message}</p>
+        <p className="text-sm text-black/60">{error.status === 403 ? "History is visible to HQ staff only." : error.message}</p>
       ) : (
         <div className="space-y-4">
           <LifecycleBadge status={data?.lifecycleStatus} />
+          {canChange && isPooled ? (
+            <p className="text-sm text-black/60">Remove the household from the pool before changing its status.</p>
+          ) : null}
           {history.length === 0 ? (
-            <p className="flex items-center gap-1.5 text-sm text-black/45">
+            <p className="flex items-center gap-1.5 text-sm text-black/60">
               <History className="size-3.5" />
               No manual changes yet.
             </p>
@@ -78,12 +93,12 @@ export function LifecyclePanel({
             <ol className="space-y-3">
               {history.map((entry, index) => (
                 <li key={`${entry.changedAt}-${index}`} className="border-l-2 border-black/10 pl-3">
-                  <p className="flex flex-wrap items-center gap-1.5 text-sm text-[#001539]">
+                  <p className="flex flex-wrap items-center gap-1.5 text-sm text-navy">
                     <LifecycleBadge status={entry.fromStatus as LifecycleStatus | null} />
                     <ArrowRight className="size-3 text-black/35" />
                     <LifecycleBadge status={entry.toStatus as LifecycleStatus} />
                   </p>
-                  <p className="mt-1 text-xs text-black/50">
+                  <p className="mt-1 text-xs text-black/60">
                     {[entry.changedByName, formatDateTime(entry.changedAt)].filter(Boolean).join(" · ")}
                   </p>
                   {entry.reason ? <p className="mt-0.5 text-sm text-black/65">{entry.reason}</p> : null}

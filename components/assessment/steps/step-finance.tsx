@@ -81,9 +81,9 @@ export function StepFinance({ draft, patch, errors }: StepProps) {
             />
           ) : null}
         </div>
-        <p className="mt-4 text-xs text-black/50">
+        <p className="mt-4 text-xs text-black/60">
           Household members&apos; incomes add up to{" "}
-          <span className="font-medium text-[#001539] tabular-nums">{formatEtb(membersIncome)}</span>.
+          <span className="font-medium text-navy tabular-nums">{formatEtb(membersIncome)}</span>.
           A gap of more than 20% raises a warning at submission.
         </p>
       </FieldSection>
@@ -162,8 +162,8 @@ export function StepFinance({ draft, patch, errors }: StepProps) {
 function TotalChip({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-lg bg-black/[0.03] px-3 py-1.5 text-right">
-      <p className="text-[11px] font-medium text-black/50">{label}</p>
-      <p className="text-sm font-semibold text-[#001539] tabular-nums">{formatEtb(value)}</p>
+      <p className="text-xs font-medium text-black/60">{label}</p>
+      <p className="text-sm font-semibold text-navy tabular-nums">{formatEtb(value)}</p>
     </div>
   );
 }

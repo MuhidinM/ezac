@@ -5,6 +5,22 @@ import { ChevronDown, Minus, Plus } from "lucide-react";
 
 import { Panel } from "@/components/dashboard/panel";
 import { Badge } from "@/components/ui/badge";
+import { NativeSelect } from "@/components/ui/native-select";
+import {
+  DEFAULT_RECOMMENDATION,
+  LEVELS,
+  RECOMMENDATIONS,
+  describe,
+  fieldMin,
+  fieldName,
+  groupSchema,
+  isText,
+  num,
+  recommendationLabel,
+  text,
+  type Level,
+  type SectionGroup,
+} from "@/components/scoring/scoring-schema";
 import {
   getPath,
   type Band,
@@ -19,56 +35,19 @@ import { cn } from "@/lib/utils";
  * "points" next to what it rewards, with the earlier value when it changed.
  */
 
-const THRESHOLD_SECTION = /risk|threshold|total/i;
 const SECTION_COLORS = ["#007050", "#2a78d6", "#eb6834", "#eda100", "#7c5cc4", "#0f9fb0", "#c2417a", "#5b7a1f"];
 
-function humanize(key: string) {
-  return key
-    .replace(/[_-]+/g, " ")
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/^\w/, (char) => char.toUpperCase());
+/** Ascending bounds read "up to X"; descending ones read "X or more". */
+function bandDirection(bands: Band[]) {
+  return bands.length > 1 && num(bands[0]?.[0]) > num(bands[bands.length - 1]?.[0]) ? "down" : "up";
 }
 
-function isCap(field: SchemaField) {
-  return /(^|\.)max$/.test(field.path) && field.path !== "max_total";
-}
-
-type SectionGroup = { key: string; title: string; cap: SchemaField | null; items: SchemaField[] };
-
-export function groupSchema(schema: ScoringSchema) {
-  const sections = new Map<string, SectionGroup>();
-  let maxTotal: SchemaField | null = null;
-  let high: SchemaField | null = null;
-  let medium: SchemaField | null = null;
-  const otherThresholds: SchemaField[] = [];
-
-  for (const field of schema.fields) {
-    if (field.path === "max_total") {
-      maxTotal = field;
-      continue;
-    }
-    if (/high_min$/.test(field.path)) {
-      high = field;
-      continue;
-    }
-    if (/medium_min$/.test(field.path)) {
-      medium = field;
-      continue;
-    }
-    if (THRESHOLD_SECTION.test(field.section) && field.type !== "bands" && !isCap(field)) {
-      otherThresholds.push(field);
-      continue;
-    }
-    const group = sections.get(field.section) ?? { key: field.section, title: humanize(field.section), cap: null, items: [] };
-    if (isCap(field)) group.cap = field;
-    else group.items.push(field);
-    sections.set(field.section, group);
-  }
-  return { sections: [...sections.values()], maxTotal, high, medium, otherThresholds };
-}
-
-function num(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+/** Ratios move in small steps, money in larger ones. */
+function boundStep(bands: Band[]) {
+  const largest = Math.max(0, ...bands.map((band) => num(band?.[0])));
+  if (largest <= 10) return 0.05;
+  if (largest >= 1000) return 100;
+  return 1;
 }
 
 /** − [value] + with a unit, read-only when no onChange. */
@@ -91,12 +70,13 @@ function Stepper({
   label: string;
   changedFrom?: number | null;
 }) {
-  const clamp = (next: number) => Math.max(min, max != null ? Math.min(max, next) : next);
+  // Round so decimal steps don't drift (0.1 + 0.05 = 0.15000000000000002).
+  const clamp = (next: number) => Math.round(Math.max(min, max != null ? Math.min(max, next) : next) * 100) / 100;
   if (!onChange) {
     return (
       <span className="inline-flex items-baseline gap-1 tabular-nums">
-        <span className="text-base font-semibold text-[#001539]">{value}</span>
-        <span className="text-xs text-black/45">{unit}</span>
+        <span className="text-base font-semibold text-navy">{value}</span>
+        <span className="text-xs text-black/60">{unit}</span>
       </span>
     );
   }
@@ -106,7 +86,7 @@ function Stepper({
         <button
           type="button"
           aria-label={`Less ${label}`}
-          className="flex size-8 items-center justify-center text-black/50 hover:text-[#001539] disabled:opacity-30"
+          className="flex size-8 items-center justify-center text-black/50 hover:text-navy disabled:opacity-30"
           onClick={() => onChange(clamp(value - step))}
           disabled={value <= min}
         >
@@ -115,55 +95,105 @@ function Stepper({
         <input
           aria-label={label}
           type="number"
-          inputMode="numeric"
+          inputMode={step < 1 ? "decimal" : "numeric"}
           value={value}
           min={min}
           max={max}
           step={step}
           onChange={(event) => onChange(clamp(Number(event.target.value) || 0))}
           className={cn(
-            "h-8 w-14 border-x border-black/10 bg-transparent text-center text-sm font-semibold text-[#001539] tabular-nums outline-none",
+            "h-8 w-14 border-x border-black/10 bg-transparent text-center text-sm font-semibold text-navy tabular-nums outline-none",
             changedFrom != null && "bg-sky-50",
           )}
         />
         <button
           type="button"
           aria-label={`More ${label}`}
-          className="flex size-8 items-center justify-center text-black/50 hover:text-[#001539] disabled:opacity-30"
+          className="flex size-8 items-center justify-center text-black/50 hover:text-navy disabled:opacity-30"
           onClick={() => onChange(clamp(value + step))}
           disabled={max != null && value >= max}
         >
           <Plus className="size-3.5" />
         </button>
       </span>
-      {changedFrom != null ? <span className="text-[11px] text-sky-700 tabular-nums">was {changedFrom}</span> : null}
+      {changedFrom != null ? <span className="text-xs text-sky-700 tabular-nums">was {changedFrom}</span> : null}
     </span>
+  );
+}
+
+type LevelRecommendation = {
+  value: string;
+  /** Value in the compared version, when it differs. */
+  changedFrom: string | null;
+  onChange?: (value: string) => void;
+};
+
+/** The recommendation a need level gives: a picker while editing, plain text otherwise. */
+function RecommendationControl({ level, label, recommendation }: { level: Level; label: string; recommendation: LevelRecommendation }) {
+  const { value, changedFrom, onChange } = recommendation;
+  if (!onChange) {
+    return (
+      <p className="mt-0.5 text-xs text-black/60">
+        Recommendation: {recommendationLabel(value).toLowerCase()}
+        {changedFrom != null ? <span className="text-sky-700"> (was {recommendationLabel(changedFrom).toLowerCase()})</span> : null}
+      </p>
+    );
+  }
+  const known = RECOMMENDATIONS.some((item) => item.value === value);
+  return (
+    <div className="mt-2 space-y-1">
+      <label htmlFor={`recommendation-${level}`} className="text-xs text-black/60">
+        Recommendation
+      </label>
+      <NativeSelect
+        id={`recommendation-${level}`}
+        aria-label={`${label} recommendation`}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className={cn("h-8 text-xs", changedFrom != null && "bg-sky-50")}
+      >
+        {!value ? <option value="">Choose</option> : null}
+        {!known && value ? <option value={value}>{recommendationLabel(value)}</option> : null}
+        {RECOMMENDATIONS.map((item) => (
+          <option key={item.value} value={item.value}>
+            {item.label}
+          </option>
+        ))}
+      </NativeSelect>
+      {changedFrom != null ? <p className="text-xs text-sky-700">was {recommendationLabel(changedFrom).toLowerCase()}</p> : null}
+    </div>
   );
 }
 
 /** The three risk bands as one bar, with the two cut-off points. */
 function RiskScale({
   maxTotal,
+  limit,
   medium,
   high,
   onMedium,
   onHigh,
   base,
+  recommendations,
 }: {
   maxTotal: number;
+  /** The most a cut-off can be; null when the configuration has no maximum score. */
+  limit: number | null;
   medium: number;
   high: number;
   onMedium?: (value: number) => void;
   onHigh?: (value: number) => void;
   base?: { medium: number; high: number } | null;
+  /** From the configuration; a level without one shows the usual default. */
+  recommendations: Partial<Record<Level, LevelRecommendation>>;
 }) {
   const pct = (value: number) => `${Math.min(100, Math.max(0, (value / Math.max(1, maxTotal)) * 100))}%`;
   const bands = [
-    { label: "Low need", hint: "Recommendation: defer", from: 0, to: medium, color: "bg-emerald-500" },
-    { label: "Medium need", hint: "Recommendation: conditional approval", from: medium, to: high, color: "bg-amber-500" },
-    { label: "High need", hint: "Recommendation: approve", from: high, to: maxTotal, color: "bg-rose-500" },
+    { level: "LOW" as const, label: "Low need", from: 0, to: medium, color: "bg-emerald-500" },
+    { level: "MEDIUM" as const, label: "Medium need", from: medium, to: high, color: "bg-amber-500" },
+    { level: "HIGH" as const, label: "High need", from: high, to: maxTotal, color: "bg-rose-500" },
   ];
-  const invalid = !(medium > 0 && medium < high && high <= maxTotal);
+  const invalid = !(medium > 0 && medium < high && (limit == null || high <= limit));
 
   return (
     <div className="space-y-5">
@@ -179,7 +209,7 @@ function RiskScale({
             </div>
           ))}
         </div>
-        <div className="relative mt-1 h-5 text-[11px] text-black/50 tabular-nums">
+        <div className="relative mt-1 h-5 text-xs text-black/60 tabular-nums">
           <span className="absolute left-0">0</span>
           <span className="absolute -translate-x-1/2" style={{ left: pct(medium) }}>
             {medium}
@@ -191,16 +221,22 @@ function RiskScale({
         </div>
       </div>
       {invalid ? (
-        <p className="text-sm text-rose-700">Medium must start above 0 and below High, and High can&apos;t be above {maxTotal}.</p>
+        <p className="text-sm text-rose-700">
+          Medium must start above 0 and below High{limit != null ? <>, and High can&apos;t be above {limit}</> : null}.
+        </p>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-3">
         {bands.map((band, index) => (
           <div key={band.label} className="rounded-lg border border-black/[0.06] p-3">
-            <p className="flex items-center gap-2 text-sm font-medium text-[#001539]">
+            <p className="flex items-center gap-2 text-sm font-medium text-navy">
               <span className={cn("size-2.5 rounded-full", band.color)} />
               {band.label}
             </p>
-            <p className="mt-0.5 text-xs text-black/50">{band.hint}</p>
+            <RecommendationControl
+              level={band.level}
+              label={band.label}
+              recommendation={recommendations[band.level] ?? { value: DEFAULT_RECOMMENDATION[band.level], changedFrom: null }}
+            />
             <div className="mt-3 flex items-center justify-between gap-2 text-sm text-black/60">
               {index === 0 ? (
                 <span>Below {medium} points</span>
@@ -212,7 +248,7 @@ function RiskScale({
                     value={index === 1 ? medium : high}
                     onChange={index === 1 ? onMedium : onHigh}
                     min={1}
-                    max={maxTotal}
+                    max={limit ?? undefined}
                     changedFrom={base ? ((index === 1 ? base.medium : base.high) !== (index === 1 ? medium : high) ? (index === 1 ? base.medium : base.high) : null) : null}
                   />
                 </>
@@ -244,7 +280,7 @@ function Budget({ sections, values, maxTotal }: { sections: SectionGroup[]; valu
         {sections.map((section, index) => (
           <span key={section.key} className="inline-flex items-center gap-1.5">
             <span className="size-2 rounded-full" style={{ backgroundColor: SECTION_COLORS[index % SECTION_COLORS.length] }} />
-            {section.title} <span className="tabular-nums text-black/45">{values[index]}</span>
+            {section.title} <span className="tabular-nums text-black/60">{values[index]}</span>
           </span>
         ))}
       </div>
@@ -263,38 +299,50 @@ function BandsRows({
   field,
   value,
   baseValue,
+  cap,
   onChange,
 }: {
   field: SchemaField;
   value: Band[];
   baseValue: Band[] | null;
+  /** The section maximum: no band gives more. */
+  cap: number | null;
   onChange?: (value: Band[]) => void;
 }) {
+  const { label } = describe(field);
+  // Read the direction from the compared version so a half-typed edit doesn't flip the wording.
+  const reference = baseValue && baseValue.length > 1 ? baseValue : value;
+  const direction = bandDirection(reference);
+  const step = boundStep(reference);
   function set(index: number, position: 0 | 1, next: number) {
     onChange?.(value.map((band, i) => (i === index ? (position === 0 ? [next, band[1]] : [band[0], next]) : band)));
   }
   return (
     <div className="space-y-2">
-      <p className="text-sm font-medium text-[#001539]">{field.label}</p>
+      <p className="text-sm font-medium text-navy">{label}</p>
+      {value.length === 0 ? <p className="text-sm text-black/60">No bands.</p> : null}
       <ul className="space-y-1.5">
         {value.map((band, index) => (
           <li key={index} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-black/[0.02] px-3 py-2 text-sm text-black/65">
             <span className="inline-flex items-center gap-2">
-              From
+              {direction === "up" ? "Up to" : null}
               <Stepper
-                label={`${field.label} band ${index + 1} from`}
+                label={`${label} band ${index + 1} ${direction === "up" ? "up to" : "from"}`}
                 value={band[0]}
                 unit=""
-                step={1}
+                step={step}
+                min={fieldMin(field)}
                 onChange={onChange ? (next) => set(index, 0, next) : undefined}
                 changedFrom={baseValue?.[index] && baseValue[index][0] !== band[0] ? baseValue[index][0] : null}
               />
+              {direction === "down" ? "or more" : null}
             </span>
             <span className="inline-flex items-center gap-2">
               gives
               <Stepper
-                label={`${field.label} band ${index + 1} points`}
+                label={`${label} band ${index + 1} points`}
                 value={band[1]}
+                max={cap ?? undefined}
                 onChange={onChange ? (next) => set(index, 1, next) : undefined}
                 changedFrom={baseValue?.[index] && baseValue[index][1] !== band[1] ? baseValue[index][1] : null}
               />
@@ -326,18 +374,82 @@ function SectionCard({
         (field) => field && JSON.stringify(getPath(baseConfig, field.path)) !== JSON.stringify(getPath(config, field.path)),
       ).length
     : 0;
-  const over = section.items.filter((field) => field.type !== "bands" && cap != null && num(getPath(config, field.path)) > cap);
+  const over = section.items.filter(
+    (field) => field.type !== "bands" && !isText(field) && describe(field).unit === "pts" && cap != null && num(getPath(config, field.path)) > cap,
+  );
+  // Unlike a single answer, a band may not give more than the maximum: saving is refused.
+  const bandsOver = section.items.filter((field) => {
+    const bands = getPath(config, field.path);
+    return field.type === "bands" && cap != null && Array.isArray(bands) && bands.some((band) => num(band?.[1]) > cap);
+  });
+  // Consecutive fields under the same sub-heading ("Roof", "Meals a day"…) form one block.
+  const blocks: { group: string | null; fields: SchemaField[] }[] = [];
+  for (const field of section.items) {
+    const { group } = describe(field);
+    const last = blocks[blocks.length - 1];
+    if (last && last.group === group) last.fields.push(field);
+    else blocks.push({ group, fields: [field] });
+  }
+
+  function renderField(field: SchemaField) {
+    const value = getPath(config, field.path);
+    const baseValue = baseConfig ? getPath(baseConfig, field.path) : null;
+    const { label, unit, step } = describe(field);
+    if (field.type === "bands") {
+      return (
+        <li key={field.path} className="py-3">
+          <BandsRows
+            field={field}
+            value={Array.isArray(value) ? (value as Band[]) : []}
+            baseValue={Array.isArray(baseValue) ? (baseValue as Band[]) : null}
+            cap={cap}
+            onChange={onChange ? (next) => onChange(field.path, next) : undefined}
+          />
+        </li>
+      );
+    }
+    if (isText(field)) {
+      return (
+        <li key={field.path} className="flex items-center justify-between gap-4 py-2.5">
+          <span className="text-sm text-navy">{label}</span>
+          <span className="text-sm font-medium text-navy">{recommendationLabel(value)}</span>
+        </li>
+      );
+    }
+    const current = num(value);
+    return (
+      <li key={field.path} className="flex items-center justify-between gap-4 py-2.5">
+        <span className="min-w-0">
+          <span className="block text-sm text-navy">{label}</span>
+          {cap && unit === "pts" ? (
+            <span className="mt-1 block h-1 w-40 max-w-full overflow-hidden rounded-full bg-black/[0.06]">
+              <span className="block h-full rounded-full" style={{ width: `${Math.min(100, (current / cap) * 100)}%`, backgroundColor: color }} />
+            </span>
+          ) : null}
+        </span>
+        <Stepper
+          label={fieldName(field)}
+          value={current}
+          unit={unit}
+          step={step}
+          min={fieldMin(field)}
+          onChange={onChange ? (next) => onChange(field.path, next) : undefined}
+          changedFrom={baseValue != null && num(baseValue) !== current ? num(baseValue) : null}
+        />
+      </li>
+    );
+  }
 
   return (
     <div className="overflow-hidden rounded-xl border border-black/[0.08] bg-white">
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" style={{ boxShadow: `inset 3px 0 0 ${color}` }}>
         <button type="button" onClick={() => setOpen((value) => !value)} className="flex items-center gap-2 text-left" aria-expanded={open}>
           <ChevronDown className={cn("size-4 text-black/40 transition", !open && "-rotate-90")} />
-          <span className="font-semibold text-[#001539]">{section.title}</span>
+          <span className="font-semibold text-navy">{section.title}</span>
           {changedCount > 0 ? <Badge tone="info">{changedCount} changed</Badge> : null}
         </button>
         {section.cap ? (
-          <span className="flex items-center gap-2 text-sm text-black/55">
+          <span className="flex items-center gap-2 text-sm text-black/60">
             Up to
             <Stepper
               label={`${section.title} maximum`}
@@ -357,44 +469,24 @@ function SectionCard({
               Some answers give more than the section maximum ({cap}); the section total is capped at {cap}.
             </p>
           ) : null}
-          <ul className="divide-y divide-black/[0.04]">
-            {section.items.map((field) => {
-              const value = getPath(config, field.path);
-              const baseValue = baseConfig ? getPath(baseConfig, field.path) : null;
-              if (field.type === "bands") {
-                return (
-                  <li key={field.path} className="py-3">
-                    <BandsRows
-                      field={field}
-                      value={Array.isArray(value) ? (value as Band[]) : []}
-                      baseValue={Array.isArray(baseValue) ? (baseValue as Band[]) : null}
-                      onChange={onChange ? (next) => onChange(field.path, next) : undefined}
-                    />
-                  </li>
-                );
-              }
-              const current = num(value);
-              return (
-                <li key={field.path} className="flex items-center justify-between gap-4 py-2.5">
-                  <span className="min-w-0">
-                    <span className="block text-sm text-[#001539]">{field.label}</span>
-                    {cap ? (
-                      <span className="mt-1 block h-1 w-40 max-w-full overflow-hidden rounded-full bg-black/[0.06]">
-                        <span className="block h-full rounded-full" style={{ width: `${Math.min(100, (current / cap) * 100)}%`, backgroundColor: color }} />
-                      </span>
-                    ) : null}
-                  </span>
-                  <Stepper
-                    label={field.label}
-                    value={current}
-                    step={field.type === "integer" ? 1 : 0.5}
-                    onChange={onChange ? (next) => onChange(field.path, next) : undefined}
-                    changedFrom={baseValue != null && num(baseValue) !== current ? num(baseValue) : null}
-                  />
-                </li>
-              );
-            })}
-          </ul>
+          {bandsOver.length > 0 ? (
+            <p className="text-xs text-rose-700">
+              {bandsOver.map((field) => describe(field).label).join(", ")}: a band gives more than the section maximum ({cap}). Lower
+              it to {cap} or less before saving.
+            </p>
+          ) : null}
+          {blocks.map((block, index) =>
+            block.group ? (
+              <div key={`${block.group}-${index}`} className="rounded-lg border border-black/[0.05] px-3 pt-2">
+                <p className="text-xs font-semibold tracking-wide text-black/60 uppercase">{block.group}</p>
+                <ul className="divide-y divide-black/[0.04]">{block.fields.map(renderField)}</ul>
+              </div>
+            ) : (
+              <ul key={`fields-${index}`} className="divide-y divide-black/[0.04]">
+                {block.fields.map(renderField)}
+              </ul>
+            ),
+          )}
         </div>
       ) : null}
     </div>
@@ -415,30 +507,46 @@ export function ScoringDesigner({
   onChange?: (path: string, value: unknown) => void;
 }) {
   const groups = useMemo(() => groupSchema(schema), [schema]);
-  const maxTotal = groups.maxTotal ? num(getPath(config, groups.maxTotal.path)) : 270;
   const medium = groups.medium ? num(getPath(config, groups.medium.path)) : 0;
   const high = groups.high ? num(getPath(config, groups.high.path)) : 0;
   const capValues = groups.sections.map((section) => (section.cap ? num(getPath(config, section.cap.path)) : 0));
   const hasCaps = groups.sections.some((section) => section.cap);
+  // Without a maximum score in the schema, the section maximums are the most a household can get.
+  const knownMax = groups.maxTotal ? num(getPath(config, groups.maxTotal.path)) : hasCaps ? capValues.reduce((sum, value) => sum + value, 0) : null;
+  const maxTotal = knownMax ?? Math.max(high, medium, 1);
   const base = baseConfig ?? null;
+  const recommendations: Partial<Record<Level, LevelRecommendation>> = {};
+  for (const level of LEVELS) {
+    const field = groups.recommendations[level];
+    if (!field) continue;
+    const value = text(getPath(config, field.path));
+    const before = base ? text(getPath(base, field.path)) : null;
+    recommendations[level] = {
+      value,
+      changedFrom: before != null && before !== value ? before : null,
+      onChange: onChange ? (next) => onChange(field.path, next) : undefined,
+    };
+  }
 
   return (
     <div className="space-y-6">
       <Panel
         title="1. Need levels"
-        description={`Every household gets a score out of ${maxTotal} points. The score decides the need level and the recommendation the branch sees.`}
+        description={`Every household gets a score${knownMax != null ? ` out of ${knownMax} points` : ""}. The score decides the need level and the recommendation the branch sees.`}
       >
         {groups.medium && groups.high ? (
           <RiskScale
             maxTotal={maxTotal}
+            limit={knownMax}
             medium={medium}
             high={high}
             onMedium={onChange ? (value) => onChange(groups.medium!.path, value) : undefined}
             onHigh={onChange ? (value) => onChange(groups.high!.path, value) : undefined}
             base={base && groups.medium && groups.high ? { medium: num(getPath(base, groups.medium.path)), high: num(getPath(base, groups.high.path)) } : null}
+            recommendations={recommendations}
           />
         ) : (
-          <p className="text-sm text-black/50">This configuration has no need levels.</p>
+          <p className="text-sm text-black/60">This configuration has no need levels.</p>
         )}
       </Panel>
 
@@ -453,8 +561,8 @@ export function ScoringDesigner({
 
       <div className="space-y-3">
         <div>
-          <h3 className="text-base font-semibold text-[#001539]">{hasCaps ? "3." : "2."} Points for each answer</h3>
-          <p className="text-sm text-black/55">
+          <h3 className="text-base font-semibold text-navy">{hasCaps ? "3." : "2."} Points for each answer</h3>
+          <p className="text-sm text-black/60">
             More points means more need. A field officer&apos;s answer earns the points shown; a section never earns more than its maximum.
           </p>
         </div>
@@ -480,27 +588,4 @@ export function ScoringDesigner({
       </div>
     </div>
   );
-}
-
-/** Mirrors the server's checks so problems show before saving. */
-export function validateScoring(schema: ScoringSchema, config: Record<string, unknown>) {
-  const groups = groupSchema(schema);
-  const problems: string[] = [];
-  const maxTotal = groups.maxTotal ? num(getPath(config, groups.maxTotal.path)) : null;
-  const medium = groups.medium ? num(getPath(config, groups.medium.path)) : null;
-  const high = groups.high ? num(getPath(config, groups.high.path)) : null;
-  if (maxTotal != null && medium != null && high != null && !(medium > 0 && medium < high && high <= maxTotal)) {
-    problems.push("Need levels: Medium must start above 0 and below High, and High can't be above the maximum score.");
-  }
-  if (maxTotal != null && groups.sections.some((section) => section.cap)) {
-    const sum = groups.sections.reduce((total, section) => total + (section.cap ? num(getPath(config, section.cap.path)) : 0), 0);
-    if (sum !== maxTotal) problems.push(`Section maximums add up to ${sum}, but must add up to ${maxTotal}.`);
-  }
-  for (const field of schema.fields) {
-    if (field.type === "bands") continue;
-    const value = getPath(config, field.path);
-    if (typeof value === "number" && value < 0) problems.push(`${field.label} can't be negative.`);
-    if (field.type === "integer" && typeof value === "number" && !Number.isInteger(value)) problems.push(`${field.label} must be a whole number.`);
-  }
-  return problems;
 }

@@ -23,9 +23,9 @@ import { rangeQuery, type RangeKey } from "@/lib/backoffice/date-range";
 function Metric({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="rounded-lg border border-black/[0.06] p-4">
-      <p className="text-xs font-medium text-black/50">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tracking-tight text-[#001539] tabular-nums">{value}</p>
-      {hint ? <p className="mt-0.5 text-xs text-black/45">{hint}</p> : null}
+      <p className="text-xs font-medium text-black/60">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tracking-tight text-navy tabular-nums">{value}</p>
+      {hint ? <p className="mt-0.5 text-xs text-black/60">{hint}</p> : null}
     </div>
   );
 }
@@ -89,7 +89,7 @@ export function OfficerStatsPanel({ officerId }: { officerId: string }) {
                 ) : (
                   data.coverage.map((row) => (
                     <TableRow key={row.assignmentId}>
-                      <TableCell className="pl-4 font-medium text-[#001539]">
+                      <TableCell className="pl-4 font-medium text-navy">
                         {row.branchName ?? (row.region ? `${row.region} region` : "—")}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">{row.beneficiaries}</TableCell>

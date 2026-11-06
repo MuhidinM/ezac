@@ -29,10 +29,14 @@ export function formatBeneficiaryCategory(category: string | null): string {
 
 export function formatDateTime(value: string | null): string {
   if (!value) return "—";
+  const date = new Date(value);
+  // Intl throws on an invalid date; show the value as sent rather than take
+  // the page down (same rule as formatDate in lib/backoffice/format.ts).
+  if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat("en-ET", {
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(new Date(value));
+  }).format(date);
 }
 
 export function formatAddress(parts: {

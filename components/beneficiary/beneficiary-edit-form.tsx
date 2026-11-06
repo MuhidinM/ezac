@@ -106,7 +106,7 @@ export function BeneficiaryEditForm({
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-medium text-[#001539]">Edit beneficiary</h2>
+          <h2 className="text-lg font-medium text-navy">Edit beneficiary</h2>
           <p className="mt-1 text-sm text-black/60">
             Update contact, identity, and notes. Verification status is changed
             separately.

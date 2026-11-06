@@ -2,36 +2,46 @@
   "name": "ezac",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@12.4.1",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "next dev",
     "dev:uat": "node scripts/with-uat-cert.mjs dev",
     "build": "next build",
     "start": "next start",
     "start:uat": "node scripts/with-uat-cert.mjs start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@tsparticles/react": "^3.0.0",
     "@tsparticles/slim": "^3.9.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cn": "^0.5.2",
     "lucide-react": "^1.14.0",
-    "next": "16.2.4",
+    "next": "16.4.5",
     "radix-ui": "^1.4.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "shadcn": "^4.6.0",
+    "recharts": "3.8.0",
     "tailwind-merge": "^3.5.0",
     "tw-animate-css": "^1.4.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.4",
+    "eslint-config-next": "16.4.5",
+    "shadcn": "^4.6.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
   }
 }

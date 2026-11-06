@@ -21,13 +21,13 @@ export function StepNav({
   return (
     <nav aria-label="Assessment steps" className="space-y-3">
       <div className="px-1">
-        <div className="flex items-center justify-between text-xs text-black/50">
+        <div className="flex items-center justify-between text-xs text-black/60">
           <span>Progress</span>
           <span className="tabular-nums">{doneCount} / 7 steps</span>
         </div>
         <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-black/[0.07]">
           <div
-            className="h-full rounded-full bg-[#007050] transition-all"
+            className="h-full rounded-full bg-brand transition-all"
             style={{ width: `${(doneCount / 7) * 100}%` }}
           />
         </div>
@@ -52,9 +52,9 @@ export function StepNav({
                 <span
                   className={cn(
                     "flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums",
-                    state === "complete" && "bg-[#007050] text-white",
+                    state === "complete" && "bg-brand text-white",
                     state === "issues" && "bg-amber-100 text-amber-700",
-                    state === "todo" && (active ? "bg-[#001539] text-white" : "bg-black/[0.06] text-black/50"),
+                    state === "todo" && (active ? "bg-navy text-white" : "bg-black/[0.06] text-black/60"),
                   )}
                 >
                   {state === "complete" ? (
@@ -66,11 +66,11 @@ export function StepNav({
                   )}
                 </span>
                 <span className="min-w-0">
-                  <span className={cn("block text-sm whitespace-nowrap", active ? "font-semibold text-[#001539]" : "text-black/70")}>
+                  <span className={cn("block text-sm whitespace-nowrap", active ? "font-semibold text-navy" : "text-black/70")}>
                     {step.title}
                   </span>
                   {step.letters ? (
-                    <span className="hidden text-xs text-black/40 lg:block">Section {step.letters}</span>
+                    <span className="hidden text-xs text-black/60 lg:block">Section {step.letters}</span>
                   ) : null}
                 </span>
               </button>

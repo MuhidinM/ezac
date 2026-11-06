@@ -21,7 +21,7 @@ export function NavMain({ label, items }: { label: string; items: NavItem[] }) {
 
   return (
     <SidebarGroup>
-      <SidebarGroupLabel className="text-[11px] font-medium tracking-wide text-sidebar-foreground/60 uppercase">
+      <SidebarGroupLabel className="text-xs font-medium tracking-wide text-sidebar-foreground/60 uppercase">
         {label}
       </SidebarGroupLabel>
       <SidebarMenu className="gap-0.5">
@@ -32,8 +32,11 @@ export function NavMain({ label, items }: { label: string; items: NavItem[] }) {
               <SidebarMenuButton
                 asChild
                 isActive={active}
+                // "page" on the page itself; on a record under it (/beneficiary/123) the
+                // entry marks the current section instead.
+                aria-current={active ? (pathname === item.url ? "page" : "true") : undefined}
                 tooltip={item.title}
-                className="h-9 font-medium text-sidebar-foreground data-active:bg-white data-active:text-[#001539] data-active:shadow-xs data-active:ring-1 data-active:ring-black/5 [&>svg]:text-sidebar-foreground/70 data-active:[&>svg]:text-[#007050]"
+                className="h-9 font-medium text-sidebar-foreground data-active:bg-white data-active:text-navy data-active:shadow-xs data-active:ring-1 data-active:ring-black/5 [&>svg]:text-sidebar-foreground/70 data-active:[&>svg]:text-brand"
               >
                 <Link
                   href={item.url}

@@ -1,133 +1,106 @@
-import {
-  GlobeIcon,
-  MessageCircleIcon,
-  PlayCircleIcon,
-  Share2Icon,
-  SmartphoneIcon,
-  VideoIcon,
-} from "lucide-react";
+"use client";
+
+import Link from "next/link";
+import { DownloadIcon } from "lucide-react";
 
 import { CITIZEN_APP_DOWNLOAD_URL } from "@/lib/constants/app-download";
+import { useI18n } from "@/lib/i18n/client";
+import type { Dictionary } from "@/lib/i18n/dictionaries/en";
+import { format } from "@/lib/i18n/messages";
 
-const FOOTER_LINKS = [
-  { label: "Privacy Policy", href: "/privacy" },
-  { label: "FAQ", href: "/faq" },
-  { label: "Fatwas / Islamic Rulings on Zakat", href: "/fatwas" },
-  { label: "Contact Support", href: "/contact" },
+import { DX_VALLEY_URL } from "./partner-links";
+
+type FooterLinkKey = keyof Dictionary["common"]["footer"]["links"];
+
+// There is no Terms page yet; add it here once the Commission publishes one.
+const FOOTER_LINKS: { key: FooterLinkKey; href: string }[] = [
+  { key: "privacy", href: "/privacy" },
+  { key: "faq", href: "/faq" },
+  { key: "fatwas", href: "/fatwas" },
+  { key: "contact", href: "/contact" },
 ];
 
-const SOCIALS = [
-  { name: "Facebook", icon: GlobeIcon },
-  { name: "Instagram", icon: MessageCircleIcon },
-  { name: "LinkedIn", icon: Share2Icon },
-  { name: "YouTube", icon: VideoIcon },
-];
+const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2";
 
+// Social links are left out until the Commission confirms its official
+// accounts; add them here (with the right brand icons) once it does.
+
+/**
+ * A client component so it can read the shared strings from the language
+ * context: it renders under server pages and under the error boundary alike.
+ */
 export function SiteFooter() {
+  const { common, href, year } = useI18n();
+  const footer = common.footer;
+
   return (
     <footer className="relative z-10 w-full bg-white">
-      <div className="mx-auto max-w-7xl px-8 pt-0 pb-16">
+      <div className="mx-auto max-w-7xl px-4 pt-0 pb-16 sm:px-8">
         <div className="rounded-3xl border border-black/5 bg-white p-2 shadow-xl shadow-black/5">
           <div className="rounded-2xl border border-black/5 px-6 py-8 sm:px-8 sm:py-10">
             <div className="flex flex-col gap-10">
-              <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
-                <div className="flex items-center gap-3">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- brand mark served as a static asset */}
-                  <img src="/logo.svg" alt="EZAC" className="h-9 w-auto" />
-                  <span className="flex flex-col leading-tight">
-                    <span
-                      className="font-serif-display text-lg tracking-tight"
-                      style={{ color: "#001539" }}
-                    >
-                      EZAC
-                    </span>
-                    <span
-                      className="text-[10px] uppercase tracking-[0.16em]"
-                      style={{ color: "#6F6F6F" }}
-                    >
-                      Ethiopian Zakat &amp; Awqaf Commission
-                    </span>
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {SOCIALS.map(({ name, icon: Icon }) => (
-                    <a
-                      key={name}
-                      href="#"
-                      aria-label={name}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-black/10 transition-colors hover:bg-black/2"
-                      style={{ color: "#6F6F6F" }}
-                    >
-                      <Icon className="h-4 w-4" />
-                    </a>
-                  ))}
-                </div>
-              </div>
+              <Link
+                href={href("/")}
+                title={common.nav.home.title}
+                className={`flex w-fit items-center gap-3 rounded-sm ${FOCUS_RING}`}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element -- brand mark served as a static asset */}
+                <img src="/logo.svg" alt={common.site.logoAlt} width={36} height={36} className="h-9 w-auto" />
+                <span className="flex flex-col leading-tight">
+                  <span className="font-serif-display text-lg tracking-tight text-navy">{common.site.name}</span>
+                  <span className="text-xs uppercase tracking-[0.12em] text-muted-ink">{common.nav.home.tagline}</span>
+                </span>
+              </Link>
 
               <div className="flex flex-col gap-4 rounded-2xl border border-black/5 bg-black/2 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <div>
-                  <p
-                    className="text-[10px] uppercase tracking-[0.18em]"
-                    style={{ color: "#6F6F6F" }}
-                  >
-                    Mobile access
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted-ink">{footer.app.eyebrow}</p>
+                  <p className="font-serif-display mt-1.5 text-2xl tracking-[-0.5px] text-navy sm:text-3xl">
+                    {footer.app.title}
                   </p>
-                  <p
-                    className="font-serif-display mt-1.5 text-2xl sm:text-3xl"
-                    style={{ color: "#001539", letterSpacing: "-0.5px" }}
-                  >
-                    Get the citizen app
-                  </p>
+                  <p className="mt-1 text-xs text-muted-ink">{footer.app.body}</p>
                 </div>
-                <div className="flex flex-wrap gap-3">
-                  <a
-                    href={CITIZEN_APP_DOWNLOAD_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2.5 text-sm transition-colors hover:bg-black/2"
-                    style={{ color: "#001539" }}
-                  >
-                    <SmartphoneIcon className="h-4 w-4" />
-                    App Store
-                  </a>
-                  <a
-                    href={CITIZEN_APP_DOWNLOAD_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2.5 text-sm transition-colors hover:bg-black/2"
-                    style={{ color: "#001539" }}
-                  >
-                    <PlayCircleIcon className="h-4 w-4" />
-                    Google Play
-                  </a>
-                </div>
+                {/* One honest button: the only build is an Android APK, so no store badges. */}
+                <a
+                  href={CITIZEN_APP_DOWNLOAD_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={footer.app.downloadTitle}
+                  className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2.5 text-sm text-navy transition-colors hover:bg-black/2 ${FOCUS_RING}`}
+                >
+                  <DownloadIcon aria-hidden="true" className="h-4 w-4" />
+                  {footer.app.download}
+                  <span className="sr-only"> {footer.app.downloadNote}</span>
+                </a>
               </div>
 
-              <nav className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-x-8 md:flex md:flex-wrap md:gap-x-6">
+              <nav
+                aria-label={footer.ariaLabel}
+                className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-x-8 md:flex md:flex-wrap md:gap-x-6"
+              >
                 {FOOTER_LINKS.map((link) => (
-                  <a
-                    key={link.href}
-                    href={link.href}
-                    className="text-sm transition-colors hover:text-[#001539]"
-                    style={{ color: "#6F6F6F" }}
+                  <Link
+                    key={link.key}
+                    href={href(link.href)}
+                    title={footer.links[link.key].title}
+                    className={`w-fit rounded-sm text-sm text-muted-ink transition-colors hover:text-navy ${FOCUS_RING}`}
                   >
-                    {link.label}
-                  </a>
+                    {footer.links[link.key].label}
+                  </Link>
                 ))}
               </nav>
 
               <div className="flex flex-col gap-2 border-t border-black/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-xs" style={{ color: "#6F6F6F" }}>
-                  &copy; {new Date().getFullYear()} EZAC. All rights reserved.
-                </p>
+                <p className="text-xs text-muted-ink">{format(footer.copyright, { year })}</p>
                 <a
-                  href="https://dxvalley.com/"
+                  href={DX_VALLEY_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs transition-colors hover:text-[#007050]"
-                  style={{ color: "#e18f35" }}
+                  title={footer.developedByTitle}
+                  className={`w-fit rounded-sm text-xs text-accent-ink transition-colors hover:text-brand ${FOCUS_RING}`}
                 >
-                  Developed and sponsored by DX Valley.
+                  {footer.developedBy}
+                  <span className="sr-only"> {common.newTab}</span>
                 </a>
               </div>
             </div>

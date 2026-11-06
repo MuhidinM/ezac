@@ -52,8 +52,8 @@ export function RadioGroup({
                 className={cn(
                   "flex min-h-10 cursor-pointer items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition",
                   checked
-                    ? buttonColor ?? "border-[#007050] bg-[#007050] text-white"
-                    : "border-black/10 bg-white text-[#001539] hover:border-black/25",
+                    ? buttonColor ?? "border-brand bg-brand text-white"
+                    : "border-black/10 bg-white text-navy hover:border-black/25",
                 )}
               >
                 <input
@@ -77,7 +77,7 @@ export function RadioGroup({
               className={cn(
                 "flex min-h-10 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm transition",
                 checked
-                  ? "border-[#007050] bg-[rgba(0,112,80,0.06)]"
+                  ? "border-brand bg-[rgba(0,112,80,0.06)]"
                   : "border-black/10 bg-white hover:border-black/20",
               )}
             >
@@ -88,9 +88,9 @@ export function RadioGroup({
                 value={option.value}
                 checked={checked}
                 onChange={() => onChange(option.value)}
-                className="h-5 w-5 shrink-0 accent-[#007050]"
+                className="h-5 w-5 shrink-0 accent-brand"
               />
-              <span className="text-[#001539]">{option.label}</span>
+              <span className="text-navy">{option.label}</span>
             </label>
           );
         })}

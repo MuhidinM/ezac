@@ -2,76 +2,103 @@
 
 import { useEffect, useRef } from "react";
 
+import { useFastConnection, useIdleAfterLoad, useMediaQuery } from "./use-deferred-load";
+
+// Hot-linked from a third-party CDN until EZAC hosts its own compressed copy.
 const VIDEO_SRC =
   "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260328_083109_283f3553-e28f-428b-a723-d639c617eb2b.mp4";
+// Already on the page as the hero watermark, so the poster costs no extra request.
+const POSTER_SRC = "/images/bg2.webp";
 const FADE_DURATION = 0.5;
 
+const LARGE_SCREEN = "(min-width: 1024px)";
+const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
+
+/**
+ * The video is about 15 MB, so it is decoration only where it's cheap: large
+ * screens, no reduced-motion preference, a fast connection without data
+ * saver. Even then the <video> element (and its download) is only created
+ * after the page has loaded and the browser is idle, so it never competes
+ * with the page's own content. Everyone else keeps the plain background.
+ */
 export function VideoBackground() {
+  const largeScreen = useMediaQuery(LARGE_SCREEN);
+  const reducedMotion = useMediaQuery(REDUCED_MOTION);
+  const fastConnection = useFastConnection();
+  const allowed = largeScreen && !reducedMotion && fastConnection;
+  const idle = useIdleAfterLoad(allowed);
+
+  return (
+    <div className="pointer-events-none absolute inset-0 z-0">
+      {allowed && idle ? <LoopingVideo /> : null}
+      <div className="absolute inset-0 bg-linear-to-b from-white via-transparent to-white" />
+    </div>
+  );
+}
+
+function LoopingVideo() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    video.style.opacity = "0";
+    let frame: number | null = null;
 
+    // Fade in at the start of each loop and out before the end, while playing only.
     const tick = () => {
-      const v = videoRef.current;
-      if (!v) return;
-      const duration = v.duration;
-      const current = v.currentTime;
-      if (!isNaN(duration) && duration > 0) {
+      const { duration, currentTime } = video;
+      if (!Number.isNaN(duration) && duration > 0) {
         let opacity = 1;
-        if (current < FADE_DURATION) {
-          opacity = current / FADE_DURATION;
-        } else if (current > duration - FADE_DURATION) {
-          opacity = Math.max(0, (duration - current) / FADE_DURATION);
+        if (currentTime < FADE_DURATION) {
+          opacity = currentTime / FADE_DURATION;
+        } else if (currentTime > duration - FADE_DURATION) {
+          opacity = (duration - currentTime) / FADE_DURATION;
         }
-        v.style.opacity = String(Math.max(0, Math.min(1, opacity)));
+        video.style.opacity = String(Math.max(0, Math.min(1, opacity)));
       }
-      rafRef.current = requestAnimationFrame(tick);
+      frame = requestAnimationFrame(tick);
+    };
+    const startFading = () => {
+      if (frame === null) frame = requestAnimationFrame(tick);
+    };
+    const stopFading = () => {
+      if (frame !== null) cancelAnimationFrame(frame);
+      frame = null;
     };
 
-    const handleEnded = () => {
-      const v = videoRef.current;
-      if (!v) return;
-      v.style.opacity = "0";
-      setTimeout(() => {
-        v.currentTime = 0;
-        v.play().catch(() => {});
-      }, 100);
+    // preload="none": nothing downloads until play() asks for it.
+    const play = () => {
+      if (!document.hidden) video.play().catch(() => {});
     };
+    // Pause while the tab is hidden; resume when it's back.
+    const onVisibility = () => (document.hidden ? video.pause() : play());
 
-    const playPromise = video.play();
-    if (playPromise && typeof playPromise.catch === "function") {
-      playPromise.catch(() => {});
-    }
-    video.addEventListener("ended", handleEnded);
-    rafRef.current = requestAnimationFrame(tick);
+    play();
+    video.addEventListener("playing", startFading);
+    video.addEventListener("pause", stopFading);
+    document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      video.removeEventListener("ended", handleEnded);
+      stopFading();
+      video.pause();
+      video.removeEventListener("playing", startFading);
+      video.removeEventListener("pause", stopFading);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-0">
-      <video
-        ref={videoRef}
-        src={VIDEO_SRC}
-        muted
-        playsInline
-        autoPlay
-        preload="auto"
-        className="absolute h-auto w-full object-cover transition-opacity"
-        style={{
-          top: "300px",
-          inset: "auto 0 0 0",
-          opacity: 0,
-        }}
-      />
-      <div className="absolute inset-0 bg-gradient-to-b from-white via-transparent to-white" />
-    </div>
+    <video
+      ref={videoRef}
+      src={VIDEO_SRC}
+      poster={POSTER_SRC}
+      muted
+      playsInline
+      loop
+      preload="none"
+      aria-hidden="true"
+      tabIndex={-1}
+      className="absolute inset-x-0 bottom-0 h-auto w-full object-cover opacity-0 transition-opacity"
+    />
   );
 }

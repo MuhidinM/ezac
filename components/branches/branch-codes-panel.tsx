@@ -2,7 +2,7 @@
 
 import { type FormEvent, useState } from "react";
 import Link from "next/link";
-import { Ban, Check, Copy, Download, Plus, RefreshCw } from "lucide-react";
+import { Ban, Check, Copy, Download, Plus, RefreshCw, X } from "lucide-react";
 
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,6 +12,7 @@ import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { ListPagination } from "@/components/dashboard/list-pagination";
 import { Panel } from "@/components/dashboard/panel";
 import { TableMessageRow, TableSkeletonRows } from "@/components/dashboard/table-states";
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +24,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -34,6 +36,7 @@ import {
 import { apiClient } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errors";
 import type {
+  BeneficiaryDetail,
   PaginatedItems,
   RegistrationCodeItem,
   RegistrationCodeStatus,
@@ -41,7 +44,6 @@ import type {
 import { useResource } from "@/lib/api/use-resource";
 import { formatDateTime } from "@/lib/beneficiary/format";
 import { copyToClipboard } from "@/lib/clipboard";
-import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 20;
 
@@ -60,6 +62,30 @@ const TABS: { status: RegistrationCodeStatus | ""; label: string }[] = [
   { status: "REVOKED", label: "Revoked" },
 ];
 
+/**
+ * Who used a code. The code itself is the household's BIN; the list has no
+ * names yet, so HQ staff (who can read beneficiary records) look the name up.
+ * BRANCH can't read the record and sees the record number.
+ */
+function CodeBeneficiary({ item, link }: { item: RegistrationCodeItem; link: boolean }) {
+  const id = item.beneficiaryId ?? "";
+  const sent = (item as RegistrationCodeItem & { beneficiaryName?: string | null }).beneficiaryName?.trim();
+  const { data, error } = useResource<BeneficiaryDetail>(
+    link && !sent && id ? `/bff/beneficiaries/${encodeURIComponent(id)}` : null,
+  );
+  const name = sent || data?.fullName?.trim();
+  const loading = link && !sent && !data && !error;
+  const label = name || (loading ? "Loading…" : `Beneficiary #${id}`);
+
+  return link ? (
+    <Link href={`/dashboard/beneficiary/${id}`} className="text-brand hover:underline">
+      {label}
+    </Link>
+  ) : (
+    <span className="tabular-nums">{label}</span>
+  );
+}
+
 type Props = {
   /** API path that returns PaginatedItems<RegistrationCodeItem> */
   listPath: string;
@@ -67,13 +93,25 @@ type Props = {
   generatePath?: string;
   /** Link consumed codes to beneficiary profiles (HQ staff only). */
   linkBeneficiaries?: boolean;
+  /** Shown in place of the generate action when codes can't be generated (e.g. inactive branch). */
+  generateBlockedNote?: string;
   /** Admin codes path; enables single and bulk revoke. */
   revokeBasePath?: string;
+  /** Unused codes right now; turns off "Revoke available" at 0 and names the count. */
+  availableCount?: number | null;
   /** Called after codes are generated successfully */
   onGenerated?: (codes: string[]) => void;
 };
 
-export function BranchCodesPanel({ listPath, generatePath, linkBeneficiaries, revokeBasePath, onGenerated }: Props) {
+export function BranchCodesPanel({
+  listPath,
+  generatePath,
+  generateBlockedNote,
+  linkBeneficiaries,
+  revokeBasePath,
+  availableCount,
+  onGenerated,
+}: Props) {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<RegistrationCodeStatus | "">("");
   const [generateOpen, setGenerateOpen] = useState(false);
@@ -82,7 +120,11 @@ export function BranchCodesPanel({ listPath, generatePath, linkBeneficiaries, re
   // null = closed, "all" = every available code, otherwise one code.
   const [revokeTarget, setRevokeTarget] = useState<RegistrationCodeItem | "all" | null>(null);
   const [revokeReason, setRevokeReason] = useState("");
+  // Count when the bulk dialog opened, so the title doesn't change while it closes.
+  const [revokeAllCount, setRevokeAllCount] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // "copied" / "failed" for the listed-codes copy button, keyed by what was listed.
+  const [listedCopy, setListedCopy] = useState<{ key: string; ok: boolean } | null>(null);
 
   const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
   if (status) params.set("status", status);
@@ -91,6 +133,11 @@ export function BranchCodesPanel({ listPath, generatePath, linkBeneficiaries, re
     `${listPath}${separator}${params.toString()}`,
   );
   const rows = data?.items ?? [];
+  // The codes on screen (this tab and page), for handing out or printing.
+  const listedCodes = rows.map((item) => item.code);
+  const listedKey = `${status}:${page}:${listedCodes.join(",")}`;
+  const listedCopied = listedCopy?.key === listedKey ? listedCopy.ok : null;
+  const listedName = `registration-codes${status ? `-${STATUS[status].label.toLowerCase()}` : ""}-page-${page}.txt`;
 
   return (
     <div className="space-y-4">
@@ -117,6 +164,9 @@ export function BranchCodesPanel({ listPath, generatePath, linkBeneficiaries, re
                   .txt
                 </a>
               </Button>
+              <Button variant="ghost" size="sm" aria-label="Close the list of new codes" onClick={() => setGenerated(null)}>
+                <X />
+              </Button>
             </div>
           }
         >
@@ -135,9 +185,17 @@ export function BranchCodesPanel({ listPath, generatePath, linkBeneficiaries, re
               Refresh
             </Button>
             {revokeBasePath ? (
-              <Button variant="ghost" size="sm" className="text-rose-700 hover:text-rose-800" onClick={() => setRevokeTarget("all")}>
+              <Button
+                variant="destructive-ghost"
+                size="sm"
+                onClick={() => {
+                  setRevokeAllCount(availableCount ?? null);
+                  setRevokeTarget("all");
+                }}
+                disabled={availableCount === 0}
+              >
                 <Ban />
-                Revoke available
+                Revoke available{availableCount != null ? ` (${availableCount})` : ""}
               </Button>
             ) : null}
             {generatePath ? (
@@ -149,117 +207,146 @@ export function BranchCodesPanel({ listPath, generatePath, linkBeneficiaries, re
           </>
         }
       >
-        <div className="flex gap-1 overflow-x-auto border-b border-black/[0.06] px-3" role="tablist">
-          {TABS.map((tab) => (
-            <button
-              key={tab.label}
-              type="button"
-              role="tab"
-              aria-selected={status === tab.status}
-              onClick={() => {
-                setPage(1);
-                setStatus(tab.status);
-              }}
-              className={cn(
-                "-mb-px shrink-0 border-b-2 px-3 py-2.5 text-sm transition",
-                status === tab.status
-                  ? "border-[#007050] font-medium text-[#001539]"
-                  : "border-transparent text-black/55 hover:text-[#001539]",
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {error || notice ? (
-          <div className="space-y-2 px-5 pt-4">
-            {error ? <InlineAlert>{error.message}</InlineAlert> : null}
-            {notice ? <InlineAlert tone="success">{notice}</InlineAlert> : null}
-          </div>
+        {!generatePath && generateBlockedNote ? (
+          <p className="border-b border-black/[0.06] px-5 py-3 text-sm text-black/60">{generateBlockedNote}</p>
         ) : null}
+        <Tabs
+          value={status}
+          onValueChange={(value) => {
+            setPage(1);
+            setStatus(value as RegistrationCodeStatus | "");
+          }}
+          activationMode="manual"
+        >
+          <TabsList aria-label="Code status" className="pt-0">
+            {TABS.map((tab) => (
+              <TabsTrigger key={tab.label} value={tab.status}>
+                {tab.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          <TabsContent value={status}>
+            {error || notice ? (
+              <div className="space-y-2 px-5 pt-4">
+                <ErrorAlert error={error} onRetry={reload} />
+                {notice ? <InlineAlert tone="success">{notice}</InlineAlert> : null}
+              </div>
+            ) : null}
 
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-black/[0.015]">
-              <TableHead className="pl-5">Code</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Beneficiary</TableHead>
-              <TableHead>Used</TableHead>
-              <TableHead className={revokeBasePath ? undefined : "pr-5"}>Created</TableHead>
-              {revokeBasePath ? (
-                <TableHead className="pr-5 text-right">
-                  <span className="sr-only">Actions</span>
-                </TableHead>
-              ) : null}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading && rows.length === 0 ? (
-              <TableSkeletonRows colSpan={revokeBasePath ? 6 : 5} />
-            ) : rows.length === 0 ? (
-              <TableMessageRow colSpan={revokeBasePath ? 6 : 5}>
-                {status ? "No codes with this status." : "No registration codes yet."}
-              </TableMessageRow>
-            ) : (
-              rows.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="pl-5 font-mono text-sm text-[#001539]">{item.code}</TableCell>
-                  <TableCell>
-                    <Badge tone={STATUS[item.status]?.tone ?? "neutral"}>
-                      {STATUS[item.status]?.label ?? item.status}
-                    </Badge>
-                    {item.status === "REVOKED" && item.revokeReason ? (
-                      <p className="mt-1 max-w-48 truncate text-xs text-black/45" title={item.revokeReason}>
-                        {item.revokeReason}
-                      </p>
-                    ) : null}
-                  </TableCell>
-                  <TableCell>
-                    {item.beneficiaryId ? (
-                      linkBeneficiaries ? (
-                        <Link href={`/dashboard/beneficiary/${item.beneficiaryId}`} className="text-[#007050] hover:underline">
-                          #{item.beneficiaryId}
-                        </Link>
-                      ) : (
-                        <span className="tabular-nums">#{item.beneficiaryId}</span>
-                      )
-                    ) : (
-                      <span className="text-black/40">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>{formatDateTime(item.consumedAt)}</TableCell>
-                  <TableCell className={revokeBasePath ? undefined : "pr-5"}>{formatDateTime(item.createdAt)}</TableCell>
+            {listedCodes.length > 0 ? (
+              <div className="flex flex-wrap items-center justify-end gap-2 px-5 pt-3">
+                <p className="mr-auto text-xs text-black/60">
+                  {listedCodes.length} code{listedCodes.length === 1 ? "" : "s"} listed
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => setListedCopy({ key: listedKey, ok: await copyToClipboard(listedCodes.join("\n")) })}
+                >
+                  {listedCopied ? <Check /> : <Copy />}
+                  {listedCopied ? "Copied" : "Copy listed codes"}
+                </Button>
+                <Button variant="outline" size="sm" asChild>
+                  <a
+                    href={`data:text/plain;charset=utf-8,${encodeURIComponent(listedCodes.join("\n"))}`}
+                    download={listedName}
+                  >
+                    <Download />
+                    Download for printing (.txt)
+                  </a>
+                </Button>
+                {listedCopied === false ? (
+                  <p role="alert" className="w-full text-right text-xs text-rose-700">
+                    Copying didn&apos;t work. Use the download instead.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-black/[0.015]">
+                  <TableHead className="pl-5">Code</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Beneficiary</TableHead>
+                  <TableHead>Used</TableHead>
+                  <TableHead className={revokeBasePath ? undefined : "pr-5"}>Created</TableHead>
                   {revokeBasePath ? (
-                    <TableCell className="pr-5 text-right">
-                      {item.status === "AVAILABLE" || item.status === "RESERVED" ? (
-                        <Button variant="ghost" size="sm" onClick={() => setRevokeTarget(item)}>
-                          Revoke
-                        </Button>
-                      ) : null}
-                    </TableCell>
+                    <TableHead className="pr-5 text-right">
+                      <span className="sr-only">Actions</span>
+                    </TableHead>
                   ) : null}
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              </TableHeader>
+              <TableBody>
+                {isLoading && rows.length === 0 ? (
+                  <TableSkeletonRows colSpan={revokeBasePath ? 6 : 5} />
+                ) : rows.length === 0 ? (
+                  <TableMessageRow colSpan={revokeBasePath ? 6 : 5}>
+                    {status ? "No codes with this status." : "No registration codes yet."}
+                  </TableMessageRow>
+                ) : (
+                  rows.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="pl-5 font-mono text-sm text-navy">{item.code}</TableCell>
+                      <TableCell>
+                        <Badge tone={STATUS[item.status]?.tone ?? "neutral"}>
+                          {STATUS[item.status]?.label ?? item.status}
+                        </Badge>
+                        {item.status === "REVOKED" && item.revokeReason ? (
+                          <p className="mt-1 max-w-48 truncate text-xs text-black/60" title={item.revokeReason}>
+                            {item.revokeReason}
+                          </p>
+                        ) : null}
+                      </TableCell>
+                      <TableCell>
+                        {item.beneficiaryId ? (
+                          <CodeBeneficiary item={item} link={!!linkBeneficiaries} />
+                        ) : (
+                          <span className="text-black/60">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>{formatDateTime(item.consumedAt)}</TableCell>
+                      <TableCell className={revokeBasePath ? undefined : "pr-5"}>{formatDateTime(item.createdAt)}</TableCell>
+                      {revokeBasePath ? (
+                        <TableCell className="pr-5 text-right">
+                          {item.status === "AVAILABLE" || item.status === "RESERVED" ? (
+                            <Button variant="destructive-ghost" size="sm" onClick={() => setRevokeTarget(item)}>
+                              Revoke<span className="sr-only"> {item.code}</span>
+                            </Button>
+                          ) : null}
+                        </TableCell>
+                      ) : null}
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
 
-        <ListPagination
-          page={page}
-          pageSize={PAGE_SIZE}
-          totalItems={data?.pagination.totalItems ?? 0}
-          totalPages={data?.pagination.totalPages ?? 1}
-          disabled={isLoading}
-          onPageChange={setPage}
-        />
+            <ListPagination
+              page={page}
+              pageSize={PAGE_SIZE}
+              totalItems={data?.pagination.totalItems ?? 0}
+              totalPages={data?.pagination.totalPages ?? 1}
+              disabled={isLoading}
+              onPageChange={setPage}
+            />
+          </TabsContent>
+        </Tabs>
       </Panel>
 
       {revokeBasePath ? (
         <ConfirmDialog
           open={revokeTarget !== null}
           onOpenChange={(open) => (open ? null : setRevokeTarget(null))}
-          title={revokeTarget === "all" ? "Revoke every available code?" : `Revoke ${revokeTarget ? revokeTarget.code : "code"}?`}
+          title={
+            revokeTarget === "all"
+              ? revokeAllCount != null
+                ? `Revoke ${revokeAllCount === 1 ? "the 1 available code" : `all ${revokeAllCount} available codes`}?`
+                : "Revoke every available code?"
+              : `Revoke ${revokeTarget ? revokeTarget.code : "code"}?`
+          }
           description={
             revokeTarget === "all"
               ? "All unused codes of this branch stop working immediately. Used codes are not affected."
@@ -284,6 +371,8 @@ export function BranchCodesPanel({ listPath, generatePath, linkBeneficiaries, re
               setNotice(`${revokeTarget.code} revoked.`);
             }
             setRevokeReason("");
+            // The banner of new codes may list codes that are now revoked.
+            setGenerated(null);
             reload();
             onGenerated?.([]);
           }}
@@ -360,7 +449,7 @@ function GenerateCodesDialog({
       <DialogContent>
         <form onSubmit={onSubmit} className="space-y-4">
           <DialogHeader>
-            <DialogTitle className="text-[#001539]">Generate registration codes</DialogTitle>
+            <DialogTitle className="text-navy">Generate registration codes</DialogTitle>
             <DialogDescription>
               New codes are available immediately. You can copy or download them after generating.
             </DialogDescription>
@@ -381,8 +470,8 @@ function GenerateCodesDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isGenerating}>
-              {isGenerating ? "Generating…" : "Generate"}
+            <Button type="submit" loading={isGenerating} loadingText="Generating…">
+              Generate
             </Button>
           </DialogFooter>
         </form>

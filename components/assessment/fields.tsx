@@ -6,9 +6,12 @@ import { Check } from "lucide-react";
 import { FormField } from "@/components/dashboard/form-field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Textarea } from "@/components/ui/textarea";
 import type { Option } from "@/lib/backoffice/options";
+import { type YesNoChoice, yesNoChoice, yesNoValue } from "@/lib/backoffice/yes-no";
 import { cn } from "@/lib/utils";
+import { typeScale } from "@/components/backoffice/type-scale";
 
 type Base = {
   id: string;
@@ -59,7 +62,7 @@ export function NumberField({
           className={cn("bg-white tabular-nums", suffix && "pr-12")}
         />
         {suffix ? (
-          <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs text-black/40">
+          <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs text-black/60">
             {suffix}
           </span>
         ) : null}
@@ -176,7 +179,7 @@ export function ChipGroup({
 
   return (
     <fieldset className={cn("space-y-1.5", base.className)} disabled={base.disabled}>
-      <legend className="mb-1.5 text-[13px] font-medium text-[#001539]">
+      <legend className={cn("mb-1.5", typeScale.label)}>
         {base.label}
         {base.required ? <span className="text-rose-600">*</span> : null}
       </legend>
@@ -193,7 +196,7 @@ export function ChipGroup({
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition",
                 selected
-                  ? "border-[#007050] bg-[#007050]/[0.08] text-[#00573e]"
+                  ? "border-brand bg-brand/[0.08] text-[#00573e]"
                   : "border-black/10 bg-white text-black/70 hover:border-black/20",
               )}
             >
@@ -206,7 +209,7 @@ export function ChipGroup({
       {base.error ? (
         <p className="text-xs text-rose-700">{base.error}</p>
       ) : base.hint ? (
-        <p className="text-xs text-black/50">{base.hint}</p>
+        <p className="text-xs text-black/60">{base.hint}</p>
       ) : null}
     </fieldset>
   );
@@ -226,52 +229,22 @@ export function YesNoField({
   onChange: (value: boolean | null) => void;
   autoLabel?: string;
 }) {
-  const choices: { key: string; label: string; value: boolean | null }[] = [
-    ...(autoLabel ? [{ key: "auto", label: autoLabel, value: null }] : []),
-    { key: "yes", label: "Yes", value: true },
-    { key: "no", label: "No", value: false },
+  const options: { value: YesNoChoice; label: string }[] = [
+    ...(autoLabel ? [{ value: "auto" as const, label: autoLabel }] : []),
+    { value: "yes", label: "Yes" },
+    { value: "no", label: "No" },
   ];
 
   return (
-    <div className={cn("space-y-1.5", base.className)}>
-      <p id={`${base.id}-label`} className="text-[13px] font-medium text-[#001539]">
-        {base.label}
-        {base.required ? <span className="text-rose-600">*</span> : null}
-      </p>
-      <div
-        role="radiogroup"
-        aria-labelledby={`${base.id}-label`}
-        className={cn(
-          "inline-flex rounded-lg border bg-white p-0.5",
-          base.error ? "border-rose-300" : "border-black/10",
-        )}
-      >
-        {choices.map((choice) => {
-          const selected = value === choice.value;
-          return (
-            <button
-              key={choice.key}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              disabled={base.disabled}
-              onClick={() => onChange(choice.value)}
-              className={cn(
-                "rounded-md px-3 py-1 text-sm transition",
-                selected ? "bg-[#001539] font-medium text-white shadow-xs" : "text-black/60 hover:text-[#001539]",
-              )}
-            >
-              {choice.label}
-            </button>
-          );
-        })}
-      </div>
-      {base.error ? (
-        <p className="text-xs text-rose-700">{base.error}</p>
-      ) : base.hint ? (
-        <p className="text-xs text-black/50">{base.hint}</p>
-      ) : null}
-    </div>
+    <FormField label={base.label} htmlFor={base.id} error={base.error} hint={base.hint} required={base.required} className={base.className}>
+      <SegmentedControl<YesNoChoice>
+        id={base.id}
+        value={yesNoChoice(value, Boolean(autoLabel))}
+        disabled={base.disabled}
+        options={options}
+        onValueChange={(next) => onChange(yesNoValue(next))}
+      />
+    </FormField>
   );
 }
 
@@ -294,13 +267,13 @@ export function FieldSection({
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-black/[0.06] px-5 py-4">
         <div className="flex items-start gap-3">
           {letter ? (
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-[#001539] text-xs font-semibold text-white">
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-navy text-xs font-semibold text-white">
               {letter}
             </span>
           ) : null}
           <div>
-            <h3 className="text-sm font-semibold text-[#001539]">{title}</h3>
-            {description ? <p className="mt-0.5 text-sm text-black/55">{description}</p> : null}
+            <h3 className={typeScale.panelTitle}>{title}</h3>
+            {description ? <p className="mt-0.5 text-sm text-black/60">{description}</p> : null}
           </div>
         </div>
         {aside}

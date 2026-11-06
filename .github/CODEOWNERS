@@ -1,0 +1,35 @@
+# Who must review changes to each part of the repository.
+#
+# TODO (Commission): replace the placeholder teams with real GitHub teams or
+# users that have write access, then remove the "# " in front of each rule.
+# The rules are commented out until then, so placeholder names never request
+# a review from anyone. Turn on "Require review from Code Owners" in the
+# branch protection for master once they are filled in.
+#
+# Later rules win over earlier ones for the same file.
+
+# Everything not matched below.
+# *                               @<github-org>/<web-team>
+
+# Sign-in, sessions, the API layer and the route guard: a second reviewer from security.
+# /lib/auth/                      @<github-org>/<web-team> @<github-org>/<security-team>
+# /lib/api/                       @<github-org>/<web-team> @<github-org>/<security-team>
+# /app/bff/                       @<github-org>/<web-team> @<github-org>/<security-team>
+# /proxy.ts                       @<github-org>/<web-team> @<github-org>/<security-team>
+# /next.config.ts                 @<github-org>/<web-team> @<github-org>/<security-team>
+
+# Money: payouts, zakat payments and their settings.
+# /app/(portal)/dashboard/disbursements/  @<github-org>/<web-team> @<github-org>/<finance-team>
+# /app/(portal)/dashboard/zakat/          @<github-org>/<web-team> @<github-org>/<finance-team>
+# /components/disbursements/              @<github-org>/<web-team> @<github-org>/<finance-team>
+# /lib/zakat/                             @<github-org>/<web-team> @<github-org>/<finance-team>
+
+# Public wording in four languages.
+# /lib/i18n/dictionaries/         @<github-org>/<web-team> @<github-org>/<content-team>
+
+# Deploys, CI and dependencies.
+# /.github/                       @<github-org>/<web-team> @<github-org>/<ops-team>
+# /ecosystem.config.cjs           @<github-org>/<web-team> @<github-org>/<ops-team>
+# /package.json                   @<github-org>/<web-team> @<github-org>/<ops-team>
+# /pnpm-lock.yaml                 @<github-org>/<web-team> @<github-org>/<ops-team>
+# /pnpm-workspace.yaml            @<github-org>/<web-team> @<github-org>/<ops-team>

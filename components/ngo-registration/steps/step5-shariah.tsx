@@ -19,6 +19,8 @@ import {
 import type { EligibilityDecision, NgoStepProps, ReviewerScores } from "../types";
 import { DecisionBadge, DecisionOverride } from "../ui/decision-badge";
 import { ScoreSlider } from "../ui/score-slider";
+import { typeScale } from "@/components/backoffice/type-scale";
+import { cn } from "@/lib/utils";
 
 const inputClass =
   "form-input";
@@ -52,7 +54,7 @@ export function Step5Shariah({ state, setState, errors }: NgoStepProps) {
     >
       <div className="space-y-8">
         <section>
-          <h3 className="mb-4 text-lg font-semibold text-[#001539]">
+          <h3 className={cn("mb-4", typeScale.panelTitle)}>
             Part A — Shariah Compliance Declaration
           </h3>
           <CheckboxGroup
@@ -85,7 +87,7 @@ export function Step5Shariah({ state, setState, errors }: NgoStepProps) {
           </div>
 
           <div className="mt-6 rounded-xl border border-black/10 bg-black/[0.02] p-4">
-            <p className="text-sm text-black/55">
+            <p className="text-sm text-black/60">
               I hereby declare that all information provided in this application is true,
               complete, and accurate to the best of my knowledge. I understand that
               providing false information may result in rejection or disqualification.
@@ -106,9 +108,9 @@ export function Step5Shariah({ state, setState, errors }: NgoStepProps) {
                 type="checkbox"
                 checked={s.declarationAgreed}
                 onChange={(e) => update("declarationAgreed", e.target.checked)}
-                className="mt-1 h-5 w-5 accent-[#007050]"
+                className="mt-1 h-5 w-5 accent-brand"
               />
-              <span className="text-sm text-[#001539]">
+              <span className="text-sm text-navy">
                 I agree to the above declaration *
               </span>
             </label>
@@ -119,7 +121,7 @@ export function Step5Shariah({ state, setState, errors }: NgoStepProps) {
         </section>
 
         <section className="reviewer-section">
-          <p className="mb-4 text-sm font-semibold uppercase tracking-wide text-[#001539]">
+          <p className="mb-4 text-sm font-semibold uppercase tracking-wide text-navy">
             For Reviewer Use Only — Assessment Officer Section
           </p>
           <div className="space-y-6">

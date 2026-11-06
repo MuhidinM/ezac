@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Upload } from "lucide-react";
 
@@ -13,7 +14,7 @@ import {
   MAX_KYC_FILE_SIZE,
 } from "@/lib/registration/constants";
 import {
-  clearRegistrationSession,
+  clearInProgressRegistration,
   getRegistrationSession,
   setRegistrationSuccessFlag,
   updateRegistrationSession,
@@ -121,7 +122,7 @@ export function InstitutionDocumentsStep() {
       return;
     }
 
-    clearRegistrationSession();
+    clearInProgressRegistration();
     setRegistrationSuccessFlag();
     router.push("/dashboard/beneficiary");
   }
@@ -151,7 +152,7 @@ export function InstitutionDocumentsStep() {
               uploadingCode ? "pointer-events-none opacity-50" : undefined
             }
           >
-            <a href="/dashboard/register/institution/password">Back</a>
+            <Link href="/dashboard/register/institution/password">Back</Link>
           </Button>
           <Button onClick={onFinish} disabled={!kycComplete || !!uploadingCode}>
             Finish
@@ -189,13 +190,15 @@ function DocumentCard({
   onUpload: (file: File) => void;
 }) {
   const inputId = `doc-${document.code}`;
+  // The file input stays hidden; a real button opens it, so the keyboard can reach it.
+  const fileInput = useRef<HTMLInputElement>(null);
 
   return (
     <div className="rounded-xl border border-black/10 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-medium text-[#001539]">{document.label}</p>
-          <p className="mt-1 text-xs text-black/55">
+          <p className="font-medium text-navy">{document.label}</p>
+          <p className="mt-1 text-xs text-black/60">
             {document.required ? "Required" : "Optional"}
             {document.uploaded ? " · Uploaded" : ""}
           </p>
@@ -210,10 +213,13 @@ function DocumentCard({
       {!document.uploaded ? (
         <div className="mt-3">
           <input
+            ref={fileInput}
             id={inputId}
             type="file"
             accept={KYC_FILE_TYPES.join(",")}
             className="hidden"
+            tabIndex={-1}
+            aria-hidden="true"
             disabled={isUploading}
             onChange={(event) => {
               const file = event.target.files?.[0];
@@ -221,10 +227,16 @@ function DocumentCard({
               event.target.value = "";
             }}
           />
-          <Button type="button" variant="outline" size="sm" disabled={isUploading} asChild>
-            <label htmlFor={inputId} className="cursor-pointer">
-              {isUploading ? "Uploading..." : "Upload file"}
-            </label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            loading={isUploading}
+            loadingText="Uploading…"
+            onClick={() => fileInput.current?.click()}
+          >
+            <Upload />
+            Upload file<span className="sr-only">: {document.label}</span>
           </Button>
         </div>
       ) : null}

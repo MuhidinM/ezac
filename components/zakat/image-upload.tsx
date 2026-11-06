@@ -27,7 +27,7 @@ function Thumb({ media, onRemove, disabled }: { media: MediaRef; onRemove: () =>
         // eslint-disable-next-line @next/next/no-img-element -- media is served by the zakat service, not optimisable here
         <img src={mediaSrc(media.url) ?? undefined} alt="" className="size-full object-cover" />
       ) : (
-        <span className="flex size-full items-center justify-center text-xs text-black/45">#{media.id}</span>
+        <span className="flex size-full items-center justify-center text-xs text-black/60">#{media.id}</span>
       )}
       {!disabled ? (
         <button
@@ -93,7 +93,7 @@ export function ImageUpload({
           <Button
             type="button"
             variant="outline"
-            className={cn("size-24 flex-col gap-1 border-dashed text-xs font-normal text-black/55")}
+            className={cn("size-24 flex-col gap-1 border-dashed text-xs font-normal text-black/60")}
             onClick={() => inputRef.current?.click()}
             disabled={isUploading}
           >

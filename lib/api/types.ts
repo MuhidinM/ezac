@@ -29,14 +29,6 @@ export type PaginatedItems<T> = {
   pagination: Pagination;
 };
 
-export type LoginData = {
-  accessToken: string;
-  refreshToken: string;
-  expiresIn: number;
-  tokenType: string;
-  passwordChangeRequired: boolean;
-};
-
 export type VerificationStatus =
   | "pending"
   | "pending_third_party"
@@ -245,6 +237,10 @@ export type BranchListItem = {
   codeStats: CodeStats | null;
   createdAt?: string;
   officerName?: string | null;
+  /** Current backend names for the officer's details (older responses use the branch* fields). */
+  fullName?: string | null;
+  phone?: string | null;
+  email?: string | null;
 };
 
 export type Branch = BranchListItem;
@@ -271,4 +267,7 @@ export type BranchPortalProfile = {
   zone: string | null;
   woreda: string | null;
   codeStats: CodeStats | null;
+  fullName?: string | null;
+  phone?: string | null;
+  email?: string | null;
 };

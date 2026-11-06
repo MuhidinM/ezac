@@ -15,7 +15,7 @@ export function AssignmentBadges({ assignments }: { assignments: StaffAssignment
   const active = assignments.filter((assignment) => assignment.active);
 
   if (active.length === 0) {
-    return <span className="text-sm text-black/40">No active assignment</span>;
+    return <span className="text-sm text-black/60">No active assignment</span>;
   }
 
   return (

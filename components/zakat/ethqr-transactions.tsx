@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { Copy } from "lucide-react";
 
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { Panel } from "@/components/dashboard/panel";
 import { TableMessageRow, TableSkeletonRows } from "@/components/dashboard/table-states";
+import { TestBadge } from "@/components/zakat/payment-mode-banner";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -17,30 +19,87 @@ import {
 } from "@/components/ui/table";
 import { useResource } from "@/lib/api/use-resource";
 import { type RangeKey, rangeDates } from "@/lib/backoffice/date-range";
+import { formatCount, formatEtb } from "@/lib/backoffice/format";
 
 const SIZE = 20;
-const MAX_COLUMNS = 8;
 
-/** EthQR's own page, passed through unchanged; its item fields aren't documented yet. */
-type EthqrPage = {
-  content?: Record<string, unknown>[];
-  page?: number;
-  size?: number;
-  totalElements?: number;
-  totalPages?: number;
+/**
+ * One receipt from EthQR, as the BFF passes it on: only the fields this table
+ * uses (lib/zakat/redact.ts). Fields may be missing.
+ */
+type EthqrReceipt = {
+  id?: string | number | null;
+  amount?: number | string | null;
+  currency?: string | null;
+  referenceNumber?: string | null;
+  payerName?: string | null;
+  status?: string | null;
+  /** Addis Ababa local time without an offset, e.g. "2026-11-05T12:30:00". */
+  transactedAt?: string | null;
+  sourceBankBic?: string | null;
+  sourceBankCode?: string | null;
+  /** The payment id the QR was made for (e.g. zp_…). */
+  terminalLabel?: string | null;
 };
 
-function cellText(value: unknown) {
-  if (value === null || value === undefined || value === "") return "—";
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
+/** EthQR's page, passed through by the payments service. */
+type EthqrPage = {
+  content?: EthqrReceipt[];
+  pagination?: { currentPage?: number; pageSize?: number; totalPages?: number; totalElements?: number };
+  /** Older answers put the paging at the top level. */
+  totalPages?: number;
+  totalElements?: number;
+};
+
+const amountFormat = new Intl.NumberFormat("en-ET", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const timeFormat = new Intl.DateTimeFormat("en-ET", { dateStyle: "medium", timeStyle: "short", timeZone: "Africa/Addis_Ababa" });
+
+/** EthQR times carry no offset and are Addis Ababa time. */
+function formatAddisTime(value: string | null | undefined) {
+  if (!value) return "—";
+  const hasOffset = /(?:Z|[+-]\d{2}:?\d{2})$/.test(value);
+  const date = new Date(hasOffset ? value : `${value}+03:00`);
+  return Number.isNaN(date.getTime()) ? value : timeFormat.format(date);
+}
+
+function formatAmount(receipt: EthqrReceipt) {
+  if (receipt.amount === null || receipt.amount === undefined || receipt.amount === "") return "—";
+  const amount = Number(receipt.amount);
+  if (Number.isFinite(amount) && (!receipt.currency || receipt.currency === "ETB")) return formatEtb(amount);
+  const text = Number.isFinite(amount) ? amountFormat.format(amount) : String(receipt.amount);
+  return `${receipt.currency ?? "ETB"} ${text}`;
+}
+
+function text(value: string | number | null | undefined) {
+  return value === null || value === undefined || value === "" ? "—" : String(value);
+}
+
+/** What "Copy" puts on the clipboard: the reference first, then what identifies the receipt. */
+function receiptSummary(receipt: EthqrReceipt) {
+  return [
+    `Reference: ${text(receipt.referenceNumber ?? receipt.id)}`,
+    `Amount: ${formatAmount(receipt)}`,
+    `Time: ${formatAddisTime(receipt.transactedAt)}`,
+    `Payer: ${text(receipt.payerName)}`,
+    `From bank: ${text(receipt.sourceBankCode ?? receipt.sourceBankBic)}`,
+    `Payment: ${text(receipt.terminalLabel)}`,
+  ].join("\n");
 }
 
 /**
  * What EthQR says it received, so an admin can match QR payments by amount
  * and time and confirm them with the transaction's reference.
  */
-export function EthqrTransactions({ range }: { range: RangeKey }) {
+export function EthqrTransactions({
+  range,
+  onOpenPayment,
+  test = false,
+}: {
+  range: RangeKey;
+  onOpenPayment?: (paymentId: string) => void;
+  /** EthQR isn't live (sandbox or unknown mode): these receipts may be simulated. */
+  test?: boolean;
+}) {
   const [page, setPage] = useState(0);
   const { from, to } = rangeDates(range);
   // EthQR takes Addis Ababa local times, without an offset; page starts at 0.
@@ -50,16 +109,18 @@ export function EthqrTransactions({ range }: { range: RangeKey }) {
     from: `${from}T00:00:00`,
     to: `${to}T23:59:59`,
   });
-  const { data, error, isLoading } = useResource<EthqrPage>(`/bff/payments-admin/ethqr/transactions?${params}`);
+  const { data, error, isLoading, reload } = useResource<EthqrPage>(`/bff/payments-admin/ethqr/transactions?${params}`);
   const rows = data?.content ?? [];
-  const columns = [...new Set(rows.flatMap((row) => Object.keys(row)))].slice(0, MAX_COLUMNS);
   const notRegistered = error?.status === 409;
-  const hasNext = data?.totalPages != null ? page + 1 < data.totalPages : rows.length === SIZE;
+  const totalPages = data?.pagination?.totalPages ?? data?.totalPages;
+  const totalElements = data?.pagination?.totalElements ?? data?.totalElements;
+  const hasNext = totalPages != null ? page + 1 < totalPages : rows.length === SIZE;
 
   return (
     <Panel
       title="Received through EthQR"
-      description="EthQR's own list, newest first, for reconciliation. QR payments confirm themselves; use this only when one needs confirming by hand."
+      description={`EthQR's own list, newest first, for reconciliation. Times are Addis Ababa time. QR payments confirm themselves; use this only when one needs confirming by hand.${test ? " EthQR is in test mode: these receipts may be simulated." : ""}`}
+      actions={test ? <TestBadge title="EthQR isn't live: these receipts may be simulated" /> : undefined}
       flush
     >
       {notRegistered ? (
@@ -68,7 +129,7 @@ export function EthqrTransactions({ range }: { range: RangeKey }) {
         </div>
       ) : error ? (
         <div className="px-5 py-4">
-          <InlineAlert>{error.message}</InlineAlert>
+          <ErrorAlert error={error} onRetry={reload} />
         </div>
       ) : (
         <>
@@ -76,15 +137,13 @@ export function EthqrTransactions({ range }: { range: RangeKey }) {
             <Table>
               <TableHeader>
                 <TableRow className="bg-black/[0.015]">
-                  {columns.length ? (
-                    columns.map((column, index) => (
-                      <TableHead key={column} className={index === 0 ? "pl-5" : undefined}>
-                        {column}
-                      </TableHead>
-                    ))
-                  ) : (
-                    <TableHead className="pl-5">Transaction</TableHead>
-                  )}
+                  <TableHead className="pl-5">Time</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead>Bank reference</TableHead>
+                  <TableHead>Payer</TableHead>
+                  <TableHead>From bank</TableHead>
+                  <TableHead>Payment</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead className="pr-5">
                     <span className="sr-only">Copy</span>
                   </TableHead>
@@ -92,25 +151,42 @@ export function EthqrTransactions({ range }: { range: RangeKey }) {
               </TableHeader>
               <TableBody>
                 {isLoading && rows.length === 0 ? (
-                  <TableSkeletonRows colSpan={Math.max(columns.length, 1) + 1} />
+                  <TableSkeletonRows colSpan={8} />
                 ) : rows.length === 0 ? (
-                  <TableMessageRow colSpan={Math.max(columns.length, 1) + 1}>Nothing received in this period.</TableMessageRow>
+                  <TableMessageRow colSpan={8}>Nothing received in this period.</TableMessageRow>
                 ) : (
                   rows.map((row, index) => (
-                    <TableRow key={index}>
-                      {columns.map((column, columnIndex) => (
-                        <TableCell key={column} className={columnIndex === 0 ? "pl-5 font-mono text-xs" : "font-mono text-xs"}>
-                          <span className="block max-w-56 truncate" title={cellText(row[column])}>
-                            {cellText(row[column])}
-                          </span>
-                        </TableCell>
-                      ))}
+                    <TableRow key={`${row.id ?? row.referenceNumber ?? "row"}-${index}`}>
+                      <TableCell className="pl-5 text-sm whitespace-nowrap">{formatAddisTime(row.transactedAt)}</TableCell>
+                      <TableCell className="text-right tabular-nums whitespace-nowrap">{formatAmount(row)}</TableCell>
+                      <TableCell className="font-mono text-xs">{text(row.referenceNumber ?? row.id)}</TableCell>
+                      <TableCell>
+                        <span className="block max-w-48 truncate" title={row.payerName ?? undefined}>
+                          {text(row.payerName)}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-sm">{text(row.sourceBankCode ?? row.sourceBankBic)}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {row.terminalLabel && onOpenPayment ? (
+                          <button
+                            type="button"
+                            className="text-brand underline underline-offset-2 hover:text-navy"
+                            onClick={() => onOpenPayment(row.terminalLabel!)}
+                          >
+                            {row.terminalLabel}
+                          </button>
+                        ) : (
+                          text(row.terminalLabel)
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm capitalize">{text(row.status?.toLowerCase())}</TableCell>
                       <TableCell className="pr-5 text-right">
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          aria-label="Copy the whole transaction"
-                          onClick={() => void navigator.clipboard?.writeText(JSON.stringify(row, null, 2))}
+                          aria-label={`Copy the reference and details of ${text(row.referenceNumber ?? row.id)}`}
+                          title="Copy the reference and details"
+                          onClick={() => void navigator.clipboard?.writeText(receiptSummary(row))}
                         >
                           <Copy className="text-black/40" />
                         </Button>
@@ -121,8 +197,12 @@ export function EthqrTransactions({ range }: { range: RangeKey }) {
               </TableBody>
             </Table>
           </div>
-          <div className="flex items-center justify-between border-t border-black/[0.06] px-5 py-3 text-sm text-black/55">
-            <span>Page {page + 1}</span>
+          <div className="flex items-center justify-between border-t border-black/[0.06] px-5 py-3 text-sm text-black/60">
+            <span>
+              Page {page + 1}
+              {totalPages != null ? ` of ${Math.max(totalPages, 1)}` : ""}
+              {totalElements != null ? ` · ${formatCount(totalElements)} received` : ""}
+            </span>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" disabled={page === 0 || isLoading} onClick={() => setPage((value) => value - 1)}>
                 Previous

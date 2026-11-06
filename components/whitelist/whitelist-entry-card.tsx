@@ -33,7 +33,8 @@ type Decision = "approve" | "reject" | "revoke";
 const DECISION_COPY: Record<Decision, { title: string; description: string; confirm: string; field: "comment" | "reason"; required: boolean; destructive?: boolean }> = {
   approve: {
     title: "Approve whitelist request",
-    description: "The badge is added. A fast-track household appears in the disbursement pool queue straight away.",
+    // Replaced per effect below (approveDescription).
+    description: "",
     confirm: "Approve",
     field: "comment",
     required: false,
@@ -57,17 +58,27 @@ const DECISION_COPY: Record<Decision, { title: string; description: string; conf
   },
 };
 
+/** What approving does, which depends on the entry's effect. */
+function approveDescription(effect: WhitelistEntry["effect"]): string {
+  return effect === "PRIORITY"
+    ? "The Priority badge is added. Priority doesn't skip the assessment: once the branch approves it, the household is listed after fast-track households and before the rest in the disbursement pool queue."
+    : "The Fast track badge is added. The household appears in the disbursement pool queue straight away, before an assessment.";
+}
+
 /** One whitelist entry with its evidence; ADMIN gets approve / reject / revoke. */
 export function WhitelistEntryCard({
   entry,
   canDecide,
   onChanged,
   compact,
+  hidePoolStatus,
 }: {
   entry: WhitelistEntry;
   canDecide: boolean;
   onChanged: (entry: WhitelistEntry) => void;
   compact?: boolean;
+  /** Leave out the entry's pool badge when it is stale (another row is the live pool row). */
+  hidePoolStatus?: boolean;
 }) {
   const [decision, setDecision] = useState<Decision | null>(null);
   const [text, setText] = useState("");
@@ -79,28 +90,28 @@ export function WhitelistEntryCard({
       <div className="flex flex-wrap items-center gap-1.5">
         <WhitelistBadge effect={entry.effect} />
         <Badge tone={status.tone}>{status.label}</Badge>
-        <PoolStatusBadge status={entry.poolStatus} />
+        {hidePoolStatus ? null : <PoolStatusBadge status={entry.poolStatus} />}
       </div>
 
       <dl className="space-y-2 text-sm">
         <div>
-          <dt className="text-xs text-black/45">Reason</dt>
-          <dd className="font-medium text-[#001539]">{labelFor(WHITELIST_REASONS, entry.reasonCode)}</dd>
+          <dt className="text-xs text-black/60">Reason</dt>
+          <dd className="font-medium text-navy">{labelFor(WHITELIST_REASONS, entry.reasonCode)}</dd>
         </div>
         {entry.justification ? (
           <div>
-            <dt className="text-xs text-black/45">Justification</dt>
+            <dt className="text-xs text-black/60">Justification</dt>
             <dd className="whitespace-pre-line text-black/70">{entry.justification}</dd>
           </div>
         ) : null}
         {entry.communityVerificationNote ? (
           <div>
-            <dt className="text-xs text-black/45">Community verification</dt>
+            <dt className="text-xs text-black/60">Community verification</dt>
             <dd className="whitespace-pre-line text-black/70">{entry.communityVerificationNote}</dd>
           </div>
         ) : null}
         {!compact ? (
-          <div className="text-xs text-black/50">
+          <div className="text-xs text-black/60">
             Requested {formatDateTime(entry.requestedAt ?? null)}
             {entry.requestedByName ? ` by ${entry.requestedByName}` : ""}
             {entry.decidedAt ? ` · decided ${formatDateTime(entry.decidedAt)}${entry.decidedByName ? ` by ${entry.decidedByName}` : ""}` : ""}
@@ -118,11 +129,11 @@ export function WhitelistEntryCard({
                 href={evidenceUrl(file.contentUrl, entry.id, file.id)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-sm text-[#007050] hover:underline"
+                className="inline-flex items-center gap-1.5 text-sm text-brand hover:underline"
               >
                 <FileText className="size-3.5" />
                 {file.fileName ?? "Evidence"}
-                {file.sizeBytes ? <span className="text-xs text-black/40">{formatBytes(file.sizeBytes)}</span> : null}
+                {file.sizeBytes ? <span className="text-xs text-black/60">{formatBytes(file.sizeBytes)}</span> : null}
               </a>
             </li>
           ))}
@@ -137,13 +148,13 @@ export function WhitelistEntryCard({
                 <Check />
                 Approve
               </Button>
-              <Button size="sm" variant="outline" onClick={() => setDecision("reject")}>
+              <Button size="sm" variant="destructive-outline" onClick={() => setDecision("reject")}>
                 <X />
                 Reject
               </Button>
             </>
           ) : (
-            <Button size="sm" variant="outline" className="text-rose-700 hover:text-rose-800" onClick={() => setDecision("revoke")}>
+            <Button size="sm" variant="destructive-outline" onClick={() => setDecision("revoke")}>
               <Ban />
               Revoke
             </Button>
@@ -160,7 +171,7 @@ export function WhitelistEntryCard({
           }
         }}
         title={copy?.title ?? ""}
-        description={copy?.description}
+        description={decision === "approve" ? approveDescription(entry.effect) : copy?.description}
         confirmLabel={copy?.confirm ?? "Confirm"}
         destructive={copy?.destructive}
         confirmDisabled={!!copy?.required && !text.trim()}

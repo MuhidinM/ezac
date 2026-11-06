@@ -1,9 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { KeyRound } from "lucide-react";
+import { Check, Copy, KeyRound } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { copyToClipboard } from "@/lib/clipboard";
 
 type Props = {
@@ -19,6 +27,13 @@ type Props = {
 
 type CopyTarget = "login" | "password" | "both";
 
+/**
+ * The one-time login and temporary password of a new (or reset) account.
+ * A standard modal dialog: focus moves in and stays inside, and the page
+ * behind can't be scrolled or clicked. It can't be dismissed by accident
+ * (Escape, a click outside or the corner X): the password is never shown
+ * again, so the only way out is the confirm button.
+ */
 export function CredentialsOnceDialog({
   login,
   initialPassword,
@@ -35,41 +50,33 @@ export function CredentialsOnceDialog({
     const ok = await copyToClipboard(value);
     if (!ok) {
       setCopied(null);
-      setCopyError(
-        "Could not copy automatically. Select the text and copy it manually.",
-      );
+      setCopyError("Could not copy automatically. Select the text and copy it manually.");
       return;
     }
     setCopied(which);
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="credentials-title"
-        className="w-full max-w-lg rounded-xl border border-black/[0.06] bg-white p-6 shadow-xl"
+    <Dialog open onOpenChange={() => undefined}>
+      <DialogContent
+        className="max-w-lg [&>button:last-child]:hidden"
+        onEscapeKeyDown={(event) => event.preventDefault()}
+        onInteractOutside={(event) => event.preventDefault()}
       >
-        <div className="flex items-start gap-3">
+        <DialogHeader className="flex-row items-start gap-3 space-y-0 text-left">
           <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-700">
-            <KeyRound className="size-5" />
+            <KeyRound aria-hidden="true" className="size-5" />
           </span>
-          <div>
-            <h2
-              id="credentials-title"
-              className="text-lg font-semibold tracking-tight text-[#001539]"
-            >
-              {title}
-            </h2>
-            <p className="mt-1 text-sm text-black/60">
-              Shown once only. Copy the login and temporary password and share
-              them securely with the {recipient} before closing.
-            </p>
+          <div className="space-y-1">
+            <DialogTitle className="text-lg font-semibold tracking-tight text-navy">{title}</DialogTitle>
+            <DialogDescription className="text-sm text-black/60">
+              Shown once only. Copy the login and temporary password and share them securely with the {recipient}{" "}
+              before closing.
+            </DialogDescription>
           </div>
-        </div>
+        </DialogHeader>
 
-        <div className="mt-5 space-y-3">
+        <div className="space-y-3">
           <CredentialRow
             label="Login"
             value={login}
@@ -85,34 +92,31 @@ export function CredentialsOnceDialog({
           />
 
           {passwordChangeRequired ? (
-            <p className="text-sm text-black/55">
-              The {recipient} must change this password on first login.
-            </p>
+            <p className="text-sm text-black/60">The {recipient} must change this password on first login.</p>
           ) : null}
 
           {copyError ? (
-            <p role="alert" className="text-sm text-red-700">
+            <p role="alert" className="text-sm text-rose-700">
               {copyError}
             </p>
           ) : null}
         </div>
 
-        <div className="mt-6 flex flex-wrap justify-end gap-2">
+        <DialogFooter>
           <Button
             type="button"
             variant="outline"
-            onClick={() =>
-              void copyText(`Login: ${login}\nPassword: ${initialPassword}`, "both")
-            }
+            onClick={() => void copyText(`Login: ${login}\nPassword: ${initialPassword}`, "both")}
           >
+            {copied === "both" ? <Check /> : <Copy />}
             {copied === "both" ? "Copied both" : "Copy both"}
           </Button>
           <Button type="button" onClick={onClose}>
             I have saved these credentials
           </Button>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -137,13 +141,13 @@ function CredentialRow({
           : "rounded-lg border border-black/[0.08] bg-black/[0.02] px-4 py-3"
       }
     >
-      <p className="text-xs font-medium text-black/50">{label}</p>
+      <p className="text-xs font-medium text-black/60">{label}</p>
       <div className="mt-1 flex items-center justify-between gap-3">
-        <code className="font-mono text-sm break-all text-[#001539] select-all">
-          {value}
-        </code>
+        <code className="font-mono text-sm break-all text-navy select-all">{value}</code>
         <Button type="button" variant="outline" size="sm" onClick={onCopy}>
+          {copied ? <Check /> : <Copy />}
           {copied ? "Copied" : "Copy"}
+          <span className="sr-only"> {label.toLowerCase()}</span>
         </Button>
       </div>
     </div>

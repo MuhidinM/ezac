@@ -1,6 +1,7 @@
 import { CopyCheck, Star, Zap } from "lucide-react";
 
 import { Badge, type BadgeTone } from "@/components/ui/badge";
+import { FALLBACK_SCORE_MAX } from "@/lib/backoffice/score-max";
 import type {
   AssessmentStatus,
   DuplicateStatus,
@@ -38,13 +39,13 @@ const RISK: Record<RiskCategory, { label: string; tone: BadgeTone; bar: string }
 };
 
 export function LifecycleBadge({ status }: { status?: LifecycleStatus | null }) {
-  if (!status) return <span className="text-black/40">—</span>;
+  if (!status) return <span className="text-black/60">—</span>;
   const meta = LIFECYCLE[status] ?? { label: status, tone: "neutral" as const };
   return <Badge tone={meta.tone}>{meta.label}</Badge>;
 }
 
 export function AssessmentStatusBadge({ status }: { status?: AssessmentStatus | null }) {
-  if (!status) return <span className="text-black/40">—</span>;
+  if (!status) return <span className="text-black/60">—</span>;
   const meta = ASSESSMENT_STATUS[status] ?? { label: status, tone: "neutral" as const };
   return <Badge tone={meta.tone}>{meta.label}</Badge>;
 }
@@ -56,7 +57,7 @@ export function RiskBadge({ risk }: { risk?: RiskCategory | null }) {
   return (
     <Badge tone={meta.tone}>
       <span className={cn("size-1.5 rounded-full", meta.bar)} />
-      {meta.label} risk
+      {meta.label} need
     </Badge>
   );
 }
@@ -76,7 +77,11 @@ export function DuplicateBadge({ status }: { status?: DuplicateStatus | null }) 
   return null;
 }
 
-/** "196 / 270" with a thin bar tinted by risk. */
+/**
+ * "196 / 270" with a thin bar tinted by risk. Pass the row's own maxScore,
+ * or the live maximum from useScoreMax when the row has none; the fixed
+ * fallback is only for the moment before either is known.
+ */
 export function ScoreMeter({
   score,
   max,
@@ -89,22 +94,22 @@ export function ScoreMeter({
   size?: "sm" | "lg";
 }) {
   if (score === null || score === undefined) {
-    return <span className="text-sm text-black/40">—</span>;
+    return <span className="text-sm text-black/60">—</span>;
   }
-  const total = max || 270;
+  const total = max || FALLBACK_SCORE_MAX;
   const percent = Math.max(0, Math.min(100, (score / total) * 100));
-  const bar = risk ? RISK[risk].bar : "bg-[#001539]";
+  const bar = risk ? RISK[risk].bar : "bg-navy";
 
   return (
     <div className={size === "lg" ? "w-full" : "w-28"}>
       <p
         className={cn(
-          "font-semibold text-[#001539] tabular-nums",
+          "font-semibold text-navy tabular-nums",
           size === "lg" ? "text-4xl tracking-tight" : "text-sm",
         )}
       >
         {score}
-        <span className={cn("font-normal text-black/40", size === "lg" ? "text-xl" : "text-xs")}>
+        <span className={cn("font-normal text-black/60", size === "lg" ? "text-xl" : "text-xs")}>
           {" "}
           / {total}
         </span>

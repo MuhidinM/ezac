@@ -25,8 +25,8 @@ import {
 import type { SessionInfo } from "@/lib/api/types";
 
 /**
- * hq: any head-office staff (ADMIN, FIELD_OFFICER, or a staff token without a
- * recognised role); admin / officer / branch: that role only.
+ * hq: any head-office staff (ADMIN or FIELD_OFFICER; a roleless account only
+ * when TRUST_ROLELESS_ACCOUNTS is on); admin / officer / branch: that role only.
  */
 export type NavAudience = "hq" | "admin" | "officer" | "branch";
 
@@ -184,10 +184,14 @@ export function isFieldOfficer(session: SessionInfo | null) {
   return session?.roles.includes("FIELD_OFFICER") ?? false;
 }
 
+/**
+ * Deny by default: no session (not loaded, signed out, or an account without
+ * an EZAC role) sees nothing. Callers show a skeleton while the session loads
+ * instead of asking this.
+ */
 export function canSee(audience: NavAudience[], session: SessionInfo | null) {
-  const isAdmin = session?.isAdmin ?? false;
-  const isBranch = session?.isBranch ?? false;
-  const isStaff = session?.isStaff ?? true;
+  if (!session) return false;
+  const { isAdmin, isBranch, isStaff } = session;
 
   return audience.some((target) => {
     if (target === "branch") return isBranch;
@@ -203,7 +207,7 @@ export function isActivePath(pathname: string, url: string) {
     : pathname === url || pathname.startsWith(`${url}/`);
 }
 
-/** Breadcrumb labels for dashboard path segments. */
+/** Breadcrumb labels for dashboard path segments; they match the sidebar names. */
 export const SEGMENT_LABELS: Record<string, string> = {
   beneficiary: "Beneficiaries",
   institutions: "Institution review",
@@ -211,18 +215,16 @@ export const SEGMENT_LABELS: Record<string, string> = {
   branch: "My branch",
   register: "Register beneficiary",
   profile: "Profile",
-  donations: "Donations",
-  reports: "Reports",
   household: "Household",
   institution: "Institution",
   documents: "Documents",
-  manual: "Manual entry",
+  manual: "Register an individual",
   password: "Set password",
   type: "Beneficiary type",
   assessments: "Assessments",
   "field-officers": "Field officers",
   edit: "Edit",
-  "scoring-config": "Scoring config",
+  "scoring-config": "Scoring",
   duplicates: "Duplicate review",
   zakat: "Zakat",
   pool: "Disbursement pool",
@@ -231,6 +233,21 @@ export const SEGMENT_LABELS: Record<string, string> = {
   prices: "Prices & nisab",
   settings: "Settings",
 };
+
+/** Labels that depend on the folder above, keyed `<parent>/<segment>`. */
+export const SECTION_SEGMENT_LABELS: Record<string, string> = {
+  "zakat/payments": "Zakat payments",
+  "zakat/prices": "Prices & nisab",
+  "zakat/rules": "Calculator rules",
+  "zakat/causes": "Causes",
+  "zakat/regions": "Impact regions",
+  "zakat/stories": "Impact stories",
+  "zakat/reports": "Impact reports",
+  "zakat/settings": "Zakat settings",
+};
+
+/** Folders with no page of their own; their crumb is plain text, not a link. */
+export const UNLINKED_SEGMENTS = new Set(["/dashboard/zakat"]);
 
 export function roleLabel(session: SessionInfo): string {
   if (session.isAdmin) return "Administrator";

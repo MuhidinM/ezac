@@ -1,4 +1,7 @@
-import { getApiBaseUrl } from "@/lib/api/config";
+import "server-only";
+
+import { describeApiBaseUrl } from "@/lib/api/config";
+import { logEvent, oneLine } from "@/lib/api/log";
 
 const HINTS: Record<string, string> = {
   ECONNREFUSED: "nothing is listening there: check API_BASE_URL",
@@ -14,13 +17,18 @@ const HINTS: Record<string, string> = {
 /**
  * Logs why a server-side call to the gateway failed, with the URL and a hint,
  * so a deployment with a wrong API_BASE_URL or an untrusted certificate is
- * obvious from the server log.
+ * obvious from the server log. Never throws (it runs inside catch blocks).
  */
-export function logGatewayUnreachable(label: string, error: unknown) {
+export function logGatewayUnreachable(label: string, error: unknown, requestId?: string) {
   const cause = (error as { cause?: { code?: string; message?: string } })?.cause;
   const code = cause?.code ?? (error as { code?: string })?.code ?? "UNKNOWN";
-  console.error(
-    `[${label}] cannot reach the gateway at ${getApiBaseUrl()} (${code}${HINTS[code] ? `: ${HINTS[code]}` : ""})`,
-    cause?.message ?? (error instanceof Error ? error.message : error),
-  );
+  const detail = cause?.message ?? (error instanceof Error ? error.message : String(error));
+  logEvent("error", "gateway_unreachable", {
+    label,
+    requestId,
+    gateway: describeApiBaseUrl(),
+    code,
+    hint: HINTS[code],
+    message: oneLine(detail),
+  });
 }

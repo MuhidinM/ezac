@@ -1,3 +1,7 @@
+import "server-only";
+
+import { decodeJwtPayload } from "@/lib/auth/jwt";
+
 /**
  * Tokens from the auth service's login and refresh endpoints. They may come
  * wrapped in the `{ success, data }` envelope or as the raw token object, with
@@ -7,6 +11,12 @@ export type IssuedTokens = {
   accessToken: string;
   refreshToken: string;
   expiresIn: number;
+  /**
+   * Seconds until the refresh token expires, when the auth service says so
+   * (refreshExpiresIn / refresh_expires_in) or the refresh token is a JWT with
+   * an `exp`. Undefined when neither is known.
+   */
+  refreshExpiresIn?: number;
   passwordChangeRequired: boolean;
 };
 
@@ -15,6 +25,24 @@ function pick(record: Record<string, unknown>, ...keys: string[]) {
     if (record[key] !== undefined && record[key] !== null) return record[key];
   }
   return undefined;
+}
+
+function positiveSeconds(value: unknown): number | undefined {
+  const seconds = Number(value);
+  return Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : undefined;
+}
+
+/**
+ * The refresh token's remaining life. Keycloak issues refresh tokens as JWTs
+ * whose `exp` follows the realm's SSO idle and max settings, so reading it
+ * keeps the cookie from outliving the session the IdP will still honour.
+ */
+function refreshLifetime(record: Record<string, unknown>, refreshToken: string): number | undefined {
+  const stated = positiveSeconds(pick(record, "refreshExpiresIn", "refresh_expires_in"));
+  if (stated) return stated;
+  const exp = decodeJwtPayload(refreshToken)?.exp;
+  if (!exp) return undefined;
+  return positiveSeconds(exp - Math.floor(Date.now() / 1000));
 }
 
 export function readTokens(body: unknown): IssuedTokens | null {
@@ -33,6 +61,7 @@ export function readTokens(body: unknown): IssuedTokens | null {
     accessToken,
     refreshToken,
     expiresIn: Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : 300,
+    refreshExpiresIn: refreshLifetime(record, refreshToken),
     passwordChangeRequired: passwordChangeRequired === true,
   };
 }

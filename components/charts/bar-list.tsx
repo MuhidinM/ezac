@@ -1,3 +1,4 @@
+import { formatCount } from "@/lib/backoffice/format";
 import { cn } from "@/lib/utils";
 
 export type BarListItem = {
@@ -16,8 +17,8 @@ export function BarList({
   items,
   total,
   emptyText = "No data for this period.",
-  color = "#007050",
-  formatValue = (value) => value.toLocaleString(),
+  color = "var(--color-brand)",
+  formatValue = (value) => formatCount(value),
 }: {
   items: BarListItem[];
   /** Denominator for shares; defaults to the sum of values. */
@@ -30,7 +31,7 @@ export function BarList({
   const sum = total ?? items.reduce((acc, item) => acc + item.value, 0);
 
   if (items.length === 0 || max === 0) {
-    return <p className="py-6 text-center text-sm text-black/45">{emptyText}</p>;
+    return <p className="py-6 text-center text-sm text-black/60">{emptyText}</p>;
   }
 
   return (
@@ -42,7 +43,7 @@ export function BarList({
           <li
             key={item.key}
             className="grid grid-cols-[minmax(7rem,11rem)_minmax(0,1fr)] items-center gap-3"
-            title={`${item.label}: ${item.value.toLocaleString()} (${share}%)`}
+            title={`${item.label}: ${formatValue(item.value)} (${share}%)`}
           >
             <span className="truncate text-sm text-black/65">{item.label}</span>
             <span className="flex items-center gap-2">
@@ -52,7 +53,7 @@ export function BarList({
                   style={{ width: `${Math.max(width, 1.5)}%`, backgroundColor: item.color ?? color }}
                 />
               </span>
-              <span className="w-14 shrink-0 text-right text-sm font-medium text-[#001539] tabular-nums">
+              <span className="w-14 shrink-0 text-right text-sm font-medium text-navy tabular-nums">
                 {formatValue(item.value)}
               </span>
             </span>

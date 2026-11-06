@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { typeScale } from "@/components/backoffice/type-scale";
 import { cn } from "@/lib/utils";
 
 type PanelProps = {
@@ -24,8 +25,8 @@ export function Panel({ title, description, actions, children, className, flush 
       {title || actions ? (
         <header className="flex flex-wrap items-start justify-between gap-3 border-b border-black/[0.06] px-5 py-4">
           <div className="min-w-0">
-            {title ? <h2 className="text-sm font-semibold text-[#001539]">{title}</h2> : null}
-            {description ? <p className="mt-0.5 text-sm text-black/55">{description}</p> : null}
+            {title ? <h2 className={typeScale.panelTitle}>{title}</h2> : null}
+            {description ? <p className={cn("mt-0.5", typeScale.description)}>{description}</p> : null}
           </div>
           {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
         </header>
@@ -53,8 +54,8 @@ export function DetailList({
     >
       {items.map((item) => (
         <div key={item.label} className="min-w-0">
-          <dt className="text-xs font-medium text-black/45">{item.label}</dt>
-          <dd className="mt-1 text-sm break-words text-[#001539]">
+          <dt className={typeScale.term}>{item.label}</dt>
+          <dd className={cn("mt-1 break-words", typeScale.value)}>
             {item.value === null || item.value === undefined || item.value === ""
               ? "—"
               : item.value}

@@ -30,7 +30,7 @@ export function StepSuccess({
     decision === "approve"
       ? "border-[#27ae60] bg-[#27ae60]/15"
       : decision === "conditional"
-        ? "border-[#e18f35] bg-[#e18f35]/20"
+        ? "border-accent-fill bg-accent-fill/20"
         : decision === "defer"
           ? "border-blue-500 bg-blue-500/10"
           : "border-[#c0392b] bg-[#c0392b]/10";
@@ -40,16 +40,16 @@ export function StepSuccess({
       <div className="animate-checkmark-pop">
         <CheckCircle className="h-20 w-20 text-[#27ae60]" strokeWidth={1.5} />
       </div>
-      <h2 className="mt-6 text-2xl font-semibold tracking-tight text-[#001539]">
+      <h2 className="mt-6 text-2xl font-semibold tracking-tight text-navy">
         Application Submitted Successfully
       </h2>
-      <p className="mt-2 text-sm text-black/55">
+      <p className="mt-2 text-sm text-black/60">
         Your NGO aid application has been recorded.
       </p>
 
       <div className="mt-6 w-full max-w-md rounded-xl border border-black/10 bg-white px-6 py-4">
-        <p className="text-sm text-black/55">Application Reference Number</p>
-        <p className="mt-1 text-xl font-semibold text-[#001539]">{referenceNumber}</p>
+        <p className="text-sm text-black/60">Application Reference Number</p>
+        <p className="mt-1 text-xl font-semibold text-navy">{referenceNumber}</p>
       </div>
 
       <div className={`mt-4 w-full max-w-md rounded-2xl border-2 px-6 py-4 ${decisionStyle}`}>
@@ -58,17 +58,17 @@ export function StepSuccess({
         </p>
       </div>
 
-      <div className="mt-6 w-full max-w-md rounded-xl border border-black/10 bg-white px-6 py-4 text-left text-sm text-black/55">
-        <p><span className="font-medium text-[#001539]">Organization:</span> {orgName}</p>
-        <p className="mt-1"><span className="font-medium text-[#001539]">Contact:</span> {contactName}</p>
-        <p className="mt-1"><span className="font-medium text-[#001539]">Submitted:</span> {new Date(submittedAt).toLocaleString()}</p>
+      <div className="mt-6 w-full max-w-md rounded-xl border border-black/10 bg-white px-6 py-4 text-left text-sm text-black/60">
+        <p><span className="font-medium text-navy">Organization:</span> {orgName}</p>
+        <p className="mt-1"><span className="font-medium text-navy">Contact:</span> {contactName}</p>
+        <p className="mt-1"><span className="font-medium text-navy">Submitted:</span> {new Date(submittedAt).toLocaleString()}</p>
       </div>
 
       <div className="mt-8 flex flex-wrap justify-center gap-3">
         <button
           type="button"
           onClick={onPrint}
-          className="flex min-h-10 items-center gap-2 rounded-xl border-2 border-black/10 px-6 py-3 text-sm font-medium text-[#001539] transition hover:bg-[#007050]/5"
+          className="flex min-h-10 items-center gap-2 rounded-xl border-2 border-black/10 px-6 py-3 text-sm font-medium text-navy transition hover:bg-brand/5"
         >
           <Download className="h-5 w-5" />
           Download Summary
@@ -76,7 +76,7 @@ export function StepSuccess({
         <button
           type="button"
           onClick={onStartNew}
-          className="flex min-h-10 items-center gap-2 rounded-xl bg-[#e18f35] px-6 py-3 text-sm font-semibold text-[#001539] transition hover:bg-[#b89030]"
+          className="flex min-h-10 items-center gap-2 rounded-xl bg-accent-fill px-6 py-3 text-sm font-semibold text-navy transition hover:bg-[#b89030]"
         >
           <RotateCcw className="h-5 w-5" />
           Start New Application

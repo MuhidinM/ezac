@@ -1,13 +1,67 @@
-name: Deploy
+name: CI and deploy
 
 on:
+  pull_request:
   push:
     branches: [master]
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
 jobs:
-  deploy:
+  # Every pull request and every push: the code must lint, type-check, pass the
+  # unit tests, build and pass the dependency audit before it can deploy.
+  verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # Installs the pnpm version in package.json "packageManager" (the one
+      # that wrote pnpm-lock.yaml), so CI and laptops can't drift apart.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      # next-env.d.ts is not in git; typegen writes it before tsc runs.
+      - name: Type-check
+        run: |
+          pnpm exec next typegen
+          pnpm typecheck
+
+      # Unit tests (Vitest, tests/**). They run in Node and need no gateway.
+      - name: Test
+        run: pnpm test
+
+      # No gateway is needed: API_BASE_URL is only required when the server runs.
+      - name: Build
+        run: pnpm build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level high
+
+  deploy:
+    needs: verify
+    if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    # One deploy at a time; a newer push waits for the running one instead of cancelling it.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
     steps:
       - name: Set up SSH
         run: |
@@ -17,8 +71,35 @@ jobs:
           echo "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
+      # deploy.sh lives on the server. It must check out GIT_SHA (the commit
+      # verify just passed, not whatever master is by now) and export it for pm2.
       - name: Deploy
         run: |
           ssh -i ~/.ssh/deploy_key -p "${{ secrets.SSH_PORT }}" \
             "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-            "bash /var/www/ezac/deploy.sh"
+            "GIT_SHA=${{ github.sha }} bash /var/www/ezac/deploy.sh"
+
+      # Set the repository variable SITE_URL (e.g. https://ezac.gov.et) to turn this on.
+      - name: Check the site is up
+        if: vars.SITE_URL != ''
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+          EXPECTED_RELEASE: ${{ github.sha }}
+        run: |
+          url="${SITE_URL%/}/bff/health"
+          for attempt in 1 2 3 4 5 6; do
+            if body=$(curl --fail --silent --show-error --max-time 10 "$url"); then
+              echo "$body"
+              # /bff/health reports GIT_SHA as "release". A different value means
+              # deploy.sh did not export GIT_SHA, or the old build is still running.
+              case "$body" in
+                *"$EXPECTED_RELEASE"*) ;;
+                *) echo "::warning::$url does not report release $EXPECTED_RELEASE. Check that deploy.sh checks out and exports GIT_SHA." ;;
+              esac
+              exit 0
+            fi
+            echo "Not healthy yet (attempt $attempt); retrying in 10 s."
+            sleep 10
+          done
+          echo "::error::The site did not answer $url after the deploy."
+          exit 1

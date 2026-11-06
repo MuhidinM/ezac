@@ -11,6 +11,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import type { Assessment, BranchDecision, FieldOfficer } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/errors";
 import type { PaginatedItems } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
 import { OFFICER_RECOMMENDATION, labelFor } from "@/lib/backoffice/options";
@@ -31,21 +32,32 @@ const DECISION_PATH: Record<ReviewMode, string> = {
 
 const REVIEW_COPY: Record<
   ReviewMode,
-  { title: string; description: string; confirm: string; required: boolean; placeholder: string; destructive?: boolean }
+  {
+    title: string;
+    description: string;
+    confirm: string;
+    required: boolean;
+    placeholder: string;
+    destructive?: boolean;
+    /** Shown on the page once the decision is recorded. */
+    done: string;
+  }
 > = {
   return: {
     title: "Return for correction",
     description: "The officer gets the assessment back to edit and resubmit. Tell them what to fix.",
     confirm: "Return to officer",
+    done: "Returned to the officer.",
     required: true,
     placeholder: "e.g. Please confirm the kebele with the household",
   },
   APPROVED: {
     title: "Approve household",
-    description: "This is the final decision. The household moves to ADMIN's disbursement pool queue.",
+    description: "This is the final decision. The household moves to the administrator's disbursement pool queue.",
     confirm: "Approve",
     required: false,
     placeholder: "e.g. Verified on site",
+    done: "Approved. The household is now waiting for the disbursement pool.",
   },
   DEFERRED: {
     title: "Defer",
@@ -53,6 +65,7 @@ const REVIEW_COPY: Record<
     confirm: "Defer",
     required: true,
     placeholder: "Why is this deferred?",
+    done: "Deferred. A new assessment can start later.",
   },
   REJECTED: {
     title: "Reject",
@@ -61,6 +74,7 @@ const REVIEW_COPY: Record<
     required: true,
     placeholder: "Why is this rejected?",
     destructive: true,
+    done: "Rejected.",
   },
 };
 
@@ -70,7 +84,7 @@ export function BranchReview({
   onDone,
 }: {
   assessment: Assessment;
-  onDone: (updated: Assessment) => void;
+  onDone: (updated: Assessment, message: string) => void;
 }) {
   const [mode, setMode] = useState<ReviewMode | null>(null);
   const [comment, setComment] = useState("");
@@ -85,7 +99,7 @@ export function BranchReview({
       body: JSON.stringify({ comment: comment.trim() || undefined }),
     });
     setComment("");
-    onDone(updated);
+    onDone(updated, REVIEW_COPY[mode].done);
   }
 
   return (
@@ -116,7 +130,7 @@ export function BranchReview({
           <Clock />
           Defer
         </Button>
-        <Button variant="outline" className="text-rose-700 hover:text-rose-800" onClick={() => setMode("REJECTED")}>
+        <Button variant="destructive-outline" onClick={() => setMode("REJECTED")}>
           <XCircle />
           Reject
         </Button>
@@ -124,7 +138,12 @@ export function BranchReview({
 
       <ConfirmDialog
         open={mode !== null}
-        onOpenChange={(open) => (open ? null : setMode(null))}
+        onOpenChange={(open) => {
+          if (open) return;
+          // A cancelled decision's comment must not reappear under the next one.
+          setMode(null);
+          setComment("");
+        }}
         title={copy?.title ?? ""}
         description={copy?.description}
         confirmLabel={copy?.confirm ?? "Confirm"}
@@ -167,11 +186,27 @@ export function AssessmentManagement({
   const [reassignOpen, setReassignOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [officerId, setOfficerId] = useState("");
-  const { data: officers } = useResource<PaginatedItems<FieldOfficer>>(
+  const { data: officers, error: officersError } = useResource<PaginatedItems<FieldOfficer>>(
     reassignOpen ? "/bff/backoffice/admin/field-officers?active=true&page=1&limit=100" : null,
   );
 
   if (!canCancel && !canReassign) return null;
+
+  // The backend only accepts an officer assigned to this assessment's branch
+  // (or its region), and reassigning to the same officer does nothing.
+  const info = assessment.assessmentInfo;
+  const branchId = info?.branchId ?? null;
+  const currentSub = info?.assessmentOfficerSub ?? info?.officerSub ?? null;
+  const candidates = (officers?.items ?? []).filter((officer) => {
+    if (currentSub && officer.keycloakSub === currentSub) return false;
+    if (!branchId) return true;
+    return (officer.assignments ?? []).some(
+      (item) =>
+        item.active &&
+        (String(item.branchId ?? "") === String(branchId) || (!item.branchId && !!info?.region && item.region === info.region)),
+    );
+  });
+  const where = info?.branchName ?? "this branch";
 
   return (
     <Panel title="Manage">
@@ -183,7 +218,7 @@ export function AssessmentManagement({
           </Button>
         ) : null}
         {canCancel ? (
-          <Button variant="outline" className="text-rose-700 hover:text-rose-800" onClick={() => setCancelOpen(true)}>
+          <Button variant="destructive-outline" onClick={() => setCancelOpen(true)}>
             <Ban />
             Cancel draft
           </Button>
@@ -192,7 +227,10 @@ export function AssessmentManagement({
 
       <ConfirmDialog
         open={cancelOpen}
-        onOpenChange={setCancelOpen}
+        onOpenChange={(open) => {
+          setCancelOpen(open);
+          if (!open) setReason("");
+        }}
         title="Cancel this draft?"
         description="The assessment is kept as Cancelled and the beneficiary goes back to their previous state. A new assessment can be started later."
         confirmLabel="Cancel draft"
@@ -214,24 +252,44 @@ export function AssessmentManagement({
 
       <ConfirmDialog
         open={reassignOpen}
-        onOpenChange={setReassignOpen}
+        onOpenChange={(open) => {
+          setReassignOpen(open);
+          if (!open) setOfficerId("");
+        }}
         title="Reassign to another officer"
-        description="The new officer must be active and assigned to this assessment's branch or region."
+        description={`Only active officers working in ${where} are listed.`}
         confirmLabel="Reassign"
         confirmDisabled={!officerId}
         onConfirm={async () => {
-          const updated = await apiClient<Assessment>(actionPath(assessment.id, "reassign"), {
-            method: "POST",
-            body: JSON.stringify({ officerId }),
-          });
-          setOfficerId("");
-          onDone(updated, "Assessment reassigned.");
+          try {
+            const updated = await apiClient<Assessment>(actionPath(assessment.id, "reassign"), {
+              method: "POST",
+              body: JSON.stringify({ officerId }),
+            });
+            setOfficerId("");
+            onDone(updated, "Assessment reassigned.");
+          } catch (error) {
+            // The backend names the officer by number; use their name.
+            const name = candidates.find((officer) => officer.id === officerId)?.fullName;
+            if (name && error instanceof ApiError && /field officer \d+/i.test(error.message)) {
+              throw new Error(error.message.replace(/field officer \d+/i, name));
+            }
+            throw error;
+          }
         }}
       >
-        <FormField label="Field officer" htmlFor="reassign-officer" required>
+        <FormField
+          label="Field officer"
+          htmlFor="reassign-officer"
+          required
+          error={officersError?.message}
+          hint={officers && candidates.length === 0 ? `No other active officer works in ${where}.` : undefined}
+        >
           <NativeSelect id="reassign-officer" value={officerId} onChange={(event) => setOfficerId(event.target.value)}>
-            <option value="">{officers ? "Select an officer" : "Loading…"}</option>
-            {officers?.items.map((officer) => (
+            <option value="">
+              {!officers ? "Loading…" : candidates.length === 0 ? "No officer available" : "Select an officer"}
+            </option>
+            {candidates.map((officer) => (
               <option key={officer.id} value={officer.id}>
                 {officer.fullName}
                 {officer.assignments?.length

@@ -21,7 +21,7 @@ export type ScoringConfigVersion = {
 export type SchemaField = {
   /** Dot path into config, e.g. `sections.income.zero`. */
   path: string;
-  type: "integer" | "number" | "bands";
+  type: "integer" | "number" | "bands" | "text";
   label: string;
   section: string;
   min?: number | null;
@@ -82,4 +82,32 @@ export function changedPaths(fields: SchemaField[], before: unknown, after: unkn
   return fields
     .filter((field) => JSON.stringify(getPath(before, field.path)) !== JSON.stringify(getPath(after, field.path)))
     .map((field) => field.path);
+}
+
+export type DraftBaseline = {
+  /** The active version, which activating the draft replaces. */
+  live: ScoringConfigVersion | null;
+  /** The version the draft was copied from, when it is still listed. */
+  base: ScoringConfigVersion | null;
+  /** True when the draft is not a copy of the live version: activating it also undoes what the live version changed. */
+  stale: boolean;
+  /** What the draft's changes are counted and marked against: the live version, else the copied one. */
+  compareWith: ScoringConfigVersion | null;
+};
+
+/** The versions a draft is checked against before it goes live. */
+export function draftBaseline(draft: ScoringConfigVersion, versions: readonly ScoringConfigVersion[]): DraftBaseline {
+  const live = versions.find((item) => item.active) ?? null;
+  const base = draft.basedOnVersion != null ? (versions.find((item) => item.version === draft.basedOnVersion) ?? null) : null;
+  return { live, base, stale: live != null && draft.basedOnVersion !== live.version, compareWith: live ?? base };
+}
+
+/**
+ * The open draft "Change scoring" returns to instead of making another: the
+ * newest copy of the live version, else the newest draft. Null when none is open.
+ */
+export function draftToContinue(versions: readonly ScoringConfigVersion[]) {
+  const live = versions.find((item) => item.active) ?? null;
+  const drafts = versions.filter((item) => item.status === "DRAFT").sort((a, b) => b.version - a.version);
+  return drafts.find((item) => live != null && item.basedOnVersion === live.version) ?? drafts[0] ?? null;
 }
