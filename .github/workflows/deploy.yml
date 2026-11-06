@@ -74,8 +74,10 @@ jobs:
       # deploy.sh lives on the server. It must check out GIT_SHA (the commit
       # verify just passed, not whatever master is by now) and export it for pm2.
       - name: Deploy
+        # Keepalives: npm ci can run for minutes with no output, and an idle
+        # connection was dropped mid-install on 6 November.
         run: |
-          ssh -i ~/.ssh/deploy_key -p "${{ secrets.SSH_PORT }}" \
+          ssh -i ~/.ssh/deploy_key -p "${{ secrets.SSH_PORT }}" -o ServerAliveInterval=30 -o ServerAliveCountMax=20 \
             "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
             "GIT_SHA=${{ github.sha }} bash /var/www/ezac/deploy.sh"
 
