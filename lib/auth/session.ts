@@ -125,6 +125,22 @@ export async function setAuthCookies(
   });
 }
 
+/**
+ * The backend answered 403 PASSWORD_CHANGE_REQUIRED: keep the session but gate
+ * every page behind the change-password form (proxy.ts reads the cookie).
+ */
+export async function markPasswordChangeRequired(): Promise<void> {
+  const cookieStore = await cookies();
+  if (cookieStore.get(PASSWORD_CHANGE_COOKIE)?.value) return;
+  const forwarded = (await headers()).get("x-forwarded-proto");
+  cookieStore.set(PASSWORD_CHANGE_COOKIE, "1", {
+    ...BASE_COOKIE_OPTIONS,
+    secure: secureCookies(forwarded),
+    // Lives as long as a staff session can (10 hours); cleared on change or sign-out.
+    maxAge: 10 * 60 * 60,
+  });
+}
+
 export async function clearAuthCookies(): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.delete(ACCESS_TOKEN_COOKIE);

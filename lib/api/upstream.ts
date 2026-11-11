@@ -237,9 +237,11 @@ export function upstreamError(call: UpstreamCall, body: unknown, status = call.r
     clientMessage(record, status),
     status,
     parseFieldErrors(record.errors),
-    record.data ?? null,
+    // beneficiary-service sends 409 workflow details as `details`, the others as `data`.
+    record.data ?? record.details ?? null,
     code,
-    call.requestId,
+    // Quote the backend's own id when it sends one, so support can find it in their logs.
+    text(record.requestId) ?? call.requestId,
   );
 }
 

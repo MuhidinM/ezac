@@ -80,12 +80,17 @@ export async function apiClient<T>(
 
   if (!response.ok || !envelope || envelope.success !== true) {
     const status = response.status || 400;
+    const code = text(envelope?.code) ?? text(envelope?.errorCode);
+    if (status === 403 && code === "PASSWORD_CHANGE_REQUIRED" && typeof window !== "undefined") {
+      // The BFF has set the gate cookie; every page now leads to the change form.
+      window.location.assign("/login/change-password");
+    }
     throw new ApiError(
       text(envelope?.message) ?? fallbackMessage(status),
       status,
       parseFieldErrors(envelope?.errors),
       envelope?.data ?? null,
-      text(envelope?.code) ?? text(envelope?.errorCode),
+      code,
       requestId,
     );
   }

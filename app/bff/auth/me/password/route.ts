@@ -102,7 +102,12 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     if (error instanceof ApiError) {
-      // The gateway answers a wrong current password with 401, the same
+      // Since the 10 November release a wrong current password is 400 CURRENT_PASSWORD_INVALID.
+      if (error.code === "CURRENT_PASSWORD_INVALID") {
+        attempt.finish("failure");
+        return authError(400, WRONG_CURRENT_PASSWORD);
+      }
+      // Older gateways answer a wrong current password with 401, the same
       // status as a dead token. Only a dead token ends the session; a typo
       // must leave the user signed in to try again.
       if (error.status === 401) {
