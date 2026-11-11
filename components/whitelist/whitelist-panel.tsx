@@ -5,6 +5,7 @@ import { ChevronDown, Plus } from "lucide-react";
 
 import { isFieldOfficer } from "@/components/dashboard/nav-config";
 import { Panel } from "@/components/dashboard/panel";
+import { useMyUserId } from "@/lib/auth/use-my-user-id";
 import { WhitelistEntryCard } from "@/components/whitelist/whitelist-entry-card";
 import { requestPath, WhitelistFormDialog } from "@/components/whitelist/whitelist-form-dialog";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,7 @@ export function WhitelistPanel({
       : null,
   );
   const [formOpen, setFormOpen] = useState(false);
+  const myId = useMyUserId();
   const [showHistory, setShowHistory] = useState(false);
 
   const canDecide = session?.isAdmin ?? false;
@@ -96,6 +98,8 @@ export function WhitelistPanel({
         <WhitelistEntryCard
           entry={data.current}
           canDecide={canDecide}
+          myId={myId}
+          onReload={reload}
           onChanged={changed}
           hidePoolStatus={stalePool(data.current)}
         />

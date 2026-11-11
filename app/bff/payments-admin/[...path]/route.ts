@@ -16,10 +16,10 @@ import { redactPaymentsAdmin, redactsPath } from "@/lib/zakat/redact";
  * | ethqr            | admin  | Zakat settings (merchant), Zakat payments (transactions; admin)|
  * | disbursements    | admin  | Payouts (admin); payout dialog on Payouts and Pool (admin)     |
  *
- * Raw bank and EthQR data (bank-call bodies and URLs, a payment's raw bank
- * answer and QR contents, extra EthQR receipt fields, raw bodies in error
- * answers) is cut down here before it reaches the browser: see
- * lib/zakat/redact.ts.
+ * payment-service masks bank and EthQR data itself since 11 November. A cheap
+ * second check stays here (bank-call bodies as summaries, account numbers by
+ * their last 4 digits, EthQR receipts by their known columns, raw bodies out
+ * of error answers): see lib/zakat/redact.ts.
  */
 const proxy = createProxy({
   label: "payments-admin",

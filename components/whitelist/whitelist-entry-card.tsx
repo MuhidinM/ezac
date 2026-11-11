@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Ban, Check, FileText, X } from "lucide-react";
+import { Ban, Check, FileText, Users, X } from "lucide-react";
 
 import { PoolStatusBadge, WhitelistBadge } from "@/components/backoffice/status-badges";
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { WhitelistEntry, WhitelistStatus } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
+import { isSameApprover, isVersionConflict, VERSION_CONFLICT_MESSAGE } from "@/lib/api/errors";
 import { formatBytes } from "@/lib/backoffice/format";
 import { WHITELIST_REASONS, labelFor } from "@/lib/backoffice/options";
 import { formatDateTime } from "@/lib/beneficiary/format";
@@ -65,23 +66,38 @@ function approveDescription(effect: WhitelistEntry["effect"]): string {
     : "The Fast track badge is added. The household appears in the disbursement pool queue straight away, before an assessment.";
 }
 
-/** One whitelist entry with its evidence; ADMIN gets approve / reject / revoke. */
+/** An entry as the API returns it now, with the version approve, reject and revoke send back. */
+type VersionedEntry = WhitelistEntry & { version?: number | null };
+
+/**
+ * One whitelist entry with its evidence; ADMIN gets approve / reject / revoke.
+ * The admin who requested an entry can't approve or reject it (403): another
+ * admin must, so `myId` hides those buttons for the requester.
+ */
 export function WhitelistEntryCard({
   entry,
   canDecide,
+  myId,
   onChanged,
+  onReload,
   compact,
   hidePoolStatus,
 }: {
-  entry: WhitelistEntry;
+  entry: VersionedEntry;
   canDecide: boolean;
+  /** The signed-in staff member's id, to spot their own request. */
+  myId?: string | null;
   onChanged: (entry: WhitelistEntry) => void;
+  /** Reads the entry again after someone else changed it (409 VERSION_CONFLICT). */
+  onReload?: () => void;
   compact?: boolean;
   /** Leave out the entry's pool badge when it is stale (another row is the live pool row). */
   hidePoolStatus?: boolean;
 }) {
   const [decision, setDecision] = useState<Decision | null>(null);
   const [text, setText] = useState("");
+  const [stale, setStale] = useState(false);
+  const ownRequest = Boolean(myId && entry.requestedBy === myId);
   const status = WHITELIST_STATUS[entry.status] ?? { label: entry.status, tone: "neutral" as const };
   const copy = decision ? DECISION_COPY[decision] : null;
 
@@ -142,7 +158,12 @@ export function WhitelistEntryCard({
 
       {canDecide && (entry.status === "PENDING_APPROVAL" || entry.status === "ACTIVE") ? (
         <div className="flex flex-wrap gap-2 pt-1">
-          {entry.status === "PENDING_APPROVAL" ? (
+          {entry.status === "PENDING_APPROVAL" && ownRequest ? (
+            <p className="flex items-start gap-2 text-sm text-navy">
+              <Users className="mt-0.5 size-4 shrink-0 text-sky-700" />
+              Waiting for another admin to approve. You made this request, so you can&apos;t decide on it.
+            </p>
+          ) : entry.status === "PENDING_APPROVAL" ? (
             <>
               <Button size="sm" onClick={() => setDecision("approve")}>
                 <Check />
@@ -168,6 +189,7 @@ export function WhitelistEntryCard({
           if (!open) {
             setDecision(null);
             setText("");
+            setStale(false);
           }
         }}
         title={copy?.title ?? ""}
@@ -177,10 +199,23 @@ export function WhitelistEntryCard({
         confirmDisabled={!!copy?.required && !text.trim()}
         onConfirm={async () => {
           if (!decision || !copy) return;
-          const updated = await apiClient<WhitelistEntry>(
-            `/bff/backoffice/admin/whitelist/${encodeURIComponent(entry.id)}/${decision}`,
-            { method: "POST", body: JSON.stringify(text.trim() ? { [copy.field]: text.trim() } : {}) },
-          );
+          let updated: WhitelistEntry;
+          try {
+            updated = await apiClient<WhitelistEntry>(`/bff/backoffice/admin/whitelist/${encodeURIComponent(entry.id)}/${decision}`, {
+              method: "POST",
+              body: JSON.stringify({
+                ...(text.trim() ? { [copy.field]: text.trim() } : {}),
+                ...(entry.version != null ? { version: entry.version } : {}),
+              }),
+            });
+          } catch (decisionError) {
+            if (isSameApprover(decisionError)) throw new Error("Another admin must do this step.");
+            if (isVersionConflict(decisionError)) {
+              setStale(true);
+              throw new Error(VERSION_CONFLICT_MESSAGE);
+            }
+            throw decisionError;
+          }
           setText("");
           onChanged(updated);
         }}
@@ -193,6 +228,21 @@ export function WhitelistEntryCard({
         >
           <Textarea id="whitelist-decision" value={text} onChange={(event) => setText(event.target.value)} />
         </FormField>
+        {stale && onReload ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setDecision(null);
+              setText("");
+              setStale(false);
+              onReload();
+            }}
+          >
+            Reload
+          </Button>
+        ) : null}
       </ConfirmDialog>
     </div>
   );

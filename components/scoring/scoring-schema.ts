@@ -242,8 +242,24 @@ export function sectionCaps(schema: ScoringSchema, config: Record<string, unknow
   return caps;
 }
 
-/** Mirrors the server's checks so problems show before saving. */
-export function validateScoring(schema: ScoringSchema, config: Record<string, unknown>) {
+function strictlyRising(values: number[]) {
+  return values.every((value, index) => index === 0 || value > values[index - 1]);
+}
+
+function strictlyFalling(values: number[]) {
+  return values.every((value, index) => index === 0 || value < values[index - 1]);
+}
+
+/**
+ * Mirrors the server's checks so problems show before saving. With
+ * `baseConfig` (the version the draft was copied from), band lists must also
+ * keep that version's number of bands and direction (rising or falling).
+ */
+export function validateScoring(
+  schema: ScoringSchema,
+  config: Record<string, unknown>,
+  baseConfig?: Record<string, unknown> | null,
+) {
   const groups = groupSchema(schema);
   const caps = sectionCaps(schema, config);
   const problems: string[] = [];
@@ -280,9 +296,21 @@ export function validateScoring(schema: ScoringSchema, config: Record<string, un
       if (cap != null && points.some((point) => point > cap)) {
         problems.push(`${name}: a band can't give more than the section maximum (${cap} points).`);
       }
-      const rising = bounds.every((bound, index) => index === 0 || bound > bounds[index - 1]);
-      const falling = bounds.every((bound, index) => index === 0 || bound < bounds[index - 1]);
+      const rising = strictlyRising(bounds);
+      const falling = strictlyFalling(bounds);
       if (!rising && !falling) problems.push(`${name}: keep the bands in order, each with a different value.`);
+      const baseValue = baseConfig ? getPath(baseConfig, field.path) : null;
+      const baseBands = Array.isArray(baseValue) ? (baseValue as Band[]) : [];
+      if (baseBands.length > 0 && bands.length !== baseBands.length) {
+        problems.push(`${name}: keep ${baseBands.length} band${baseBands.length === 1 ? "" : "s"}, as in the version it was copied from.`);
+      } else if (baseBands.length > 1 && bands.length > 1) {
+        const baseBounds = baseBands.map((band) => num(band?.[0]));
+        if (strictlyRising(baseBounds) && falling) {
+          problems.push(`${name}: the band limits must go up, as in the version it was copied from.`);
+        } else if (strictlyFalling(baseBounds) && rising) {
+          problems.push(`${name}: the band limits must go down, as in the version it was copied from.`);
+        }
+      }
       continue;
     }
     if (typeof value === "number" && value < min) problems.push(`${name} can't be ${below}.`);

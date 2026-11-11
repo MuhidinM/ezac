@@ -36,7 +36,6 @@ import {
 import { apiClient } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errors";
 import type {
-  BeneficiaryDetail,
   PaginatedItems,
   RegistrationCodeItem,
   RegistrationCodeStatus,
@@ -62,27 +61,27 @@ const TABS: { status: RegistrationCodeStatus | ""; label: string }[] = [
   { status: "REVOKED", label: "Revoked" },
 ];
 
-/**
- * Who used a code. The code itself is the household's BIN; the list has no
- * names yet, so HQ staff (who can read beneficiary records) look the name up.
- * BRANCH can't read the record and sees the record number.
- */
-function CodeBeneficiary({ item, link }: { item: RegistrationCodeItem; link: boolean }) {
-  const id = item.beneficiaryId ?? "";
-  const sent = (item as RegistrationCodeItem & { beneficiaryName?: string | null }).beneficiaryName?.trim();
-  const { data, error } = useResource<BeneficiaryDetail>(
-    link && !sent && id ? `/bff/beneficiaries/${encodeURIComponent(id)}` : null,
-  );
-  const name = sent || data?.fullName?.trim();
-  const loading = link && !sent && !data && !error;
-  const label = name || (loading ? "Loading…" : `Beneficiary #${id}`);
+/** A used code also names the household and its BIN (the code it registered with). */
+type UsedCode = RegistrationCodeItem & { beneficiaryName?: string | null; bin?: string | null };
 
-  return link ? (
-    <Link href={`/dashboard/beneficiary/${id}`} className="text-brand hover:underline">
-      {label}
-    </Link>
-  ) : (
-    <span className="tabular-nums">{label}</span>
+/** Who used a code. HQ staff get a link to the household's record. */
+function CodeBeneficiary({ item, link }: { item: UsedCode; link: boolean }) {
+  const id = item.beneficiaryId ?? "";
+  const label = item.beneficiaryName?.trim() || `Beneficiary #${id}`;
+  const bin = item.bin?.trim();
+
+  return (
+    <div>
+      {link ? (
+        <Link href={`/dashboard/beneficiary/${id}`} className="text-brand hover:underline">
+          {label}
+        </Link>
+      ) : (
+        <span className="text-navy">{label}</span>
+      )}
+      {/* The BIN is usually the code itself; show it only when it differs. */}
+      {bin && bin !== item.code ? <p className="font-mono text-xs text-black/60">BIN {bin}</p> : null}
+    </div>
   );
 }
 

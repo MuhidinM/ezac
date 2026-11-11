@@ -67,6 +67,8 @@ export function articleJsonLd(input: {
   image?: string | null;
   datePublished?: string | null;
   dateModified?: string | null;
+  /** The language of the headline and text, when it isn't the page's (admin text that fell back to English). */
+  inLanguage?: string;
 }): Record<string, unknown> {
   return {
     "@context": "https://schema.org",
@@ -74,7 +76,7 @@ export function articleJsonLd(input: {
     headline: input.headline,
     description: input.description,
     url: absoluteUrl(localizedPath(input.locale, input.path)),
-    inLanguage: input.locale,
+    inLanguage: input.inLanguage ?? input.locale,
     ...(input.image ? { image: absoluteUrl(input.image) } : {}),
     ...(input.datePublished ? { datePublished: input.datePublished } : {}),
     ...(input.dateModified || input.datePublished ? { dateModified: input.dateModified ?? input.datePublished } : {}),

@@ -1,29 +1,33 @@
 "use client";
 
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { CredentialsOnceDialog } from "@/components/branches/credentials-once-dialog";
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
+import { FileUploadField } from "@/components/registration/file-upload-field";
 import { RegistrationShell } from "@/components/registration/registration-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { apiClient } from "@/lib/api/client";
+import { errorMessage } from "@/lib/api/errors";
+import { idempotencyHeader, newIdempotencyKey } from "@/lib/api/idempotency";
 import { leaveNotice } from "@/lib/backoffice/notice";
 import { ASNAF, MARITAL_STATUS, PRIMARY_LANGUAGE, SEX } from "@/lib/backoffice/options";
 import { REGISTRATION_STEPS } from "@/lib/registration/constants";
-import { registeredNotice } from "@/lib/registration/notices";
+import { passwordNotShownNotice, registeredNotice } from "@/lib/registration/notices";
 import { ageMismatch, formErrors } from "@/lib/registration/form-errors";
 import { isValidEthiopianPhone, normalizePhoneToE164 } from "@/lib/registration/phone";
+import { getSelectedBranch, type SelectedBranch } from "@/lib/registration/session";
 import {
-  getSelectedBranch,
-  passwordSetupHref,
-  savePendingPasswordSetup,
-  type SelectedBranch,
-  setRegistrationSession,
-} from "@/lib/registration/session";
-import type { CreateBeneficiaryResponse } from "@/lib/registration/types";
+  accountExists,
+  type CreateBeneficiaryResponse,
+  keepIdempotencyKey,
+  registrationConsent,
+} from "@/lib/registration/submit";
 import { typeScale } from "@/components/backoffice/type-scale";
 
 type Form = {
@@ -83,13 +87,32 @@ function fieldId(key: keyof Form) {
   return ids[key];
 }
 
+/** The new household's login, shown once after registration. */
+type Credentials = {
+  id: string;
+  login: string;
+  initialPassword: string;
+  passwordChangeRequired: boolean;
+  notice: string;
+};
+
 export function ManualIdentityForm() {
   const router = useRouter();
   const [branch, setBranch] = useState<SelectedBranch | null>(null);
   const [form, setForm] = useState<Form>(EMPTY);
+  const [consent, setConsent] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  // The household that already has this phone or email (409 ACCOUNT_EXISTS).
+  const [existing, setExisting] = useState<{ field: string; beneficiaryId: string | null } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [credentials, setCredentials] = useState<Credentials | null>(null);
+  // One Idempotency-Key per registration attempt, reused when a retry follows
+  // a lost answer so the household is never registered twice.
+  const attemptKey = useRef<string | null>(null);
 
   useEffect(() => {
     const selected = getSelectedBranch();
@@ -121,6 +144,8 @@ export function ManualIdentityForm() {
     if (!branch) return;
     setError(null);
     setFieldErrors({});
+    setExisting(null);
+    setConsentError(null);
 
     // The phone is the household's sign-in: refuse anything that isn't an
     // Ethiopian mobile number rather than send a made-up one.
@@ -137,6 +162,15 @@ export function ManualIdentityForm() {
       showFieldErrors({
         registrationCode: "This branch has no codes left. Enter the printed code from the household's card.",
       });
+      return;
+    }
+    if (photoError) {
+      document.getElementById("reg-photo")?.focus();
+      return;
+    }
+    if (!consent) {
+      setConsentError("Read the notice to the household and tick the box once they agree.");
+      setTimeout(() => document.getElementById("reg-consent")?.focus(), 0);
       return;
     }
     setIsSubmitting(true);
@@ -161,46 +195,60 @@ export function ManualIdentityForm() {
       // code is given.
       registrationCode: form.registrationCode.trim().toUpperCase() || undefined,
       branchId: branch.branchId,
+      consent: registrationConsent(),
     };
 
     const body = new FormData();
     body.append("data", new Blob([JSON.stringify(data)], { type: "application/json" }));
+    if (photo) body.append("profilePicture", photo);
 
+    attemptKey.current ??= newIdempotencyKey();
     try {
       const created = await apiClient<CreateBeneficiaryResponse>("/bff/backoffice/staff/beneficiaries", {
         method: "POST",
         body,
+        headers: idempotencyHeader(attemptKey.current),
       });
-      if (created.passwordSetupToken) {
-        savePendingPasswordSetup({
-          entityId: created.id,
-          passwordSetupToken: created.passwordSetupToken,
-          registrationType: "manual",
-          branchName: branch.branchName,
-          fullName: data.fullName,
-          bin: created.bin ?? null,
+      attemptKey.current = null;
+      if (created.initialPassword) {
+        setCredentials({
+          id: created.id,
+          login: created.username?.trim() || data.phone,
+          initialPassword: created.initialPassword,
+          passwordChangeRequired: created.passwordChangeRequired ?? true,
+          notice: registeredNotice(data.fullName, created.bin),
         });
-        setRegistrationSession({
-          registrationType: "manual",
-          entityId: created.id,
-          phone: data.phone,
-          fullName: data.fullName,
-          bin: created.bin ?? null,
-        });
-        router.push(passwordSetupHref(created.id));
-      } else {
-        // Said on the new profile, where the next step (the assessment) starts.
-        leaveNotice(`beneficiary:${created.id}`, registeredNotice(data.fullName, created.bin));
-        router.push(`/dashboard/beneficiary/${created.id}`);
+        return;
       }
+      // A replay of an attempt whose answer was lost: the password was in
+      // that first answer only. Said on the new profile, with the next step.
+      leaveNotice(`beneficiary:${created.id}`, passwordNotShownNotice(data.fullName, created.bin));
+      router.push(`/dashboard/beneficiary/${encodeURIComponent(created.id)}`);
     } catch (submitError) {
+      if (!keepIdempotencyKey(submitError)) attemptKey.current = null;
+      const taken = accountExists(submitError);
+      if (taken) {
+        const field = (FIELD_KEYS as string[]).includes(taken.field) ? taken.field : "phone";
+        setExisting({ field, beneficiaryId: taken.beneficiaryId });
+        showFieldErrors({ [field]: errorMessage(submitError, "Another household already uses this.") });
+        setIsSubmitting(false);
+        return;
+      }
       const { message, fields } = formErrors(submitError, "Registration didn't go through. Try again.", FIELD_KEYS);
       const onForm = FIELD_KEYS.some((key) => fields[key]);
-      // Field problems are listed by the button; anything else goes on top.
+      // Field problems are listed by the button; anything else (a branch
+      // outside the officer's scope, say) goes on top, in the server's words.
       setError(onForm ? null : message);
       showFieldErrors(fields);
       setIsSubmitting(false);
     }
+  }
+
+  function closeCredentials() {
+    if (!credentials) return;
+    // Said on the new profile, where the next step (the assessment) starts.
+    leaveNotice(`beneficiary:${credentials.id}`, credentials.notice);
+    router.push(`/dashboard/beneficiary/${encodeURIComponent(credentials.id)}`);
   }
 
   if (!branch) {
@@ -211,7 +259,21 @@ export function ManualIdentityForm() {
     );
   }
 
-  const err = (key: keyof Form) => fieldErrors[key];
+  const err = (key: keyof Form) => {
+    const message = fieldErrors[key];
+    if (!message || existing?.field !== key || !existing.beneficiaryId) return message;
+    return (
+      <>
+        {message}{" "}
+        <Link
+          href={`/dashboard/beneficiary/${encodeURIComponent(existing.beneficiaryId)}`}
+          className="font-medium underline underline-offset-2"
+        >
+          Open that household
+        </Link>
+      </>
+    );
+  };
 
   return (
     <RegistrationShell
@@ -219,7 +281,7 @@ export function ManualIdentityForm() {
       description="Basic details only. The field officer completes the rest during the household assessment."
       branchName={branch.branchName}
       steps={REGISTRATION_STEPS}
-      currentStep={1}
+      currentStep={credentials ? 2 : 1}
       wide
       error={error}
     >
@@ -336,6 +398,51 @@ export function ManualIdentityForm() {
           </div>
         </fieldset>
 
+        <fieldset className="space-y-4">
+          <legend className={typeScale.panelTitle}>Photo</legend>
+          <FileUploadField
+            id="reg-photo"
+            label="Profile picture"
+            kind="profilePicture"
+            file={photo}
+            error={photoError}
+            disabled={isSubmitting}
+            onChange={(file, problem) => {
+              setPhoto(file);
+              setPhotoError(problem);
+            }}
+          />
+        </fieldset>
+
+        <fieldset className="space-y-3">
+          <legend className={typeScale.panelTitle}>Consent</legend>
+          <p className="text-sm text-black/70">
+            Read this to the household: EZAC keeps these details to assess the household for zakat support and to
+            pay it. Only the staff and services that need them can see them. The household can ask the branch to
+            see or correct them.
+          </p>
+          <FormField label="Household consent" htmlFor="reg-consent" required error={consentError}>
+            {(control) => (
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-black/10 px-4 py-3">
+                <input
+                  id={control.id}
+                  aria-describedby={control["aria-describedby"]}
+                  aria-invalid={control["aria-invalid"]}
+                  aria-required={control["aria-required"]}
+                  type="checkbox"
+                  checked={consent}
+                  onChange={(e) => {
+                    setConsent(e.target.checked);
+                    if (e.target.checked) setConsentError(null);
+                  }}
+                  className="mt-0.5 size-4 accent-brand"
+                />
+                <span className="text-sm text-navy">The household agreed to EZAC processing their data.</span>
+              </label>
+            )}
+          </FormField>
+        </fieldset>
+
         {Object.keys(fieldErrors).length > 0 && !error ? (
           <InlineAlert>Check the highlighted fields.</InlineAlert>
         ) : null}
@@ -349,6 +456,16 @@ export function ManualIdentityForm() {
           </Button>
         </div>
       </form>
+      {credentials ? (
+        <CredentialsOnceDialog
+          title="Household login"
+          recipient="household"
+          login={credentials.login}
+          initialPassword={credentials.initialPassword}
+          passwordChangeRequired={credentials.passwordChangeRequired}
+          onClose={closeCredentials}
+        />
+      ) : null}
     </RegistrationShell>
   );
 }

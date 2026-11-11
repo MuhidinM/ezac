@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { JsonLd } from "@/components/seo/json-ld";
+import { CARD_IMAGE_SIZES } from "@/components/site/cause-card";
 import { isPastLastPage, listPath, pageFromParam } from "@/components/site/list-page";
 import { Pagination } from "@/components/site/pagination";
 import { CtaBand, Section } from "@/components/site/sections";
@@ -12,7 +13,7 @@ import { format } from "@/lib/i18n/messages";
 import { getDictionary, localeFromParam } from "@/lib/i18n/server";
 import { pageMetadata } from "@/lib/seo";
 import { breadcrumbJsonLd } from "@/lib/structured-data";
-import { mediaSrc } from "@/lib/zakat/content";
+import { foreignLang, imageSources } from "@/lib/zakat/content";
 import { formatDate, getStories } from "@/lib/zakat/impact";
 
 const PATH = "/transparency/stories";
@@ -43,7 +44,7 @@ export default async function ImpactStoriesPage({ params, searchParams }: PagePr
   const categories: Record<string, string> = transparency.categories;
   // null means none published. The list is cached (lib/zakat/impact.ts): an
   // outage keeps the last good copy, and with none cached shows the error page.
-  const result = await getStories(page, PAGE_SIZE);
+  const result = await getStories(page, PAGE_SIZE, locale);
   const stories = result?.items ?? [];
   const totalPages = result?.pagination.totalPages ?? 0;
   if (isPastLastPage(page, totalPages)) notFound();
@@ -58,8 +59,9 @@ export default async function ImpactStoriesPage({ params, searchParams }: PagePr
         ) : (
           <div className="mx-auto grid max-w-6xl grid-cols-1 gap-5 sm:grid-cols-2 md:gap-6 lg:grid-cols-3">
             {stories.map((story) => {
-              const image = mediaSrc(story.imageUrl);
+              const image = imageSources(story.imageUrl, story.imageVariants);
               const published = formatDate(story.publishedAt, locale);
+              const textLang = foreignLang(story.lang, locale);
               return (
                 <article
                   key={story.id}
@@ -69,8 +71,10 @@ export default async function ImpactStoriesPage({ params, searchParams }: PagePr
                     {image ? (
                       // eslint-disable-next-line @next/next/no-img-element -- served by the zakat service via /bff/media
                       <img
-                        src={image}
-                        alt={format(t.imageAlt, { title: story.title })}
+                        src={image.src}
+                        srcSet={image.srcSet}
+                        sizes={image.srcSet ? CARD_IMAGE_SIZES : undefined}
+                        alt={story.imageAltText || format(t.imageAlt, { title: story.title })}
                         width={1600}
                         height={1000}
                         loading="lazy"
@@ -83,7 +87,7 @@ export default async function ImpactStoriesPage({ params, searchParams }: PagePr
                     <p className="text-xs tracking-[0.14em] text-brand uppercase">
                       {[categories[story.category] ?? story.category, story.region].filter(Boolean).join(" · ")}
                     </p>
-                    <h2 className="font-serif-display line-clamp-2 text-xl leading-tight tracking-[-0.5px] text-navy sm:text-2xl">
+                    <h2 lang={textLang} className="font-serif-display line-clamp-2 text-xl leading-tight tracking-[-0.5px] text-navy sm:text-2xl">
                       <Link
                         href={localizedPath(locale, `/transparency/stories/${encodeURIComponent(story.id)}`)}
                         title={format(t.readTitle, { title: story.title })}
@@ -92,7 +96,9 @@ export default async function ImpactStoriesPage({ params, searchParams }: PagePr
                         {story.title}
                       </Link>
                     </h2>
-                    <p className="line-clamp-3 text-sm leading-relaxed text-muted-ink">{story.summary}</p>
+                    <p lang={textLang} className="line-clamp-3 text-sm leading-relaxed text-muted-ink">
+                      {story.summary}
+                    </p>
                     {published ? (
                       <p className="mt-auto text-xs text-muted-ink">
                         <time dateTime={story.publishedAt?.slice(0, 10)}>{published}</time>

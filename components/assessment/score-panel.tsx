@@ -16,9 +16,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { Assessment, AssessmentScore } from "@/lib/api/backoffice-types";
+import type { AssessmentScore } from "@/lib/api/backoffice-types";
 import { useResource } from "@/lib/api/use-resource";
-import { recommendationReasonOf, reviewInfo, reviewerName } from "@/lib/backoffice/assessment-steps";
+import {
+  recommendationReasonOf,
+  reviewInfo,
+  reviewerName,
+  type AssessmentDetail,
+} from "@/lib/backoffice/assessment-steps";
+import { formatDate } from "@/lib/backoffice/format";
 import { OFFICER_RECOMMENDATION, labelFor } from "@/lib/backoffice/options";
 import { formatDateTime } from "@/lib/beneficiary/format";
 import { cn } from "@/lib/utils";
@@ -31,7 +37,7 @@ const WARNING_LABELS: Record<string, string> = {
 };
 
 /** "Assessment & Score" tab: score, breakdown, flags and sign-offs. */
-export function ScorePanel({ assessment }: { assessment: Assessment }) {
+export function ScorePanel({ assessment }: { assessment: AssessmentDetail }) {
   const score = assessment.score;
   const flags = score?.dataQualityFlags ?? [];
   const acknowledgements = Object.entries(assessment.warningAcknowledgements ?? {});
@@ -109,13 +115,28 @@ type TimelineEvent = {
   body?: ReactNode;
 };
 
-/** Submitted → reviewed → decided, with comments. */
-export function SignOffTimeline({ assessment }: { assessment: Assessment }) {
+/** The branch's own decision, which a head-office send-back leaves in place. */
+function branchDecisionTitle(assessment: AssessmentDetail) {
+  const { status } = assessment;
+  if (status === "RETURNED") {
+    // Head office only sends back what the branch approved.
+    return reviewInfo(assessment).byHeadOffice ? "Branch decision: approved" : "Returned by branch";
+  }
+  if (status === "APPROVED" || status === "REJECTED" || status === "DEFERRED") {
+    return `Branch decision: ${ASSESSMENT_STATUS[status].label.toLowerCase()}`;
+  }
+  return "Branch decision";
+}
+
+/** Submitted → reviewed → decided, with comments; a head-office send-back is its own step. */
+export function SignOffTimeline({ assessment }: { assessment: AssessmentDetail }) {
   const s = assessment.signOffs ?? {};
   const recommendation = assessment.recommendation;
   const reason = recommendationReasonOf(assessment);
-  const review = reviewInfo(assessment);
   const cancelled = assessment.status === "CANCELLED";
+  // A resubmitted assessment waits for a new branch decision.
+  const reviewed = !!s.reviewedAt && assessment.status !== "SUBMITTED" && assessment.status !== "DRAFT";
+  const deferredUntil = assessment.status === "DEFERRED" ? assessment.deferredUntil : null;
 
   const flow: TimelineEvent[] = [
     {
@@ -131,19 +152,29 @@ export function SignOffTimeline({ assessment }: { assessment: Assessment }) {
       ) : null,
     },
     {
-      done: !!s.reviewedAt,
-      title:
-        assessment.status === "RETURNED"
-          ? review.byHeadOffice
-            ? "Sent back by head office"
-            : "Returned by branch"
-          : assessment.status === "APPROVED" || assessment.status === "REJECTED" || assessment.status === "DEFERRED"
-            ? `Branch decision: ${ASSESSMENT_STATUS[assessment.status].label.toLowerCase()}`
-            : "Branch decision",
+      done: reviewed,
+      title: branchDecisionTitle(assessment),
       who: reviewerName(assessment),
       when: s.reviewedAt,
-      body: review.comment,
+      body:
+        s.reviewComment || deferredUntil ? (
+          <>
+            {s.reviewComment}
+            {deferredUntil ? `${s.reviewComment ? " " : ""}Look again from ${formatDate(deferredUntil)}.` : null}
+          </>
+        ) : null,
     },
+    ...(s.sentBackAt
+      ? [
+          {
+            done: true,
+            title: "Sent back by head office",
+            who: s.sentBackByName,
+            when: s.sentBackAt,
+            body: s.sentBackReason,
+          },
+        ]
+      : []),
     ...(assessment.status === "APPROVED"
       ? [
           {
@@ -160,6 +191,12 @@ export function SignOffTimeline({ assessment }: { assessment: Assessment }) {
       : []),
   ];
 
+  // Steps that happened read in time order; what is still to come follows.
+  const happened = flow
+    .filter((event) => event.done)
+    .sort((a, b) => (a.when && b.when ? a.when.localeCompare(b.when) : 0));
+  const pending = flow.filter((event) => !event.done);
+
   // A cancelled assessment goes no further: show what happened, not steps that never will.
   const events: TimelineEvent[] = cancelled
     ? [
@@ -169,9 +206,9 @@ export function SignOffTimeline({ assessment }: { assessment: Assessment }) {
           who: assessment.assessmentInfo?.officerName,
           when: assessment.createdAt,
         },
-        ...flow.filter((event) => event.done),
+        ...happened,
       ]
-    : flow;
+    : [...happened, ...pending];
   if (s.cancelledAt) {
     events.push({
       done: true,

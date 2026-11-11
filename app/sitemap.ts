@@ -76,7 +76,7 @@ async function causeEntries(): Promise<Entry[]> {
       for (const cause of result.items) {
         entries.set(cause.id, {
           path: `/causes/${encodeURIComponent(cause.id)}`,
-          lastModified: validDate(cause.closedAt),
+          lastModified: validDate(cause.updatedAt ?? cause.closedAt ?? cause.publishedAt),
         });
       }
       if (page >= (result.pagination?.totalPages ?? 1)) break;
@@ -94,7 +94,7 @@ async function storyEntries(): Promise<Entry[]> {
     for (const story of result.items) {
       entries.push({
         path: `/transparency/stories/${encodeURIComponent(story.id)}`,
-        lastModified: validDate(story.publishedAt),
+        lastModified: validDate(story.updatedAt ?? story.publishedAt),
       });
     }
     if (page >= (result.pagination?.totalPages ?? 1)) break;

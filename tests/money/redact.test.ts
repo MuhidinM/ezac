@@ -91,39 +91,36 @@ describe("redactBankCall", () => {
 });
 
 describe("redactPayment", () => {
-  it("replaces the raw bank answer with its useful fields and drops the QR contents", () => {
+  it("drops a raw bank answer and QR contents if payment-service ever sends them again", () => {
     const payment = redactPayment(livePayment) as Record<string, unknown>;
     expect(payment).not.toHaveProperty("providerResponse");
     expect(payment).not.toHaveProperty("qrPayload");
-    expect(payment.bankAnswer).toContainEqual({ label: "State", value: "PAID" });
-    expect(payment.sandbox).toBeUndefined();
+    expect(payment).not.toHaveProperty("bankAnswer");
     expect(payment.providerReference).toBe(livePayment.providerReference);
   });
 
-  it("marks a sandbox payment", () => {
-    const payment = redactPayment(sandboxPayment) as Record<string, unknown>;
-    expect(payment.sandbox).toBe(true);
-  });
-
-  it("masks the donor's debit account", () => {
+  it("masks full account numbers and keeps ones payment-service already masked", () => {
     const payment = redactPayment({ ...livePayment, debitAccount: "1000123456789" }) as Record<string, unknown>;
     expect(payment.debitAccount).toBe("••••6789");
+    expect(payment.creditAccount).toBe("••••0000");
+    const masked = redactPayment({ ...livePayment, creditAccount: "*********7357" }) as Record<string, unknown>;
+    expect(masked.creditAccount).toBe("*********7357");
   });
 });
 
 describe("redactEthqrReceipt", () => {
-  it("keeps only the columns the reconciliation table shows", () => {
+  it("keeps only the columns payment-service returns since 11 November", () => {
     expect(redactEthqrReceipt(ethqrReceipt)).toEqual({
-      id: ethqrReceipt.id,
+      referenceNumber: ethqrReceipt.referenceNumber,
+      orderId: "zp_live000000000001",
       amount: 10,
       currency: "ETB",
-      referenceNumber: ethqrReceipt.referenceNumber,
-      payerName: "Test Payer",
-      status: "COMPLETED",
       transactedAt: ethqrReceipt.transactedAt,
       sourceBankBic: "telebirr",
-      sourceBankCode: "TELEBIRR",
-      terminalLabel: "zp_live000000000001",
+      endToEndId: ethqrReceipt.endToEndId,
+      status: "COMPLETED",
+      payerName: "T*** P****",
+      matchedPaymentId: "zp_live000000000001",
     });
   });
 });
@@ -135,6 +132,7 @@ describe("redactsPath", () => {
     expect(redactsPath(["zakat-payments", "zp_1", "check"])).toBe(true);
     expect(redactsPath(["ethqr", "transactions"])).toBe(true);
     expect(redactsPath(["zakat-payments", "summary"])).toBe(false);
+    expect(redactsPath(["zakat-payments", "needs-action", "count"])).toBe(false);
     expect(redactsPath(["disbursements", "po_1"])).toBe(false);
     expect(redactsPath(["payment-settings"])).toBe(false);
     expect(redactsPath(["ethqr", "merchant"])).toBe(false);
@@ -156,10 +154,17 @@ describe("redactPaymentsAdmin", () => {
     expect(list.data.items[0]).not.toHaveProperty("providerResponse");
     expect(list.data.pagination).toEqual({ page: 1 });
 
-    for (const path of [["zakat-payments", "zp_1"], ["zakat-payments", "zp_1", "check"], ["zakat-payments", "zp_1", "resolve"]]) {
+    const paths = [
+      ["zakat-payments", "zp_1"],
+      ["zakat-payments", "zp_1", "check"],
+      ["zakat-payments", "zp_1", "resolve"],
+      ["zakat-payments", "zp_1", "approve"],
+      ["zakat-payments", "zp_1", "void"],
+    ];
+    for (const path of paths) {
       const body = redactPaymentsAdmin(path, ok(sandboxPayment)) as { data: Record<string, unknown> };
       expect(body.data).not.toHaveProperty("qrPayload");
-      expect(body.data.sandbox).toBe(true);
+      expect(body.data).not.toHaveProperty("providerResponse");
     }
   });
 

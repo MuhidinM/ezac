@@ -7,7 +7,7 @@ import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { Panel } from "@/components/dashboard/panel";
 import { TableMessageRow, TableSkeletonRows } from "@/components/dashboard/table-states";
-import { TestBadge } from "@/components/zakat/payment-mode-banner";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -24,22 +24,24 @@ import { formatCount, formatEtb } from "@/lib/backoffice/format";
 const SIZE = 20;
 
 /**
- * One receipt from EthQR, as the BFF passes it on: only the fields this table
- * uses (lib/zakat/redact.ts). Fields may be missing.
+ * One receipt from EthQR, as payment-service returns it (11 November). Fields
+ * may be missing.
  */
 type EthqrReceipt = {
-  id?: string | number | null;
+  referenceNumber?: string | null;
+  /** The payment id the QR was made for (e.g. zp_…). */
+  orderId?: string | null;
   amount?: number | string | null;
   currency?: string | null;
-  referenceNumber?: string | null;
-  payerName?: string | null;
-  status?: string | null;
   /** Addis Ababa local time without an offset, e.g. "2026-11-05T12:30:00". */
   transactedAt?: string | null;
   sourceBankBic?: string | null;
-  sourceBankCode?: string | null;
-  /** The payment id the QR was made for (e.g. zp_…). */
-  terminalLabel?: string | null;
+  endToEndId?: string | null;
+  status?: string | null;
+  /** Masked by payment-service. */
+  payerName?: string | null;
+  /** The payment this receipt confirmed; missing when it matches none. */
+  matchedPaymentId?: string | null;
 };
 
 /** EthQR's page, passed through by the payments service. */
@@ -77,12 +79,14 @@ function text(value: string | number | null | undefined) {
 /** What "Copy" puts on the clipboard: the reference first, then what identifies the receipt. */
 function receiptSummary(receipt: EthqrReceipt) {
   return [
-    `Reference: ${text(receipt.referenceNumber ?? receipt.id)}`,
+    `Reference: ${text(receipt.referenceNumber)}`,
     `Amount: ${formatAmount(receipt)}`,
     `Time: ${formatAddisTime(receipt.transactedAt)}`,
     `Payer: ${text(receipt.payerName)}`,
-    `From bank: ${text(receipt.sourceBankCode ?? receipt.sourceBankBic)}`,
-    `Payment: ${text(receipt.terminalLabel)}`,
+    `From bank: ${text(receipt.sourceBankBic)}`,
+    `End-to-end id: ${text(receipt.endToEndId)}`,
+    `QR for payment: ${text(receipt.orderId)}`,
+    `Matched payment: ${receipt.matchedPaymentId ?? "none"}`,
   ].join("\n");
 }
 
@@ -93,14 +97,13 @@ function receiptSummary(receipt: EthqrReceipt) {
 export function EthqrTransactions({
   range,
   onOpenPayment,
-  test = false,
 }: {
   range: RangeKey;
   onOpenPayment?: (paymentId: string) => void;
-  /** EthQR isn't live (sandbox or unknown mode): these receipts may be simulated. */
-  test?: boolean;
 }) {
   const [page, setPage] = useState(0);
+  // Receipts that confirmed no payment: money that arrived but wasn't matched.
+  const [unmatched, setUnmatched] = useState(false);
   const { from, to } = rangeDates(range);
   // EthQR takes Addis Ababa local times, without an offset; page starts at 0.
   const params = new URLSearchParams({
@@ -109,6 +112,7 @@ export function EthqrTransactions({
     from: `${from}T00:00:00`,
     to: `${to}T23:59:59`,
   });
+  if (unmatched) params.set("unmatched", "true");
   const { data, error, isLoading, reload } = useResource<EthqrPage>(`/bff/payments-admin/ethqr/transactions?${params}`);
   const rows = data?.content ?? [];
   const notRegistered = error?.status === 409;
@@ -119,8 +123,21 @@ export function EthqrTransactions({
   return (
     <Panel
       title="Received through EthQR"
-      description={`EthQR's own list, newest first, for reconciliation. Times are Addis Ababa time. QR payments confirm themselves; use this only when one needs confirming by hand.${test ? " EthQR is in test mode: these receipts may be simulated." : ""}`}
-      actions={test ? <TestBadge title="EthQR isn't live: these receipts may be simulated" /> : undefined}
+      description="EthQR's own list, newest first, for reconciliation. Times are Addis Ababa time. QR payments confirm themselves; use this only when one needs confirming by hand."
+      actions={
+        <label className="flex items-center gap-2 text-sm text-navy">
+          <input
+            type="checkbox"
+            checked={unmatched}
+            onChange={(event) => {
+              setUnmatched(event.target.checked);
+              setPage(0);
+            }}
+            className="size-4 accent-brand"
+          />
+          Only unmatched
+        </label>
+      }
       flush
     >
       {notRegistered ? (
@@ -153,38 +170,30 @@ export function EthqrTransactions({
                 {isLoading && rows.length === 0 ? (
                   <TableSkeletonRows colSpan={8} />
                 ) : rows.length === 0 ? (
-                  <TableMessageRow colSpan={8}>Nothing received in this period.</TableMessageRow>
+                  <TableMessageRow colSpan={8}>
+                    {unmatched ? "Every receipt in this period matches a payment." : "Nothing received in this period."}
+                  </TableMessageRow>
                 ) : (
                   rows.map((row, index) => (
-                    <TableRow key={`${row.id ?? row.referenceNumber ?? "row"}-${index}`}>
+                    <TableRow key={`${row.referenceNumber ?? "row"}-${index}`}>
                       <TableCell className="pl-5 text-sm whitespace-nowrap">{formatAddisTime(row.transactedAt)}</TableCell>
                       <TableCell className="text-right tabular-nums whitespace-nowrap">{formatAmount(row)}</TableCell>
-                      <TableCell className="font-mono text-xs">{text(row.referenceNumber ?? row.id)}</TableCell>
+                      <TableCell className="font-mono text-xs">{text(row.referenceNumber)}</TableCell>
                       <TableCell>
                         <span className="block max-w-48 truncate" title={row.payerName ?? undefined}>
                           {text(row.payerName)}
                         </span>
                       </TableCell>
-                      <TableCell className="text-sm">{text(row.sourceBankCode ?? row.sourceBankBic)}</TableCell>
+                      <TableCell className="text-sm">{text(row.sourceBankBic)}</TableCell>
                       <TableCell className="font-mono text-xs">
-                        {row.terminalLabel && onOpenPayment ? (
-                          <button
-                            type="button"
-                            className="text-brand underline underline-offset-2 hover:text-navy"
-                            onClick={() => onOpenPayment(row.terminalLabel!)}
-                          >
-                            {row.terminalLabel}
-                          </button>
-                        ) : (
-                          text(row.terminalLabel)
-                        )}
+                        <ReceiptPayment receipt={row} onOpenPayment={onOpenPayment} />
                       </TableCell>
                       <TableCell className="text-sm capitalize">{text(row.status?.toLowerCase())}</TableCell>
                       <TableCell className="pr-5 text-right">
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          aria-label={`Copy the reference and details of ${text(row.referenceNumber ?? row.id)}`}
+                          aria-label={`Copy the reference and details of ${text(row.referenceNumber)}`}
                           title="Copy the reference and details"
                           onClick={() => void navigator.clipboard?.writeText(receiptSummary(row))}
                         >
@@ -215,5 +224,24 @@ export function EthqrTransactions({
         </>
       )}
     </Panel>
+  );
+}
+
+/** The payment a receipt confirmed, or "Unmatched" with the payment its QR was made for. */
+function ReceiptPayment({ receipt, onOpenPayment }: { receipt: EthqrReceipt; onOpenPayment?: (paymentId: string) => void }) {
+  const link = (id: string) =>
+    onOpenPayment ? (
+      <button type="button" className="text-brand underline underline-offset-2 hover:text-navy" onClick={() => onOpenPayment(id)}>
+        {id}
+      </button>
+    ) : (
+      id
+    );
+  if (receipt.matchedPaymentId) return link(receipt.matchedPaymentId);
+  return (
+    <span className="flex flex-col items-start gap-1">
+      <Badge tone="warning">Unmatched</Badge>
+      {receipt.orderId ? <span title="The payment this QR was made for">QR for {link(receipt.orderId)}</span> : null}
+    </span>
   );
 }

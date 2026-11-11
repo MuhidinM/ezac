@@ -22,6 +22,7 @@ import type {
   AnalyticsOverview,
   AnalyticsTimeseries,
   LifecycleStatus,
+  PoolStatus,
   ScoreDistribution,
   TimeseriesMetric,
 } from "@/lib/api/backoffice-types";
@@ -34,6 +35,9 @@ import type { DisbursementSummary } from "@/lib/zakat/disbursements";
 import { type PaymentSummary, paymentDatesQuery } from "@/lib/zakat/payments";
 
 const API = "/bff/backoffice/analytics";
+
+/** GET /admin/pool/counts: rows per pool status. */
+type PoolCounts = Partial<Record<PoolStatus, number>>;
 const METRICS: TimeseriesMetric[] = ["registrations", "assessmentsSubmitted", "decisions", "pooled"];
 
 const LIFECYCLE: { key: LifecycleStatus; label: string }[] = [
@@ -82,7 +86,7 @@ function breakdownParts(data: AnalyticsBreakdown | undefined, labels: Option[], 
   return parts;
 }
 
-/** Marks a panel whose numbers ignore the date range (the backend counts all time). */
+/** Marks a panel whose numbers are today's state, not limited to the date range (the overview's household and code counts). */
 function AllTime() {
   return (
     <Badge tone="neutral" title="Not limited to the date range above">
@@ -145,11 +149,15 @@ export function OverviewDashboard({ range, region, isAdmin }: { range: RangeKey;
   const compare = useResource<AnalyticsTimeseries>(
     `${API}/timeseries?metrics=${METRICS.join(",")}&interval=${interval}&from=${previous.from}&to=${current.to}${regionQuery}`,
   );
-  const distribution = useResource<ScoreDistribution>(`${API}/score-distribution?bucket=10${regionQuery}`);
-  const asnaf = useResource<AnalyticsBreakdown>(`${API}/breakdown?by=asnaf${regionQuery}`);
-  const vulnerability = useResource<AnalyticsBreakdown>(`${API}/breakdown?by=vulnerability${regionQuery}`);
-  const tenure = useResource<AnalyticsBreakdown>(`${API}/breakdown?by=tenure${regionQuery}`);
-  const recommendation = useResource<AnalyticsBreakdown>(`${API}/breakdown?by=recommendation${regionQuery}`);
+  // Scores and breakdowns count the assessments in the chosen period.
+  const distribution = useResource<ScoreDistribution>(`${API}/score-distribution?bucket=10&${scope}`);
+  const asnaf = useResource<AnalyticsBreakdown>(`${API}/breakdown?by=asnaf&${scope}`);
+  const vulnerability = useResource<AnalyticsBreakdown>(`${API}/breakdown?by=vulnerability&${scope}`);
+  const tenure = useResource<AnalyticsBreakdown>(`${API}/breakdown?by=tenure&${scope}`);
+  const recommendation = useResource<AnalyticsBreakdown>(`${API}/breakdown?by=recommendation&${scope}`);
+  // Today's counts, whatever the dates.
+  const pool = useResource<PoolCounts>(isAdmin ? "/bff/backoffice/admin/pool/counts" : null);
+  const paymentsToCheck = useResource<{ count: number }>(isAdmin ? "/bff/payments-admin/zakat-payments/needs-action/count" : null);
   const payments = useResource<PaymentSummary>(isAdmin ? `/bff/payments-admin/zakat-payments/summary?${paymentDatesQuery(current)}` : null);
   const paymentsBefore = useResource<PaymentSummary>(isAdmin ? `/bff/payments-admin/zakat-payments/summary?${paymentDatesQuery(previous)}` : null);
   const payouts = useResource<DisbursementSummary>(isAdmin ? `/bff/payments-admin/disbursements/summary?${paymentDatesQuery(current)}` : null);
@@ -243,7 +251,7 @@ export function OverviewDashboard({ range, region, isAdmin }: { range: RangeKey;
           <AttentionTile
             title="Awaiting the pool"
             description="Approved, not yet pooled"
-            countPath="/bff/backoffice/admin/pool/awaiting?page=1&limit=1"
+            count={pool.data?.AWAITING_POOL}
             href="/dashboard/pool"
             icon={Inbox}
           />
@@ -263,8 +271,8 @@ export function OverviewDashboard({ range, region, isAdmin }: { range: RangeKey;
           />
           <AttentionTile
             title="Payments to check"
-            description="Paid at the bank, not confirmed"
-            count={payments.data ? payments.data.needsChecking + (payouts.data?.needsChecking ?? 0) : undefined}
+            description="Waiting for an admin to check or approve"
+            count={paymentsToCheck.data ? paymentsToCheck.data.count + (payouts.data?.needsChecking ?? 0) : undefined}
             href="/dashboard/zakat/payments"
             icon={HandCoins}
           />
@@ -298,8 +306,9 @@ export function OverviewDashboard({ range, region, isAdmin }: { range: RangeKey;
         <Panel
           className="lg:col-span-8"
           title="Score distribution"
-          description={distribution.data ? `${formatCount(distribution.data.scored)} current scores, out of ${distribution.data.max}` : undefined}
-          actions={<AllTime />}
+          description={
+            distribution.data ? `${formatCount(distribution.data.scored)} current scores in the chosen period, out of ${distribution.data.max}` : undefined
+          }
         >
           {distribution.error ? (
             <InlineAlert>{distribution.error.message}</InlineAlert>
@@ -358,7 +367,7 @@ export function OverviewDashboard({ range, region, isAdmin }: { range: RangeKey;
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Panel title="Vulnerabilities" description="From current assessments; a household can count more than once" actions={<AllTime />}>
+        <Panel title="Vulnerabilities" description="From current assessments in the chosen period; a household can count more than once">
           {vulnerability.error ? (
             <InlineAlert>{vulnerability.error.message}</InlineAlert>
           ) : (
@@ -376,10 +385,10 @@ export function OverviewDashboard({ range, region, isAdmin }: { range: RangeKey;
           </div>
         </Panel>
         <div className="grid gap-6">
-          <Panel title="Asnaf" description="Each household's current category" actions={<AllTime />}>
+          <Panel title="Asnaf" description="Each household's current category, assessed in the chosen period">
             {asnaf.error ? <InlineAlert>{asnaf.error.message}</InlineAlert> : <SplitBar label="Households by Asnaf" parts={breakdownParts(asnaf.data, ASNAF)} />}
           </Panel>
-          <Panel title="Housing" description="From current assessments" actions={<AllTime />}>
+          <Panel title="Housing" description="From current assessments in the chosen period">
             {tenure.error ? <InlineAlert>{tenure.error.message}</InlineAlert> : <SplitBar label="Households by housing" parts={breakdownParts(tenure.data, TENURE)} />}
           </Panel>
         </div>

@@ -37,14 +37,20 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (!isSafePathSegment(id)) return notFound();
 
   return withStaffAccess(async (accessToken) => {
-    const body = await readJsonBody<{ active?: unknown } | null>(request);
+    const body = await readJsonBody<{ active?: unknown; version?: unknown } | null>(request);
     if (typeof body?.active !== "boolean") {
       throw new ApiError("active must be a boolean", 400);
+    }
+    // The backend needs the version the page loaded (409 VERSION_CONFLICT when stale).
+    if (typeof body.version !== "number" || !Number.isInteger(body.version) || body.version < 0) {
+      throw new ApiError("Reload the branch and try again.", 400, [
+        { field: "version", message: "version must be the branch's current version" },
+      ]);
     }
 
     return gatewayRequest<Branch>(`/api/beneficiaries/v1/admin/branches/${encodeURIComponent(id)}`, {
       method: "PATCH",
-      body: JSON.stringify({ active: body.active }),
+      body: JSON.stringify({ active: body.active, version: body.version }),
       accessToken,
     });
   }, ACCESS);

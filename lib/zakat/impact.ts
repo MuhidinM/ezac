@@ -11,7 +11,8 @@ import type { PublicCause, PublicStory } from "@/lib/zakat/content";
 import { ZAKAT_PUBLIC_TAG } from "@/lib/zakat/public-cache";
 
 /**
- * Public impact and transparency data from zakat-engine (no login), fetched on
+ * Public impact and transparency data from zakat-engine, and the need bands
+ * from beneficiary-service (no login), fetched on
  * the server and kept for 5 minutes, or dropped at once when an admin saves a
  * change through the zakat-admin BFF (see lib/zakat/public-cache.ts).
  *
@@ -80,17 +81,28 @@ export async function readPublicAnswer(response: Response, path: string, emptyOn
   return envelope.data ?? null;
 }
 
-/** One zakat-engine read, uncached: its data, null when not published; throws on an outage. */
-export async function fetchPublic(path: string, emptyOn503 = false): Promise<unknown> {
+/** The public services the site reads, by their gateway base path. */
+const SERVICE_BASE = {
+  zakat: "/api/zakat/v1",
+  beneficiaries: "/api/beneficiaries/v1",
+} as const;
+type PublicService = keyof typeof SERVICE_BASE;
+
+/**
+ * One public read, uncached: its data, null when not published; throws on an
+ * outage. zakat-engine by default; the public scoring bands come from
+ * beneficiary-service, which answers in the same envelope.
+ */
+export async function fetchPublic(path: string, emptyOn503 = false, service: PublicService = "zakat"): Promise<unknown> {
   let response: Response;
   try {
-    response = await fetch(`${getApiBaseUrl()}/api/zakat/v1${path}`, {
+    response = await fetch(`${getApiBaseUrl()}${SERVICE_BASE[service]}${path}`, {
       // Cached below as an answer, not here as a response.
       cache: "no-store",
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   } catch (error) {
-    logGatewayUnreachable(`zakat${path}`, error);
+    logGatewayUnreachable(`${service}${path}`, error);
     throw new PublicDataUnavailableError(path, error);
   }
   return readPublicAnswer(response, path, emptyOn503);
@@ -103,6 +115,10 @@ export async function fetchPublic(path: string, emptyOn503 = false): Promise<unk
  * (UAT #15). Here "not published" (null) is cached like any other answer, so a
  * removed story or cause is gone after the next refresh. An outage throws, and
  * a refresh that throws is never stored: the last good copy stays up.
+ *
+ * The cache key is the arguments, so each language (`?lang=am`) has its own
+ * copy; they all share ZAKAT_PUBLIC_TAG, so an admin save drops every
+ * language at once.
  */
 const cachedPublic = unstable_cache(fetchPublic, ["zakat-public-answer"], {
   revalidate: REFRESH_SECONDS,
@@ -114,9 +130,9 @@ const cachedPublic = unstable_cache(fetchPublic, ["zakat-public-answer"], {
  * One read per path per render: the cause and story pages load the same
  * record in generateMetadata and in the page.
  */
-const loadPublic = cache(async (path: string, emptyOn503 = false): Promise<unknown> => {
+const loadPublic = cache(async (path: string, emptyOn503 = false, service: PublicService = "zakat"): Promise<unknown> => {
   try {
-    return await cachedPublic(path, emptyOn503);
+    return await cachedPublic(path, emptyOn503, service);
   } catch (error) {
     if (error instanceof PublicDataUnavailableError && process.env.NEXT_PHASE === "phase-production-build") return null;
     throw error;
@@ -124,13 +140,33 @@ const loadPublic = cache(async (path: string, emptyOn503 = false): Promise<unkno
 });
 
 /** null = not published. Throws when the service is unavailable (see above). */
-async function getPublic<T>(path: string, emptyOn503 = false): Promise<T | null> {
-  return (await loadPublic(path, emptyOn503)) as T | null;
+async function getPublic<T>(path: string, emptyOn503 = false, service: PublicService = "zakat"): Promise<T | null> {
+  return (await loadPublic(path, emptyOn503, service)) as T | null;
+}
+
+/**
+ * zakat-engine has Amharic text for causes, stories and regions (falling back
+ * to English per item, which then says `lang: "en"`). Other languages read
+ * the English text.
+ */
+function withLang(path: string, locale: Locale): string {
+  if (locale !== "am") return path;
+  return `${path}${path.includes("?") ? "&" : "?"}lang=am`;
 }
 
 export type HomeSummary = {
+  /** Live plus offline: the figure to show. Never add the parts to it. */
   totalCollectedEtb: number | null;
+  /** Live plus offline households. */
   totalBeneficiariesSupported: number | null;
+  /** Succeeded online payments. */
+  liveCollectedEtb?: number | null;
+  /** Given at branches; entered by ADMIN and approved by a second ADMIN. */
+  offlineCollectedEtb?: number | null;
+  liveBeneficiariesSupported?: number | null;
+  offlineBeneficiariesSupported?: number | null;
+  /** The day the offline figures were counted up to ("2026-11-05"). */
+  offlineAsOfDate?: string | null;
   /** Calendar month, Addis Ababa time; null when unavailable. */
   currentMonth?: {
     collectedEtb: number | null;
@@ -154,12 +190,33 @@ export type ImpactSummary = {
 
 export type ImpactRegion = {
   code: string;
+  /** In Amharic on an Amharic read when one is entered (see `lang`), else English. */
   name: string;
+  nameAm?: string | null;
+  /** "am" or "en": the language of `name`. */
+  lang?: string;
   latitude: number;
   longitude: number;
+  /** null: not entered. */
   distributedFundsEtb: number | null;
   beneficiaries: number | null;
   activeProjects: number | null;
+  /** Households: the entered figure when ADMIN entered one, else the live count. */
+  livesTouched?: number | null;
+  livesTouchedSource?: "ENTERED" | "LIVE" | null;
+  distributedFundsSource?: "ENTERED" | "LIVE" | null;
+  livesTouchedEntered?: number | null;
+  livesTouchedLive?: number | null;
+  distributedFundsEnteredEtb?: number | null;
+};
+
+/** The need bands in force (beneficiary-service `GET /public/scoring-bands`). */
+export type ScoringBands = {
+  version: number;
+  activeSince: string | null;
+  maxTotal: number;
+  bands: { risk: string; min: number; max: number }[];
+  sectionMaxima?: Record<string, number>;
 };
 
 export type ImpactTimeseries = {
@@ -198,7 +255,7 @@ function asPage<T>(data: PublicPage<T> | T[] | null, limit: number): PublicPage<
 // zakat-engine is unavailable at runtime (see PublicDataUnavailableError).
 export const getHomeSummary = () => getPublic<HomeSummary>("/home/summary");
 export const getImpactSummary = () => getPublic<ImpactSummary>("/impact/summary");
-export const getImpactRegions = () => getPublic<ImpactRegion[]>("/impact/regions");
+export const getImpactRegions = (locale: Locale = "en") => getPublic<ImpactRegion[]>(withLang("/impact/regions", locale));
 export const getImpactTimeseries = () => getPublic<ImpactTimeseries>("/impact/timeseries", true);
 
 /**
@@ -218,10 +275,18 @@ export async function getImpactReports(page = 1, limit = 50): Promise<PublicPage
 }
 
 /**
+ * The need bands in force, from the active points table (no login; the
+ * service caches them for 5 minutes). null when not published.
+ */
+export const getScoringBands = () => getPublic<ScoringBands>("/public/scoring-bands", false, "beneficiaries");
+
+/**
  * Public causes (null: none published). The permanent general fund (id
  * "general") is left out of campaign lists.
  */
-export async function getCauses(query: { status?: "active" | "closed"; urgent?: boolean; page?: number; limit?: number } = {}) {
+export async function getCauses(
+  query: { status?: "active" | "closed"; urgent?: boolean; page?: number; limit?: number; locale?: Locale } = {},
+) {
   const limit = query.limit ?? 24;
   const params = new URLSearchParams({
     status: query.status ?? "active",
@@ -229,35 +294,74 @@ export async function getCauses(query: { status?: "active" | "closed"; urgent?: 
     limit: String(limit),
   });
   if (query.urgent) params.set("urgent", "true");
-  const data = asPage(await getPublic<PublicPage<PublicCause>>(`/causes?${params}`), limit);
+  const data = asPage(await getPublic<PublicPage<PublicCause>>(withLang(`/causes?${params}`, query.locale ?? "en")), limit);
   if (!data) return null;
   return { ...data, items: data.items.filter((cause) => cause.id !== "general") };
 }
 
 /** One cause; null means it doesn't exist or isn't public (a real 404). */
-export const getCause = (id: string) => getPublic<PublicCause>(`/causes/${encodeURIComponent(id)}`);
-
-/**
- * True when the cause is on the public closed list. The single-cause answer
- * has no status yet (docs/backend-go-live-requests.md §21), so this is how the
- * cause page learns that a cause was closed before its end date. Only the
- * newest closed causes are checked, and an outage counts as "not listed".
- */
-export async function isListedClosed(id: string): Promise<boolean> {
-  try {
-    const closed = await getCauses({ status: "closed", page: 1, limit: 50 });
-    return closed?.items.some((cause) => cause.id === id) ?? false;
-  } catch {
-    return false;
-  }
-}
+export const getCause = (id: string, locale: Locale = "en") =>
+  getPublic<PublicCause>(withLang(`/causes/${encodeURIComponent(id)}`, locale));
 
 /** One page of published stories (null: none published). */
-export const getStories = async (page = 1, limit = 24) =>
-  asPage(await getPublic<PublicPage<PublicStory>>(`/impact/stories?page=${page}&limit=${limit}`), limit);
+export const getStories = async (page = 1, limit = 24, locale: Locale = "en") =>
+  asPage(await getPublic<PublicPage<PublicStory>>(withLang(`/impact/stories?page=${page}&limit=${limit}`, locale)), limit);
 
 /** One story; null means it doesn't exist or isn't public (a real 404). */
-export const getStory = (id: string) => getPublic<PublicStory>(`/impact/stories/${encodeURIComponent(id)}`);
+export const getStory = (id: string, locale: Locale = "en") =>
+  getPublic<PublicStory>(withLang(`/impact/stories/${encodeURIComponent(id)}`, locale));
+
+/**
+ * Money collected, live and offline together. totalCollectedEtb already is
+ * the sum; the parts are only added when an older answer has no total.
+ */
+export function collectedEtb(home: HomeSummary | null | undefined): number | null {
+  if (!home) return null;
+  if (home.totalCollectedEtb != null) return home.totalCollectedEtb;
+  const parts = [home.liveCollectedEtb, home.offlineCollectedEtb].filter((value): value is number => value != null);
+  return parts.length > 0 ? parts.reduce((sum, value) => sum + value, 0) : null;
+}
+
+/**
+ * "Families supported" (home summary) and "lives touched" (impact summary)
+ * both count households. They differ only when ADMIN entered a lives-touched
+ * figure; when they match, lives touched is dropped so the same number isn't
+ * shown twice.
+ */
+export function householdFigures(
+  home: HomeSummary | null | undefined,
+  impact: ImpactSummary | null | undefined,
+): { families: number | null; lives: number | null } {
+  const families = home?.totalBeneficiariesSupported ?? null;
+  const lives = impact?.livesTouched ?? null;
+  return { families, lives: families != null && lives === families ? null : lives };
+}
+
+/** One need band for the public scale: from its lowest score up to where the next band starts. */
+export type NeedBand = { key: "low" | "medium" | "high"; min: number; max: number; from: number; to: number };
+
+const NEED_KEYS = ["low", "medium", "high"] as const;
+
+/**
+ * The bands in force as low, medium and high, in order, or null when the
+ * answer isn't the three bands the page explains (the page then shows its
+ * example instead).
+ */
+export function needBands(data: ScoringBands | null | undefined): { bands: NeedBand[]; maxTotal: number } | null {
+  if (!data || !Number.isFinite(data.maxTotal) || data.maxTotal <= 0 || !Array.isArray(data.bands)) return null;
+  const rows = [...data.bands].sort((a, b) => a.min - b.min);
+  if (rows.length !== NEED_KEYS.length) return null;
+  const bands: NeedBand[] = [];
+  for (const [index, row] of rows.entries()) {
+    const key = NEED_KEYS[index];
+    if (row.risk?.toLowerCase() !== key || !Number.isFinite(row.min) || !Number.isFinite(row.max) || row.max < row.min) {
+      return null;
+    }
+    const next = rows[index + 1];
+    bands.push({ key, min: row.min, max: row.max, from: row.min, to: next ? next.min : data.maxTotal });
+  }
+  return { bands, maxTotal: data.maxTotal };
+}
 
 /*
  * Formatting for public figures. Every helper takes the page's language

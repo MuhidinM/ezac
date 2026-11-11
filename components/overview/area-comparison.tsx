@@ -8,7 +8,6 @@ import { ORDINAL_GREEN } from "@/components/charts/palette";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { Panel } from "@/components/dashboard/panel";
 import { TableMessageRow } from "@/components/dashboard/table-states";
-import { Badge } from "@/components/ui/badge";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { AnalyticsAreaRow } from "@/lib/api/backoffice-types";
@@ -27,8 +26,9 @@ const STAGES = [
 ] as const;
 
 /**
- * Workload per branch or region: stacked pipeline bars (top 10 by
- * households) or the full table with scores and codes left.
+ * Workload per branch or region in the chosen period (`scope` carries
+ * from/to and the region): stacked pipeline bars (top 10 by households) or
+ * the full table with scores and codes left.
  */
 export function AreaComparison({ scope }: { scope: string }) {
   const [by, setBy] = useState<"branches" | "regions">("branches");
@@ -39,13 +39,10 @@ export function AreaComparison({ scope }: { scope: string }) {
   return (
     <Panel
       title="By area"
-      description="Where households are in the pipeline, per branch or region"
+      description="Where households are in the pipeline, per branch or region, in the chosen period"
       flush
       actions={
         <>
-          <Badge tone="neutral" title="Not limited to the date range above">
-            All time
-          </Badge>
           <SegmentedControl
             size="sm"
             aria-label="Compare by"

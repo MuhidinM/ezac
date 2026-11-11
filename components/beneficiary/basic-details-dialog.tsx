@@ -1,6 +1,7 @@
 "use client";
 
 import { type FormEvent, useState } from "react";
+import { RotateCw } from "lucide-react";
 
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
@@ -15,10 +16,21 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
+import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api/client";
 import type { AssessmentStatus, BankAccount, BeneficiaryWhitelist, PoolStatus } from "@/lib/api/backoffice-types";
-import type { BeneficiaryDetail } from "@/lib/api/types";
-import { MARITAL_STATUS, PRIMARY_LANGUAGE, SEX, bankOptionsFor, isValidAccountNumber } from "@/lib/backoffice/options";
+import { VERSION_CONFLICT_MESSAGE, isVersionConflict } from "@/lib/api/errors";
+import { MARITAL_STATUS, PRIMARY_LANGUAGE, SEX } from "@/lib/backoffice/options";
+import {
+  BANK_CHANGE_REASON_MAX,
+  accountNumberProblem,
+  bankChangeErrorMessage,
+  bankChoices,
+  changesBankAccount,
+  normaliseAccountNumber,
+} from "@/lib/beneficiary/bank-change";
+import { usePayoutBanks } from "@/lib/beneficiary/payout-banks";
+import type { HouseholdDetail } from "@/lib/beneficiary/types";
 import { ageMismatch, formErrors } from "@/lib/registration/form-errors";
 import { isValidEthiopianPhone, normalizePhoneToE164 } from "@/lib/registration/phone";
 
@@ -41,12 +53,13 @@ export type BasicDetails = {
   kebele: string;
   addressLine: string;
   bankCode: string;
-  bankNameOther: string;
   bankAccountNumber: string;
   bankAccountHolderName: string;
 };
 
-type BankKey = "bankCode" | "bankNameOther" | "bankAccountNumber" | "bankAccountHolderName";
+type BankKey = "bankCode" | "bankAccountNumber" | "bankAccountHolderName";
+
+const BANK_KEYS: BankKey[] = ["bankCode", "bankAccountNumber", "bankAccountHolderName"];
 
 const FIELD_IDS: Record<keyof BasicDetails, string> = {
   fullName: "bd-name",
@@ -63,18 +76,21 @@ const FIELD_IDS: Record<keyof BasicDetails, string> = {
   kebele: "bd-kebele",
   addressLine: "bd-address",
   bankCode: "bd-bank",
-  bankNameOther: "bd-bank-other",
   bankAccountNumber: "bd-account",
   bankAccountHolderName: "bd-holder",
 };
 
 const FIELD_KEYS = Object.keys(FIELD_IDS) as (keyof BasicDetails)[];
+const REASON_ID = "bd-bank-reason";
+/** Fields the backend may name in a refusal, including the reason, which is not part of BasicDetails. */
+const ERROR_KEYS = [...FIELD_KEYS, "bankChangeReason"];
 
 /**
  * The bank account once the assessment is submitted or the household is
  * awaiting the pool or pooled: "locked" for everyone but ADMIN, "warn" for
- * ADMIN, "unchecked" when the assessments or whitelist could not be read
- * (fail closed).
+ * ADMIN (a change of a locked account then waits for a second ADMIN),
+ * "unchecked" when the assessments or whitelist could not be read (fail
+ * closed).
  */
 export type BankLock = "locked" | "warn" | "unchecked" | null;
 
@@ -109,9 +125,14 @@ export function bankLockFor({
   return settled ? "locked" : null;
 }
 
-/** A beneficiary detail or an assessment applicant: flat fields plus a nested bank account. */
+/**
+ * A beneficiary detail or an assessment applicant: flat fields plus a nested
+ * bank account. The detail also carries `version` and `pendingBankChange`.
+ */
 type Source = Partial<Record<Exclude<keyof BasicDetails, BankKey>, string | number | null | undefined>> & {
   bankAccount?: BankAccount | null;
+  version?: number | null;
+  pendingBankChange?: boolean | null;
 };
 
 function fromSource(source: Source): BasicDetails {
@@ -132,8 +153,6 @@ function fromSource(source: Source): BasicDetails {
     kebele: pick("kebele"),
     addressLine: pick("addressLine"),
     bankCode: source.bankAccount?.bankCode ?? "",
-    // For "other" banks the stored bankName is the free-text name.
-    bankNameOther: source.bankAccount?.bankCode === "other" ? (source.bankAccount?.bankName ?? "") : "",
     bankAccountNumber: source.bankAccount?.accountNumber ?? "",
     bankAccountHolderName: source.bankAccount?.accountHolderName ?? "",
   };
@@ -157,8 +176,8 @@ function toBody(details: BasicDetails) {
     kebele: text(details.kebele),
     addressLine: text(details.addressLine),
     bankCode: text(details.bankCode),
-    bankNameOther: details.bankCode === "other" ? text(details.bankNameOther) : null,
-    bankAccountNumber: text(details.bankAccountNumber),
+    // The backend checks the number without spaces and dashes; send it that way.
+    bankAccountNumber: details.bankAccountNumber.trim() ? normaliseAccountNumber(details.bankAccountNumber) : null,
     bankAccountHolderName: text(details.bankAccountHolderName),
   };
 }
@@ -168,7 +187,14 @@ type Props = {
   initial: Source;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSaved: (updated: BeneficiaryDetail) => void;
+  /**
+   * The saved record. When an ADMIN changed a locked account, the bank change
+   * is not applied: `pendingBankChange` is true and `bankChangeRequestMessage`
+   * says so (the dialog shows it too).
+   */
+  onSaved: (updated: HouseholdDetail) => void;
+  /** Reload the record after a 409 VERSION_CONFLICT; without it the dialog only explains. */
+  onReload?: () => void;
   /** Validation errors from an assessment (`beneficiary.*`), shown inline. */
   externalErrors?: Record<string, string>;
   /** Whether the bank account may still change; see BankLock. */
@@ -181,11 +207,20 @@ export function BasicDetailsDialog({
   open,
   onOpenChange,
   onSaved,
+  onReload,
   externalErrors,
   bankLock = null,
 }: Props) {
-  const bankReadOnly = bankLock === "locked" || bankLock === "unchecked";
+  const pendingBankChange = !!initial.pendingBankChange;
+  const payoutBanks = usePayoutBanks(open);
+  const bankBlocked = bankLock === "locked" || bankLock === "unchecked" || pendingBankChange;
+  // The picker needs the payout banks: without them nothing about the account can change.
+  const bankReadOnly = bankBlocked || !payoutBanks.banks;
   const [details, setDetails] = useState<BasicDetails>(() => fromSource(initial));
+  const [bankChangeReason, setBankChangeReason] = useState("");
+  // Set when an ADMIN's change of a locked account was stored as a request (202).
+  const [requested, setRequested] = useState<string | null>(null);
+  const [conflict, setConflict] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -203,6 +238,9 @@ export function BasicDetailsDialog({
     setWasOpen(open);
     if (open) {
       setDetails(fromSource(initial));
+      setBankChangeReason("");
+      setRequested(null);
+      setConflict(false);
       setError(null);
       setFieldErrors({});
       setPhoneWarned(false);
@@ -221,7 +259,26 @@ export function BasicDetailsDialog({
     setFieldErrors(fields);
     const first = FIELD_KEYS.find((key) => fields[key]);
     // Long dialog: bring the first problem into view.
-    if (first) setTimeout(() => document.getElementById(FIELD_IDS[first])?.focus(), 0);
+    const id = first ? FIELD_IDS[first] : fields.bankChangeReason ? REASON_ID : null;
+    if (id) setTimeout(() => document.getElementById(id)?.focus(), 0);
+  }
+
+  // Bank, number or holder name differ from the stored account: a reason is required.
+  const currentBody = toBody(details);
+  const storedBody = toBody(fromSource(initial));
+  const bankChanged = !bankReadOnly && BANK_KEYS.some((key) => currentBody[key] !== storedBody[key]);
+  const banks = payoutBanks.banks ?? [];
+  const selectedBank = banks.find((bank) => bank.code === details.bankCode);
+  const choices = bankChoices(banks, {
+    code: initial.bankAccount?.bankCode,
+    name: initial.bankAccount?.bankName,
+  });
+
+  /** The version to send: the loaded record's, or (the wizard's applicant has none) the current one. */
+  async function currentVersion(): Promise<number | null> {
+    if (typeof initial.version === "number") return initial.version;
+    const fresh = await apiClient<HouseholdDetail>(`/bff/beneficiaries/${encodeURIComponent(beneficiaryId)}`);
+    return typeof fresh?.version === "number" ? fresh.version : null;
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -230,17 +287,13 @@ export function BasicDetailsDialog({
     setFieldErrors({});
     // PATCH only what changed: fields the source didn't carry must not be
     // cleared just because the form started them empty.
-    const next = toBody(details);
-    const before = toBody(fromSource(initial));
     const changed: Record<string, unknown> = Object.fromEntries(
-      Object.entries(next).filter(
-        ([key, value]) => value !== before[key as keyof typeof before],
+      Object.entries(currentBody).filter(
+        ([key, value]) => value !== storedBody[key as keyof typeof storedBody],
       ),
     );
     if (bankReadOnly) {
-      for (const key of ["bankCode", "bankNameOther", "bankAccountNumber", "bankAccountHolderName"]) {
-        delete changed[key];
-      }
+      for (const key of BANK_KEYS) delete changed[key];
     }
     if (Object.keys(changed).length === 0) {
       onOpenChange(false);
@@ -253,9 +306,14 @@ export function BasicDetailsDialog({
     if (typeof changed.phone === "string" && !isValidEthiopianPhone(changed.phone)) {
       problems.phone = "Enter an Ethiopian mobile number, for example 0911 234 567.";
     }
-    // Same rule as the backend: 6–30 digits once spaces and dashes are gone.
-    if (typeof changed.bankAccountNumber === "string" && !isValidAccountNumber(changed.bankAccountNumber)) {
-      problems.bankAccountNumber = "Enter 6 to 30 digits. Spaces and dashes are fine.";
+    // The bank's own pattern from /payout-banks (the backend checks it again).
+    if (typeof changed.bankAccountNumber === "string") {
+      const problem = accountNumberProblem(changed.bankAccountNumber, selectedBank);
+      if (problem) problems.bankAccountNumber = problem;
+    }
+    const sendsBank = changesBankAccount(changed);
+    if (sendsBank && !bankChangeReason.trim()) {
+      problems.bankChangeReason = "Say why the bank account changes. It is kept with the change.";
     }
     if ("dateOfBirth" in changed || "estimatedAge" in changed) {
       const mismatch = ageMismatch(details.dateOfBirth, details.estimatedAge);
@@ -269,22 +327,39 @@ export function BasicDetailsDialog({
     // A local number (09…) is sent as +251…, the form the backend accepts.
     if (typeof changed.phone === "string") changed.phone = normalizePhoneToE164(changed.phone);
     // Changing an existing phone changes how the household signs in: warn first.
-    const phoneChanged = "phone" in changed && !!before.phone && changed.phone !== before.phone;
+    const phoneChanged = "phone" in changed && !!storedBody.phone && changed.phone !== storedBody.phone;
     if (phoneChanged && !phoneWarned) {
       setPhoneWarned(true);
       return;
     }
+    if (sendsBank) changed.bankChangeReason = bankChangeReason.trim();
 
     setIsSaving(true);
+    setConflict(false);
     try {
-      const updated = await apiClient<BeneficiaryDetail>(
+      changed.version = await currentVersion();
+      const updated = await apiClient<HouseholdDetail>(
         `/bff/beneficiaries/${encodeURIComponent(beneficiaryId)}`,
         { method: "PATCH", body: JSON.stringify(changed) },
       );
       onSaved(updated);
-      onOpenChange(false);
+      if (updated?.bankChangeRequestMessage) {
+        // Not applied yet: say so instead of closing as if it were.
+        setRequested(updated.bankChangeRequestMessage);
+      } else {
+        onOpenChange(false);
+      }
     } catch (saveError) {
-      const { message, fields } = formErrors(saveError, "Couldn't save the details. Try again.", FIELD_KEYS);
+      if (isVersionConflict(saveError)) {
+        setConflict(true);
+        return;
+      }
+      const bankMessage = bankChangeErrorMessage(saveError);
+      if (bankMessage) {
+        setError(bankMessage);
+        return;
+      }
+      const { message, fields } = formErrors(saveError, "Couldn't save the details. Try again.", ERROR_KEYS);
       setError(message);
       showFieldErrors(fields);
     } finally {
@@ -304,9 +379,37 @@ export function BasicDetailsDialog({
             </DialogDescription>
           </DialogHeader>
 
+          {requested ? (
+            <InlineAlert tone="info" title="Waiting for another admin">
+              {requested} Payments keep going to the old account until then.
+            </InlineAlert>
+          ) : null}
+          {conflict ? (
+            <InlineAlert
+              tone="warning"
+              action={
+                onReload ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      onReload();
+                      onOpenChange(false);
+                    }}
+                  >
+                    <RotateCw />
+                    Reload
+                  </Button>
+                ) : undefined
+              }
+            >
+              {VERSION_CONFLICT_MESSAGE}
+            </InlineAlert>
+          ) : null}
           {error ? <InlineAlert>{error}</InlineAlert> : null}
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className={requested ? "hidden" : "grid gap-4 sm:grid-cols-2"}>
             <FormField label="Full name" htmlFor="bd-name" error={fieldError("fullName")} className="sm:col-span-2">
               <Input id="bd-name" value={details.fullName} onChange={(e) => set("fullName", e.target.value)} />
             </FormField>
@@ -393,7 +496,7 @@ export function BasicDetailsDialog({
             </FormField>
           </div>
 
-          <fieldset className="space-y-4 rounded-lg bg-black/[0.02] p-4">
+          <fieldset className={requested ? "hidden" : "space-y-4 rounded-lg bg-black/[0.02] p-4"}>
             <legend className="sr-only">Bank account</legend>
             <div>
               <p className="text-sm font-semibold text-navy">Bank account</p>
@@ -401,7 +504,12 @@ export function BasicDetailsDialog({
                 Payments go to this account. It is needed to submit the assessment.
               </p>
             </div>
-            {bankLock === "locked" ? (
+            {pendingBankChange ? (
+              <InlineAlert tone="info">
+                A change to this account is waiting for another administrator. It can&apos;t change again until
+                that request is approved or rejected.
+              </InlineAlert>
+            ) : bankLock === "locked" ? (
               <InlineAlert tone="info">
                 This household has an assessment that is submitted or approved, or it is in the pool, so the bank
                 account is locked. Ask an administrator if it needs to change.
@@ -413,8 +521,22 @@ export function BasicDetailsDialog({
               </InlineAlert>
             ) : bankLock === "warn" ? (
               <InlineAlert tone="warning" title="This household's assessment is submitted or approved, or it is in the pool">
-                Payments will go to the new account straight away, and the old one is not kept. Check the new
-                details against the household&apos;s documents before you save.
+                If the account is locked, your change is saved as a request: another administrator must approve it
+                before payments go to the new account. Check the new details against the household&apos;s documents
+                before you save.
+              </InlineAlert>
+            ) : null}
+            {payoutBanks.error && !bankBlocked ? (
+              <InlineAlert
+                tone="warning"
+                action={
+                  <Button type="button" variant="outline" size="sm" onClick={payoutBanks.reload}>
+                    <RotateCw />
+                    Retry
+                  </Button>
+                }
+              >
+                We couldn&apos;t load the list of banks, so the bank account can&apos;t be changed right now.
               </InlineAlert>
             ) : null}
             <div className="grid gap-4 sm:grid-cols-2">
@@ -426,25 +548,17 @@ export function BasicDetailsDialog({
                   disabled={bankReadOnly}
                 >
                   <option value="">Select</option>
-                  {bankOptionsFor(details.bankCode).map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
+                  {choices.map((option) => (
+                    <option key={option.value} value={option.value} disabled={option.disabled}>
+                      {option.label}
+                    </option>
                   ))}
                 </NativeSelect>
               </FormField>
-              {details.bankCode === "other" ? (
-                <FormField label="Bank name" htmlFor="bd-bank-other" required error={fieldError("bankNameOther")}>
-                  <Input
-                    id="bd-bank-other"
-                    value={details.bankNameOther}
-                    onChange={(e) => set("bankNameOther", e.target.value)}
-                    disabled={bankReadOnly}
-                  />
-                </FormField>
-              ) : null}
               <FormField
                 label="Account number"
                 htmlFor="bd-account"
-                hint="6–30 digits; spaces and dashes are removed"
+                hint="Digits only; spaces and dashes are removed"
                 error={fieldError("bankAccountNumber")}
               >
                 <Input
@@ -464,10 +578,27 @@ export function BasicDetailsDialog({
                   disabled={bankReadOnly}
                 />
               </FormField>
+              {bankChanged ? (
+                <FormField
+                  label="Reason for the change"
+                  htmlFor={REASON_ID}
+                  required
+                  hint="Kept with the change, for example: the household opened a new account"
+                  error={fieldErrors.bankChangeReason}
+                  className="sm:col-span-2"
+                >
+                  <Textarea
+                    id={REASON_ID}
+                    value={bankChangeReason}
+                    maxLength={BANK_CHANGE_REASON_MAX}
+                    onChange={(e) => setBankChangeReason(e.target.value)}
+                  />
+                </FormField>
+              ) : null}
             </div>
           </fieldset>
 
-          {showPhoneWarning ? (
+          {showPhoneWarning && !requested ? (
             <InlineAlert tone="warning" title="The phone number is also the household's sign-in">
               Only change it if the household has a new number, and tell them before you save. Select Save with
               the new phone to confirm.
@@ -475,12 +606,20 @@ export function BasicDetailsDialog({
           ) : null}
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSaving}>
-              {isSaving ? "Saving…" : showPhoneWarning ? "Save with the new phone" : "Save details"}
-            </Button>
+            {requested ? (
+              <Button type="button" onClick={() => onOpenChange(false)}>
+                Close
+              </Button>
+            ) : (
+              <>
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isSaving}>
+                  {isSaving ? "Saving…" : showPhoneWarning ? "Save with the new phone" : "Save details"}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

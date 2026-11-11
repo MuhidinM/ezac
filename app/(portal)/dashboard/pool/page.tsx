@@ -2,13 +2,13 @@
 
 import { type KeyboardEvent, Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Banknote, CheckCheck, CornerUpLeft, MinusCircle, RefreshCw, SlidersHorizontal, X, XCircle } from "lucide-react";
+import { Banknote, CheckCheck, CornerUpLeft, Download, MinusCircle, RefreshCw, SlidersHorizontal, X, XCircle } from "lucide-react";
 
-import { PoolStatusBadge, RiskBadge, ScoreMeter, WhitelistBadge } from "@/components/backoffice/status-badges";
+import { DuplicateBadge, PoolStatusBadge, RiskBadge, ScoreMeter, WhitelistBadge } from "@/components/backoffice/status-badges";
 import { VerificationStatusBadge } from "@/components/beneficiary/verification-status-badge";
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { ErrorAlert } from "@/components/dashboard/error-alert";
-import { PayoutDialog, isExpired, useServerNow } from "@/components/disbursements/payout-dialog";
+import { PayoutDialog, useServerNow } from "@/components/disbursements/payout-dialog";
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { ListPagination } from "@/components/dashboard/list-pagination";
@@ -33,7 +33,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { PoolEntry } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
-import type { BranchListItem, PaginatedItems, VerificationStatus } from "@/lib/api/types";
+import { ApiError, errorMessage } from "@/lib/api/errors";
+import type { BranchListItem, PaginatedItems } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
 import { useScoreMax } from "@/lib/backoffice/score-max";
 import { ASNAF } from "@/lib/backoffice/options";
@@ -42,11 +43,23 @@ import { formatDateTime } from "@/lib/beneficiary/format";
 import { ETHIOPIAN_REGIONS } from "@/lib/constants/regions";
 import { useListState } from "@/lib/hooks/use-list-state";
 import { cn } from "@/lib/utils";
-import type { Disbursement } from "@/lib/zakat/disbursements";
-import { POOL_FILTERS, POOL_LIST_DEFAULTS, POOL_SORTS, poolCountParams, poolQuery, poolStepBack } from "@/lib/zakat/pool-list";
+import { bankChangedRecently } from "@/lib/zakat/disbursements";
+import {
+  hasBankAccount,
+  notEligibleByHousehold,
+  openPayoutState,
+  POOL_FILTERS,
+  POOL_LIST_DEFAULTS,
+  POOL_SORTS,
+  poolBlock,
+  type PoolCounts,
+  poolFilterParams,
+  poolQuery,
+  type PoolRow,
+  poolStepBack,
+} from "@/lib/zakat/pool-list";
 
 const API = "/bff/backoffice/admin/pool";
-const PAYOUTS_API = "/bff/payments-admin/disbursements";
 const PAGE_SIZE = 25;
 
 type View = "awaiting" | "pooled";
@@ -122,55 +135,21 @@ function actionPath(entry: PoolEntry, action: RowAction) {
     : `${API}/${encodeURIComponent(entry.assessmentId ?? "")}/${action}`;
 }
 
-/** undefined: still checking; null: the check failed. */
-type Verification = VerificationStatus | null | undefined;
-
-/**
- * The verification state of each household on the page. Pool rows don't carry it yet,
- * so each household is read once per page load. Earlier results stay while a reload runs.
- */
-function useVerification(page: PaginatedItems<PoolEntry> | undefined) {
-  const [statuses, setStatuses] = useState<Record<string, VerificationStatus | null>>({});
-  useEffect(() => {
-    if (!page?.items.length) return;
-    let cancelled = false;
-    const ids = [...new Set(page.items.map((row) => row.beneficiaryId))];
-    void Promise.all(
-      ids.map((id) =>
-        apiClient<{ verificationStatus?: VerificationStatus | null }>(`/bff/beneficiaries/${encodeURIComponent(id)}`).then(
-          (detail) => [id, detail.verificationStatus ?? null] as const,
-          () => [id, null] as const,
-        ),
-      ),
-    ).then((entries) => {
-      if (!cancelled) setStatuses((prev) => ({ ...prev, ...Object.fromEntries(entries) }));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [page]);
-  return (beneficiaryId: string): Verification => statuses[beneficiaryId];
+/** The Remove answers that need words of their own (beneficiary-service checks payment-service first). */
+function removeFailure(error: unknown): Error {
+  if (error instanceof ApiError && error.code === "PAYOUT_OPEN") {
+    return new Error("A payout for this household is prepared or being paid. Cancel or finish it on the Payouts page first.");
+  }
+  if (error instanceof ApiError && error.code === "SERVICE_UNAVAILABLE") {
+    return new Error("We couldn't check for an open payout because the payment service didn't answer. Try again in a moment.");
+  }
+  return error instanceof Error ? error : new Error("Something went wrong");
 }
 
-/** Why a row can't be pooled, or null when it can. */
-function poolBlock(entry: PoolEntry, verification: Verification) {
-  if (verification === undefined) return "Checking whether the household is verified…";
-  const reasons: string[] = [];
-  if (verification === null) reasons.push("Couldn't check whether the household is verified. Refresh to try again.");
-  else if (verification !== "verified") reasons.push("Not verified yet. Verify the household before pooling it.");
-  if (!entry.bankAccount?.accountNumber) reasons.push("No bank account on file. Add one before pooling.");
-  return reasons.length ? reasons.join(" ") : null;
-}
-
-/** The prepared or needs-checking payout of a pooled row, if any. */
-function openPayoutOf(entry: PoolEntry, payouts: Disbursement[]) {
-  return (
-    payouts.find((payout) =>
-      entry.source === "WHITELIST"
-        ? payout.whitelistEntryId != null && String(payout.whitelistEntryId) === String(entry.whitelistEntryId)
-        : payout.assessmentId != null && String(payout.assessmentId) === String(entry.assessmentId),
-    ) ?? null
-  );
+/** The file name from a Content-Disposition header, or a fallback. */
+function downloadName(header: string | null, fallback: string) {
+  const match = header?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+  return match ? decodeURIComponent(match[1]) : fallback;
 }
 
 export default function PoolPage() {
@@ -222,16 +201,17 @@ function Pool() {
   const filterErrors = poolQuery({ ...list, scoreMin: scoreMinDraft, scoreMax: scoreMaxDraft }, scoreMax, PAGE_SIZE).errors;
   const scoresPending = scoreMinDraft.trim() !== list.scoreMin || scoreMaxDraft.trim() !== list.scoreMax;
   const listPath = `${viewPath(view)}?${query.params.toString()}`;
-  const { data, error, isLoading, reload } = useResource<PaginatedItems<PoolEntry>>(listPath);
-  // The other tab's count under the same filters, so every tab shows one (UAT 78).
-  const otherView: View = view === "awaiting" ? "pooled" : "awaiting";
-  const otherCount = useResource<PaginatedItems<PoolEntry>>(`${viewPath(otherView)}?${poolCountParams(query.params).toString()}`);
+  const { data, error, isLoading, reload } = useResource<PaginatedItems<PoolRow>>(listPath);
+  // Every tab's count under the same filters, in one call (UAT 78).
+  const filterParams = poolFilterParams(query.params).toString();
+  const poolCounts = useResource<PoolCounts>(`${API}/counts${filterParams ? `?${filterParams}` : ""}`);
   const counts: Record<View, number | undefined> = {
-    awaiting: undefined,
-    pooled: undefined,
-    [view]: data?.pagination.totalItems,
-    [otherView]: otherCount.data?.pagination.totalItems,
+    awaiting: poolCounts.data?.AWAITING_POOL,
+    pooled: poolCounts.data?.POOLED,
   };
+  // Why POST /admin/pool refused households (409 NOT_ELIGIBLE), by beneficiary id, shown on their rows.
+  const [notEligible, setNotEligible] = useState<Record<string, string[]>>({});
+  const [exporting, setExporting] = useState(false);
 
   // A selection belongs to one page of one list: it is cleared when the list changes.
   const [selectionFor, setSelectionFor] = useState(listPath);
@@ -248,33 +228,49 @@ function Pool() {
   const { data: branches } = useResource<PaginatedItems<BranchListItem>>(
     showFilters ? "/bff/admin/branches?page=1&limit=100" : null,
   );
-  const verificationOf = useVerification(data);
-
-  // Open payouts, so a pooled row can point to its payout instead of offering Pay again. The pool
-  // rows don't say this yet. `from` is set wide so an old payout that needs checking still shows.
-  const openPayoutsQuery = `from=${encodeURIComponent("2020-01-01T00:00:00+03:00")}&page=1&limit=100`;
-  const preparedPayouts = useResource<PaginatedItems<Disbursement>>(
-    view === "pooled" ? `${PAYOUTS_API}?status=AWAITING_CONFIRMATION&${openPayoutsQuery}` : null,
-  );
-  const checkingPayouts = useResource<PaginatedItems<Disbursement>>(
-    view === "pooled" ? `${PAYOUTS_API}?status=PROCESSING&${openPayoutsQuery}` : null,
-  );
-  const now = useServerNow(30_000);
-  const openPayouts = [
-    ...(preparedPayouts.data?.items ?? []).filter((payout) => !isExpired(payout, now)),
-    ...(checkingPayouts.data?.items ?? []),
-  ];
+  const now = useServerNow(60_000);
 
   const rows = useMemo(() => data?.items ?? [], [data]);
-  const selectable = view === "awaiting" ? rows.filter((row) => !poolBlock(row, verificationOf(row.beneficiaryId))) : [];
+  const selectable = view === "awaiting" ? rows.filter((row) => !poolBlock(row)) : [];
   const selectedRows = selectable.filter((row) => selected.has(rowKey(row)));
   const allSelected = selectable.length > 0 && selectedRows.length === selectable.length;
 
   function reloadAll() {
     reload();
-    otherCount.reload();
-    preparedPayouts.reload();
-    checkingPayouts.reload();
+    poolCounts.reload();
+  }
+
+  /** The whole filtered tab as CSV (at most 10,000 rows), through the BFF. */
+  async function exportCsv() {
+    setExporting(true);
+    setNotice(null);
+    try {
+      const params = new URLSearchParams(filterParams);
+      params.set("status", view === "awaiting" ? "AWAITING_POOL" : "POOLED");
+      const response = await fetch(`${API}/export?${params.toString()}`, { cache: "no-store" });
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(body?.message ?? "Couldn't export the list. Try again.");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = downloadName(response.headers.get("Content-Disposition"), `pool-${view}.csv`);
+      link.click();
+      URL.revokeObjectURL(url);
+      if (response.headers.get("X-Export-Truncated") === "true") {
+        const total = Number(response.headers.get("X-Total-Count"));
+        setNotice({
+          tone: "error",
+          text: `The file has the first 10,000 households only${Number.isFinite(total) && total > 0 ? ` of ${formatCount(total)}` : ""}. Narrow the filters to export the rest.`,
+        });
+      }
+    } catch (exportError) {
+      setNotice({ tone: "error", text: errorMessage(exportError, "Couldn't export the list. Try again.") });
+    } finally {
+      setExporting(false);
+    }
   }
 
   function update(key: (typeof POOL_FILTERS)[number], value: string) {
@@ -309,10 +305,16 @@ function Pool() {
         title="Disbursement pool"
         description="Branch-approved households and fast-track whitelist entries wait here. Pool them to make them active for the next disbursement; fast track comes first, then priority, then the highest score."
         actions={
-          <Button variant="outline" onClick={reloadAll} disabled={isLoading}>
-            <RefreshCw />
-            Refresh
-          </Button>
+          <>
+            <Button variant="outline" onClick={exportCsv} loading={exporting} loadingText="Exporting…" disabled={!data || data.pagination.totalItems === 0}>
+              <Download />
+              Export CSV
+            </Button>
+            <Button variant="outline" onClick={reloadAll} disabled={isLoading}>
+              <RefreshCw />
+              Refresh
+            </Button>
+          </>
         }
       />
 
@@ -504,12 +506,17 @@ function Pool() {
               rows.map((entry) => {
                 const key = rowKey(entry);
                 const name = entry.fullName ?? "household";
-                const verification = verificationOf(entry.beneficiaryId);
-                const block = view === "awaiting" ? poolBlock(entry, verification) : null;
+                const block = view === "awaiting" ? poolBlock(entry) : null;
                 const isSelected = !block && selected.has(key);
-                const payout = view === "pooled" && entry.poolStatus !== "DISBURSED" ? openPayoutOf(entry, openPayouts) : null;
+                const refused = notEligible[entry.beneficiaryId];
+                const pooled = view === "pooled" && entry.poolStatus !== "DISBURSED";
+                const payoutState = pooled ? openPayoutState(entry) : null;
+                const bankChange = Boolean(entry.pendingBankChange);
+                const recentChange = now !== null && bankChangedRecently(entry.bankAccountChangedAt, now);
+                const shared = (entry.sharedBankAccountCount ?? 0) > 0;
+                const canPay = hasBankAccount(entry) && !bankChange;
                 return (
-                  <TableRow key={key} className={cn(isSelected && "bg-brand/[0.04]")}>
+                  <TableRow key={key} className={cn(isSelected && "bg-brand/[0.04]", refused && "bg-rose-50/60")}>
                     {view === "awaiting" ? (
                       <TableCell className="pl-5">
                         {block ? (
@@ -546,10 +553,12 @@ function Pool() {
                           {entry.fullName ?? `Beneficiary #${entry.beneficiaryId}`}
                         </Link>
                         <WhitelistBadge effect={entry.whitelistEffect} />
+                        <DuplicateBadge status={entry.duplicateStatus} />
                         {entry.source === "WHITELIST" ? <Badge tone="neutral">No assessment yet</Badge> : null}
-                        {payout ? (
-                          <Badge tone={payout.status === "PROCESSING" ? "warning" : "info"}>
-                            {payout.status === "PROCESSING" ? "Payout needs checking" : "Payout prepared"}
+                        {payoutState === "open" ? <Badge tone="info">Payout open</Badge> : null}
+                        {payoutState === "unknown" ? (
+                          <Badge tone="neutral" title="The payment service didn't answer in time, so we don't know whether a payout is open">
+                            Payout: unknown
                           </Badge>
                         ) : null}
                       </div>
@@ -563,6 +572,13 @@ function Pool() {
                         )}
                         {entry.phone ? ` · ${entry.phone}` : ""}
                       </p>
+                      {refused ? (
+                        <ul className="mt-1 space-y-0.5 text-xs text-rose-700">
+                          {refused.map((reason) => (
+                            <li key={reason}>Not pooled: {reason}</li>
+                          ))}
+                        </ul>
+                      ) : null}
                     </TableCell>
                     <TableCell>
                       <p className="text-sm text-navy">{entry.branchName ?? "—"}</p>
@@ -570,20 +586,26 @@ function Pool() {
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
-                        <ScoreMeter score={entry.score} max={entry.maxScore} risk={entry.riskCategory} />
-                        {entry.riskCategory ? <RiskBadge risk={entry.riskCategory} /> : null}
+                        <ScoreMeter score={entry.score} max={entry.maxScore ?? scoreMax} risk={entry.riskCategory} />
+                        <div className="flex flex-wrap items-center gap-1">
+                          {entry.riskCategory ? <RiskBadge risk={entry.riskCategory} /> : null}
+                          {entry.scoringConfigVersion != null ? (
+                            <span className="text-xs text-black/60" title="Scoring version used for this score">
+                              v{entry.scoringConfigVersion}
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell className="text-sm text-black/65">
                       {formatDateTime((view === "awaiting" ? entry.approvedAt : entry.poolStatusAt) ?? null)}
+                      {view === "pooled" && entry.poolStatusByName ? <span className="block text-xs">by {entry.poolStatusByName}</span> : null}
                     </TableCell>
                     <TableCell>
-                      {verification === undefined ? (
-                        <span className="text-sm text-black/60">Checking…</span>
-                      ) : verification === null ? (
-                        <span className="text-sm text-amber-700">Couldn&apos;t check</span>
+                      {entry.verificationStatus ? (
+                        <VerificationStatusBadge status={entry.verificationStatus} />
                       ) : (
-                        <VerificationStatusBadge status={verification} />
+                        <span className="text-sm text-black/60">—</span>
                       )}
                     </TableCell>
                     <TableCell>
@@ -594,9 +616,23 @@ function Pool() {
                             {[entry.bankAccount.bankName, entry.bankAccount.accountHolderName].filter(Boolean).join(" · ")}
                           </p>
                         </>
+                      ) : hasBankAccount(entry) ? (
+                        <span className="text-sm text-black/60">On file</span>
                       ) : (
                         <span className="text-sm text-amber-700">Missing</span>
                       )}
+                      {bankChange ? <p className="text-xs text-amber-800">A bank change waits for another admin.</p> : null}
+                      {recentChange ? (
+                        <p className="text-xs text-amber-800">
+                          Changed {formatDateTime(entry.bankAccountChangedAt ?? null)}
+                          {entry.bankAccountChangedByName ? ` by ${entry.bankAccountChangedByName}` : ""}
+                        </p>
+                      ) : null}
+                      {shared ? (
+                        <p className="text-xs text-amber-800">
+                          Also used by {formatCount(entry.sharedBankAccountCount ?? 0)} other household{entry.sharedBankAccountCount === 1 ? "" : "s"}
+                        </p>
+                      ) : null}
                     </TableCell>
                     <TableCell className="pr-5 text-right">
                       <div className="flex justify-end gap-1">
@@ -619,11 +655,11 @@ function Pool() {
                             <PoolStatusBadge status="DISBURSED" />
                             {entry.poolStatusReason ? <p className="mt-1 text-xs text-black/60">{entry.poolStatusReason}</p> : null}
                           </div>
-                        ) : payout ? (
+                        ) : payoutState === "open" ? (
                           // A payout is open: it is finished on the Payouts page, and the household can't leave the pool meanwhile.
                           <>
                             <Button variant="outline" size="sm" asChild>
-                              <Link href={`/dashboard/disbursements?open=${encodeURIComponent(payout.disbursementId)}`}>
+                              <Link href={`/dashboard/disbursements?beneficiaryId=${encodeURIComponent(entry.beneficiaryId)}&range=1y`}>
                                 <Banknote />
                                 Open payout
                               </Link>
@@ -637,7 +673,7 @@ function Pool() {
                                   </Button>
                                 </span>
                               </TooltipTrigger>
-                              <TooltipContent>A payout is open for this household. Pay, cancel or settle it first.</TooltipContent>
+                              <TooltipContent>A payout is open for this household. Confirm, cancel or settle it first.</TooltipContent>
                             </Tooltip>
                           </>
                         ) : (
@@ -646,8 +682,8 @@ function Pool() {
                               variant="outline"
                               size="sm"
                               onClick={() => setPaying(entry)}
-                              disabled={!entry.bankAccount?.accountNumber}
-                              title={entry.bankAccount?.accountNumber ? undefined : "No bank account on file"}
+                              disabled={!canPay}
+                              title={bankChange ? "A bank change waits for another admin" : canPay ? undefined : "No bank account on file"}
                             >
                               <Banknote />
                               Pay
@@ -715,12 +751,24 @@ function Pool() {
               }),
             });
           } catch (poolError) {
-            // Keep the selection so the admin can see what failed; the dialog shows the error.
+            // All or nothing: one household that isn't eligible stops the whole request. Show each
+            // household's reasons on its row and keep the selection.
+            if (poolError instanceof ApiError && poolError.code === "NOT_ELIGIBLE") {
+              const reasons = notEligibleByHousehold(poolError.data, poolError.errors);
+              setNotEligible(reasons);
+              reloadAll();
+              throw new Error(
+                Object.keys(reasons).length
+                  ? "Nothing was pooled: some households can't be pooled. The reason is shown on each of their rows."
+                  : poolError.message,
+              );
+            }
             reloadAll();
             throw poolError;
           }
           setNotice({ tone: "success", text: `${poolTargets.length} household${poolTargets.length === 1 ? "" : "s"} pooled.` });
           setSelected(new Set());
+          setNotEligible({});
           reloadAll();
         }}
       />
@@ -746,10 +794,14 @@ function Pool() {
         confirmDisabled={!reason.trim()}
         onConfirm={async () => {
           if (!action || !actionText) return;
-          await apiClient(actionPath(action.entry, action.kind), {
-            method: "POST",
-            body: JSON.stringify({ reason: reason.trim() }),
-          });
+          try {
+            await apiClient(actionPath(action.entry, action.kind), {
+              method: "POST",
+              body: JSON.stringify({ reason: reason.trim() }),
+            });
+          } catch (actionError) {
+            throw action.kind === "remove" ? removeFailure(actionError) : actionError;
+          }
           setNotice({ tone: "success", text: `${actionText.confirm}: ${action.entry.fullName ?? "household"}.` });
           setReason("");
           reloadAll();

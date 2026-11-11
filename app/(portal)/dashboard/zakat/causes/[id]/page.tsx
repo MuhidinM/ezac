@@ -14,34 +14,36 @@ import { DetailList, Panel } from "@/components/dashboard/panel";
 import { RequireRole } from "@/components/dashboard/require-role";
 import { DetailSkeleton } from "@/components/dashboard/skeletons";
 import { CauseStatusBadge } from "@/components/zakat/cause-status-badge";
+import { AMHARIC_HINT, AMHARIC_INPUT, AMHARIC_TITLE } from "@/components/zakat/content/amharic";
+import { coverAltTextChange, endDatePassed, endsOnError, todayInAddis } from "@/components/zakat/content/cause-rules";
+import type { CauseAdmin } from "@/components/zakat/content/types";
+import { VersionConflictAlert } from "@/components/zakat/content/version-conflict-alert";
 import { ImageUpload, type MediaRef } from "@/components/zakat/image-upload";
+import { staffRef } from "@/components/zakat/staff-ref";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api/client";
-import { ApiError, errorMessage, fieldErrorMap } from "@/lib/api/errors";
+import { ApiError, errorMessage, fieldErrorMap, isVersionConflict } from "@/lib/api/errors";
 import { useResource } from "@/lib/api/use-resource";
 import { formatEtb } from "@/lib/backoffice/format";
 import { formatDateTime } from "@/lib/beneficiary/format";
-import { type AdminCause, CAUSE_BADGES, CONTENT_CATEGORIES } from "@/lib/zakat/content";
+import { CAUSE_BADGES, CONTENT_CATEGORIES } from "@/lib/zakat/content";
 
 const API = "/bff/zakat-admin/causes";
-
-/** Today's calendar day in Addis Ababa, e.g. "2026-11-05". */
-function todayInAddis() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Addis_Ababa", year: "numeric", month: "2-digit", day: "2-digit" }).format(
-    new Date(),
-  );
-}
 
 type Form = {
   title: string;
   description: string;
   body: string;
+  titleAm: string;
+  descriptionAm: string;
+  bodyAm: string;
   category: string;
   badge: string;
   image: MediaRef[];
+  imageAltText: string;
   gallery: MediaRef[];
   goalEtb: string;
   raisedOfflineEtb: string;
@@ -54,9 +56,13 @@ const EMPTY: Form = {
   title: "",
   description: "",
   body: "",
+  titleAm: "",
+  descriptionAm: "",
+  bodyAm: "",
   category: "",
   badge: "",
   image: [],
+  imageAltText: "",
   gallery: [],
   goalEtb: "",
   raisedOfflineEtb: "",
@@ -65,16 +71,21 @@ const EMPTY: Form = {
   acceptsZakat: true,
 };
 
-function toForm(cause: AdminCause): Form {
+function toForm(cause: CauseAdmin): Form {
   const galleryIds = cause.galleryMediaIds ?? [];
   return {
     title: cause.title,
     description: cause.description,
     body: cause.body ?? "",
+    titleAm: cause.titleAm ?? "",
+    descriptionAm: cause.descriptionAm ?? "",
+    bodyAm: cause.bodyAm ?? "",
     category: cause.category,
     badge: cause.badge ?? "",
-    image: cause.imageMediaId != null ? [{ id: String(cause.imageMediaId), url: cause.imageUrl }] : [],
-    gallery: galleryIds.map((id, index) => ({ id: String(id), url: cause.images?.[index] ?? null })),
+    // The admin URLs also work for a draft's images.
+    image: cause.imageMediaId != null ? [{ id: String(cause.imageMediaId), url: cause.adminImageUrl ?? cause.imageUrl }] : [],
+    imageAltText: cause.imageAltText ?? "",
+    gallery: galleryIds.map((id, index) => ({ id: String(id), url: cause.adminGalleryUrls?.[index] ?? cause.images?.[index] ?? null })),
     goalEtb: cause.goalEtb != null ? String(cause.goalEtb) : "",
     raisedOfflineEtb: cause.raisedOfflineEtb != null ? String(cause.raisedOfflineEtb) : "",
     region: cause.region ?? "",
@@ -97,13 +108,20 @@ function moneyChanges(before: Form, after: Form) {
   return changes;
 }
 
-/** PUT replaces the cause, so every field is sent; empty optionals become null. */
-function toBody(form: Form) {
+/**
+ * PUT replaces the cause, so every field is sent; empty optionals become null.
+ * `regionCode` is the chosen impact region's code (null for a name that is not
+ * one). An edit sends the loaded `version`.
+ */
+function toBody(form: Form, regionCode: string | null, version?: number) {
   const mediaId = (value: string) => (/^\d+$/.test(value) ? Number(value) : value);
   return {
     title: form.title.trim(),
     description: form.description.trim(),
     body: form.body.trim() || null,
+    titleAm: form.titleAm.trim() || null,
+    descriptionAm: form.descriptionAm.trim() || null,
+    bodyAm: form.bodyAm.trim() || null,
     category: form.category,
     badge: form.badge || null,
     imageMediaId: form.image[0] ? mediaId(form.image[0].id) : null,
@@ -111,8 +129,10 @@ function toBody(form: Form) {
     goalEtb: form.goalEtb.trim() ? Number(form.goalEtb) : null,
     raisedOfflineEtb: form.raisedOfflineEtb.trim() ? Number(form.raisedOfflineEtb) : 0,
     region: form.region.trim() || null,
+    regionCode,
     endsOn: form.endsOn || null,
     acceptsZakat: form.acceptsZakat,
+    ...(version != null ? { version } : {}),
   };
 }
 
@@ -127,22 +147,23 @@ export default function CauseEditorPage() {
 function CauseEditor() {
   const params = useParams<{ id: string }>();
   const isNew = params.id === "new";
-  const { data: cause, error, mutate, reload } = useResource<AdminCause>(isNew ? null : `${API}/${encodeURIComponent(params.id)}`);
+  const { data: cause, error, mutate, reload } = useResource<CauseAdmin>(isNew ? null : `${API}/${encodeURIComponent(params.id)}`);
   const [notice, setNotice] = useState<string | null>(null);
   useBreadcrumbLabel(isNew ? "New cause" : cause?.title);
 
   if (isNew) return <CauseForm initial={EMPTY} notice={null} onNotice={setNotice} />;
   if (error && !cause) return <ErrorAlert error={error} onRetry={reload} />;
   if (!cause) return <DetailSkeleton side={false} />;
-  // Keyed so the form resets when the cause is replaced after save/publish.
+  // Keyed so the form resets when the cause is replaced after save/publish or a reload.
   return (
     <CauseForm
-      key={`${cause.id}-${cause.updatedAt}-${cause.status}`}
+      key={`${cause.id}-${cause.version}-${cause.updatedAt}-${cause.status}`}
       cause={cause}
       initial={toForm(cause)}
       notice={notice}
       onNotice={setNotice}
       onReplaced={(next) => mutate(next)}
+      onReload={reload}
     />
   );
 }
@@ -153,16 +174,19 @@ function CauseForm({
   notice,
   onNotice,
   onReplaced,
+  onReload,
 }: {
-  cause?: AdminCause;
+  cause?: CauseAdmin;
   initial: Form;
   notice: string | null;
   onNotice: (notice: string | null) => void;
-  onReplaced?: (cause: AdminCause) => void;
+  onReplaced?: (cause: CauseAdmin) => void;
+  onReload?: () => void;
 }) {
   const router = useRouter();
   const [form, setForm] = useState<Form>(initial);
   const [error, setError] = useState<string | null>(null);
+  const [conflict, setConflict] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [action, setAction] = useState<"publish" | "close" | null>(null);
@@ -171,9 +195,16 @@ function CauseForm({
   // Impact regions, so causes use the same names the live region counts use.
   const regions = useResource<{ code: string; name: string }[]>("/bff/zakat-admin/impact/regions");
   const regionNames = (regions.data ?? []).map((region) => region.name);
-  const [today] = useState(todayInAddis);
-  const endPassed = Boolean(form.endsOn) && form.endsOn < today;
-  const savedEndPassed = Boolean(cause?.ended) || (Boolean(initial.endsOn) && initial.endsOn < today);
+  // The chosen region's code; while the region list is not loaded, an unchanged region keeps its saved code.
+  const regionCodeFor = (name: string) =>
+    regions.data
+      ? (regions.data.find((region) => region.name === name)?.code ?? null)
+      : name === initial.region
+        ? (cause?.regionCode ?? null)
+        : null;
+  const [today] = useState(() => todayInAddis());
+  const endsOnProblem = endsOnError(form.endsOn, cause ? cause.endsOn : null, today);
+  const savedEndPassed = Boolean(cause?.ended) || endDatePassed(cause?.endsOn, today);
 
   const dirty = JSON.stringify(form) !== JSON.stringify(initial);
   const set = <K extends keyof Form>(key: K, value: Form[K]) => setForm((prev) => ({ ...prev, [key]: value }));
@@ -184,8 +215,13 @@ function CauseForm({
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setConflict(false);
     setFieldErrors({});
     onNotice(null);
+    if (endsOnProblem) {
+      setFieldErrors({ endsOn: endsOnProblem });
+      return;
+    }
     if (published && figureChanges.length > 0) {
       setConfirmFigures(true);
       return;
@@ -196,9 +232,22 @@ function CauseForm({
   async function save() {
     setIsSaving(true);
     try {
-      const saved = await apiClient<AdminCause>(cause ? `${API}/${encodeURIComponent(cause.id)}` : API, {
+      // Alt text belongs to the image, so it is saved on the image first.
+      const altChange = coverAltTextChange(
+        { id: form.image[0]?.id ?? "", altText: form.imageAltText },
+        { id: initial.image[0]?.id ?? null, altText: initial.imageAltText },
+      );
+      if (altChange) {
+        await apiClient(`/bff/zakat-admin/media/${encodeURIComponent(altChange.mediaId)}`, {
+          method: "PATCH",
+          body: JSON.stringify({ altText: altChange.altText }),
+        });
+      }
+      const saved = await apiClient<CauseAdmin>(cause ? `${API}/${encodeURIComponent(cause.id)}` : API, {
         method: cause ? "PUT" : "POST",
-        body: JSON.stringify(toBody(form)),
+        body: JSON.stringify(
+          toBody(form, regionCodeFor(form.region), cause?.version),
+        ),
       });
       if (!cause) {
         router.replace(`/dashboard/zakat/causes/${encodeURIComponent(saved.id)}`);
@@ -207,6 +256,10 @@ function CauseForm({
       onNotice("Changes saved.");
       onReplaced?.(saved);
     } catch (saveError) {
+      if (isVersionConflict(saveError)) {
+        setConflict(true);
+        return;
+      }
       setError(errorMessage(saveError, "Couldn't save the cause"));
       if (saveError instanceof ApiError) setFieldErrors(fieldErrorMap(saveError.errors));
     } finally {
@@ -216,6 +269,8 @@ function CauseForm({
 
   const canPublish = cause && (cause.status === "DRAFT" || cause.status === "CLOSED");
   const canClose = cause?.status === "ACTIVE";
+  // Publishing or re-opening past the end date is refused (409), so it waits for a later date.
+  const publishBlocked = Boolean(canPublish) && endDatePassed(cause?.endsOn, today);
 
   return (
     <section className="space-y-6">
@@ -234,7 +289,7 @@ function CauseForm({
                 </Button>
               ) : null}
               {canPublish ? (
-                <Button onClick={() => setAction("publish")} disabled={dirty}>
+                <Button onClick={() => setAction("publish")} disabled={dirty || publishBlocked}>
                   <Send />
                   {cause.status === "CLOSED" ? "Publish again" : "Publish"}
                 </Button>
@@ -250,12 +305,14 @@ function CauseForm({
           {canClose ? "Save or discard your changes before closing the cause." : "Save your changes before publishing."}
         </InlineAlert>
       ) : null}
-      {cause && !dirty && cause.status !== "CLOSED" && savedEndPassed ? (
-        <InlineAlert tone="warning">
-          {cause.status === "ACTIVE"
-            ? "The end date has passed, so the app and website list this cause as completed. Close it, or set a later end date to keep it running."
-            : "The end date has passed. Set a later end date before publishing, or it shows as completed straight away."}
-        </InlineAlert>
+      {cause && !dirty && savedEndPassed ? (
+        cause.status === "ACTIVE" ? (
+          <InlineAlert tone="warning">
+            The end date has passed, so the cause closes automatically within the hour. Set a later end date to keep it running.
+          </InlineAlert>
+        ) : canPublish ? (
+          <InlineAlert tone="warning">The end date has passed. Set an end date of today or later and save before publishing.</InlineAlert>
+        ) : null
       ) : null}
 
       {cause ? (
@@ -263,16 +320,24 @@ function CauseForm({
           <DetailList
             columns={4}
             items={[
-              { label: "Raised", value: formatEtb(cause.raisedEtb) },
-              { label: "Goal", value: formatEtb(cause.goalEtb) },
+              { label: "Raised in total", value: formatEtb(cause.raisedEtb) },
+              {
+                label: "Paid in the app",
+                value: cause.liveRaisedEtb != null ? formatEtb(cause.liveRaisedEtb) : "Not available right now",
+              },
+              { label: "Raised offline", value: formatEtb(cause.raisedOfflineEtb ?? 0) },
+              { label: "Goal", value: cause.goalEtb != null ? formatEtb(cause.goalEtb) : "No goal" },
               { label: "Progress", value: cause.progress != null ? `${Math.round(cause.progress * 100)}%` : "No goal" },
               { label: "Published", value: formatDateTime(cause.publishedAt) },
+              { label: "Created by", value: staffRef(cause.createdBy, cause.createdByName) ?? "—" },
+              { label: "Created", value: formatDateTime(cause.createdAt) },
             ]}
           />
         </Panel>
       ) : null}
 
       <form onSubmit={onSubmit} className="space-y-6">
+        {conflict && onReload ? <VersionConflictAlert onReload={onReload} /> : null}
         {error ? <InlineAlert>{error}</InlineAlert> : null}
 
         <Panel title="Content">
@@ -315,7 +380,7 @@ function CauseForm({
             </FormField>
             <FormField label="Region" htmlFor="region" hint="From the impact regions, so the region counts match" error={fieldErrors.region}>
               <NativeSelect id="region" value={form.region} onChange={(e) => set("region", e.target.value)}>
-                <option value="">All of Ethiopia</option>
+                <option value="">Not specified</option>
                 {regionNames.map((name) => (
                   <option key={name} value={name}>
                     {name}
@@ -329,10 +394,38 @@ function CauseForm({
             <FormField
               label="Ends on"
               htmlFor="endsOn"
-              hint={endPassed ? undefined : "Moves to completed in the app and on the website after this date"}
-              error={fieldErrors.endsOn ?? (endPassed ? "This date has passed. The cause would show as completed." : undefined)}
+              hint={endsOnProblem ? undefined : "Today or later. The cause closes automatically after this date."}
+              error={fieldErrors.endsOn ?? endsOnProblem ?? undefined}
             >
-              <Input id="endsOn" type="date" min={cause ? undefined : today} value={form.endsOn} onChange={(e) => set("endsOn", e.target.value)} />
+              <Input
+                id="endsOn"
+                type="date"
+                // An edit may keep an old date; only a new one has to be today or later.
+                min={cause?.endsOn && cause.endsOn < today ? undefined : today}
+                value={form.endsOn}
+                onChange={(e) => set("endsOn", e.target.value)}
+              />
+            </FormField>
+          </div>
+        </Panel>
+
+        <Panel title={AMHARIC_TITLE} description={AMHARIC_HINT}>
+          <div className="grid gap-4">
+            <FormField label="Title in Amharic" htmlFor="titleAm" error={fieldErrors.titleAm}>
+              <Input id="titleAm" {...AMHARIC_INPUT} maxLength={200} value={form.titleAm} onChange={(e) => set("titleAm", e.target.value)} />
+            </FormField>
+            <FormField label="Short description in Amharic" htmlFor="descriptionAm" error={fieldErrors.descriptionAm}>
+              <Textarea
+                id="descriptionAm"
+                {...AMHARIC_INPUT}
+                rows={2}
+                maxLength={1000}
+                value={form.descriptionAm}
+                onChange={(e) => set("descriptionAm", e.target.value)}
+              />
+            </FormField>
+            <FormField label="Full story in Amharic" htmlFor="bodyAm" error={fieldErrors.bodyAm}>
+              <Textarea id="bodyAm" {...AMHARIC_INPUT} rows={8} maxLength={20000} value={form.bodyAm} onChange={(e) => set("bodyAm", e.target.value)} />
             </FormField>
           </div>
         </Panel>
@@ -340,12 +433,12 @@ function CauseForm({
         <Panel title="Funding">
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Goal (ETB)" htmlFor="goalEtb" hint="Leave empty for no progress bar" error={fieldErrors.goalEtb}>
-              <Input id="goalEtb" type="number" min={0} step="0.01" value={form.goalEtb} onChange={(e) => set("goalEtb", e.target.value)} className="tabular-nums" />
+              <Input id="goalEtb" type="number" min={0.01} step="0.01" value={form.goalEtb} onChange={(e) => set("goalEtb", e.target.value)} className="tabular-nums" />
             </FormField>
             <FormField
               label="Raised offline (ETB)"
               htmlFor="raisedOfflineEtb"
-              hint="Collected outside the app; added to the public total. Empty counts as 0."
+              hint="Collected outside the app. Added to the payments made in the app for the public total. Empty counts as 0."
               error={fieldErrors.raisedOfflineEtb}
             >
               <Input
@@ -380,6 +473,25 @@ function CauseForm({
             </FormField>
             <FormField label={`Gallery (${form.gallery.length}/10)`} htmlFor="gallery" error={fieldErrors.galleryMediaIds}>
               <ImageUpload id="gallery" max={10} value={form.gallery} onChange={(value) => set("gallery", value)} />
+            </FormField>
+            <FormField
+              label="Cover description"
+              htmlFor="imageAltText"
+              hint={
+                form.image.length
+                  ? `What the photo shows, read out by screen readers (${form.imageAltText.length}/250)`
+                  : "Add a cover image first."
+              }
+              error={fieldErrors.altText ?? fieldErrors.imageAltText}
+              className="sm:col-span-2"
+            >
+              <Input
+                id="imageAltText"
+                maxLength={250}
+                value={form.imageAltText}
+                disabled={form.image.length === 0}
+                onChange={(e) => set("imageAltText", e.target.value)}
+              />
             </FormField>
           </div>
         </Panel>
@@ -423,14 +535,12 @@ function CauseForm({
           description={
             action === "close"
               ? "It moves to the app's closed list and stops taking new payments. You can publish it again later."
-              : savedEndPassed
-                ? "Its end date has passed, so the app and website will list it as completed straight away. Set a later end date first if it should take payments."
-                : "It appears in the app and on the website straight away."
+              : "It appears in the app and on the website straight away."
           }
           confirmLabel={action === "close" ? "Close cause" : "Publish"}
           destructive={action === "close"}
           onConfirm={async () => {
-            const next = await apiClient<AdminCause>(`${API}/${encodeURIComponent(cause.id)}/${action}`, { method: "POST" });
+            const next = await apiClient<CauseAdmin>(`${API}/${encodeURIComponent(cause.id)}/${action}`, { method: "POST" });
             onNotice(action === "close" ? "Cause closed." : "Cause published.");
             onReplaced?.(next);
           }}

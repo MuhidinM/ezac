@@ -16,7 +16,7 @@ function fallbackMessage(status: number): string {
   if (status === 401) return "Your session has ended. Sign in again.";
   if (status === 403) return "Your account doesn't have access to this.";
   if (status === 404) return "We couldn't find that. It may have been removed.";
-  if (status === 413) return "The files are too large. Send at most 25 MB at a time.";
+  if (status === 413) return "The files are too large. Send at most 12 MB at a time.";
   if (status === 502 || status === 503 || status === 504) {
     return "The service is not responding. Try again in a moment.";
   }

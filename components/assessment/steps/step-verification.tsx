@@ -12,11 +12,14 @@ import {
   YesNoField,
 } from "@/components/assessment/fields";
 import type { StepProps } from "@/components/assessment/step-props";
+import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { Button } from "@/components/ui/button";
 import type { AssessmentDocument } from "@/lib/api/backoffice-types";
 import { roundCoordinate } from "@/lib/backoffice/gps";
+import { formatDateTime } from "@/lib/beneficiary/format";
 import { VERIFIED_DOCUMENTS } from "@/lib/backoffice/options";
+import { CONSENT_NOTICE_VERSION } from "@/lib/registration/constants";
 
 export function StepVerification({
   draft,
@@ -25,14 +28,27 @@ export function StepVerification({
   assessment,
   documents,
   onDocumentUploaded,
+  onDocumentDeleted,
 }: StepProps & {
   documents: AssessmentDocument[];
   onDocumentUploaded: (document: AssessmentDocument) => void;
+  onDocumentDeleted: (documentId: string) => void;
 }) {
   const observation = draft.observation;
   const verification = draft.verification;
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(false);
+
+  const recorded = assessment.verification?.consent;
+  const recordedNote =
+    recorded?.consentedAt && recorded.dataProcessingConsent != null
+      ? `${recorded.dataProcessingConsent ? "Agreed" : "Not agreed"}, recorded ${[
+          recorded.recordedByName ? `by ${recorded.recordedByName}` : null,
+          formatDateTime(recorded.consentedAt),
+        ]
+          .filter(Boolean)
+          .join(" on ")}.`
+      : undefined;
 
   const photoCount = documents.filter((document) => document.documentType === "photo").length;
 
@@ -235,13 +251,46 @@ export function StepVerification({
         </div>
       </FieldSection>
 
+      <FieldSection title="Consent" description="Optional. The system records who ticked the box and when.">
+        <div className="space-y-3">
+          <p className="text-sm text-black/70">
+            Read this to the household: EZAC keeps these details to assess the household for zakat support and to pay
+            it. Only the staff and services that need them can see them. The household can ask the branch to see or
+            correct them.
+          </p>
+          <FormField
+            label="Household consent"
+            htmlFor="assessment-consent"
+            hint={recordedNote}
+            error={errors["verification.consent"]}
+          >
+            {(control) => (
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-black/10 px-4 py-3">
+                <input
+                  {...control}
+                  type="checkbox"
+                  checked={verification.consent?.dataProcessingConsent === true}
+                  onChange={(event) =>
+                    patch("verification", {
+                      consent: { dataProcessingConsent: event.target.checked, noticeVersion: CONSENT_NOTICE_VERSION },
+                    })
+                  }
+                  className="mt-0.5 size-4 accent-brand"
+                />
+                <span className="text-sm text-navy">The household agreed to EZAC processing their data.</span>
+              </label>
+            )}
+          </FormField>
+        </div>
+      </FieldSection>
+
       <FieldSection
         title="Documents and photos"
         description="Supporting documents, home-visit reports and household photos."
       >
         <div className="space-y-4">
-          <DocumentsList assessmentId={assessment.id} documents={documents} />
-          <DocumentUploader assessmentId={assessment.id} onUploaded={onDocumentUploaded} />
+          <DocumentsList assessmentId={assessment.id} documents={documents} onDeleted={onDocumentDeleted} />
+          <DocumentUploader assessmentId={assessment.id} documents={documents} onUploaded={onDocumentUploaded} />
         </div>
       </FieldSection>
     </div>

@@ -1,64 +1,116 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  bankChangedRecently,
+  confirmBody,
+  fundAccountBody,
   fundAccountChanges,
-  namesAgree,
+  fundAccountState,
   needsNameAcknowledgement,
   payoutAuditNotes,
+  payoutErrorMessage,
+  payoutLimitsText,
+  payoutListQuery,
+  payoutTimeLeft,
+  preparedByMe,
   sameStaff,
-  weakMatchReason,
+  timeLeftText,
 } from "@/lib/zakat/disbursements";
 
-describe("namesAgree", () => {
-  it("is true when every word of the shorter name is in the longer one", () => {
-    expect(namesAgree("Ahmed Mohammed", "AHMED MOHAMMED ALI")).toBe(true);
-    expect(namesAgree("Mohammed, Ahmed", "Ahmed Mohammed")).toBe(true);
+describe("name check on confirm", () => {
+  it("needs a tick and a reason for anything but MATCH", () => {
+    expect(needsNameAcknowledgement({ nameCheck: "PARTIAL" })).toBe(true);
+    expect(needsNameAcknowledgement({ nameCheck: "MISMATCH" })).toBe(true);
+    expect(needsNameAcknowledgement({ nameCheck: "NOT_CHECKED" })).toBe(true);
+    expect(needsNameAcknowledgement({ nameCheck: "MATCH" })).toBe(false);
   });
 
-  it("is false when a word is missing", () => {
-    expect(namesAgree("Fatuma Ahmed", "Ahmed Mohammed Ali")).toBe(false);
-  });
-
-  it("is null when there is nothing to compare", () => {
-    expect(namesAgree("", "Ahmed")).toBeNull();
-    expect(namesAgree(null, "Ahmed")).toBeNull();
-  });
-});
-
-describe("weakMatchReason", () => {
-  const match = { nameCheck: "MATCH" as const, accountHolderName: "Ahmed Mohammed", verifiedName: "AHMED MOHAMMED ALI" };
-
-  it("accepts a match that also agrees with the registered name", () => {
-    expect(weakMatchReason(match, "Ahmed Mohammed Ali")).toBeNull();
-  });
-
-  it("flags a one-word name on file", () => {
-    expect(weakMatchReason({ ...match, accountHolderName: "Ahmed" }, "Ahmed Mohammed Ali")).toMatch(/fewer than two words/);
-    expect(weakMatchReason({ ...match, accountHolderName: "" }, "Ahmed Mohammed Ali")).toMatch(/fewer than two words/);
-  });
-
-  it("flags a bank name that doesn't agree with the registered name (a relative's account)", () => {
-    expect(weakMatchReason(match, "Fatuma Ahmed Mohammed")).toMatch(/registered name/);
-  });
-
-  it("only applies to MATCH", () => {
-    expect(weakMatchReason({ ...match, nameCheck: "MISMATCH" }, "Someone Else")).toBeNull();
+  it("sends no body for MATCH and {acknowledged, reason} otherwise", () => {
+    expect(confirmBody({ nameCheck: "MATCH" }, "anything")).toEqual({});
+    expect(confirmBody({ nameCheck: "PARTIAL" }, "  Bank drops the grandfather's name ")).toEqual({
+      acknowledged: true,
+      reason: "Bank drops the grandfather's name",
+    });
   });
 });
 
-describe("needsNameAcknowledgement", () => {
-  const base = { accountHolderName: "Ahmed Mohammed", verifiedName: "AHMED MOHAMMED" };
+describe("second approver", () => {
+  it("knows the payouts the signed-in admin prepared", () => {
+    expect(preparedByMe({ createdBy: "u1" }, "u1")).toBe(true);
+    expect(preparedByMe({ createdBy: "u1" }, "u2")).toBe(false);
+    // Unknown user: don't hide anything; the server still answers 403.
+    expect(preparedByMe({ createdBy: "u1" }, null)).toBe(false);
+  });
+});
 
-  it("needs a tick for anything short of a clear match", () => {
-    expect(needsNameAcknowledgement({ ...base, nameCheck: "MISMATCH" }, "Ahmed Mohammed")).toBe(true);
-    expect(needsNameAcknowledgement({ ...base, nameCheck: "NOT_CHECKED" }, "Ahmed Mohammed")).toBe(true);
-    expect(needsNameAcknowledgement({ ...base, nameCheck: "MATCH" }, "Fatuma Ali")).toBe(true);
+describe("time left", () => {
+  const payout = { status: "AWAITING_CONFIRMATION" as const, expiresAt: "2026-11-12T09:30:00Z" };
+  const at = (iso: string) => Date.parse(iso);
+
+  it("counts from the server's time", () => {
+    expect(payoutTimeLeft(payout, at("2026-11-11T09:30:00Z"))).toBe(24 * 60 * 60_000);
+    expect(payoutTimeLeft({ ...payout, status: "PROCESSING" }, at("2026-11-11T09:30:00Z"))).toBeNull();
+    expect(payoutTimeLeft(payout, null)).toBeNull();
   });
 
-  it("needs none for a clear match", () => {
-    expect(needsNameAcknowledgement({ ...base, nameCheck: "MATCH" }, "Ahmed Mohammed")).toBe(false);
-    // No registered name to compare: the server's match stands.
-    expect(needsNameAcknowledgement({ ...base, nameCheck: "MATCH" }, null)).toBe(false);
+  it("says it in hours and minutes", () => {
+    expect(timeLeftText(23 * 60 * 60_000 + 10 * 60_000)).toBe("23 h 10 min left");
+    expect(timeLeftText(40 * 60_000)).toBe("40 min left");
+    expect(timeLeftText(30_000)).toBe("Less than a minute left");
+    expect(timeLeftText(0)).toBeNull();
+  });
+});
+
+describe("bankChangedRecently", () => {
+  const now = Date.parse("2026-11-11T09:00:00Z");
+  it("flags a change within 30 days", () => {
+    expect(bankChangedRecently("2026-11-02T08:00:00Z", now)).toBe(true);
+    expect(bankChangedRecently("2026-09-01T08:00:00Z", now)).toBe(false);
+    expect(bankChangedRecently(null, now)).toBe(false);
+  });
+});
+
+describe("payout errors", () => {
+  const limits = { min: 0.01, max: 1000000, dailyCap: 5000000, usedToday: 4990000 };
+
+  it("puts the limits in words", () => {
+    const text = payoutLimitsText(limits);
+    expect(text).toMatch(/between .*0\.01.* and .*1,000,000/);
+    expect(text).toMatch(/10,000.* is left/);
+    expect(payoutLimitsText(null)).toBeNull();
+  });
+
+  it("keeps the backend's sentence for AMOUNT_OUT_OF_RANGE and adds the limits", () => {
+    const text = payoutErrorMessage("AMOUNT_OUT_OF_RANGE", "amountEtb must be at least 0.01", limits);
+    expect(text.startsWith("The amount must be at least 0.01.")).toBe(true);
+    expect(text).toMatch(/Today's limit/);
+  });
+
+  it("explains the day's cap", () => {
+    expect(payoutErrorMessage("DAILY_CAP_REACHED", "cap", limits)).toMatch(/^This payout would go over today's payout limit\. /);
+  });
+
+  it("has words for the new prepare and confirm codes", () => {
+    for (const code of ["FUND_NOT_ALLOWED", "FUND_ACCOUNT_NOT_VERIFIED", "BANK_CHANGE_PENDING", "SAME_APPROVER", "PAYOUT_EXPIRED"]) {
+      expect(payoutErrorMessage(code, "raw")).not.toBe("raw");
+    }
+    expect(payoutErrorMessage(null, "Something else")).toBe("Something else");
+  });
+});
+
+describe("payoutListQuery", () => {
+  const base = { status: "", rail: "", fund: "", q: "", beneficiaryId: "", needsAction: "", page: 1 };
+
+  it("sends the filters, the search and the household", () => {
+    expect(payoutListQuery({ ...base, status: "PROCESSING", q: " FT26 ", beneficiaryId: "41" }, "from=a&to=b", 20)).toBe(
+      "from=a&to=b&status=PROCESSING&beneficiaryId=41&q=FT26&page=1&limit=20",
+    );
+  });
+
+  it("leaves out the dates and filters for needsAction", () => {
+    expect(payoutListQuery({ ...base, status: "FAILED", needsAction: "true", page: 2 }, "from=a&to=b", 20)).toBe(
+      "needsAction=true&page=2&limit=20",
+    );
   });
 });
 
@@ -71,40 +123,54 @@ describe("payoutAuditNotes", () => {
     ]);
   });
 
-  it("records a name check that was overridden", () => {
-    const notes = payoutAuditNotes({ createdBy: "u1", confirmedBy: "u2", nameCheck: "MISMATCH", confirmedAt: "2026-11-05T10:00:00Z" });
-    expect(notes).toEqual(["Paid although the names differed: the person who paid ticked that they compared them."]);
+  it("records a name check that was overridden, with the reason", () => {
+    expect(
+      payoutAuditNotes({ createdBy: "u1", confirmedBy: "u2", nameCheck: "PARTIAL", nameCheckReason: "Short name", confirmedAt: "x" }),
+    ).toEqual(["Paid although the names only partly matched. Reason given: Short name"]);
     expect(payoutAuditNotes({ createdBy: "u1", confirmedBy: "u2", nameCheck: "NOT_CHECKED", confirmedAt: "x" })).toEqual([
-      "Paid without a name check from the bank.",
+      "Paid without a name from the bank.",
     ]);
   });
 
-  it("says nothing for a prepared payout by one person", () => {
+  it("says nothing for a prepared payout", () => {
     expect(payoutAuditNotes({ createdBy: "u1", nameCheck: "MISMATCH" })).toEqual([]);
   });
 });
 
-describe("fundAccountChanges", () => {
-  const before = {
-    zakat: { fund: "ZAKAT" as const, label: "Zakat", accountNumber: "1000111", accountName: "Zakat Fund", bankHolderName: null, ready: true },
-    waqf: { fund: "WAQF" as const, label: "Awqaf", accountNumber: null, accountName: null, bankHolderName: null, ready: false },
+describe("fund accounts", () => {
+  const zakat = {
+    fund: "ZAKAT" as const,
+    label: "Zakat",
+    accountNumber: "*********6789",
+    accountName: "Zakat Fund",
+    bankHolderName: "EIASC ZAKAT FUND",
+    ready: true,
   };
 
   it("lists each changed field and marks a cleared account number", () => {
-    expect(
-      fundAccountChanges(before, {
-        zakat: { accountNumber: " ", accountName: "Zakat Fund" },
-        waqf: { accountNumber: "1000222", accountName: "" },
-      }),
-    ).toEqual([
-      { fund: "ZAKAT", field: "accountNumber", from: "1000111", to: "", cleared: true },
-      { fund: "WAQF", field: "accountNumber", from: "", to: "1000222", cleared: false },
+    expect(fundAccountChanges(zakat, { accountNumber: " ", accountName: "Zakat Fund" })).toEqual([
+      { field: "accountNumber", from: "*********6789", to: "", cleared: true },
     ]);
+    expect(fundAccountChanges(zakat, { accountNumber: "*********6789 ", accountName: "Zakat Fund" })).toEqual([]);
   });
 
-  it("is empty when nothing changed (spaces don't count)", () => {
-    expect(
-      fundAccountChanges(before, { zakat: { accountNumber: "1000111 ", accountName: "Zakat Fund" }, waqf: { accountNumber: "", accountName: "" } }),
-    ).toEqual([]);
+  it("sends only the edited fund, keeps an unchanged masked number and sends the version", () => {
+    expect(fundAccountBody("zakat", zakat, { accountNumber: "*********6789", accountName: "New name" }, 4)).toEqual({
+      zakat: { accountName: "New name" },
+      version: 4,
+    });
+    expect(fundAccountBody("zakat", zakat, { accountNumber: "", accountName: "Zakat Fund" }, null)).toEqual({
+      zakat: { accountNumber: "", accountName: "Zakat Fund" },
+    });
+    expect(fundAccountBody("waqf", { ...zakat, fund: "WAQF", accountNumber: null }, { accountNumber: "1000222333", accountName: "" }, 5)).toEqual({
+      waqf: { accountNumber: "1000222333", accountName: "" },
+      version: 5,
+    });
+  });
+
+  it("tells verified, unverified and unset apart", () => {
+    expect(fundAccountState(zakat).label).toBe("Verified");
+    expect(fundAccountState({ ...zakat, ready: false }).label).toBe("Not verified");
+    expect(fundAccountState({ ready: false, accountNumber: null }).label).toBe("Not set");
   });
 });

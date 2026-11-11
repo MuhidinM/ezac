@@ -57,6 +57,7 @@ const transparency: Messages<typeof en> = {
       title: "Lakkoofsota",
       asOf: "Lakkoofsota hanga guyyaa {date} maxxanfaman.",
       noDate: "Lakkoofsota maxxanfaman. Mallattoon “—” lakkoofsichi hanga ammaatti akka hin maxxanfamne agarsiisa.",
+      offline: "Kan damee irratti kenname {amount} of keessaa qaba; hanga {date} tti lakkaa'ame.",
     },
     stats: {
       totalCollected: "Zakaa sassaabame (hanga ammaatti)",
@@ -348,6 +349,9 @@ const transparency: Messages<typeof en> = {
       intro:
         "Qabxiin baay'achuun fedhii guddaa agarsiisa. Bakki qabxiin itti argamu sadarkaa fedhii fi gorsa dameen argu murteessa; garuu murtiin kan damee ti.",
       example: "Fakkeenya",
+      inForce: "Guyyaa {date} irraa kaasee hojii irra jira",
+      range: "{min} hanga {max}",
+      liveNote: "Sadarkaaleen kun kanneen amma hojii irra jiranidha (gabatee qabxii, version {version}). Jijjiiramuu danda'u; qabxiin hundi version itti herregame ni qabata.",
       bands: {
         low: "Fedhii gadaanaa",
         medium: "Giddugaleessa",

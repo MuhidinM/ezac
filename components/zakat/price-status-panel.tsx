@@ -19,10 +19,29 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  addDays,
+  asksLargeChangeConfirm,
+  changedPriceFields,
+  currentPrice,
+  karatOrderProblems,
+  KARATS,
+  largeChanges,
+  MANUAL_UNTIL_MAX_DAYS,
+  manualUntilProblem,
+  parsePrice,
+  PRICE_FIELDS,
+  priceErrorField,
+  type PriceField,
+  type PriceInputs,
+  priceUpdateBody,
+  snapshotVersion,
+  tooManyDecimals,
+} from "@/app/(portal)/dashboard/zakat/prices/price-update";
 import { apiClient } from "@/lib/api/client";
-import { ApiError, errorMessage, fieldErrorMap } from "@/lib/api/errors";
+import { ApiError, errorMessage, isVersionConflict, VERSION_CONFLICT_MESSAGE } from "@/lib/api/errors";
 import { useResource } from "@/lib/api/use-resource";
-import { formatEtb } from "@/lib/backoffice/format";
+import { formatDate, formatEtb, todayIso } from "@/lib/backoffice/format";
 import { formatDateTime } from "@/lib/beneficiary/format";
 import { cn } from "@/lib/utils";
 
@@ -39,11 +58,13 @@ export type PriceValues = {
 };
 
 type PriceSnapshot = PriceValues & {
+  /** Also the `version` a price edit sends (409 when a newer snapshot exists). */
   id: string;
   silverPricePerGramEtb: number;
   enteredBy?: string | null;
-  /** Not sent yet (go-live requests §20); shown once it is. */
   enteredByName?: string | null;
+  /** Prices entered by hand stay until this date ("YYYY-MM-DD"); the daily fetch is skipped until then. */
+  manualUntil?: string | null;
   createdAt: string;
 };
 
@@ -64,11 +85,7 @@ type PriceStatus = {
 export type NisabRules = { basis: "gold" | "silver"; goldGrams: number; silverGrams: number };
 
 const STALE_HOURS = 48;
-const KARATS = ["24k", "22k", "21k", "18k", "14k"] as const;
-type Karat = (typeof KARATS)[number];
-type PriceField = Karat | "silver" | "usd";
-/** A change this large is flagged before saving (go-live requests §16). */
-const LARGE_CHANGE = 0.15;
+const NEXT_FETCH = "until the next automatic fetch at 06:00 Addis Ababa time";
 
 /** A bare rate for cells whose header already names the unit ("ETB per gram"). Fixed "en" locale, like lib/backoffice/format. */
 const rate = new Intl.NumberFormat("en", { maximumFractionDigits: 2 });
@@ -78,6 +95,12 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function enteredByLabel(entry: { enteredBy?: string | null; enteredByName?: string | null }) {
   if (entry.enteredByName) return entry.enteredByName;
   return entry.enteredBy && !UUID.test(entry.enteredBy) ? entry.enteredBy : null;
+}
+
+/** How long prices entered by hand stay in use. */
+function untilText(automatic: boolean, manualUntil: string | null | undefined) {
+  if (!automatic) return "until new prices are entered";
+  return manualUntil ? `until the end of ${formatDate(manualUntil)}` : NEXT_FETCH;
 }
 
 /** ADMIN: price health, return to automatic prices, and manual entry (WEB-ADMIN-ZAKAT-GUIDE §2). */
@@ -96,6 +119,7 @@ export function PriceStatusPanel({
 }) {
   const { data, error, reload, mutate } = useResource<PriceStatus>("/bff/zakat-admin/prices/status");
   const [refreshOpen, setRefreshOpen] = useState(false);
+  const [automaticOpen, setAutomaticOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   // Captured once per mount; age only needs to be roughly right.
@@ -106,7 +130,6 @@ export function PriceStatusPanel({
   const stale = ageHours !== null && ageHours > STALE_HOURS;
   const manualInUse = latest?.manual === true;
   const automatic = data?.apiKeyConfigured ?? true;
-  const until = automatic ? "until the next automatic fetch at 06:00 Addis Ababa time" : "until new prices are entered";
   const budgetText = data ? ` (${data.budget.used} of ${data.budget.limit} used this month)` : "";
 
   function changed(message: string) {
@@ -123,23 +146,30 @@ export function PriceStatusPanel({
   return (
     <Panel
       title="Price feed"
-      description="Gold and silver follow the market: fetched automatically every day at 06:00 Addis Ababa time. Prices entered by hand replace them until the next automatic fetch."
+      description="Gold and silver follow the market: fetched automatically every day at 06:00 Addis Ababa time. Prices entered by hand replace them until the next automatic fetch, or until a date you choose."
       actions={
         <>
           <Button size="sm" variant="outline" onClick={() => setManualOpen(true)} disabled={!data}>
             <PenLine />
             Change prices
           </Button>
-          <Button
-            size="sm"
-            variant={manualInUse ? "default" : "outline"}
-            onClick={() => setRefreshOpen(true)}
-            disabled={!data?.apiKeyConfigured}
-            title={data && !data.apiKeyConfigured ? "Automatic prices are off: no price API key is configured." : undefined}
-          >
-            {manualInUse ? <RotateCcw /> : <RefreshCw />}
-            {manualInUse ? "Return to automatic prices" : "Refresh now"}
-          </Button>
+          {manualInUse ? (
+            <Button size="sm" onClick={() => setAutomaticOpen(true)}>
+              <RotateCcw />
+              Return to automatic prices
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setRefreshOpen(true)}
+              disabled={!data?.apiKeyConfigured}
+              title={data && !data.apiKeyConfigured ? "Automatic prices are off: no price API key is configured." : undefined}
+            >
+              <RefreshCw />
+              Refresh now
+            </Button>
+          )}
         </>
       }
     >
@@ -159,8 +189,8 @@ export function PriceStatusPanel({
         ) : null}
         {manualInUse ? (
           <InlineAlert tone="info" title="Prices entered by hand are in use">
-            They stay {until}.
-            {automatic ? " To use market prices again now, choose Return to automatic prices." : null}
+            They stay {untilText(automatic, latest?.manualUntil)}. To use the last automatic prices again now, choose Return
+            to automatic prices.
           </InlineAlert>
         ) : null}
 
@@ -214,19 +244,31 @@ export function PriceStatusPanel({
       <ConfirmDialog
         open={refreshOpen}
         onOpenChange={setRefreshOpen}
-        title={manualInUse ? "Return to automatic prices?" : "Fetch prices now?"}
-        description={
-          manualInUse
-            ? `Fetches today's market prices now and replaces the prices entered by hand. This uses 2 of the monthly price API requests${budgetText}. If the provider fails, the prices entered by hand stay in use.`
-            : `This uses 2 of the monthly price API requests${budgetText}. If the provider fails, the current prices stay in use.`
-        }
-        confirmLabel={manualInUse ? "Return to automatic prices" : "Refresh now"}
+        title="Fetch prices now?"
+        description={`This uses 2 of the monthly price API requests${budgetText}. If the provider fails, the current prices stay in use.`}
+        confirmLabel="Refresh now"
         onConfirm={async () => {
           const snapshot = await apiClient<PriceSnapshot>("/bff/zakat-admin/prices/refresh", { method: "POST" });
+          changed(`Prices refreshed as of ${formatDateTime(snapshot.pricesAsOf)}.`);
+        }}
+      />
+
+      <ConfirmDialog
+        open={automaticOpen}
+        onOpenChange={setAutomaticOpen}
+        title="Return to automatic prices?"
+        description={
+          automatic
+            ? "The last prices fetched automatically replace the prices entered by hand straight away, and the daily fetch at 06:00 Addis Ababa time runs again. No price API request is used."
+            : "The last prices fetched automatically replace the prices entered by hand straight away. No price API key is configured, so no new prices are fetched after that."
+        }
+        confirmLabel="Return to automatic prices"
+        onConfirm={async () => {
+          const snapshot = await apiClient<PriceSnapshot | null>("/bff/zakat-admin/prices/automatic", { method: "POST" });
           changed(
-            manualInUse
-              ? `Automatic prices are back in use, as of ${formatDateTime(snapshot.pricesAsOf)}.`
-              : `Prices refreshed as of ${formatDateTime(snapshot.pricesAsOf)}.`,
+            snapshot?.pricesAsOf
+              ? `Automatic prices are back in use: the prices fetched ${formatDateTime(snapshot.pricesAsOf)}.`
+              : "Automatic prices are back in use.",
           );
         }}
       />
@@ -236,20 +278,17 @@ export function PriceStatusPanel({
           key={reuse ? `reuse-${reuse.pricesAsOf}` : "latest"}
           reuse={reuse}
           nisab={nisab}
-          until={until}
           onLoaded={mutate}
           onClose={closeDialog}
-          onSaved={() => {
+          onSaved={(manualUntil) => {
             closeDialog();
-            changed(`New prices saved and in use. They stay ${until}.`);
+            changed(`New prices saved and in use. They stay ${untilText(automatic, manualUntil)}.`);
           }}
         />
       ) : null}
     </Panel>
   );
 }
-
-type Values = Record<PriceField, string>;
 
 const FIELD_LABEL: Record<PriceField, string> = {
   "24k": "Gold 24k",
@@ -261,27 +300,13 @@ const FIELD_LABEL: Record<PriceField, string> = {
   usd: "USD to ETB",
 };
 
-function toValues(from: PriceValues | null): Values {
+function toValues(from: PriceValues | null): PriceInputs {
   const text = (value: number | null | undefined) => (value != null && value > 0 ? String(value) : "");
   return {
-    ...(Object.fromEntries(KARATS.map((karat) => [karat, text(from?.goldPricePerGramEtb[karat])])) as Record<Karat, string>),
+    ...(Object.fromEntries(KARATS.map((karat) => [karat, text(from?.goldPricePerGramEtb[karat])])) as Record<(typeof KARATS)[number], string>),
     silver: text(from?.silverPricePerGramEtb),
     usd: text(from?.usdEtbRate),
   };
-}
-
-function currentValue(current: PriceValues | null, field: PriceField): number | null {
-  if (!current) return null;
-  if (field === "silver") return current.silverPricePerGramEtb;
-  if (field === "usd") return current.usdEtbRate;
-  return current.goldPricePerGramEtb[field] ?? null;
-}
-
-/** A positive number, null when empty, NaN when not a valid price. */
-function parse(value: string): number | null {
-  if (!value.trim()) return null;
-  const number = Number(value);
-  return Number.isFinite(number) && number > 0 ? number : Number.NaN;
 }
 
 function percent(from: number, to: number) {
@@ -289,61 +314,24 @@ function percent(from: number, to: number) {
   return `${change > 0 ? "+" : ""}${change.toFixed(1)}%`;
 }
 
-/** An empty USD rate keeps the last one; an empty karat is worked out again from 24k. */
-function isChanged(field: PriceField, values: Values, current: PriceValues | null) {
-  const next = parse(values[field]);
-  if (field === "usd" && next === null) return false;
-  return next !== currentValue(current, field);
-}
-
-/** Problems worth a second look before prices reach every calculator user. */
-function priceWarnings(values: Values, current: PriceValues | null): string[] {
-  const warnings: string[] = [];
-  // Purer gold costs more: 24k ≥ 22k ≥ 21k ≥ 18k ≥ 14k.
-  let purer: { karat: Karat; price: number } | null = null;
-  for (const karat of KARATS) {
-    const price = parse(values[karat]);
-    if (price === null || Number.isNaN(price)) continue;
-    if (purer && price > purer.price) {
-      warnings.push(
-        `Gold ${karat} (${formatEtb(price)}) costs more than gold ${purer.karat} (${formatEtb(purer.price)}). Purer gold should cost more, so check for a typing mistake.`,
-      );
-    }
-    purer = { karat, price };
-  }
-  for (const field of [...KARATS, "silver", "usd"] as const) {
-    const next = parse(values[field]);
-    const before = currentValue(current, field);
-    if (next === null || Number.isNaN(next) || !before) continue;
-    if (Math.abs(next - before) / before > LARGE_CHANGE) {
-      warnings.push(
-        `${FIELD_LABEL[field]} moves by ${percent(before, next)} (${rate.format(before)} → ${rate.format(next)}). Check it before saving.`,
-      );
-    }
-  }
-  return warnings;
-}
-
 /**
  * Reads the prices in use again before showing the form. The page's copy can be
- * hours old (the 06:00 fetch, another admin), and the form sends every price, so
- * filling it from that copy would put old prices back.
+ * hours old (the 06:00 fetch, another admin): the save sends that snapshot's id
+ * as `version`, and the form compares against it.
  */
 function ManualPricesDialog({
   reuse,
   nisab,
-  until,
   onLoaded,
   onClose,
   onSaved,
 }: {
   reuse: PriceValues | null;
   nisab: NisabRules | null;
-  until: string;
   /** Updates the panel with the fresh read. */
   onLoaded: (status: PriceStatus) => void;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (manualUntil: string | null) => void;
 }) {
   const fresh = useResource<PriceStatus>("/bff/zakat-admin/prices/status");
   const ready = fresh.data && !fresh.error && !fresh.isLoading ? fresh.data : null;
@@ -360,8 +348,9 @@ function ManualPricesDialog({
             current={ready.latest}
             from={reuse ?? ready.latest}
             reusing={reuse !== null}
+            automatic={ready.apiKeyConfigured}
             nisab={nisab}
-            until={until}
+            onReload={fresh.reload}
             onClose={onClose}
             onSaved={onSaved}
           />
@@ -397,34 +386,48 @@ function ManualPricesForm({
   current,
   from,
   reusing,
+  automatic,
   nisab,
-  until,
+  onReload,
   onClose,
   onSaved,
 }: {
   current: PriceSnapshot | null;
   from: PriceValues | null;
   reusing: boolean;
+  /** The daily fetch runs (a price API key is configured). */
+  automatic: boolean;
   nisab: NisabRules | null;
-  until: string;
+  /** Reads the prices in use again; the form opens afresh with them. */
+  onReload: () => void;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (manualUntil: string | null) => void;
 }) {
   // Every field starts with the prices in use (read just now) or the history
-  // row chosen, so changing one price leaves the others as they are.
-  const [values, setValues] = useState<Values>(() => toValues(from));
+  // row chosen. Only the prices that differ from the ones in use are sent.
+  const [values, setValues] = useState<PriceInputs>(() => toValues(from));
   const [note, setNote] = useState(() =>
     reusing && from ? `Same prices as ${formatDateTime(from.pricesAsOf)}${from.manual ? "" : " (automatic)"}` : "",
   );
+  const [manualUntil, setManualUntil] = useState("");
   const [step, setStep] = useState<"edit" | "confirm">("edit");
   const [error, setError] = useState<string | null>(null);
+  const [conflict, setConflict] = useState(false);
+  // zakat-engine asked for confirmLargeChange although the form saw no large move.
+  const [serverAskedConfirm, setServerAskedConfirm] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [today] = useState(todayIso);
 
   const set = (field: PriceField, value: string) => setValues((prev) => ({ ...prev, [field]: value }));
-  const gold24 = parse(values["24k"]);
-  const warnings = priceWarnings(values, current);
-  const changedFields = ([...KARATS, "silver", "usd"] as const).filter((field) => isChanged(field, values, current));
+  const gold24 = parsePrice(values["24k"]);
+  const large = largeChanges(values, current);
+  const warnings = large.map(
+    ({ field, before, after }) =>
+      `${FIELD_LABEL[field]} moves by ${percent(before, after)} (${rate.format(before)} → ${rate.format(after)}). Check it before saving.`,
+  );
+  const changedFields = changedPriceFields(values, current);
+  const until = untilText(automatic, manualUntil || null);
 
   function workOutKarats() {
     if (gold24 === null || Number.isNaN(gold24)) return;
@@ -440,12 +443,18 @@ function ManualPricesForm({
     event.preventDefault();
     setError(null);
     const problems: Record<string, string> = {};
-    for (const field of [...KARATS, "silver", "usd"] as const) {
-      const value = parse(values[field]);
-      const required = field === "24k" || field === "silver";
-      if (value === null && required) problems[field] = "Enter a price.";
+    for (const field of PRICE_FIELDS) {
+      const value = parsePrice(values[field]);
+      // With no prices stored yet, 24k and silver are needed; otherwise an empty field keeps its price.
+      if (value === null && !current && (field === "24k" || field === "silver")) problems[field] = "Enter a price.";
       else if (Number.isNaN(value)) problems[field] = "Enter a number above 0.";
+      else if (field !== "usd" && tooManyDecimals(values[field])) problems[field] = "Use at most 2 decimals.";
     }
+    for (const [karat, problem] of Object.entries(karatOrderProblems(values, current))) {
+      problems[karat] ??= problem;
+    }
+    const untilProblem = manualUntilProblem(manualUntil, today);
+    if (untilProblem) problems.manualUntil = untilProblem;
     // Prices typed by hand go live for every calculator user, so the reason is required (gap-r1-4-1).
     if (note.trim().length < 10) problems.note = "Say why the prices are set by hand and where they come from (at least 10 characters).";
     setFieldErrors(problems);
@@ -459,42 +468,62 @@ function ManualPricesForm({
 
   async function save() {
     setError(null);
+    setConflict(false);
     setIsSaving(true);
-    const goldBody = Object.fromEntries(
-      KARATS.flatMap((karat) => {
-        const price = parse(values[karat]);
-        return price !== null ? [[karat, price]] : [];
-      }),
-    );
-    const usd = parse(values.usd);
     try {
       await apiClient("/bff/zakat-admin/prices", {
         method: "POST",
-        body: JSON.stringify({
-          goldPricePerGramEtb: goldBody,
-          silverPricePerGramEtb: parse(values.silver),
-          ...(usd !== null ? { usdEtbRate: usd } : {}),
-          note: note.trim(),
-        }),
+        body: JSON.stringify(
+          priceUpdateBody(values, current, {
+            note,
+            version: snapshotVersion(current?.id),
+            manualUntil: manualUntil || undefined,
+            confirmLargeChange: large.length > 0 || serverAskedConfirm,
+          }),
+        ),
       });
-      onSaved();
+      onSaved(manualUntil || null);
     } catch (saveError) {
-      setError(errorMessage(saveError, "Couldn't save the prices"));
-      if (saveError instanceof ApiError) {
-        const map = fieldErrorMap(saveError.errors);
-        setFieldErrors({
-          ...Object.fromEntries(KARATS.flatMap((karat) => (map[`goldPricePerGramEtb.${karat}`] ? [[karat, map[`goldPricePerGramEtb.${karat}`]]] : []))),
-          ...(map.goldPricePerGramEtb && !map["goldPricePerGramEtb.24k"] ? { "24k": map.goldPricePerGramEtb } : {}),
-          ...(map.silverPricePerGramEtb ? { silver: map.silverPricePerGramEtb } : {}),
-          ...(map.usdEtbRate ? { usd: map.usdEtbRate } : {}),
-          ...(map.note ? { note: map.note } : {}),
-        });
-        if (saveError.errors.length > 0) setStep("edit");
+      if (!(saveError instanceof ApiError)) {
+        setError(errorMessage(saveError, "Couldn't save the prices"));
+        return;
       }
+      if (asksLargeChangeConfirm(saveError) && !serverAskedConfirm) {
+        setServerAskedConfirm(true);
+        setError(`${saveError.message} Check the prices, then choose Save anyway.`);
+        setStep("confirm");
+        return;
+      }
+      // A newer snapshot was stored after the form opened (the 06:00 fetch, another admin).
+      if (isVersionConflict(saveError) || saveError.status === 409) {
+        setConflict(true);
+        setError(VERSION_CONFLICT_MESSAGE);
+        return;
+      }
+      setError(saveError.message);
+      const next: Record<string, string> = {};
+      const items = saveError.errors.length > 0 ? saveError.errors : [{ field: saveError.message, message: saveError.message }];
+      for (const item of items) {
+        const field = priceErrorField(item.field);
+        if (field && !next[field]) next[field] = item.message;
+      }
+      setFieldErrors(next);
+      if (Object.keys(next).length > 0) setStep("edit");
     } finally {
       setIsSaving(false);
     }
   }
+
+  const alert = error ? (
+    <InlineAlert>
+      {error}
+      {conflict ? (
+        <Button type="button" size="sm" variant="outline" className="mt-2 flex" onClick={onReload}>
+          Reload prices
+        </Button>
+      ) : null}
+    </InlineAlert>
+  ) : null;
 
   return step === "edit" ? (
     <form onSubmit={review} className="space-y-4" noValidate>
@@ -503,11 +532,13 @@ function ManualPricesForm({
         <DialogDescription>
           {reusing && from
             ? `Filled in with the prices of ${formatDateTime(from.pricesAsOf)}. `
-            : "Filled in with the prices in use. Change only what you need; the rest stays as it is. "}
+            : current
+              ? "Filled in with the prices in use. Change only what you need; the rest keeps its price. "
+              : "No prices are stored yet. Enter 24k gold and silver; an empty karat is worked out from 24k. "}
           You check the result before it goes live.
         </DialogDescription>
       </DialogHeader>
-      {error ? <InlineAlert>{error}</InlineAlert> : null}
+      {alert}
       <fieldset className="space-y-2">
         <legend className="text-[13px] font-medium text-navy">Gold, ETB per gram</legend>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -516,17 +547,17 @@ function ManualPricesForm({
               key={karat}
               id={`gold-${karat}`}
               label={karat}
-              required={karat === "24k"}
-              emptyHint={karat === "24k" ? undefined : "Worked out from 24k"}
+              required={!current && karat === "24k"}
+              emptyHint={current ? "Keeps its price" : karat === "24k" ? undefined : "Worked out from 24k"}
               value={values[karat]}
-              before={currentValue(current, karat)}
+              before={currentPrice(current, karat)}
               error={fieldErrors[karat]}
               onChange={(value) => set(karat, value)}
             />
           ))}
         </div>
         <p className="flex flex-wrap items-center gap-x-2 text-xs text-black/60">
-          Clear a karat to have it worked out from 24k by purity.
+          A new 24k price doesn&apos;t change the other karats. Each karat must cost less than the one above it.
           <button
             type="button"
             onClick={workOutKarats}
@@ -541,9 +572,10 @@ function ManualPricesForm({
         <PriceInput
           id="silver"
           label="Silver, ETB per gram"
-          required
+          required={!current}
+          emptyHint={current ? "Keeps its price" : undefined}
           value={values.silver}
-          before={currentValue(current, "silver")}
+          before={currentPrice(current, "silver")}
           error={fieldErrors.silver}
           onChange={(value) => set("silver", value)}
         />
@@ -553,11 +585,29 @@ function ManualPricesForm({
           step="0.0001"
           emptyHint="Keeps the last rate"
           value={values.usd}
-          before={currentValue(current, "usd")}
+          before={currentPrice(current, "usd")}
           error={fieldErrors.usd}
           onChange={(value) => set("usd", value)}
         />
       </div>
+      {automatic ? (
+        <FormField
+          label="Keep these prices until"
+          htmlFor="price-manual-until"
+          hint={`Optional. Empty: ${NEXT_FETCH}. A date skips the daily fetch until the end of that day, at most ${MANUAL_UNTIL_MAX_DAYS} days ahead.`}
+          error={fieldErrors.manualUntil}
+        >
+          <Input
+            id="price-manual-until"
+            type="date"
+            min={today}
+            max={addDays(today, MANUAL_UNTIL_MAX_DAYS)}
+            value={manualUntil}
+            onChange={(event) => setManualUntil(event.target.value)}
+            className="w-44"
+          />
+        </FormField>
+      ) : null}
       <FormField
         label="Reason and source"
         htmlFor="price-note"
@@ -583,7 +633,7 @@ function ManualPricesForm({
           They go live in the public calculator as soon as you save, and stay {until}.
         </DialogDescription>
       </DialogHeader>
-      {error ? <InlineAlert>{error}</InlineAlert> : null}
+      {alert}
       <ChangeTable values={values} current={current} changed={changedFields} />
       <NisabChange values={values} current={current} nisab={nisab} />
       <p className="text-sm text-navy">
@@ -594,8 +644,8 @@ function ManualPricesForm({
         <Button type="button" variant="outline" onClick={() => setStep("edit")} disabled={isSaving}>
           Back
         </Button>
-        <Button type="button" onClick={() => void save()} loading={isSaving} loadingText="Saving…">
-          {warnings.length > 0 ? "Save anyway" : "Save prices"}
+        <Button type="button" onClick={() => void save()} loading={isSaving} loadingText="Saving…" disabled={conflict}>
+          {warnings.length > 0 || serverAskedConfirm ? "Save anyway" : "Save prices"}
         </Button>
       </DialogFooter>
     </div>
@@ -624,7 +674,7 @@ function PriceInput({
   emptyHint?: string;
   onChange: (value: string) => void;
 }) {
-  const next = parse(value);
+  const next = parsePrice(value);
   const edited = next !== null && !Number.isNaN(next) && before != null && next !== before;
   return (
     <FormField
@@ -651,7 +701,7 @@ function PriceInput({
 
 function WarningList({ warnings }: { warnings: string[] }) {
   return (
-    <InlineAlert tone="warning" title="Check before saving">
+    <InlineAlert tone="warning" title="Large changes: check before saving">
       <ul className="list-disc space-y-1 pl-4">
         {warnings.map((warning) => (
           <li key={warning}>{warning}</li>
@@ -661,9 +711,9 @@ function WarningList({ warnings }: { warnings: string[] }) {
   );
 }
 
-function ChangeTable({ values, current, changed }: { values: Values; current: PriceValues | null; changed: PriceField[] }) {
-  const gold24 = parse(values["24k"]);
-  const rows = ([...KARATS, "silver", "usd"] as const).filter((field) => values[field].trim() || currentValue(current, field) != null);
+function ChangeTable({ values, current, changed }: { values: PriceInputs; current: PriceSnapshot | null; changed: PriceField[] }) {
+  const gold24 = parsePrice(values["24k"]);
+  const rows = PRICE_FIELDS.filter((field) => values[field].trim() || currentPrice(current, field) != null);
   return (
     <table className="w-full text-sm">
       <thead>
@@ -676,20 +726,27 @@ function ChangeTable({ values, current, changed }: { values: Values; current: Pr
       </thead>
       <tbody>
         {rows.map((field) => {
-          const before = currentValue(current, field);
-          const next = parse(values[field]);
-          const derived = next === null && gold24 !== null && field.endsWith("k") ? (gold24 * parseInt(field, 10)) / 24 : null;
-          const shown = next ?? derived;
+          const before = currentPrice(current, field);
+          const typed = parsePrice(values[field]);
+          const next = typed !== null && !Number.isNaN(typed) ? typed : null;
+          // With no prices stored yet, an empty karat is worked out from 24k.
+          const derived = !current && next === null && gold24 !== null && field.endsWith("k") ? (gold24 * parseInt(field, 10)) / 24 : null;
           const isChanged = changed.includes(field);
           return (
             <tr key={field} className={cn("border-b border-black/[0.04]", isChanged ? "text-navy" : "text-black/60")}>
               <td className={cn("py-1.5", isChanged && "font-medium")}>{field === "usd" ? "USD to ETB rate" : FIELD_LABEL[field]}</td>
               <td className="py-1.5 text-right tabular-nums">{before != null ? rate.format(before) : "—"}</td>
               <td className={cn("py-1.5 text-right tabular-nums", isChanged && "font-semibold")}>
-                {next !== null ? rate.format(next) : derived !== null ? `≈ ${rate.format(derived)} (from 24k)` : "—"}
+                {isChanged && next !== null
+                  ? rate.format(next)
+                  : derived !== null
+                    ? `≈ ${rate.format(derived)} (from 24k)`
+                    : before != null
+                      ? "Kept"
+                      : "—"}
               </td>
               <td className="py-1.5 text-right tabular-nums">
-                {!isChanged ? "No change" : before && shown ? percent(before, shown) : "New"}
+                {!isChanged ? "No change" : before && next ? percent(before, next) : "New"}
               </td>
             </tr>
           );
@@ -699,13 +756,16 @@ function ChangeTable({ values, current, changed }: { values: Values; current: Pr
   );
 }
 
-function NisabChange({ values, current, nisab }: { values: Values; current: PriceValues | null; nisab: NisabRules | null }) {
+function NisabChange({ values, current, nisab }: { values: PriceInputs; current: PriceSnapshot | null; nisab: NisabRules | null }) {
   if (!nisab) return null;
   const gold = nisab.basis === "gold";
   const grams = gold ? nisab.goldGrams : nisab.silverGrams;
-  const next = parse(gold ? values["24k"] : values.silver);
-  const beforePrice = currentValue(current, gold ? "24k" : "silver");
-  if (next === null || Number.isNaN(next)) return null;
+  const field: PriceField = gold ? "24k" : "silver";
+  const typed = parsePrice(values[field]);
+  const beforePrice = currentPrice(current, field);
+  // An empty field keeps its price.
+  const next = typed !== null && !Number.isNaN(typed) ? typed : beforePrice;
+  if (next === null) return null;
   const after = grams * next;
   const before = beforePrice ? grams * beforePrice : null;
   return (

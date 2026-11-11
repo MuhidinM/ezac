@@ -1,3 +1,6 @@
+import type { DuplicateStatus, PoolEntry, PoolStatus } from "@/lib/api/backoffice-types";
+import type { VerificationStatus } from "@/lib/api/types";
+
 /**
  * The disbursement pool list's state (kept in the URL by useListState) and
  * the query it sends. Pure, so it is unit-tested on its own.
@@ -99,16 +102,104 @@ export function poolStepBack(
 }
 
 /**
- * The query for a tab's count: the same filters as the list, one row only.
- * Each Pool tab shows how many households it holds under the current filters,
- * not only the open one (UAT 78).
+ * The list's filters without paging or order, for GET /admin/pool/counts
+ * (one call for every tab's count) and GET /admin/pool/export (the whole
+ * filtered list as CSV).
  */
-export function poolCountParams(params: URLSearchParams): URLSearchParams {
+export function poolFilterParams(params: URLSearchParams): URLSearchParams {
   const next = new URLSearchParams(params);
-  next.set("page", "1");
-  next.set("limit", "1");
-  // Order doesn't change a count.
-  next.delete("sort");
-  next.delete("order");
+  for (const key of ["page", "limit", "sort", "order"]) next.delete(key);
   return next;
+}
+
+/** GET /admin/pool/counts: rows per pool status under the current filters. */
+export type PoolCounts = Partial<Record<PoolStatus, number>>;
+
+/**
+ * A pool row with the fields beneficiary-service added on 10 and 11 November.
+ * `openPayout` is left out when payment-service didn't answer in time: that
+ * means "unknown", never "no payout".
+ */
+export type PoolRow = PoolEntry & {
+  verificationStatus?: VerificationStatus | null;
+  duplicateStatus?: DuplicateStatus | null;
+  hasBankAccount?: boolean | null;
+  pendingBankChange?: boolean | null;
+  openPayout?: boolean | null;
+  scoringConfigVersion?: number | null;
+  sharedBankAccountCount?: number | null;
+  bankAccountChangedAt?: string | null;
+  bankAccountChangedByName?: string | null;
+  poolStatusByName?: string | null;
+};
+
+/** Whether a payout is open for a pooled row; "unknown" when the pool couldn't ask payment-service. */
+export function openPayoutState(row: Pick<PoolRow, "openPayout">): "open" | "none" | "unknown" {
+  if (row.openPayout === true) return "open";
+  if (row.openPayout === false) return "none";
+  return "unknown";
+}
+
+/** The household has a bank account on file (the row's flag, or the account itself on older rows). */
+export function hasBankAccount(row: Pick<PoolRow, "hasBankAccount" | "bankAccount">) {
+  return row.hasBankAccount ?? Boolean(row.bankAccount?.accountNumber);
+}
+
+/** The reasons POST /admin/pool gives for a household it won't pool (409 NOT_ELIGIBLE). */
+export const NOT_ELIGIBLE_REASONS: Record<string, string> = {
+  NOT_VERIFIED: "Not verified yet. Verify the household first.",
+  DUPLICATE_UNRESOLVED: "Possible duplicate. Review it first.",
+  CONFIRMED_DUPLICATE: "Confirmed duplicate.",
+  NO_BANK_ACCOUNT: "No bank account on file.",
+  LIFECYCLE_INACTIVE: "The household is inactive.",
+  LIFECYCLE_GRADUATED: "The household has graduated.",
+  LIFECYCLE_EXITED: "The household has exited.",
+};
+
+export function notEligibleText(reason: string) {
+  return NOT_ELIGIBLE_REASONS[reason] ?? reason;
+}
+
+/**
+ * Why a row on the "Awaiting pool" tab can't be pooled, or null when it can,
+ * from the row's own fields. The server checks again and refuses the whole
+ * request (409 NOT_ELIGIBLE) when one household isn't eligible.
+ */
+export function poolBlock(row: Pick<PoolRow, "verificationStatus" | "duplicateStatus" | "hasBankAccount" | "bankAccount">): string | null {
+  const reasons: string[] = [];
+  if (row.verificationStatus && row.verificationStatus !== "verified") reasons.push(NOT_ELIGIBLE_REASONS.NOT_VERIFIED);
+  if (row.duplicateStatus === "POTENTIAL") reasons.push(NOT_ELIGIBLE_REASONS.DUPLICATE_UNRESOLVED);
+  if (row.duplicateStatus === "CONFIRMED_DUPLICATE") reasons.push(NOT_ELIGIBLE_REASONS.CONFIRMED_DUPLICATE);
+  if (!hasBankAccount(row)) reasons.push(NOT_ELIGIBLE_REASONS.NO_BANK_ACCOUNT);
+  return reasons.length ? reasons.join(" ") : null;
+}
+
+function text(value: unknown) {
+  return typeof value === "string" ? value : typeof value === "number" ? String(value) : null;
+}
+
+/**
+ * The per-household reasons of a 409 NOT_ELIGIBLE, by beneficiary id. The
+ * backend sends them as `errors: [{beneficiaryId, reason}]`; the BFF may pass
+ * them in `data` (as the list, or as `data.errors`) or as field errors keyed
+ * by the beneficiary id, so every shape is read.
+ */
+export function notEligibleByHousehold(data: unknown, fieldErrors: { field: string; message: string }[] = []) {
+  const record = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : null;
+  const list = Array.isArray(data) ? data : Array.isArray(record?.errors) ? record.errors : Array.isArray(record?.households) ? record.households : [];
+  const result: Record<string, string[]> = {};
+  const add = (id: string | null, reason: string | null) => {
+    if (!id || !reason) return;
+    (result[id] ??= []).push(notEligibleText(reason));
+  };
+  for (const item of list) {
+    if (!item || typeof item !== "object") continue;
+    const entry = item as Record<string, unknown>;
+    add(text(entry.beneficiaryId), text(entry.reason) ?? text(entry.code) ?? text(entry.message));
+  }
+  for (const error of fieldErrors) {
+    const id = error.field.replace(/^beneficiaryId[.:\[]?|\]$/g, "");
+    if (/^\d+$/.test(id)) add(id, error.message);
+  }
+  return result;
 }

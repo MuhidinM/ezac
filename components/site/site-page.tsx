@@ -7,6 +7,8 @@ type SitePageProps = {
   title: string;
   accent?: string;
   intro?: string;
+  /** The language of `title` and `intro` when it isn't the page's (admin text that fell back to English). */
+  lang?: string;
   children?: ReactNode;
 };
 
@@ -21,6 +23,7 @@ export function SitePage({
   title,
   accent,
   intro,
+  lang,
   children,
 }: SitePageProps) {
   return (
@@ -36,7 +39,7 @@ export function SitePage({
           />
           <div className="relative z-10 mx-auto max-w-4xl px-6 pt-36 pb-16 text-center sm:px-8 sm:pt-40 sm:pb-20">
             <p className="text-xs uppercase tracking-[0.16em] text-brand">{eyebrow}</p>
-            <h1 className="font-serif-display mt-3 text-4xl leading-none tracking-[-1.5px] text-navy sm:text-5xl md:text-6xl">
+            <h1 lang={lang} className="font-serif-display mt-3 text-4xl leading-none tracking-[-1.5px] text-navy sm:text-5xl md:text-6xl">
               {title}
               {accent && (
                 <>
@@ -46,7 +49,7 @@ export function SitePage({
               )}
             </h1>
             {intro && (
-              <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-muted-ink sm:text-lg">
+              <p lang={lang} className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-muted-ink sm:text-lg">
                 {intro}
               </p>
             )}

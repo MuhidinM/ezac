@@ -34,7 +34,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { BeneficiaryListItem, BranchListItem, PaginatedItems } from "@/lib/api/types";
+import type { BranchListItem, PaginatedItems } from "@/lib/api/types";
+import type { HouseholdListItem } from "@/lib/beneficiary/types";
 import { useResource } from "@/lib/api/use-resource";
 import { useSession } from "@/lib/auth/use-session";
 import { scoreRangeProblem } from "@/lib/backoffice/list-filters";
@@ -148,15 +149,15 @@ function Beneficiaries() {
     }
   }, []);
 
-  const { data, error, isLoading, reload } = useResource<PaginatedItems<BeneficiaryListItem>>(
+  const { data, error, isLoading, reload } = useResource<PaginatedItems<HouseholdListItem>>(
     `/bff/backoffice/beneficiaries?${toQuery(filters)}`,
   );
   const { data: branches } = useResource<PaginatedItems<BranchListItem>>(
     isAdmin ? "/bff/admin/branches?page=1&limit=100" : null,
   );
-  // The active scoring config's maximum, read once the score filter is shown
-  // or a row has no maxScore of its own.
-  const scoreMax = useScoreMax(showAdvanced || (data?.items ?? []).some((item) => item.score != null && !item.maxScore));
+  // The active scoring config's maximum, for the score filter. Rows carry
+  // their own maxScore.
+  const scoreMax = useScoreMax(showAdvanced);
   const scoreProblem = scoreRangeProblem(draftScore.min, draftScore.max, scoreMax);
 
   function update<K extends keyof Filters>(key: K, value: Filters[K]) {
@@ -490,7 +491,10 @@ function Beneficiaries() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <ScoreMeter score={item.score} max={item.maxScore || scoreMax} risk={item.riskCategory} />
+                    <ScoreMeter score={item.score} max={item.maxScore} risk={item.riskCategory} />
+                    {item.score != null && item.scoringConfigVersion != null ? (
+                      <p className="mt-0.5 text-xs text-black/60">Scoring version {item.scoringConfigVersion}</p>
+                    ) : null}
                   </TableCell>
                   <TableCell>
                     <RiskBadge risk={item.riskCategory} />

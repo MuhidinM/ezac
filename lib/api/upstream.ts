@@ -223,6 +223,15 @@ function clientMessage(record: Record<string, unknown>, status: number): string 
  * are validation feedback). 5xx: a fixed message plus the request id; the
  * upstream text only goes to the server log.
  */
+/**
+ * Error items that are not field errors, e.g. 409 NOT_ELIGIBLE's
+ * [{ beneficiaryId, reason }]: kept as data.errors so the page can show them per row.
+ */
+function unlabelledErrors(value: unknown): { errors: unknown[] } | null {
+  if (!Array.isArray(value) || value.length === 0 || parseFieldErrors(value).length > 0) return null;
+  return { errors: value };
+}
+
 export function upstreamError(call: UpstreamCall, body: unknown, status = call.response.status): ApiError {
   const record = isRecord(body) ? body : {};
 
@@ -238,7 +247,7 @@ export function upstreamError(call: UpstreamCall, body: unknown, status = call.r
     status,
     parseFieldErrors(record.errors),
     // beneficiary-service sends 409 workflow details as `details`, the others as `data`.
-    record.data ?? record.details ?? null,
+    record.data ?? record.details ?? unlabelledErrors(record.errors),
     code,
     // Quote the backend's own id when it sends one, so support can find it in their logs.
     text(record.requestId) ?? call.requestId,

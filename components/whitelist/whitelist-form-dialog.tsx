@@ -24,13 +24,21 @@ import { ApiError, errorMessage, fieldErrorMap } from "@/lib/api/errors";
 import type { BeneficiaryListItem, PaginatedItems } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
 import { WHITELIST_REASONS } from "@/lib/backoffice/options";
-import { whitelistBlocker, whitelistCaution } from "@/lib/backoffice/whitelist";
+import { idempotencyHeader, newIdempotencyKey } from "@/lib/api/idempotency";
+import {
+  EMERGENCY_NOTE_MIN,
+  isEmergencyFastTrack,
+  noteReplacesFiles,
+  whitelistBlocker,
+  whitelistCaution,
+  whitelistEvidenceProblem,
+  WHITELIST_EVIDENCE_TYPES,
+} from "@/lib/backoffice/whitelist";
 
-const ACCEPTED = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
-/** Per file, as for assessment documents; the server refuses uploads over 25 MB in total. */
-const MAX_FILE_BYTES = 5 * 1024 * 1024;
-
-/** ADMIN adds directly (active at once); field officers and branches send a request ADMIN decides on. */
+/**
+ * ADMIN adds through POST /admin/whitelist; field officers and branches send a request.
+ * Either way the entry waits for an ADMIN other than the requester to approve it.
+ */
 export const ADMIN_WHITELIST_PATH = "/bff/backoffice/admin/whitelist";
 
 export function requestPath(beneficiaryId: string) {
@@ -162,9 +170,12 @@ export function WhitelistFormDialog({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
 
+  // One Idempotency-Key per add: kept across retries of the same attempt, new after a success.
+  const idempotencyKey = useRef<string | null>(null);
+
   const minJustification = reasonCode === "other" ? 30 : 20;
-  const isDisaster = reasonCode === "disaster_or_displacement_emergency";
-  const noteReplacesFiles = isDisaster && communityNote.trim().length >= 20;
+  const emergency = isEmergencyFastTrack(effect, reasonCode);
+  const noteInsteadOfFiles = noteReplacesFiles(effect, reasonCode, communityNote);
   const isAdmin = mode === "admin";
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -179,25 +190,9 @@ export function WhitelistFormDialog({
       setError(`The justification needs at least ${minJustification} characters.`);
       return;
     }
-    if (files.length === 0 && !noteReplacesFiles) {
-      setError(
-        isDisaster
-          ? "Attach evidence, or write a community verification note of at least 20 characters."
-          : "Attach at least one evidence file.",
-      );
-      return;
-    }
-    if (files.length > 5) {
-      setError("Attach at most 5 files.");
-      return;
-    }
-    if (files.some((file) => !ACCEPTED.includes(file.type))) {
-      setError("Evidence must be PDF, JPEG, PNG or WebP.");
-      return;
-    }
-    const tooBig = files.find((file) => file.size > MAX_FILE_BYTES);
-    if (tooBig) {
-      setError(`"${tooBig.name}" is larger than 5 MB. Attach a smaller file or a scan at lower quality.`);
+    const evidenceProblem = whitelistEvidenceProblem({ effect, reasonCode, communityNote }, files);
+    if (evidenceProblem) {
+      setError(evidenceProblem);
       return;
     }
 
@@ -211,7 +206,13 @@ export function WhitelistFormDialog({
 
     setIsSaving(true);
     try {
-      const entry = await apiClient<WhitelistEntry>(isAdmin ? ADMIN_WHITELIST_PATH : requestPath(picked.id), { method: "POST", body });
+      idempotencyKey.current ??= newIdempotencyKey();
+      const entry = await apiClient<WhitelistEntry>(isAdmin ? ADMIN_WHITELIST_PATH : requestPath(picked.id), {
+        method: "POST",
+        body,
+        headers: idempotencyHeader(idempotencyKey.current),
+      });
+      idempotencyKey.current = null;
       setPicked(beneficiary ?? null);
       setReasonCode("");
       setJustification("");
@@ -220,17 +221,9 @@ export function WhitelistFormDialog({
       if (fileRef.current) fileRef.current.value = "";
       onSaved(entry);
     } catch (submitError) {
-      // Direct add is missing (404/405/501) or broken (500 for every input in UAT) upstream;
-      // either way the admin can't fix it from here, so say what to do instead. A 403 is a
-      // real refusal (no permission): show the server's own message for it.
-      const unsupported =
-        isAdmin && submitError instanceof ApiError && [404, 405, 500, 501].includes(submitError.status);
-      setError(
-        unsupported
-          ? "Adding a household directly isn't available yet. Until it is, ask a field officer or the branch to send a whitelist request, then approve it on the Whitelist page."
-          : errorMessage(submitError, isAdmin ? "Couldn't add to the whitelist" : "Couldn't send the request"),
-      );
-      if (submitError instanceof ApiError && !unsupported) setFieldErrors(fieldErrorMap(submitError.errors));
+      // The backend's own words: 404 for an unknown household, 400 with the field that is missing.
+      setError(errorMessage(submitError, isAdmin ? "Couldn't add to the whitelist" : "Couldn't send the request"));
+      if (submitError instanceof ApiError) setFieldErrors(fieldErrorMap(submitError.errors));
     } finally {
       setIsSaving(false);
     }
@@ -244,7 +237,7 @@ export function WhitelistFormDialog({
             <DialogTitle className="text-navy">{isAdmin ? "Add to whitelist" : "Request whitelist"}</DialogTitle>
             <DialogDescription>
               {isAdmin
-                ? "Active straight away. It changes the pool order, never the score."
+                ? "Another admin approves it before it takes effect. It changes the pool order, never the score."
                 : "An administrator reviews the request. You can't decide on your own request."}
             </DialogDescription>
           </DialogHeader>
@@ -260,7 +253,7 @@ export function WhitelistFormDialog({
             </fieldset>
           ) : null}
 
-          <FormField label="Effect" required>
+          <FormField label="Effect" required error={fieldErrors.effect}>
             {/* The name groups the hidden native radios Radix adds for the required field; without
                 it a spec-following browser (Firefox) reads the unchosen effect as missing and blocks Save. */}
             <ChoiceCards name="effect" value={effect} onValueChange={setEffect} options={EFFECTS} />
@@ -288,7 +281,7 @@ export function WhitelistFormDialog({
           <FormField
             label="Community verification note"
             htmlFor="wl-note"
-            hint={isDisaster ? "For disasters, a note of 20+ characters can replace the files" : "Optional"}
+            hint={emergency ? `For a fast-track emergency, a note of ${EMERGENCY_NOTE_MIN}+ characters can replace the files` : "Optional"}
             error={fieldErrors.communityVerificationNote}
           >
             <Textarea id="wl-note" rows={2} value={communityNote} onChange={(event) => setCommunityNote(event.target.value)} />
@@ -296,7 +289,7 @@ export function WhitelistFormDialog({
           <FormField
             label="Evidence"
             htmlFor="wl-files"
-            required={!noteReplacesFiles}
+            required={!noteInsteadOfFiles}
             hint="1–5 files: PDF, JPEG, PNG or WebP, up to 5 MB each"
             error={fieldErrors.files}
           >
@@ -310,7 +303,7 @@ export function WhitelistFormDialog({
                 ref={fileRef}
                 type="file"
                 multiple
-                accept={ACCEPTED.join(",")}
+                accept={WHITELIST_EVIDENCE_TYPES.join(",")}
                 onChange={(event) => setFiles(Array.from(event.target.files ?? []))}
                 className="block w-full text-sm text-black/60 file:mr-3 file:rounded-md file:border-0 file:bg-navy file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white"
               />

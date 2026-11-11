@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { POOL_LIST_DEFAULTS, poolFilterErrors, poolQuery, poolStepBack } from "@/lib/zakat/pool-list";
+import {
+  hasBankAccount,
+  notEligibleByHousehold,
+  openPayoutState,
+  POOL_LIST_DEFAULTS,
+  poolBlock,
+  poolFilterErrors,
+  poolQuery,
+  poolStepBack,
+} from "@/lib/zakat/pool-list";
 
 const query = (patch: Partial<typeof POOL_LIST_DEFAULTS>) => poolQuery({ ...POOL_LIST_DEFAULTS, ...patch }, 270, 25);
 
@@ -46,5 +55,41 @@ describe("poolStepBack", () => {
     expect(poolStepBack(page(0, 2), 3)).toBe(2);
     expect(poolStepBack(page(0, 1), 5)).toBe(1);
     expect(poolStepBack(page(0, 0), 2)).toBe(1);
+  });
+});
+
+describe("pool rows", () => {
+  const row = { verificationStatus: "verified" as const, duplicateStatus: "NONE" as const, hasBankAccount: true };
+
+  it("reads an open payout as open, none or unknown", () => {
+    expect(openPayoutState({ openPayout: true })).toBe("open");
+    expect(openPayoutState({ openPayout: false })).toBe("none");
+    // Left out when payment-service didn't answer: unknown, never "no".
+    expect(openPayoutState({})).toBe("unknown");
+  });
+
+  it("blocks pooling from the row's own fields", () => {
+    expect(poolBlock(row)).toBeNull();
+    expect(poolBlock({ ...row, verificationStatus: "pending" })).toMatch(/Not verified/);
+    expect(poolBlock({ ...row, duplicateStatus: "POTENTIAL" })).toMatch(/duplicate/);
+    expect(poolBlock({ ...row, hasBankAccount: false })).toMatch(/No bank account/);
+    // Older rows without the flag fall back to the account itself.
+    expect(hasBankAccount({ bankAccount: { accountNumber: "1000" } as never })).toBe(true);
+  });
+
+  it("reads NOT_ELIGIBLE reasons per household from every shape", () => {
+    const list = [
+      { beneficiaryId: "12", reason: "NOT_VERIFIED" },
+      { beneficiaryId: 12, reason: "NO_BANK_ACCOUNT" },
+      { beneficiaryId: "13", reason: "SOMETHING_NEW" },
+    ];
+    const expected = {
+      "12": ["Not verified yet. Verify the household first.", "No bank account on file."],
+      "13": ["SOMETHING_NEW"],
+    };
+    expect(notEligibleByHousehold(list)).toEqual(expected);
+    expect(notEligibleByHousehold({ errors: list })).toEqual(expected);
+    expect(notEligibleByHousehold(null, [{ field: "beneficiaryId[12]", message: "Not verified" }])).toEqual({ "12": ["Not verified"] });
+    expect(notEligibleByHousehold(null)).toEqual({});
   });
 });

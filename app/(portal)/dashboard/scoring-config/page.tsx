@@ -12,17 +12,21 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { DetailList, Panel } from "@/components/dashboard/panel";
 import { RequireRole } from "@/components/dashboard/require-role";
 import { PanelSkeleton } from "@/components/dashboard/skeletons";
-import { ConfigEditor } from "@/components/scoring/config-editor";
+import { useMyUserId } from "@/lib/auth/use-my-user-id";
+import { ANOTHER_ADMIN_MESSAGE, ConfigEditor } from "@/components/scoring/config-editor";
 import { ConfigViewer } from "@/components/scoring/config-viewer";
+import { ActivationHistory, VersionHistory } from "@/components/scoring/version-history";
 import { needLevels, recommendationLabel, type NeedLevels } from "@/components/scoring/scoring-schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api/client";
+import { ApiError, isSameApprover } from "@/lib/api/errors";
 import { useResource } from "@/lib/api/use-resource";
 import { useLeaveGuard } from "@/lib/hooks/use-leave-guard";
 import { formatDateTime } from "@/lib/beneficiary/format";
 import {
+  activationNeedsAnotherAdmin,
   draftBaseline,
   draftToContinue,
   type ScoringConfigVersion,
@@ -48,7 +52,10 @@ function ScoringConfigView() {
   const [actionError, setActionError] = useState<unknown>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [rollbackOpen, setRollbackOpen] = useState(false);
+  // Bumped after an activation, so the history panels load again.
+  const [historyKey, setHistoryKey] = useState(0);
   const router = useRouter();
+  const myUserId = useMyUserId();
   // Whether the open draft has unsaved edits. State, so the link guard below
   // switches on and off with it. setState is stable, so the editor's effect
   // that reports it doesn't re-run on every render.
@@ -192,6 +199,7 @@ function ScoringConfigView() {
                 baseline={draftBaseline(current, list)}
                 schema={schema.data}
                 apiBase={API}
+                myUserId={myUserId}
                 onDirtyChange={setDraftDirty}
                 onSaved={(saved) => versions.mutate(list.map((item) => (item.version === saved.version ? saved : item)))}
                 onDeleted={() => {
@@ -202,6 +210,12 @@ function ScoringConfigView() {
                 onActivated={() => {
                   setSelected(current.version);
                   setNotice(`v${current.version} is now active for new submissions.`);
+                  setHistoryKey((value) => value + 1);
+                  versions.reload();
+                }}
+                onGone={() => {
+                  setSelected(null);
+                  setNotice(`Draft v${current.version} was deleted or activated by another admin.`);
                   versions.reload();
                 }}
               />
@@ -221,7 +235,7 @@ function ScoringConfigView() {
                     <CopyPlus />
                     Make a draft from this
                   </Button>
-                  {!current.active ? (
+                  {!current.active && !activationNeedsAnotherAdmin(current, myUserId) ? (
                     <Button size="sm" onClick={() => setRollbackOpen(true)}>
                       <History />
                       Activate v{current.version}
@@ -231,8 +245,24 @@ function ScoringConfigView() {
               }
             />
           )}
+          {current && !current.active && current.status === "PUBLISHED" && activationNeedsAnotherAdmin(current, myUserId) ? (
+            <InlineAlert tone="info" title="Waiting for another admin" className="mt-4">
+              You made or last changed v{current.version}, so another admin must activate it.
+            </InlineAlert>
+          ) : null}
+          {current ? (
+            <div className="mt-6">
+              <VersionHistory
+                key={`${current.version}-${current.updatedAt ?? ""}-${historyKey}`}
+                apiBase={API}
+                version={current.version}
+              />
+            </div>
+          ) : null}
         </div>
       </div>
+
+      <ActivationHistory key={historyKey} apiBase={API} />
 
       {current && current.status === "PUBLISHED" && !current.active ? (
         // Keyed by version: a reason typed for one version never carries over to another.
@@ -244,6 +274,7 @@ function ScoringConfigView() {
           onOpenChange={setRollbackOpen}
           onActivated={() => {
             setNotice(`v${current.version} is active again.`);
+            setHistoryKey((value) => value + 1);
             versions.reload();
           }}
         />
@@ -290,10 +321,17 @@ function ReactivateDialog({
       confirmLabel="Activate"
       confirmDisabled={!reason.trim()}
       onConfirm={async () => {
-        await apiClient(`${API}/${version.version}/activate`, {
-          method: "POST",
-          body: JSON.stringify({ reason: reason.trim() }),
-        });
+        try {
+          await apiClient(`${API}/${version.version}/activate`, {
+            method: "POST",
+            body: JSON.stringify({ reason: reason.trim() }),
+          });
+        } catch (activateError) {
+          if (isSameApprover(activateError) || (activateError instanceof ApiError && activateError.status === 403)) {
+            throw new Error(ANOTHER_ADMIN_MESSAGE);
+          }
+          throw activateError;
+        }
         onActivated();
       }}
     >

@@ -30,6 +30,7 @@ import type { BranchCreateResponse, BranchListItem, PaginatedItems } from "@/lib
 import { useResource } from "@/lib/api/use-resource";
 import { ETHIOPIAN_REGIONS } from "@/lib/constants/regions";
 import { branchContact } from "@/lib/branches/contact";
+import { oneTimeCredentials } from "@/lib/branches/credentials";
 import { useListState } from "@/lib/hooks/use-list-state";
 
 const PAGE_SIZE = 20;
@@ -87,9 +88,7 @@ function Branches() {
     <section className="space-y-6">
       {credentials ? (
         <CredentialsOnceDialog
-          login={branchContact(credentials).phone ?? ""}
-          initialPassword={credentials.initialPassword}
-          passwordChangeRequired={credentials.passwordChangeRequired}
+          {...oneTimeCredentials(credentials, branchContact(credentials).phone)}
           onClose={() => {
             const id = credentials.id;
             setCredentials(null);
@@ -132,7 +131,7 @@ function Branches() {
             wrapperClassName="min-w-60 flex-[2]"
             value={draftSearch}
             onChange={(event) => setDraftSearch(event.target.value)}
-            placeholder="Search name or location"
+            placeholder="Search name, place or officer"
           />
           <div className="min-w-44 flex-1">
             <NativeSelect

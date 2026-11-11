@@ -10,11 +10,16 @@ import { INTL_LOCALE, localizedPath } from "@/lib/i18n/config";
 import { format } from "@/lib/i18n/messages";
 import { getDictionary, localeFromParam } from "@/lib/i18n/server";
 import { pageMetadata } from "@/lib/seo";
-import { breadcrumbJsonLd } from "@/lib/structured-data";
-import { mediaSrc } from "@/lib/zakat/content";
-import { getCause, isListedClosed } from "@/lib/zakat/impact";
+import { articleJsonLd, breadcrumbJsonLd } from "@/lib/structured-data";
+import { causeProgressPercent, foreignLang, imageSources, mediaSrc } from "@/lib/zakat/content";
+import { getCause } from "@/lib/zakat/impact";
 
 export const revalidate = 300;
+
+/** The cover is the left column of a max-w-5xl grid beside a 320px panel. */
+const COVER_SIZES = "(min-width: 1024px) 640px, 100vw";
+/** Gallery tiles: 2 columns, 3 from sm, inside the same column. */
+const GALLERY_SIZES = "(min-width: 1024px) 210px, (min-width: 640px) 33vw, 50vw";
 
 const causePath = (id: string) => `/causes/${encodeURIComponent(id)}`;
 
@@ -47,10 +52,9 @@ export async function generateMetadata({ params }: PageProps<"/[lang]/causes/[id
   const { lang, id } = await params;
   const locale = localeFromParam(lang);
   const { giving } = await getDictionary(locale);
-  const cause = await getCause(id);
+  const cause = await getCause(id, locale);
   if (!cause) return { title: giving.cause.meta.fallbackTitle, robots: { index: false, follow: true } };
 
-  // The public cause has no publish or update date, so it is a "website", not an "article".
   return pageMetadata({
     locale,
     path: causePath(id),
@@ -60,7 +64,10 @@ export async function generateMetadata({ params }: PageProps<"/[lang]/causes/[id
       .filter(Boolean)
       .join(", "),
     image: mediaSrc(cause.imageUrl),
-    imageAlt: format(giving.cause.coverAlt, { title: cause.title }),
+    imageAlt: cause.imageAltText || format(giving.cause.coverAlt, { title: cause.title }),
+    type: "article",
+    publishedTime: cause.publishedAt,
+    modifiedTime: cause.updatedAt,
   });
 }
 
@@ -74,20 +81,26 @@ export default async function CausePage({ params }: PageProps<"/[lang]/causes/[i
 
   // getCause throws when the zakat service is unavailable (the error page
   // offers Try again), so null here really means "no such public cause".
-  const cause = await getCause(id);
+  const cause = await getCause(id, locale);
   if (!cause) notFound();
 
-  const pct = cause.progress != null ? Math.round(cause.progress * 100) : null;
+  const pct = causeProgressPercent(cause);
   // A cause can be over-funded: the bar stops at full and says so.
   const goalReached = pct != null && pct >= 100;
   const progressText = goalReached ? t.goalReached : format(t.percentOfGoal, { pct: pct ?? 0 });
-  // status is only sent once the backend adds it; until then the public closed
-  // list tells a cause closed early, and the end date the rest.
-  const closedEarly =
-    cause.status === "CLOSED" || (cause.status === undefined && !hasEnded(cause.endsOn) && (await isListedClosed(cause.id)));
-  const ended = closedEarly || hasEnded(cause.endsOn);
-  const cover = mediaSrc(cause.imageUrl);
-  const gallery = (cause.images ?? []).map(mediaSrc).filter((src): src is string => Boolean(src) && src !== cover);
+  // Causes close on their own after the end date (hourly), or earlier by an
+  // admin; the end date covers the hour in between.
+  const closed = cause.status === "closed";
+  const ended = closed || hasEnded(cause.endsOn);
+  const textLang = foreignLang(cause.lang, locale);
+  const cover = imageSources(cause.imageUrl, cause.imageVariants);
+  const coverAlt = cause.imageAltText || format(t.coverAlt, { title: cause.title });
+  const gallery = (
+    cause.gallery ?? (cause.images ?? []).map((url) => ({ url, altText: null, variants: null }))
+  ).flatMap((item) => {
+    const sources = imageSources(item.url, item.variants);
+    return sources && sources.src !== cover?.src ? [{ ...sources, altText: item.altText }] : [];
+  });
   const category = causeCategoryLabel(giving.causes.categories, cause.category);
 
   const primary = {
@@ -99,15 +112,22 @@ export default async function CausePage({ params }: PageProps<"/[lang]/causes/[i
 
   return (
     <>
-      <SitePage eyebrow={[category, cause.region].filter(Boolean).join(" · ")} title={cause.title} intro={cause.description}>
+      <SitePage
+        eyebrow={[category, cause.region].filter(Boolean).join(" · ")}
+        title={cause.title}
+        intro={cause.description}
+        lang={textLang}
+      >
         <Section>
           <div className="mx-auto grid max-w-5xl gap-10 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div className="space-y-8">
               {cover ? (
                 // eslint-disable-next-line @next/next/no-img-element -- served by the zakat service via /bff/media
                 <img
-                  src={cover}
-                  alt={format(t.coverAlt, { title: cause.title })}
+                  src={cover.src}
+                  srcSet={cover.srcSet}
+                  sizes={cover.srcSet ? COVER_SIZES : undefined}
+                  alt={coverAlt}
                   width={1600}
                   height={900}
                   fetchPriority="high"
@@ -116,16 +136,20 @@ export default async function CausePage({ params }: PageProps<"/[lang]/causes/[i
               ) : null}
               {cause.body ? (
                 // Plain text from the admin; line breaks kept, never rendered as HTML.
-                <p className="text-base leading-relaxed whitespace-pre-line text-black/75">{cause.body}</p>
+                <p lang={textLang} className="text-base leading-relaxed whitespace-pre-line text-black/75">
+                  {cause.body}
+                </p>
               ) : null}
               {gallery.length > 0 ? (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {gallery.map((src, index) => (
+                  {gallery.map((image, index) => (
                     // eslint-disable-next-line @next/next/no-img-element -- served by the zakat service via /bff/media
                     <img
-                      key={src}
-                      src={src}
-                      alt={format(t.galleryAlt, { n: index + 1, count: gallery.length, title: cause.title })}
+                      key={image.src}
+                      src={image.src}
+                      srcSet={image.srcSet}
+                      sizes={image.srcSet ? GALLERY_SIZES : undefined}
+                      alt={image.altText || format(t.galleryAlt, { n: index + 1, count: gallery.length, title: cause.title })}
                       width={800}
                       height={800}
                       className="aspect-square w-full rounded-2xl object-cover"
@@ -166,15 +190,17 @@ export default async function CausePage({ params }: PageProps<"/[lang]/causes/[i
                 {cause.region ? (
                   <div className="flex justify-between gap-4">
                     <dt className="text-muted-ink">{t.region}</dt>
-                    <dd className="text-navy">{cause.region}</dd>
+                    <dd lang={foreignLang("en", locale)} className="text-navy">
+                      {cause.region}
+                    </dd>
                   </div>
                 ) : null}
-                {closedEarly && cause.closedAt ? (
+                {closed && cause.closedAt ? (
                   <div className="flex justify-between gap-4">
                     <dt className="text-muted-ink">{t.closed}</dt>
                     <dd className="text-navy">{formatDay(cause.closedAt, intlLocale)}</dd>
                   </div>
-                ) : cause.endsOn && !closedEarly ? (
+                ) : cause.endsOn ? (
                   <div className="flex justify-between gap-4">
                     <dt className="text-muted-ink">{ended ? t.ended : t.ends}</dt>
                     <dd className="text-navy">{formatDay(cause.endsOn, intlLocale)}</dd>
@@ -203,11 +229,23 @@ export default async function CausePage({ params }: PageProps<"/[lang]/causes/[i
         <CtaBand title={t.cta.title} body={t.cta.body} primary={primary} secondary={secondary} />
       </SitePage>
       <JsonLd
-        data={breadcrumbJsonLd(locale, [
-          { name: giving.breadcrumbs.home, path: "/" },
-          { name: giving.causes.breadcrumb, path: "/causes" },
-          { name: cause.title, path: causePath(id) },
-        ])}
+        data={[
+          articleJsonLd({
+            locale,
+            path: causePath(id),
+            headline: cause.title,
+            description: cause.description,
+            image: cover?.src,
+            datePublished: cause.publishedAt,
+            dateModified: cause.updatedAt,
+            inLanguage: textLang,
+          }),
+          breadcrumbJsonLd(locale, [
+            { name: giving.breadcrumbs.home, path: "/" },
+            { name: giving.causes.breadcrumb, path: "/causes" },
+            { name: cause.title, path: causePath(id) },
+          ]),
+        ]}
       />
     </>
   );

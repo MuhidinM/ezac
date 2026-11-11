@@ -3,14 +3,16 @@
 import { type FormEvent, Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowDownUp, RefreshCw, SlidersHorizontal, X } from "lucide-react";
+import { ArrowDownUp, Download, RefreshCw, SlidersHorizontal, X } from "lucide-react";
 
+import { downloadName, exportError, saveBlob, truncationNote } from "@/components/assessment/csv-export";
 import {
   AssessmentStatusBadge,
   RiskBadge,
   ScoreMeter,
 } from "@/components/backoffice/status-badges";
 import { ErrorAlert } from "@/components/dashboard/error-alert";
+import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { FormField } from "@/components/dashboard/form-field";
 import { ListPagination } from "@/components/dashboard/list-pagination";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -37,7 +39,6 @@ import { useResource } from "@/lib/api/use-resource";
 import { useSession } from "@/lib/auth/use-session";
 import { isEditable } from "@/lib/backoffice/assessment-steps";
 import { formatDate } from "@/lib/backoffice/format";
-import { useScoreMax } from "@/lib/backoffice/score-max";
 import { dateRangeProblem } from "@/lib/backoffice/list-filters";
 import { formatDateTime } from "@/lib/beneficiary/format";
 import { useListState } from "@/lib/hooks/use-list-state";
@@ -172,7 +173,8 @@ function AssessmentsView() {
   // A reversed date range can't match anything: say so and leave it out of the request.
   const dateProblem = dateRangeProblem(filters.from, filters.to);
   const [sort, order] = filters.sort.split(":");
-  const params = new URLSearchParams({ page: String(filters.page), limit: String(PAGE_SIZE) });
+  // The filters, shared by the list and the CSV export.
+  const params = new URLSearchParams();
   if (filters.status) params.set("status", filters.status);
   if (filters.search) params.set("search", filters.search);
   if (filters.riskCategory) params.set("riskCategory", filters.riskCategory);
@@ -188,9 +190,17 @@ function AssessmentsView() {
     params.set("order", order);
   }
 
+  const filterQuery = params.toString();
+  params.set("page", String(filters.page));
+  params.set("limit", String(PAGE_SIZE));
+
   const { data, error, isLoading, reload } = useResource<PaginatedItems<AssessmentListItem>>(
     `/bff/backoffice/assessments?${params.toString()}`,
   );
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportProblem, setExportProblem] = useState<unknown>(null);
+  // The truncation note belongs to the filters it was exported with.
+  const [exportNote, setExportNote] = useState<{ query: string; text: string } | null>(null);
   const { data: branches } = useResource<PaginatedItems<BranchListItem>>(
     isAdmin && showFilters ? "/bff/admin/branches?page=1&limit=100" : null,
   );
@@ -201,8 +211,8 @@ function AssessmentsView() {
   const officer = isFieldOfficer(session);
   const copy = pageCopy(session);
   const rows = data?.items ?? [];
-  // Only rows without their own maxScore need the live maximum.
-  const scoreMax = useScoreMax(rows.some((item) => item.totalScore != null && !item.maxScore));
+  // ADMIN exports every branch, BRANCH its own; field officers have no export.
+  const canExport = isAdmin || (session?.isBranch ?? false);
   const hasFilters = !!filters.search || activeFilters > 0;
 
   function onSearch(event: FormEvent<HTMLFormElement>) {
@@ -214,6 +224,26 @@ function AssessmentsView() {
     setDraftSearch("");
     // The tab and sort stay; only the search and filters go.
     setList({ search: "", riskCategory: "", branchId: "", officerId: "", dateField: "assessmentDate", from: "", to: "" });
+  }
+
+  /** The whole filtered list as CSV (at most 10,000 rows), through the BFF. */
+  async function exportCsv() {
+    setIsExporting(true);
+    setExportProblem(null);
+    setExportNote(null);
+    try {
+      const response = await fetch(`/bff/backoffice/assessments/export${filterQuery ? `?${filterQuery}` : ""}`, {
+        cache: "no-store",
+      });
+      if (!response.ok) throw await exportError(response, "Couldn't export the list. Try again.");
+      saveBlob(await response.blob(), downloadName(response.headers.get("Content-Disposition"), "assessments.csv"));
+      const note = truncationNote(response.headers, "assessments");
+      setExportNote(note ? { query: filterQuery, text: note } : null);
+    } catch (problem) {
+      setExportProblem(problem);
+    } finally {
+      setIsExporting(false);
+    }
   }
 
   function href(item: AssessmentListItem) {
@@ -228,12 +258,29 @@ function AssessmentsView() {
         title={copy.title}
         description={copy.description}
         actions={
-          <Button variant="outline" onClick={reload} disabled={isLoading}>
-            <RefreshCw />
-            Refresh
-          </Button>
+          <>
+            {canExport ? (
+              <Button
+                variant="outline"
+                onClick={() => void exportCsv()}
+                loading={isExporting}
+                loadingText="Exporting…"
+                disabled={!data || data.pagination.totalItems === 0}
+              >
+                <Download />
+                Export CSV
+              </Button>
+            ) : null}
+            <Button variant="outline" onClick={reload} disabled={isLoading}>
+              <RefreshCw />
+              Refresh
+            </Button>
+          </>
         }
       />
+
+      <ErrorAlert error={exportProblem} onRetry={() => void exportCsv()} title="Couldn't export the list" />
+      {exportNote && exportNote.query === filterQuery ? <InlineAlert tone="warning">{exportNote.text}</InlineAlert> : null}
 
       <Panel flush>
         <Tabs value={filters.status} onValueChange={(status) => setList({ status })} activationMode="manual">
@@ -414,7 +461,7 @@ function AssessmentsView() {
                         <AssessmentStatusBadge status={item.status} />
                       </TableCell>
                       <TableCell>
-                        <ScoreMeter score={item.totalScore} max={item.maxScore || scoreMax} risk={item.riskCategory} />
+                        <ScoreMeter score={item.totalScore} max={item.maxScore} risk={item.riskCategory} />
                       </TableCell>
                       <TableCell>
                         {item.totalScore != null ? <RiskBadge risk={item.riskCategory} /> : <span className="text-black/60">—</span>}

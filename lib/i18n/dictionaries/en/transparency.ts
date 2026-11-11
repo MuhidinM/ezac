@@ -69,6 +69,8 @@ const transparency = {
       title: "The numbers",
       asOf: "Published figures as of {date}.",
       noDate: "Published figures. A dash means the figure hasn't been published yet.",
+      /** Under the figures when some of the money was given at branches. */
+      offline: "Includes {amount} given at branches, counted up to {date}.",
     },
     stats: {
       totalCollected: "Zakat collected (all time)",
@@ -372,7 +374,13 @@ const transparency = {
       intro:
         "More points means greater need. Where the score lands sets the need level and the recommendation the branch sees; the branch still decides.",
       example: "Example",
-      /** Labels inside the example bar, low to high. */
+      /** Shown instead of "Example" when the bands in force are published. */
+      inForce: "In force since {date}",
+      /** A level's score range, from the bands in force. */
+      range: "{min} to {max}",
+      /** Replaces `note` when the bands in force are shown. */
+      liveNote: "These are the bands in force now (points table version {version}). They can change; each score keeps the version it was calculated with.",
+      /** Labels inside the bar (the bands in force, or the example), low to high. */
       bands: {
         low: "Low need",
         medium: "Medium",

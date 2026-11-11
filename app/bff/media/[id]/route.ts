@@ -20,13 +20,18 @@ function empty(status: number) {
   return new Response(null, { status, headers: { "Cache-Control": "no-store" } });
 }
 
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+/** The smaller copies zakat-engine keeps of each image (imageVariants). */
+const SIZES = new Set(["thumbnail", "medium", "large"]);
+
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!/^\d{1,18}$/.test(id)) return empty(404);
+  const size = new URL(request.url).searchParams.get("size");
+  const query = size && SIZES.has(size) ? `?size=${size}` : "";
 
   let call: UpstreamCall;
   try {
-    call = await upstreamFetch(`/api/zakat/v1/media/${id}`, { cache: "no-store" }, {
+    call = await upstreamFetch(`/api/zakat/v1/media/${id}${query}`, { cache: "no-store" }, {
       label: "media",
       timeoutMs: UPSTREAM_FILE_TIMEOUT_MS,
     });

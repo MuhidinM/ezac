@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
 
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
@@ -21,6 +21,7 @@ import type {
 } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
 import { ApiError, errorMessage, fieldErrorMap } from "@/lib/api/errors";
+import { idempotencyHeader, newIdempotencyKey } from "@/lib/api/idempotency";
 import { isValidEthiopianPhone, normalizePhoneToE164 } from "@/lib/registration/phone";
 
 type Props = {
@@ -37,6 +38,9 @@ export function CreateOfficerDialog({ open, onOpenChange, onCreated }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // One key per new officer: a retry of the same form (a timeout, a double
+  // click) reuses it, so the officer is never created twice.
+  const idempotencyKey = useRef(newIdempotencyKey());
 
   function reset() {
     setFullName("");
@@ -45,6 +49,9 @@ export function CreateOfficerDialog({ open, onOpenChange, onCreated }: Props) {
     setBranchId("");
     setError(null);
     setFieldErrors({});
+    // A cleared form is a new officer: a lost answer for the old one must not
+    // make the next create clash with its key (422 IDEMPOTENCY_KEY_REUSED).
+    idempotencyKey.current = newIdempotencyKey();
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -69,7 +76,7 @@ export function CreateOfficerDialog({ open, onOpenChange, onCreated }: Props) {
     try {
       const result = await apiClient<CreateFieldOfficerResponse>(
         "/bff/backoffice/admin/field-officers",
-        { method: "POST", body: JSON.stringify(body) },
+        { method: "POST", body: JSON.stringify(body), headers: idempotencyHeader(idempotencyKey.current) },
       );
       reset();
       onCreated(result);

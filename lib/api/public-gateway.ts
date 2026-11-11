@@ -3,7 +3,7 @@ import "server-only";
 import { gatewayRequest } from "@/lib/api/gateway";
 import { UPSTREAM_FILE_TIMEOUT_MS } from "@/lib/api/upstream";
 
-/** A gateway endpoint that needs no access token (registration, set-password). */
+/** A gateway endpoint that needs no access token (public registration). */
 export async function publicGatewayRequest<T>(
   path: string,
   init: RequestInit = {},

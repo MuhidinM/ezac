@@ -2,7 +2,6 @@
 
 import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
-import { Badge } from "@/components/ui/badge";
 import { useResource } from "@/lib/api/use-resource";
 import { type ModeRail, type PaymentModeSettings, modeWarning, railMode } from "@/lib/zakat/payment-mode";
 
@@ -64,14 +63,5 @@ export function PaymentModeBanner({
       )}
       {warning.test ? <span className="mt-1 block">Don&apos;t treat results on this page as real payments.</span> : null}
     </InlineAlert>
-  );
-}
-
-/** A small "Test" badge for one record that a sandbox produced. */
-export function TestBadge({ title = "Made in test mode: no money moved" }: { title?: string }) {
-  return (
-    <Badge tone="warning" title={title}>
-      Test
-    </Badge>
   );
 }

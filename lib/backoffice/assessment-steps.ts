@@ -1,6 +1,7 @@
 import type {
   Assessment,
   AssessmentSections,
+  AssessmentSignOffs,
   AssessmentStatus,
   AssessmentValidation,
   DuplicateStatus,
@@ -9,6 +10,47 @@ import type {
   PoolStatus,
   SectionKey,
 } from "@/lib/api/backoffice-types";
+import { CONSENT_NOTICE_VERSION } from "@/lib/registration/constants";
+
+// ---- The detail record as beneficiary-service returns it since 10/11 November ----
+
+/** Who sent a RETURNED assessment back: the branch, or head office (ADMIN). */
+export type ReturnedBy = "ADMIN" | "BRANCH";
+
+/**
+ * Sign-offs with the head-office send-back kept apart from the branch's own
+ * review (11 November): a send-back no longer overwrites `reviewedBy` / `reviewComment`.
+ */
+export type AssessmentSignOffsDetail = AssessmentSignOffs & {
+  sentBackBy?: string | null;
+  sentBackByName?: string | null;
+  sentBackAt?: string | null;
+  sentBackReason?: string | null;
+  /** Set while the assessment is RETURNED. */
+  returnedBy?: ReturnedBy | null;
+};
+
+/** Consent to data processing, given at the assessment (`verification.consent`). */
+export type AssessmentConsent = {
+  dataProcessingConsent: boolean;
+  noticeVersion: string;
+};
+
+/** What the detail returns in `verification.consent`: the officer and time are added by the server. */
+export type AssessmentConsentRecord = Partial<AssessmentConsent> & {
+  consentedAt?: string | null;
+  recordedBy?: string | null;
+  recordedByName?: string | null;
+};
+
+export type AssessmentDetail = Assessment & {
+  /** Sent back on every draft save; a stale one is 409 VERSION_CONFLICT. */
+  version?: number | null;
+  /** On DEFERRED assessments: when the branch wants to look again. */
+  deferredUntil?: string | null;
+  signOffs?: AssessmentSignOffsDetail | null;
+  verification?: (Partial<AssessmentSections["verification"]> & { consent?: AssessmentConsentRecord | null }) | null;
+};
 
 export type StepId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
@@ -244,28 +286,25 @@ export function recommendationReasonOf(assessment: Assessment): string | null {
   return recommendation?.reason || recommendation?.recommendationReason || null;
 }
 
-/** The backend prefixes an ADMIN send-back's comment with this. */
-const HEAD_OFFICE_SEND_BACK = /^\s*sent back by admin\s*:\s*/i;
-
 /**
- * The latest review comment, and whether head office (not the branch) sent
- * the assessment back. The comment comes without the backend's prefix.
+ * The comment the officer works from on a RETURNED assessment, and whether
+ * head office (not the branch) sent it back. A head-office send-back keeps
+ * the branch's own review, so its reason is read from `sentBackReason`.
  */
-export function reviewInfo(assessment: Assessment) {
-  const raw = assessment.signOffs?.reviewComment ?? null;
-  const byHeadOffice = !!raw && HEAD_OFFICE_SEND_BACK.test(raw);
-  const comment = raw ? raw.replace(HEAD_OFFICE_SEND_BACK, "").trim() || null : null;
-  return { byHeadOffice, comment };
+export function reviewInfo(assessment: AssessmentDetail) {
+  const signOffs = assessment.signOffs ?? {};
+  const byHeadOffice = signOffs.returnedBy === "ADMIN";
+  const raw = byHeadOffice ? signOffs.sentBackReason : signOffs.reviewComment;
+  return { byHeadOffice, comment: raw?.trim() || null };
 }
 
 /**
- * Who made the latest review. Falls back to the branch supervisor's name only
- * when the reviewer is (or may be) that supervisor, never for a head-office send-back.
+ * Who made the branch's review. Falls back to the branch supervisor's name
+ * only when the reviewer is (or may be) that supervisor.
  */
-export function reviewerName(assessment: Assessment): string | null {
+export function reviewerName(assessment: AssessmentDetail): string | null {
   const signOffs = assessment.signOffs ?? {};
   if (signOffs.reviewedByName) return signOffs.reviewedByName;
-  if (reviewInfo(assessment).byHeadOffice) return null;
   const supervisorSub = assessment.assessmentInfo?.supervisorSub;
   if (signOffs.reviewedBy && supervisorSub && signOffs.reviewedBy !== supervisorSub) return null;
   return assessment.assessmentInfo?.supervisorName ?? null;
@@ -336,7 +375,13 @@ export function whitelistBlockedReason(household: HouseholdState | null | undefi
 
 // ---- Draft state -------------------------------------------------------------
 
-export type AssessmentDraft = AssessmentSections;
+/** The assessment's answers, with the consent the officer records on the verification step. */
+export type AssessmentDraft = Omit<AssessmentSections, "verification"> & {
+  verification: AssessmentSections["verification"] & {
+    /** Null until the officer ticks or clears the box; then sent with the step. */
+    consent: AssessmentConsent | null;
+  };
+};
 
 export function emptyMember(): HouseholdMember {
   return {
@@ -364,8 +409,18 @@ function vulnerabilitiesOf(assessment: Assessment): string[] {
   return Array.isArray(nested) ? nested : [];
 }
 
+/** The stored consent as the PATCH body takes it, or null when none was recorded. */
+export function consentFromAssessment(assessment: AssessmentDetail): AssessmentConsent | null {
+  const consent = assessment.verification?.consent;
+  if (!consent || typeof consent.dataProcessingConsent !== "boolean") return null;
+  return { dataProcessingConsent: consent.dataProcessingConsent, noticeVersion: consent.noticeVersion || CONSENT_NOTICE_VERSION };
+}
+
 /** Fill every section so step forms never deal with undefined. */
-export function draftFromAssessment(assessment: Assessment): AssessmentDraft {
+export function draftFromAssessment(assessment: AssessmentDetail): AssessmentDraft {
+  // The stored consent carries server fields (who, when); the draft keeps only what PATCH takes.
+  const storedVerification = { ...assessment.verification };
+  delete storedVerification.consent;
   return {
     assessmentInfo: { assessmentDate: assessment.assessmentInfo?.assessmentDate ?? null },
     asnaf: {
@@ -473,7 +528,8 @@ export function draftFromAssessment(assessment: Assessment): AssessmentDraft {
       gpsLng: null,
       photosTaken: null,
       photoConsent: null,
-      ...assessment.verification,
+      ...storedVerification,
+      consent: consentFromAssessment(assessment),
     },
   };
 }
@@ -487,10 +543,11 @@ export function hasSchoolAgeChildren(members: HouseholdMember[]) {
 /**
  * PATCH body for a step. Each section sent replaces the stored one, so whole
  * sections go out; derived data (household summary) is left to the backend.
+ * `version` is the one last loaded: a stale one is refused (409 VERSION_CONFLICT).
  */
-export function stepBody(step: StepId, draft: AssessmentDraft) {
+export function stepBody(step: StepId, draft: AssessmentDraft, version?: number | null) {
   const definition = STEPS.find((item) => item.id === step);
-  const body: Partial<Record<SectionKey, unknown>> = {};
+  const body: Partial<Record<SectionKey, unknown>> & { version?: number } = {};
   for (const section of definition?.sections ?? []) {
     if (section === "household") {
       body.household = {
@@ -500,9 +557,14 @@ export function stepBody(step: StepId, draft: AssessmentDraft) {
     } else if (section === "education" && !hasSchoolAgeChildren(draft.household.members)) {
       // The backend sets not_applicable when there are no children aged 7–18.
       continue;
+    } else if (section === "verification") {
+      // Consent is optional: leave it out until the officer has answered it.
+      const { consent, ...verification } = draft.verification;
+      body.verification = consent ? { ...verification, consent } : verification;
     } else {
       body[section] = draft[section];
     }
   }
+  if (typeof version === "number") body.version = version;
   return body;
 }

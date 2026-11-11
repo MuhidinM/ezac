@@ -17,7 +17,7 @@ import { ZakatCalculator } from "./zakat-calculator";
 /** The home page. Each section gets its slice of the dictionary in the visitor's language. */
 export async function LandingPage({ locale, dict }: { locale: Locale; dict: Dictionary }) {
   const [regions, calculatorConfig] = await Promise.all([
-    getImpactRegions(),
+    getImpactRegions(locale),
     // The ticker reads the same config in this render (one request); handing it to the
     // calculator saves the browser a second fetch. On failure the calculator fetches it itself.
     getCalculatorConfig().catch(() => null),

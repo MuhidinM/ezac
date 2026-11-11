@@ -10,59 +10,39 @@ import { Panel } from "@/components/dashboard/panel";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
-import type {
-  LifecycleAction,
-  LifecycleHistory,
-  LifecycleStatus,
-  PoolStatus,
-} from "@/lib/api/backoffice-types";
+import type { LifecycleHistory, LifecycleStatus } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
 import { useResource } from "@/lib/api/use-resource";
 import { formatDateTime } from "@/lib/beneficiary/format";
+import { allowedLifecycleChoices, lifecycleBlockedReason } from "@/lib/beneficiary/household-actions";
+import type { LifecycleMove } from "@/lib/beneficiary/types";
 
-const ACTIONS: { value: LifecycleAction; label: string; hint: string }[] = [
-  { value: "INACTIVE", label: "Pause (inactive)", hint: "Can't be assessed or pooled until reinstated." },
-  { value: "REINSTATED", label: "Reinstate", hint: "Back to where they were before the pause." },
-  { value: "GRADUATED", label: "Graduate", hint: "Left the programme self-sufficient. Final." },
-  { value: "EXITED", label: "Exit", hint: "Left the programme for another reason. Final." },
-];
-
-const FINAL: LifecycleStatus[] = ["GRADUATED", "EXITED"];
-
-/** Graduating means leaving self-sufficient, which only a supported household can do. */
-const CAN_GRADUATE: LifecycleStatus[] = ["ACTIVE", "ASSESSED"];
-
-function allowedActions(current: LifecycleStatus | null | undefined) {
-  if (!current || FINAL.includes(current)) return [];
-  return ACTIONS.filter((a) => {
-    if (a.value === "REINSTATED") return current === "INACTIVE";
-    if (a.value === "INACTIVE") return current !== "INACTIVE";
-    if (a.value === "GRADUATED") return CAN_GRADUATE.includes(current);
-    return true;
-  });
-}
-
-/** Lifecycle history for staff; ADMIN can pause, reinstate, graduate or exit. */
+/**
+ * Lifecycle history for staff; ADMIN can pause, reinstate, graduate, exit or
+ * reopen. Which changes are possible comes from the backend
+ * (`GET …/lifecycle/moves`), with its reason when none is.
+ */
 export function LifecyclePanel({
   beneficiaryId,
   canChange,
-  poolStatus,
   onChanged,
 }: {
   beneficiaryId: string;
   canChange: boolean;
-  /** A pooled household must leave the pool before its status can change. */
-  poolStatus?: PoolStatus | null;
   onChanged: (status: LifecycleStatus) => void;
 }) {
   const path = `/bff/backoffice/beneficiaries/${encodeURIComponent(beneficiaryId)}/lifecycle`;
   const { data, error, mutate } = useResource<LifecycleHistory>(path);
+  const { data: moves, error: movesError, reload: reloadMoves } = useResource<LifecycleMove[]>(
+    canChange ? `${path}/moves` : null,
+  );
   const [open, setOpen] = useState(false);
-  const [action, setAction] = useState<LifecycleAction | "">("");
+  const [action, setAction] = useState("");
   const [reason, setReason] = useState("");
 
-  const isPooled = poolStatus === "POOLED";
-  const options = isPooled ? [] : allowedActions(data?.lifecycleStatus);
+  const options = allowedLifecycleChoices(moves);
+  const blocked = lifecycleBlockedReason(moves);
+  const chosen = options.find((item) => item.value === action);
   const history = [...(data?.history ?? [])].reverse();
 
   return (
@@ -81,8 +61,14 @@ export function LifecyclePanel({
       ) : (
         <div className="space-y-4">
           <LifecycleBadge status={data?.lifecycleStatus} />
-          {canChange && isPooled ? (
-            <p className="text-sm text-black/60">Remove the household from the pool before changing its status.</p>
+          {canChange && blocked ? <p className="text-sm text-black/60">{blocked}</p> : null}
+          {canChange && movesError ? (
+            <p className="text-sm text-black/60">
+              We couldn&apos;t check which changes are possible.{" "}
+              <button type="button" className="text-brand hover:underline" onClick={reloadMoves}>
+                Try again
+              </button>
+            </p>
           ) : null}
           {history.length === 0 ? (
             <p className="flex items-center gap-1.5 text-sm text-black/60">
@@ -113,9 +99,9 @@ export function LifecyclePanel({
         open={open}
         onOpenChange={setOpen}
         title="Change lifecycle status"
-        description="A pooled beneficiary must be removed from the pool first, and an open assessment finished or cancelled."
+        description="Only the changes allowed for this household right now are listed."
         confirmLabel="Change status"
-        destructive={action === "GRADUATED" || action === "EXITED"}
+        destructive={chosen?.final ?? false}
         confirmDisabled={!action || !reason.trim()}
         onConfirm={async () => {
           if (!action) return;
@@ -125,22 +111,14 @@ export function LifecyclePanel({
           });
           mutate(result);
           onChanged(result.lifecycleStatus);
+          reloadMoves();
           setAction("");
           setReason("");
         }}
       >
         <div className="space-y-4">
-          <FormField
-            label="New status"
-            htmlFor="lifecycle-action"
-            required
-            hint={ACTIONS.find((item) => item.value === action)?.hint}
-          >
-            <NativeSelect
-              id="lifecycle-action"
-              value={action}
-              onChange={(event) => setAction(event.target.value as LifecycleAction | "")}
-            >
+          <FormField label="New status" htmlFor="lifecycle-action" required hint={chosen?.hint}>
+            <NativeSelect id="lifecycle-action" value={action} onChange={(event) => setAction(event.target.value)}>
               <option value="">Select</option>
               {options.map((option) => (
                 <option key={option.value} value={option.value}>

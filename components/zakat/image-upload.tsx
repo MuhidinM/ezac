@@ -6,7 +6,8 @@ import { ImagePlus, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errors";
-import { IMAGE_TYPES, MAX_IMAGE_BYTES, mediaSrc, type UploadedMedia } from "@/lib/zakat/content";
+import { adminMediaSrc } from "@/components/zakat/content/media";
+import { IMAGE_TYPES, MAX_IMAGE_BYTES, type UploadedMedia } from "@/lib/zakat/content";
 import { cn } from "@/lib/utils";
 
 export type MediaRef = { id: string; url: string | null };
@@ -16,16 +17,17 @@ async function upload(file: File): Promise<MediaRef> {
   if (file.size > MAX_IMAGE_BYTES) throw new Error("Images must be 5 MB or smaller.");
   const body = new FormData();
   body.append("file", file);
-  const media = await apiClient<UploadedMedia>("/bff/zakat-admin/media", { method: "POST", body });
-  return { id: String(media.id), url: media.url };
+  const media = await apiClient<UploadedMedia & { adminUrl?: string | null }>("/bff/zakat-admin/media", { method: "POST", body });
+  return { id: String(media.id), url: media.adminUrl ?? media.url };
 }
 
 function Thumb({ media, onRemove, disabled }: { media: MediaRef; onRemove: () => void; disabled?: boolean }) {
   return (
     <div className="group relative size-24 overflow-hidden rounded-lg border border-black/10 bg-black/[0.03]">
       {media.url ? (
+        // Through the admin route: a new upload or a draft's image is 404 on the public one.
         // eslint-disable-next-line @next/next/no-img-element -- media is served by the zakat service, not optimisable here
-        <img src={mediaSrc(media.url) ?? undefined} alt="" className="size-full object-cover" />
+        <img src={adminMediaSrc(media.url) ?? undefined} alt="" className="size-full object-cover" />
       ) : (
         <span className="flex size-full items-center justify-center text-xs text-black/60">#{media.id}</span>
       )}
@@ -44,7 +46,8 @@ function Thumb({ media, onRemove, disabled }: { media: MediaRef; onRemove: () =>
 }
 
 /**
- * Uploads images to POST /admin/media and keeps their ids. `max` 1 is a
+ * Uploads images to POST /admin/media and keeps their ids. Previews load
+ * through the admin media route, so drafts show too. `max` 1 is a
  * single cover image; more is a gallery.
  */
 export function ImageUpload({

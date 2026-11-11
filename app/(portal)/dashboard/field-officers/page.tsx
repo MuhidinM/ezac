@@ -32,6 +32,7 @@ import type {
 } from "@/lib/api/backoffice-types";
 import type { PaginatedItems } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
+import { oneTimeCredentials } from "@/lib/branches/credentials";
 import { useListState } from "@/lib/hooks/use-list-state";
 
 const PAGE_SIZE = 20;
@@ -91,13 +92,11 @@ function FieldOfficers() {
         <CredentialsOnceDialog
           title="Field officer credentials"
           recipient="field officer"
-          login={created.username}
-          initialPassword={created.initialPassword}
-          passwordChangeRequired={created.passwordChangeRequired}
+          {...oneTimeCredentials(created, created.officer?.phone)}
           onClose={() => {
-            const id = created.officer.id;
+            const id = created.officer?.id;
             setCreated(null);
-            router.push(`/dashboard/field-officers/${id}`);
+            if (id) router.push(`/dashboard/field-officers/${id}`);
           }}
         />
       ) : null}

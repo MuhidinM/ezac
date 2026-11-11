@@ -11,6 +11,7 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { Panel } from "@/components/dashboard/panel";
 import { RequireRole } from "@/components/dashboard/require-role";
 import { PanelSkeleton } from "@/components/dashboard/skeletons";
+import { useMyUserId } from "@/lib/auth/use-my-user-id";
 import { WHITELIST_STATUS, WhitelistEntryCard } from "@/components/whitelist/whitelist-entry-card";
 import { WhitelistFormDialog } from "@/components/whitelist/whitelist-form-dialog";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ function WhitelistQueue() {
   const { effect, page } = list;
   const [notice, setNotice] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const myId = useMyUserId();
 
   const params = new URLSearchParams({ status, page: String(page), limit: String(PAGE_SIZE) });
   if (effect) params.set("effect", effect);
@@ -83,7 +85,7 @@ function WhitelistQueue() {
         onOpenChange={setAddOpen}
         onSaved={(entry) => {
           setAddOpen(false);
-          setNotice(`${entry.beneficiaryName ?? "Household"} added to the whitelist.`);
+          setNotice(`${entry.beneficiaryName ?? "Household"} added. Another admin must approve it before it takes effect.`);
           setList({ status: entry.status, page: 1 });
           reload();
         }}
@@ -148,6 +150,8 @@ function WhitelistQueue() {
                     <WhitelistEntryCard
                       entry={entry}
                       canDecide
+                      myId={myId}
+                      onReload={reload}
                       compact
                       onChanged={(updated) => {
                         setNotice(

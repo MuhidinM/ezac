@@ -2,26 +2,30 @@
 
 import { FormEvent, useState } from "react";
 
+import { RotateCw } from "lucide-react";
+
+import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ApiError } from "@/lib/api/errors";
+import { VERSION_CONFLICT_MESSAGE, errorMessage, isVersionConflict } from "@/lib/api/errors";
 import { apiClient } from "@/lib/api/client";
-import type {
-  BeneficiaryDetail,
-  BeneficiaryUpdateBody,
-} from "@/lib/api/types";
+import type { BeneficiaryUpdateBody } from "@/lib/api/types";
+import type { HouseholdDetail } from "@/lib/beneficiary/types";
 
 type Props = {
-  beneficiary: BeneficiaryDetail;
-  onSaved: (updated: BeneficiaryDetail) => void;
+  beneficiary: HouseholdDetail;
+  onSaved: (updated: HouseholdDetail) => void;
   onCancel: () => void;
+  /** Reload the record after a 409 VERSION_CONFLICT. */
+  onReload: () => void;
 };
 
 export function BeneficiaryEditForm({
   beneficiary,
   onSaved,
   onCancel,
+  onReload,
 }: Props) {
   const [fullName, setFullName] = useState(beneficiary.fullName ?? "");
   const [phone, setPhone] = useState(beneficiary.phone ?? "");
@@ -50,11 +54,13 @@ export function BeneficiaryEditForm({
     beneficiary.institutionSubtype ?? "",
   );
   const [error, setError] = useState<string | null>(null);
+  const [conflict, setConflict] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setConflict(false);
     setIsSubmitting(true);
 
     const body: BeneficiaryUpdateBody = {
@@ -80,20 +86,17 @@ export function BeneficiaryEditForm({
     }
 
     try {
-      const updated = await apiClient<BeneficiaryDetail>(
+      const updated = await apiClient<HouseholdDetail>(
         `/bff/beneficiaries/${beneficiary.id}`,
         {
           method: "PATCH",
-          body: JSON.stringify(body),
+          body: JSON.stringify({ ...body, version: beneficiary.version ?? null }),
         },
       );
       onSaved(updated);
     } catch (submitError) {
-      setError(
-        submitError instanceof ApiError
-          ? submitError.message
-          : "Failed to save beneficiary",
-      );
+      setConflict(isVersionConflict(submitError));
+      setError(errorMessage(submitError, "Failed to save beneficiary"));
     } finally {
       setIsSubmitting(false);
     }
@@ -122,13 +125,20 @@ export function BeneficiaryEditForm({
         </div>
       </div>
 
-      {error ? (
-        <p
-          role="alert"
-          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+      {conflict ? (
+        <InlineAlert
+          tone="warning"
+          action={
+            <Button type="button" variant="outline" size="sm" onClick={onReload}>
+              <RotateCw />
+              Reload
+            </Button>
+          }
         >
-          {error}
-        </p>
+          {VERSION_CONFLICT_MESSAGE}
+        </InlineAlert>
+      ) : error ? (
+        <InlineAlert>{error}</InlineAlert>
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">

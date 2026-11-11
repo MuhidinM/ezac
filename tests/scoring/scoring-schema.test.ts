@@ -100,6 +100,43 @@ describe("validateScoring", () => {
   });
 });
 
+describe("validateScoring against the version the draft was copied from", () => {
+  const path = "sections.debt.ratio_bands";
+  const base = validConfig();
+
+  it("accepts bands that keep the base version's count and direction", () => {
+    const edited = setPath(validConfig(), path, [
+      [4, 40],
+      [2, 20],
+      [0.5, 5],
+    ]);
+    expect(validateScoring(schema, edited, base)).toEqual([]);
+  });
+
+  it("refuses bounds that turn the other way", () => {
+    const flipped = setPath(validConfig(), path, [
+      [0.5, 5],
+      [1, 20],
+      [3, 40],
+    ]);
+    expect(validateScoring(schema, flipped, base)).toEqual([
+      "Debt compared with income (Debt): the band limits must go down, as in the version it was copied from.",
+    ]);
+    // Without a base either direction is fine.
+    expect(validateScoring(schema, flipped)).toEqual([]);
+  });
+
+  it("refuses a different number of bands", () => {
+    const fewer = setPath(validConfig(), path, [
+      [3, 40],
+      [1, 20],
+    ]);
+    expect(validateScoring(schema, fewer, base)).toEqual([
+      "Debt compared with income (Debt): keep 3 bands, as in the version it was copied from.",
+    ]);
+  });
+});
+
 describe("needLevels", () => {
   it("reads the cut-offs and recommendations at the schema's paths", () => {
     expect(needLevels(schema, validConfig())).toEqual({

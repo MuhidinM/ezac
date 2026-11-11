@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 import Link from "next/link";
 import { UserRoundCog } from "lucide-react";
 
@@ -17,33 +17,28 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { NativeSelect } from "@/components/ui/native-select";
-import type { Assessment, FieldOfficer } from "@/lib/api/backoffice-types";
+import { Textarea } from "@/components/ui/textarea";
+import type { FieldOfficer } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
-import { ApiError, errorMessage } from "@/lib/api/errors";
+import { ApiError } from "@/lib/api/errors";
 import type { PaginatedItems } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
 import {
-  type ReassignItem,
-  groupByBranch,
-  officersForBranch,
-  runInOrder,
+  type ReassignBody,
+  type ReassignFailure,
+  activeBranchIds,
+  officersForBranches,
+  reassignFailures,
+  reassignedCount,
 } from "@/lib/backoffice/bulk-reassign";
 
-/** The officer's open work: the same statuses as the "Open assessments" count. */
-const OPEN_STATUSES = "DRAFT,RETURNED";
-const LIMIT = 100;
-
-function assessmentName(item: ReassignItem) {
-  const who = item.beneficiaryName ?? item.fullName ?? `Beneficiary #${item.beneficiaryId}`;
-  return item.assessmentNumber ? `${who} (${item.assessmentNumber})` : who;
-}
+const REASON_MAX = 500;
 
 /**
- * Moves every open assessment of one field officer to other officers, one
- * branch at a time: the admin picks an officer of each branch, then the
- * assessments are reassigned one by one (the backend has no bulk call), with
- * progress, stopping at the first failure. Used before deactivating or moving
- * an officer, so their households aren't left with no one.
+ * Moves every open assessment of one field officer to another officer in one
+ * step. All of them move or none do; when one can't, the dialog lists why.
+ * Used before deactivating or moving an officer, so their households aren't
+ * left with no one.
  */
 export function BulkReassignDialog({
   officer,
@@ -54,188 +49,181 @@ export function BulkReassignDialog({
   officer: FieldOfficer;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Called after a run (complete or stopped) with a summary for the page. */
-  onFinished: (summary: { message: string; complete: boolean }) => void;
+  /** Called after a successful move with a summary for the page. */
+  onFinished: (message: string) => void;
 }) {
-  const query = new URLSearchParams({
-    status: OPEN_STATUSES,
-    officerId: officer.id,
-    page: "1",
-    limit: String(LIMIT),
-  });
-  const assessments = useResource<PaginatedItems<ReassignItem>>(
-    open ? `/bff/backoffice/assessments?${query.toString()}` : null,
-  );
   const officers = useResource<PaginatedItems<FieldOfficer>>(
     open ? "/bff/backoffice/admin/field-officers?active=true&page=1&limit=100" : null,
   );
 
-  // Target officer per branch id.
-  const [targets, setTargets] = useState<Record<string, string>>({});
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
-  const [failure, setFailure] = useState<{ item: ReassignItem; error: unknown; done: number } | null>(null);
+  const [target, setTarget] = useState("");
+  const [includeSubmitted, setIncludeSubmitted] = useState(false);
+  const [reason, setReason] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const [failures, setFailures] = useState<ReassignFailure[]>([]);
 
   // Start fresh each time the dialog opens.
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
     if (open) {
-      setTargets({});
-      setProgress(null);
-      setFailure(null);
-      // useResource keeps the last list across a close; ask for a fresh one so
-      // the run button waits for it (isLoading) instead of acting on old rows.
-      assessments.reload();
+      setTarget("");
+      setIncludeSubmitted(false);
+      setReason("");
+      setError(null);
+      setFailures([]);
     }
   }
 
-  const items = assessments.data?.items ?? [];
-  const groups = groupByBranch(items);
-  const running = progress !== null && failure === null && progress.done < progress.total;
-  const loading = (assessments.isLoading && !assessments.data) || (officers.isLoading && !officers.data);
-  const allOfficers = officers.data?.items ?? [];
-  const ready = groups.length > 0 && groups.every((group) => targets[group.branchId]);
-  const more = (assessments.data?.pagination.totalItems ?? 0) - items.length;
+  const branchIds = activeBranchIds(officer);
+  const candidates = officersForBranches(officers.data?.items ?? [], branchIds, officer.id);
+  const loading = officers.isLoading && !officers.data;
+  const openCount = officer.openAssessments ?? 0;
 
-  function nameOf(id: string) {
-    return allOfficers.find((item) => item.id === id)?.fullName ?? "the new officer";
-  }
-
-  async function run() {
-    // Branch by branch, in the order shown.
-    const work = groups.flatMap((group) => group.items.map((item) => ({ item, to: targets[group.branchId] })));
-    setFailure(null);
-    setProgress({ done: 0, total: work.length });
-    const result = await runInOrder(
-      work,
-      ({ item, to }) =>
-        apiClient<Assessment>(`/bff/backoffice/assessments/${encodeURIComponent(item.id)}/reassign`, {
-          method: "POST",
-          body: JSON.stringify({ officerId: to }),
-        }),
-      (done) => setProgress({ done, total: work.length }),
-    );
-
-    // The officers this run sent work to (a target picked for a branch whose items already moved got none).
-    const names = [...new Set(work.map(({ to }) => to))].map(nameOf).join(" and ");
-    if (!result.failed) {
-      onFinished({
-        complete: true,
-        message: `${result.done} open assessment${result.done === 1 ? "" : "s"} of ${officer.fullName} now belong${result.done === 1 ? "s" : ""} to ${names}.`,
-      });
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!target || !reason.trim()) return;
+    setIsSaving(true);
+    setError(null);
+    setFailures([]);
+    const body: ReassignBody = { toFieldOfficerId: target, includeSubmitted, reason: reason.trim() };
+    try {
+      const answer = await apiClient<unknown>(
+        `/bff/backoffice/admin/field-officers/${encodeURIComponent(officer.id)}/reassign-assessments`,
+        { method: "POST", body: JSON.stringify(body) },
+      );
+      const count = reassignedCount(answer);
+      const to = candidates.find((item) => item.id === target)?.fullName ?? "the chosen officer";
+      onFinished(
+        count === null
+          ? `The open assessments of ${officer.fullName} now belong to ${to}.`
+          : count === 0
+            ? `${officer.fullName} had no open assessments to move.`
+            : `${count} assessment${count === 1 ? "" : "s"} of ${officer.fullName} now belong${count === 1 ? "s" : ""} to ${to}.`,
+      );
       onOpenChange(false);
-      return;
+    } catch (saveError) {
+      setError(saveError);
+      if (saveError instanceof ApiError && saveError.code === "REASSIGN_FAILED") {
+        setFailures(reassignFailures(saveError));
+      }
+    } finally {
+      setIsSaving(false);
     }
-    setFailure({ item: result.failed.item.item, error: result.failed.error, done: result.done });
-    // List only what is still theirs, so "Try the rest again" doesn't redo the moved ones.
-    assessments.reload();
-    onFinished({
-      complete: false,
-      message: `${result.done} of ${work.length} open assessments were reassigned before one failed. The rest still belong to ${officer.fullName}.`,
-    });
-  }
-
-  function failureText(error: unknown) {
-    const message = errorMessage(error, "The reassignment didn't go through.");
-    // The backend names the officer by number; use their name.
-    return error instanceof ApiError ? message.replace(/field officer \d+/i, "the chosen officer") : message;
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (running ? null : onOpenChange(next))}>
+    <Dialog open={open} onOpenChange={(next) => (isSaving ? null : onOpenChange(next))}>
       <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="text-navy">Reassign open assessments</DialogTitle>
-          <DialogDescription>
-            Drafts and returned assessments of {officer.fullName} move to the officer you choose, who carries on from
-            where they stopped. Only active officers of the assessment&apos;s branch can take them. Submitted
-            assessments waiting for a branch decision stay as they are; reassign one from its own page if needed.
-          </DialogDescription>
-        </DialogHeader>
+        <form onSubmit={onSubmit} className="space-y-4">
+          <DialogHeader>
+            <DialogTitle className="text-navy">Reassign open assessments</DialogTitle>
+            <DialogDescription>
+              {openCount > 0
+                ? `The ${openCount} draft and returned assessment${openCount === 1 ? "" : "s"} of ${officer.fullName} move`
+                : `Drafts and returned assessments of ${officer.fullName} move`}{" "}
+              to the officer you choose, who carries on from where they stopped. All of them move, or none do.
+            </DialogDescription>
+          </DialogHeader>
 
-        {loading ? (
-          <p role="status" className="text-sm text-black/60">
-            Loading their open assessments…
-          </p>
-        ) : null}
-        <ErrorAlert error={assessments.error} onRetry={assessments.reload} fallback="Their assessments couldn't be loaded." />
-        <ErrorAlert error={officers.error} onRetry={officers.reload} fallback="The officer list couldn't be loaded." />
+          {loading ? (
+            <p role="status" className="text-sm text-black/60">
+              Loading officers…
+            </p>
+          ) : null}
+          <ErrorAlert error={officers.error} onRetry={officers.reload} fallback="The officer list couldn't be loaded." />
 
-        {!loading && assessments.data && items.length === 0 ? (
-          <InlineAlert tone="success">{officer.fullName} has no open assessments.</InlineAlert>
-        ) : null}
+          {officers.data ? (
+            <FormField
+              label="New officer"
+              htmlFor="bulk-reassign-to"
+              required
+              hint={
+                candidates.length === 0
+                  ? "No other active officer works in this officer's branch. Assign or move an officer to it first."
+                  : "Only active officers of the same branch can take them."
+              }
+            >
+              <NativeSelect
+                id="bulk-reassign-to"
+                value={target}
+                onChange={(event) => setTarget(event.target.value)}
+                disabled={isSaving || candidates.length === 0}
+                required
+              >
+                <option value="">{candidates.length === 0 ? "No officer available" : "Select an officer"}</option>
+                {candidates.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.fullName}
+                  </option>
+                ))}
+              </NativeSelect>
+            </FormField>
+          ) : null}
 
-        {groups.length > 0 && officers.data ? (
-          <div className="space-y-4">
-            {groups.map((group) => {
-              const candidates = officersForBranch(allOfficers, group.branchId, officer.id);
-              const id = `bulk-reassign-${group.branchId || "unknown"}`;
-              return (
-                <FormField
-                  key={group.branchId}
-                  htmlFor={id}
-                  required
-                  label={`${group.branchName}: ${group.items.length} assessment${group.items.length === 1 ? "" : "s"}`}
-                  hint={
-                    candidates.length === 0
-                      ? `No other active officer works in ${group.branchName}. Assign or move an officer to it first.`
-                      : undefined
-                  }
-                >
-                  <NativeSelect
-                    id={id}
-                    value={targets[group.branchId] ?? ""}
-                    onChange={(event) => setTargets((prev) => ({ ...prev, [group.branchId]: event.target.value }))}
-                    disabled={running || candidates.length === 0}
-                  >
-                    <option value="">{candidates.length === 0 ? "No officer available" : "Select an officer"}</option>
-                    {candidates.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.fullName}
-                      </option>
-                    ))}
-                  </NativeSelect>
-                </FormField>
-              );
-            })}
-            {more > 0 ? (
-              <p className="text-xs text-black/60">
-                The first {items.length} are listed. Run this again afterwards for the other {more}.
-              </p>
-            ) : null}
-          </div>
-        ) : null}
+          <label className="flex items-start gap-2 text-sm text-navy">
+            <input
+              type="checkbox"
+              checked={includeSubmitted}
+              onChange={(event) => setIncludeSubmitted(event.target.checked)}
+              disabled={isSaving}
+              className="mt-0.5 size-4 accent-brand"
+            />
+            <span>
+              Also move submitted assessments
+              <span className="block text-xs text-black/60">Those waiting for a branch decision.</span>
+            </span>
+          </label>
 
-        <div aria-live="polite" className="text-sm text-navy">
-          {progress && !failure ? `Reassigned ${progress.done} of ${progress.total}…` : null}
-        </div>
+          <FormField label="Reason" htmlFor="bulk-reassign-reason" required hint="Kept in the assessments' history.">
+            <Textarea
+              id="bulk-reassign-reason"
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              maxLength={REASON_MAX}
+              placeholder="e.g. Officer is leaving the branch"
+              disabled={isSaving}
+              required
+            />
+          </FormField>
 
-        {failure ? (
-          <InlineAlert title={`Stopped at ${assessmentName(failure.item)}`}>
-            {failureText(failure.error)} {failure.done} reassigned before it; the rest are unchanged.{" "}
-            <Link href={`/dashboard/assessments/${failure.item.id}`} className="font-medium underline">
-              Open that assessment
-            </Link>
-          </InlineAlert>
-        ) : null}
+          {failures.length > 0 ? (
+            <InlineAlert title="Nothing was moved">
+              <p>These assessments can&apos;t go to the chosen officer:</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                {failures.map((failure, index) => (
+                  <li key={`${failure.assessmentId ?? "item"}-${index}`}>
+                    {failure.assessmentId ? (
+                      <Link href={`/dashboard/assessments/${encodeURIComponent(failure.assessmentId)}`} className="font-medium underline">
+                        Assessment {failure.assessmentId}
+                      </Link>
+                    ) : null}
+                    {failure.assessmentId ? ": " : null}
+                    {failure.message}
+                  </li>
+                ))}
+              </ul>
+            </InlineAlert>
+          ) : (
+            <ErrorAlert error={error} fallback="The assessments couldn't be reassigned." />
+          )}
 
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={running}>
-            {failure ? "Close" : "Cancel"}
-          </Button>
-          <Button
-            type="button"
-            onClick={() => void run()}
-            // While the list reloads (reopened, or after a failure) it still shows the old rows,
-            // some of which may already belong to someone else: wait for the fresh one.
-            disabled={!ready || items.length === 0 || assessments.isLoading}
-            loading={running}
-            loadingText={progress ? `Reassigning ${progress.done + 1} of ${progress.total}…` : "Reassigning…"}
-          >
-            <UserRoundCog />
-            {failure ? "Try the rest again" : `Reassign ${items.length || ""}`.trim()}
-          </Button>
-        </DialogFooter>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={!target || !reason.trim() || candidates.length === 0}
+              loading={isSaving}
+              loadingText="Reassigning…"
+            >
+              <UserRoundCog />
+              Reassign
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

@@ -8,6 +8,8 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { Panel } from "@/components/dashboard/panel";
 import { RequireRole } from "@/components/dashboard/require-role";
 import { TableMessageRow, TableSkeletonRows } from "@/components/dashboard/table-states";
+import { adminMediaSrc } from "@/components/zakat/content/media";
+import type { StoryAdmin } from "@/components/zakat/content/types";
 import { StoryStatusBadge } from "@/components/zakat/story-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,7 +23,7 @@ import {
 } from "@/components/ui/table";
 import { useResource } from "@/lib/api/use-resource";
 import { formatDate } from "@/lib/backoffice/format";
-import { type AdminStory, categoryLabel, mediaSrc } from "@/lib/zakat/content";
+import { categoryLabel } from "@/lib/zakat/content";
 
 export default function StoriesAdminPage() {
   return (
@@ -33,7 +35,7 @@ export default function StoriesAdminPage() {
 
 function StoriesAdmin() {
   // Plain array of all states, newest first.
-  const { data, error, isLoading, reload } = useResource<AdminStory[]>("/bff/zakat-admin/impact/stories");
+  const { data, error, isLoading, reload } = useResource<StoryAdmin[]>("/bff/zakat-admin/impact/stories");
   const stories = data ?? [];
 
   return (
@@ -77,9 +79,10 @@ function StoriesAdmin() {
                 <TableRow key={story.id} className="relative">
                   <TableCell className="pl-5">
                     <span className="flex items-center gap-3">
-                      {story.imageUrl ? (
+                      {(story.adminImageUrl ?? story.imageUrl) ? (
+                        // The admin route also serves a draft's image; the public one is 404 for drafts.
                         // eslint-disable-next-line @next/next/no-img-element -- served by the zakat service
-                        <img src={mediaSrc(story.imageUrl) ?? undefined} alt="" className="size-10 shrink-0 rounded-md object-cover" />
+                        <img src={adminMediaSrc(story.adminImageUrl ?? story.imageUrl) ?? undefined} alt="" className="size-10 shrink-0 rounded-md object-cover" />
                       ) : (
                         <span className="size-10 shrink-0 rounded-md bg-black/[0.05]" />
                       )}
@@ -95,7 +98,7 @@ function StoriesAdmin() {
                     </span>
                   </TableCell>
                   <TableCell>{categoryLabel(story.category)}</TableCell>
-                  <TableCell>{story.region ?? "—"}</TableCell>
+                  <TableCell>{story.region ?? <span className="text-black/60">Not specified</span>}</TableCell>
                   <TableCell>
                     <span className="flex flex-wrap items-center gap-1.5">
                       <StoryStatusBadge status={story.status} />

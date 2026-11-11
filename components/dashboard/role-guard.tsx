@@ -17,6 +17,8 @@ const HQ_PATH_PREFIXES = [
   "/dashboard/pool",
   "/dashboard/disbursements",
   "/dashboard/whitelist",
+  "/dashboard/bank-changes",
+  "/dashboard/staff",
 ];
 
 /**

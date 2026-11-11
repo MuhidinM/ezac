@@ -1,6 +1,9 @@
 /**
- * Payloads shaped like payment-service's UAT answers (5 Nov 2026), with the
- * names, references and ids replaced by made-up values of the same form.
+ * Payloads shaped like payment-service's UAT answers, with the names,
+ * references and ids replaced by made-up values of the same form. The
+ * payments still carry the raw fields payment-service sent before 11
+ * November (providerResponse, qrPayload, full accounts), to show the BFF's
+ * second check still removes them.
  */
 
 /** A QR payment paid through EthQR (live), as GET /admin/zakat-payments/{id} returns it. */
@@ -65,23 +68,19 @@ export const sandboxPayment = {
   createdAt: "2026-11-04T13:54:11.656539Z",
 };
 
-/** One receipt from GET /admin/ethqr/transactions. */
+/** One receipt from GET /admin/ethqr/transactions, with fields older answers carried (dropped by the BFF). */
 export const ethqrReceipt = {
-  id: "087N1108B400000000108002",
+  referenceNumber: "087N1108B400000000108002",
+  orderId: "zp_live000000000001",
   amount: 10,
   currency: "ETB",
-  referenceNumber: "087N1108B400000000108002",
-  payerName: "Test Payer",
-  description: "Payment from telebirr",
-  status: "COMPLETED",
   transactedAt: "2026-11-04T18:09:26.026",
   sourceBankBic: "telebirr",
-  categoryPurpose: "C2BSQR",
   endToEndId: "TELEBIRR00000000AAAAAAAAAA",
+  status: "COMPLETED",
+  payerName: "T*** P****",
+  matchedPaymentId: "zp_live000000000001",
   bizMsgIdr: "TELEBIRR630818302000000000000",
-  storeLabel: null,
-  terminalLabel: "zp_live000000000001",
-  sourceBankCode: "TELEBIRR",
   payerAccount: "251911000000",
 };
 

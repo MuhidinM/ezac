@@ -2,7 +2,10 @@ import {
   Banknote,
   Building2,
   Calculator,
+  ArrowRightLeft,
   ClipboardCheck,
+  History,
+  KeyRound,
   Coins,
   FileText,
   HandHeart,
@@ -106,6 +109,12 @@ export const NAV_SECTIONS: NavSection[] = [
         audience: ["admin"],
       },
       {
+        title: "Bank account changes",
+        url: "/dashboard/bank-changes",
+        icon: ArrowRightLeft,
+        audience: ["admin"],
+      },
+      {
         title: "Branches",
         url: "/dashboard/branches",
         icon: Network,
@@ -115,6 +124,12 @@ export const NAV_SECTIONS: NavSection[] = [
         title: "Field officers",
         url: "/dashboard/field-officers",
         icon: UserCog,
+        audience: ["admin"],
+      },
+      {
+        title: "Staff accounts",
+        url: "/dashboard/staff",
+        icon: KeyRound,
         audience: ["admin"],
       },
       {
@@ -176,6 +191,12 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: Settings2,
         audience: ["admin"],
       },
+      {
+        title: "Content audit log",
+        url: "/dashboard/zakat/audit-log",
+        icon: History,
+        audience: ["admin"],
+      },
     ],
   },
 ];
@@ -219,7 +240,6 @@ export const SEGMENT_LABELS: Record<string, string> = {
   institution: "Institution",
   documents: "Documents",
   manual: "Register an individual",
-  password: "Set password",
   type: "Beneficiary type",
   assessments: "Assessments",
   "field-officers": "Field officers",
@@ -232,11 +252,14 @@ export const SEGMENT_LABELS: Record<string, string> = {
   whitelist: "Whitelist",
   prices: "Prices & nisab",
   settings: "Settings",
+  "bank-changes": "Bank account changes",
+  staff: "Staff accounts",
 };
 
 /** Labels that depend on the folder above, keyed `<parent>/<segment>`. */
 export const SECTION_SEGMENT_LABELS: Record<string, string> = {
   "zakat/payments": "Zakat payments",
+  "zakat/audit-log": "Content audit log",
   "zakat/prices": "Prices & nisab",
   "zakat/rules": "Calculator rules",
   "zakat/causes": "Causes",

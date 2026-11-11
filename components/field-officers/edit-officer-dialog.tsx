@@ -4,6 +4,7 @@ import { type FormEvent, useState } from "react";
 
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
+import { VersionConflictAlert } from "@/components/staff/version-conflict-alert";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,7 +17,8 @@ import {
 import { Input } from "@/components/ui/input";
 import type { FieldOfficer } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
-import { ApiError, errorMessage, fieldErrorMap } from "@/lib/api/errors";
+import { ApiError, errorMessage, fieldErrorMap, isVersionConflict } from "@/lib/api/errors";
+import { withVersion } from "@/lib/branches/version";
 
 /** Edit name and email; the phone is the login and can't change. */
 export function EditOfficerDialog({
@@ -24,17 +26,21 @@ export function EditOfficerDialog({
   open,
   onOpenChange,
   onSaved,
+  onReload,
 }: {
   officer: FieldOfficer;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: (officer: FieldOfficer) => void;
+  /** Loads the officer again after someone else changed them. */
+  onReload: () => void;
 }) {
   const [fullName, setFullName] = useState(officer.fullName);
   const [email, setEmail] = useState(officer.email ?? "");
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [conflict, setConflict] = useState(false);
 
   // Start from the saved officer every time the dialog opens. The page opens it
   // by setting `open`, which never calls onOpenChange, and the dialog stays
@@ -47,6 +53,7 @@ export function EditOfficerDialog({
       setEmail(officer.email ?? "");
       setError(null);
       setFieldErrors({});
+      setConflict(false);
     }
   }
 
@@ -62,14 +69,19 @@ export function EditOfficerDialog({
     setIsSaving(true);
     setError(null);
     setFieldErrors({});
+    setConflict(false);
     try {
       const updated = await apiClient<FieldOfficer>(
         `/bff/backoffice/admin/field-officers/${encodeURIComponent(officer.id)}`,
-        { method: "PATCH", body: JSON.stringify(body) },
+        { method: "PATCH", body: JSON.stringify(withVersion(body, officer)) },
       );
       onSaved({ ...officer, ...updated });
       onOpenChange(false);
     } catch (saveError) {
+      if (isVersionConflict(saveError)) {
+        setConflict(true);
+        return;
+      }
       setError(
         saveError instanceof ApiError && saveError.status >= 500
           ? "The changes couldn't be saved because of a problem on the server, and nothing was changed. If this keeps happening, tell the system team."
@@ -88,10 +100,18 @@ export function EditOfficerDialog({
           <DialogHeader>
             <DialogTitle className="text-navy">Edit field officer</DialogTitle>
             <DialogDescription>
-              The phone number ({officer.phone ?? "—"}) is the login and can&apos;t be changed.
+              The phone number ({officer.phone ?? "—"}) is the login and can&apos;t be changed. The name here is also the name on their login.
             </DialogDescription>
           </DialogHeader>
           {error ? <InlineAlert>{error}</InlineAlert> : null}
+          {conflict ? (
+            <VersionConflictAlert
+              onReload={() => {
+                setConflict(false);
+                onReload();
+              }}
+            />
+          ) : null}
           <FormField label="Full name" htmlFor="eo-name" required error={fieldErrors.fullName}>
             <Input id="eo-name" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
           </FormField>

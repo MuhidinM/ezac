@@ -1,10 +1,13 @@
 /**
- * Raw bank and EthQR data, cut down to what staff need before it leaves the
- * BFF (go-live audit gap-r2-4-1). Payment-service is asked to do the same
- * (docs/backend-go-live-requests.md §11); until it does, nothing raw reaches
- * the browser: no request or response bodies, URLs, headers, QR contents or
- * account numbers beyond their last 4 digits. Reference ids are kept, since
- * they are what staff quote to the bank.
+ * A last check on bank and EthQR data before it leaves the BFF (go-live audit
+ * gap-r2-4-1). Since 11 November payment-service masks it itself: account
+ * numbers keep their last 4 digits, payer phones are masked, `providerResponse`
+ * and `qrPayload` are gone, and bank-call bodies have long digit runs masked.
+ * What stays here is cheap and only matters if that ever slips: payout
+ * bank-call bodies become short summaries, account numbers are masked again,
+ * the two raw fields are dropped, EthQR receipts keep only the columns the
+ * table shows, and raw third-party bodies are removed from error answers.
+ * Reference ids are kept, since they are what staff quote to the bank.
  */
 
 /** One field picked from a bank or EthQR answer, ready to show. */
@@ -162,12 +165,6 @@ export function summarizePayload(value: unknown): PayloadField[] {
   return shortLabels(fields);
 }
 
-/** True when a raw EthQR answer says it came from the sandbox (`"sandbox": true`). */
-export function isSandboxAnswer(value: unknown): boolean {
-  const root = parseJson(value);
-  return isRecord(root) && root.sandbox === true;
-}
-
 function pick(record: Json, keys: readonly string[]) {
   const out: Json = {};
   for (const key of keys) {
@@ -189,37 +186,30 @@ export function redactBankCall(call: unknown): Json | null {
   };
 }
 
-/**
- * One Zakat payment without its raw bank answer and QR contents. The answer
- * becomes `bankAnswer` (its useful fields) and `sandbox` (true when EthQR
- * said the payment was simulated); the donor's account keeps its last 4 digits.
- */
+/** One Zakat payment without raw bank or QR data, its account numbers by their last 4 digits. */
 export function redactPayment(payment: unknown): unknown {
   if (!isRecord(payment)) return payment;
-  const providerResponse = payment.providerResponse;
   const out: Json = { ...payment };
   delete out.providerResponse;
   delete out.qrPayload;
-  if (out.debitAccount !== undefined) out.debitAccount = maskAccount(out.debitAccount);
-  if (providerResponse !== undefined && providerResponse !== null && providerResponse !== "") {
-    out.bankAnswer = summarizePayload(providerResponse);
-    if (isSandboxAnswer(providerResponse)) out.sandbox = true;
+  for (const key of ["debitAccount", "creditAccount"] as const) {
+    if (out[key] !== undefined) out[key] = maskAccount(out[key]);
   }
   return out;
 }
 
-/** The EthQR receipt fields the reconciliation table uses. */
+/** The EthQR receipt fields payment-service returns (11 November) and the reconciliation table uses. */
 const RECEIPT_KEYS = [
-  "id",
+  "referenceNumber",
+  "orderId",
   "amount",
   "currency",
-  "referenceNumber",
-  "payerName",
-  "status",
   "transactedAt",
   "sourceBankBic",
-  "sourceBankCode",
-  "terminalLabel",
+  "endToEndId",
+  "status",
+  "payerName",
+  "matchedPaymentId",
 ] as const;
 
 export function redactEthqrReceipt(receipt: unknown): Json | null {
@@ -233,11 +223,14 @@ function mapData(body: Json, map: (data: unknown) => unknown): Json {
   return "data" in body ? { ...body, data: map(body.data) } : body;
 }
 
+/** zakat-payments paths that answer with counts and totals only. */
+const COUNT_PATHS = new Set(["summary", "needs-action"]);
+
 /** True for the payments-admin paths whose successful answers carry raw bank or EthQR data. */
 export function redactsPath(path: readonly string[]): boolean {
   const [first, second, third] = path;
   if (first === "disbursements") return third === "bank-calls" && path.length === 3;
-  if (first === "zakat-payments") return second !== "summary";
+  if (first === "zakat-payments") return !COUNT_PATHS.has(second);
   return first === "ethqr" && second === "transactions";
 }
 
@@ -266,7 +259,7 @@ export function redactPaymentsAdmin(path: readonly string[], body: unknown): unk
 
   if (first === "zakat-payments") {
     // The list, one payment, and the payment returned by check and resolve.
-    if (second === "summary") return body;
+    if (COUNT_PATHS.has(second)) return body;
     return mapData(body, (data) => {
       if (isRecord(data) && Array.isArray(data.items)) return { ...data, items: data.items.map(redactPayment) };
       return redactPayment(data);

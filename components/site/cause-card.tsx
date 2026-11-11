@@ -3,7 +3,7 @@ import Link from "next/link";
 import { INTL_LOCALE, type Locale, localizedPath } from "@/lib/i18n/config";
 import { format } from "@/lib/i18n/messages";
 import { type Dictionary, getDictionary } from "@/lib/i18n/server";
-import { mediaSrc, type PublicCause } from "@/lib/zakat/content";
+import { causeProgressPercent, foreignLang, imageSources, type PublicCause } from "@/lib/zakat/content";
 
 type CauseLabels = Dictionary["giving"]["causes"];
 
@@ -18,10 +18,14 @@ function causeBadgeLabel(labels: CauseLabels["badges"], value: PublicCause["badg
   return Object.prototype.hasOwnProperty.call(labels, value) ? labels[value] : value;
 }
 
+/** Card widths in the 1-, 2- and 3-column grids, so the browser picks the smallest photo copy that fits. */
+export const CARD_IMAGE_SIZES = "(min-width: 1024px) 384px, (min-width: 640px) 50vw, 100vw";
+
 /**
  * Public cause card (home page and /causes). Server component: it reads its
  * strings from the giving dictionary for `locale`. The cause's title and
- * description are shown as the admin entered them.
+ * description are shown as the admin entered them (in Amharic on an Amharic
+ * page when entered, else in English, marked with its language).
  */
 export async function CauseCard({
   cause,
@@ -36,8 +40,9 @@ export async function CauseCard({
   const t = giving.causeCard;
   const etb = new Intl.NumberFormat(INTL_LOCALE[locale], { notation: "compact", maximumFractionDigits: 1 });
 
-  const image = mediaSrc(cause.imageUrl);
-  const pct = cause.progress != null && Number.isFinite(cause.progress) ? Math.max(0, Math.round(cause.progress * 100)) : null;
+  const image = imageSources(cause.imageUrl, cause.imageVariants);
+  const textLang = foreignLang(cause.lang, locale);
+  const pct = causeProgressPercent(cause);
   // Over-funded causes say so in words; the bar itself never runs past full.
   const goalReached = pct != null && pct >= 100;
   const barWidth = pct != null ? Math.min(100, pct) : 0;
@@ -63,8 +68,10 @@ export async function CauseCard({
           {image ? (
             // eslint-disable-next-line @next/next/no-img-element -- cause images come from the zakat service via /bff/media
             <img
-              src={image}
-              alt={format(t.imageAlt, { title: cause.title })}
+              src={image.src}
+              srcSet={image.srcSet}
+              sizes={image.srcSet ? CARD_IMAGE_SIZES : undefined}
+              alt={cause.imageAltText || format(t.imageAlt, { title: cause.title })}
               width={1600}
               height={1000}
               className="h-full w-full object-cover"
@@ -90,11 +97,16 @@ export async function CauseCard({
                   {category}
                 </span>
               ) : null}
-              {cause.region ? <span className="text-xs text-muted-ink">{cause.region}</span> : null}
+              {cause.region ? (
+                <span lang={foreignLang("en", locale)} className="text-xs text-muted-ink">
+                  {cause.region}
+                </span>
+              ) : null}
             </div>
           ) : null}
           {/* Admins can save long titles and descriptions: clamp them so one wordy cause doesn't stretch its row. */}
           <h3
+            lang={textLang}
             className="font-serif-display line-clamp-2 text-xl leading-tight tracking-[-0.5px] text-navy sm:text-2xl"
             title={cause.title}
           >
@@ -116,7 +128,9 @@ export async function CauseCard({
               </div>
             </div>
           ) : null}
-          <p className="line-clamp-3 text-sm leading-relaxed text-muted-ink">{cause.description}</p>
+          <p lang={textLang} className="line-clamp-3 text-sm leading-relaxed text-muted-ink">
+            {cause.description}
+          </p>
           <Link
             href={closed ? causeHref : localizedPath(locale, "/zakat/pay")}
             title={closed ? format(t.seeResultTitle, { title: cause.title }) : t.giveTitle}

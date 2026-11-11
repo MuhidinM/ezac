@@ -12,16 +12,21 @@ import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Panel } from "@/components/dashboard/panel";
 import { RequireRole } from "@/components/dashboard/require-role";
+import { AMHARIC_HINT, AMHARIC_INPUT, AMHARIC_TITLE } from "@/components/zakat/content/amharic";
+import type { StoryAdmin } from "@/components/zakat/content/types";
+import { VersionConflictAlert } from "@/components/zakat/content/version-conflict-alert";
 import { ImageUpload, type MediaRef } from "@/components/zakat/image-upload";
+import { staffRef } from "@/components/zakat/staff-ref";
 import { StoryStatusBadge } from "@/components/zakat/story-status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api/client";
-import { ApiError, errorMessage, fieldErrorMap } from "@/lib/api/errors";
+import { ApiError, errorMessage, fieldErrorMap, isVersionConflict } from "@/lib/api/errors";
 import { useResource } from "@/lib/api/use-resource";
-import { type AdminStory, CONTENT_CATEGORIES } from "@/lib/zakat/content";
+import { formatDateTime } from "@/lib/beneficiary/format";
+import { CONTENT_CATEGORIES } from "@/lib/zakat/content";
 
 const API = "/bff/zakat-admin/impact/stories";
 
@@ -29,6 +34,9 @@ type Form = {
   title: string;
   summary: string;
   body: string;
+  titleAm: string;
+  summaryAm: string;
+  bodyAm: string;
   category: string;
   regionCode: string;
   image: MediaRef[];
@@ -40,6 +48,9 @@ const EMPTY: Form = {
   title: "",
   summary: "",
   body: "",
+  titleAm: "",
+  summaryAm: "",
+  bodyAm: "",
   category: "",
   regionCode: "",
   image: [],
@@ -47,31 +58,39 @@ const EMPTY: Form = {
   consentNote: "",
 };
 
-function toForm(story: AdminStory): Form {
+function toForm(story: StoryAdmin): Form {
   return {
     title: story.title,
     summary: story.summary,
     body: story.body,
+    titleAm: story.titleAm ?? "",
+    summaryAm: story.summaryAm ?? "",
+    bodyAm: story.bodyAm ?? "",
     category: story.category,
     regionCode: story.regionCode ?? "",
-    image: story.imageMediaId != null ? [{ id: String(story.imageMediaId), url: story.imageUrl }] : [],
+    // The admin URL also works for a draft's image.
+    image: story.imageMediaId != null ? [{ id: String(story.imageMediaId), url: story.adminImageUrl ?? story.imageUrl }] : [],
     consentConfirmed: story.consentConfirmed,
     consentNote: story.consentNote ?? "",
   };
 }
 
-/** PUT replaces the story, so every field is sent. */
-function toBody(form: Form) {
+/** PUT replaces the story, so every field is sent; an edit sends the loaded `version`. */
+function toBody(form: Form, version?: number) {
   const id = form.image[0]?.id;
   return {
     title: form.title.trim(),
     summary: form.summary.trim(),
     body: form.body.trim(),
+    titleAm: form.titleAm.trim() || null,
+    summaryAm: form.summaryAm.trim() || null,
+    bodyAm: form.bodyAm.trim() || null,
     category: form.category,
     regionCode: form.regionCode || null,
     imageMediaId: id ? (/^\d+$/.test(id) ? Number(id) : id) : null,
     consentConfirmed: form.consentConfirmed,
     consentNote: form.consentNote.trim() || null,
+    ...(version != null ? { version } : {}),
   };
 }
 
@@ -87,7 +106,7 @@ function StoryEditor() {
   const params = useParams<{ id: string }>();
   const isNew = params.id === "new";
   // No single-story admin endpoint; the list is small and unpaginated.
-  const { data, error, reload } = useResource<AdminStory[]>(isNew ? null : API);
+  const { data, error, reload } = useResource<StoryAdmin[]>(isNew ? null : API);
   const [notice, setNotice] = useState<string | null>(null);
   useBreadcrumbLabel(isNew ? "New story" : data?.find((item) => item.id === params.id)?.title);
 
@@ -98,7 +117,7 @@ function StoryEditor() {
   if (!story) return <InlineAlert>Story not found.</InlineAlert>;
   return (
     <StoryForm
-      key={`${story.id}-${story.updatedAt}-${story.status}`}
+      key={`${story.id}-${story.version}-${story.updatedAt}-${story.status}`}
       story={story}
       initial={toForm(story)}
       notice={notice}
@@ -115,7 +134,7 @@ function StoryForm({
   onNotice,
   onChanged,
 }: {
-  story?: AdminStory;
+  story?: StoryAdmin;
   initial: Form;
   notice: string | null;
   onNotice: (notice: string | null) => void;
@@ -125,6 +144,7 @@ function StoryForm({
   const regions = useResource<{ code: string; name: string }[]>("/bff/zakat-admin/impact/regions");
   const [form, setForm] = useState<Form>(initial);
   const [error, setError] = useState<string | null>(null);
+  const [conflict, setConflict] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [action, setAction] = useState<"publish" | "archive" | null>(null);
@@ -135,6 +155,7 @@ function StoryForm({
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setConflict(false);
     setFieldErrors({});
     onNotice(null);
     if (story?.status === "PUBLISHED" && !form.consentConfirmed) {
@@ -143,9 +164,9 @@ function StoryForm({
     }
     setIsSaving(true);
     try {
-      const saved = await apiClient<AdminStory>(story ? `${API}/${encodeURIComponent(story.id)}` : API, {
+      const saved = await apiClient<StoryAdmin>(story ? `${API}/${encodeURIComponent(story.id)}` : API, {
         method: story ? "PUT" : "POST",
-        body: JSON.stringify(toBody(form)),
+        body: JSON.stringify(toBody(form, story?.version)),
       });
       if (!story) {
         router.replace(`/dashboard/zakat/stories/${encodeURIComponent(saved.id)}`);
@@ -154,6 +175,10 @@ function StoryForm({
       onNotice("Changes saved.");
       onChanged?.();
     } catch (saveError) {
+      if (isVersionConflict(saveError)) {
+        setConflict(true);
+        return;
+      }
       setError(errorMessage(saveError, "Couldn't save the story"));
       if (saveError instanceof ApiError) setFieldErrors(fieldErrorMap(saveError.errors));
     } finally {
@@ -166,7 +191,16 @@ function StoryForm({
       <PageHeader
         back={{ href: "/dashboard/zakat/stories", label: "Impact stories" }}
         title={story ? story.title : "New story"}
-        description={story ? undefined : "Saved as a draft. Publish it once the beneficiary has agreed to it being shared."}
+        description={
+          story ? (
+            <>
+              Created {formatDateTime(story.createdAt)}
+              {story.createdBy || story.createdByName ? <> by {staffRef(story.createdBy, story.createdByName)}</> : null}
+            </>
+          ) : (
+            "Saved as a draft. Publish it once the beneficiary has agreed to it being shared."
+          )
+        }
         meta={story ? <StoryStatusBadge status={story.status} /> : undefined}
         actions={
           story ? (
@@ -193,6 +227,7 @@ function StoryForm({
       ) : null}
 
       <form onSubmit={onSubmit} className="space-y-6">
+        {conflict && onChanged ? <VersionConflictAlert onReload={onChanged} /> : null}
         {error ? <InlineAlert>{error}</InlineAlert> : null}
 
         <Panel title="Story">
@@ -232,7 +267,7 @@ function StoryForm({
             </FormField>
             <FormField label="Region" htmlFor="regionCode" error={fieldErrors.regionCode}>
               <NativeSelect id="regionCode" value={form.regionCode} onChange={(e) => set("regionCode", e.target.value)}>
-                <option value="">All of Ethiopia</option>
+                <option value="">Not specified</option>
                 {(regions.data ?? []).map((region) => (
                   <option key={region.code} value={region.code}>
                     {region.name}
@@ -242,6 +277,20 @@ function StoryForm({
             </FormField>
             <FormField label="Image" htmlFor="image" hint="JPEG, PNG or WebP, up to 5 MB" error={fieldErrors.imageMediaId} className="sm:col-span-2">
               <ImageUpload id="image" value={form.image} onChange={(value) => set("image", value)} />
+            </FormField>
+          </div>
+        </Panel>
+
+        <Panel title={AMHARIC_TITLE} description={AMHARIC_HINT}>
+          <div className="grid gap-4">
+            <FormField label="Title in Amharic" htmlFor="titleAm" error={fieldErrors.titleAm}>
+              <Input id="titleAm" {...AMHARIC_INPUT} maxLength={200} value={form.titleAm} onChange={(e) => set("titleAm", e.target.value)} />
+            </FormField>
+            <FormField label="Summary in Amharic" htmlFor="summaryAm" error={fieldErrors.summaryAm}>
+              <Textarea id="summaryAm" {...AMHARIC_INPUT} rows={2} maxLength={500} value={form.summaryAm} onChange={(e) => set("summaryAm", e.target.value)} />
+            </FormField>
+            <FormField label="Full story in Amharic" htmlFor="bodyAm" error={fieldErrors.bodyAm}>
+              <Textarea id="bodyAm" {...AMHARIC_INPUT} rows={10} maxLength={20000} value={form.bodyAm} onChange={(e) => set("bodyAm", e.target.value)} />
             </FormField>
           </div>
         </Panel>

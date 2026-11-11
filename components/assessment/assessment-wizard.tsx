@@ -40,7 +40,7 @@ import type {
   BeneficiaryWhitelist,
 } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
-import { ApiError, fieldErrorMap } from "@/lib/api/errors";
+import { ApiError, VERSION_CONFLICT_MESSAGE, fieldErrorMap, isVersionConflict } from "@/lib/api/errors";
 import type { BeneficiaryDetail, PaginatedItems } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
 import { useSession } from "@/lib/auth/use-session";
@@ -50,11 +50,13 @@ import {
   assessmentBeneficiaryId,
   draftFromAssessment,
   firstIncompleteStep,
+  isEditable,
   isStepComplete,
   issueText,
   reviewInfo,
   stepBody,
   stepForField,
+  type AssessmentDetail,
   type AssessmentDraft,
   type StepId,
 } from "@/lib/backoffice/assessment-steps";
@@ -68,7 +70,7 @@ function apiPath(id: string) {
   return `/bff/backoffice/assessments/${encodeURIComponent(id)}`;
 }
 
-export function AssessmentWizard({ initial }: { initial: Assessment }) {
+export function AssessmentWizard({ initial }: { initial: AssessmentDetail }) {
   const router = useRouter();
   const path = apiPath(initial.id);
   const beneficiaryId = assessmentBeneficiaryId(initial);
@@ -92,7 +94,7 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
     whitelist: whitelistError ? undefined : whitelist,
   });
 
-  const [assessment, setAssessment] = useState(initial);
+  const [assessment, setAssessment] = useState<AssessmentDetail>(initial);
   const [draft, setDraft] = useState<AssessmentDraft>(() => draftFromAssessment(initial));
   const [documents, setDocuments] = useState<AssessmentDocument[]>(initial.documents ?? []);
   // A returned assessment opens on review; a draft moves to its first
@@ -109,6 +111,8 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
   // stay on screen to copy, and nothing navigates away on its own.
   const [conflict, setConflict] = useState<string | null>(null);
   const [conflictCopied, setConflictCopied] = useState<boolean | null>(null);
+  const [isReloading, setIsReloading] = useState(false);
+  const [reloadError, setReloadError] = useState<unknown>(null);
   // An in-app link clicked while the step has unsaved changes.
   const [leaveTo, setLeaveTo] = useState<string | null>(null);
   const [isLeaving, setIsLeaving] = useState(false);
@@ -185,9 +189,9 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
     setConflict(null);
     setSaveFieldErrors({});
     try {
-      const updated = await apiClient<Assessment>(path, {
+      const updated = await apiClient<AssessmentDetail>(path, {
         method: "PATCH",
-        body: JSON.stringify(stepBody(step, draft)),
+        body: JSON.stringify(stepBody(step, draft, assessment.version)),
         keepalive: options?.keepalive,
         signal: options?.signal,
       });
@@ -203,8 +207,8 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
       if (error instanceof DOMException && error.name === "AbortError") return false;
       if (error instanceof ApiError && error.status === 409) {
         // Keep the officer here with their answers: they choose to copy them
-        // and open the latest version, instead of losing them after a timer.
-        setConflict(error.message);
+        // and load the latest version, instead of losing them after a timer.
+        setConflict(isVersionConflict(error) ? VERSION_CONFLICT_MESSAGE : error.message);
         setConflictCopied(null);
         return false;
       }
@@ -304,12 +308,53 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
 
   async function refreshApplicant() {
     try {
-      const fresh = await apiClient<Assessment>(path);
+      const fresh = await apiClient<AssessmentDetail>(path);
       setAssessment((prev) => ({ ...prev, applicant: fresh.applicant }));
     } catch {
       // Keep the old card; the next save refreshes it anyway.
     }
     void validate();
+  }
+
+  /** After a 409: drop the step's unsaved answers and show what is saved now. */
+  async function loadLatest() {
+    setIsReloading(true);
+    setReloadError(null);
+    try {
+      const fresh = await apiClient<AssessmentDetail>(path);
+      if (!isEditable(fresh.status)) {
+        // It was submitted or closed meanwhile: the detail page says what happened.
+        setIsDirty(false);
+        router.push(`/dashboard/assessments/${initial.id}`);
+        return;
+      }
+      setAssessment(fresh);
+      setDraft(draftFromAssessment(fresh));
+      setDocuments(fresh.documents ?? []);
+      setIsDirty(false);
+      setConflict(null);
+      setSaveFieldErrors({});
+      void validate();
+    } catch (error) {
+      setReloadError(error);
+    } finally {
+      setIsReloading(false);
+    }
+  }
+
+  /**
+   * Take the documents and version the server has now, after this officer
+   * uploaded or deleted a document, so the next save isn't refused as stale.
+   */
+  async function refreshDocuments() {
+    void validate();
+    try {
+      const fresh = await apiClient<AssessmentDetail>(path);
+      setAssessment((prev) => ({ ...prev, version: fresh.version, documents: fresh.documents }));
+      setDocuments(fresh.documents ?? []);
+    } catch {
+      // The list already shows the change; the next save reports any conflict.
+    }
   }
 
   const validationErrors = useMemo(() => {
@@ -428,22 +473,22 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
                   <Button
                     type="button"
                     size="sm"
-                    onClick={() => {
-                      setIsDirty(false);
-                      router.push(`/dashboard/assessments/${initial.id}`);
-                    }}
+                    onClick={() => void loadLatest()}
+                    loading={isReloading}
+                    loadingText="Loading…"
                   >
-                    Open the latest version
+                    Load the latest version
                   </Button>
                 </div>
               }
             >
-              {conflict.replace(/\.?$/, ".")} Your answers on this step are still on screen. Copy them before you open
+              {conflict.replace(/\.?$/, ".")} Your answers on this step are still on screen. Copy them before you load
               the latest version, which shows what was saved.
               {conflictCopied === false ? " Copying didn't work: select the answers and copy them by hand." : ""}
             </InlineAlert>
           ) : null}
           <ErrorAlert error={saveError} onRetry={() => void save()} fallback="Couldn't save this step." />
+          <ErrorAlert error={reloadError} onRetry={() => void loadLatest()} fallback="Couldn't load the latest version." />
 
           {resuming ? <div className="h-64 animate-pulse rounded-xl bg-black/[0.04]" role="status" aria-label="Loading" /> : null}
           {!resuming && step === 1 ? <StepInfo {...stepProps} /> : null}
@@ -458,7 +503,11 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
               documents={documents}
               onDocumentUploaded={(document) => {
                 setDocuments((prev) => [...prev, document]);
-                void validate();
+                void refreshDocuments();
+              }}
+              onDocumentDeleted={(documentId) => {
+                setDocuments((prev) => prev.filter((item) => item.id !== documentId));
+                void refreshDocuments();
               }}
             />
           ) : null}
@@ -539,7 +588,13 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
       {beneficiaryId ? (
         <BasicDetailsDialog
           beneficiaryId={beneficiaryId}
-          initial={applicant}
+          initial={{
+            ...applicant,
+            // The household's own version, so an edit made elsewhere meanwhile is caught (409).
+            version: (beneficiary as { version?: number | null } | undefined)?.version ?? null,
+            pendingBankChange: (beneficiary as { pendingBankChange?: boolean } | undefined)?.pendingBankChange,
+          }}
+          onReload={() => void refreshApplicant()}
           open={basicOpen}
           onOpenChange={setBasicOpen}
           onSaved={(updated) => {
@@ -554,7 +609,7 @@ export function AssessmentWizard({ initial }: { initial: Assessment }) {
   );
 }
 
-export function AssessmentLocked({ assessment }: { assessment: Assessment }) {
+export function AssessmentLocked({ assessment }: { assessment: Pick<Assessment, "id"> }) {
   return (
     <InlineAlert
       tone="info"

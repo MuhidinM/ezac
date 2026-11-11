@@ -1,7 +1,6 @@
 import type { KycDocument, RegistrationType } from "@/lib/registration/types";
 
 const STORAGE_KEY = "ezac_registration_session";
-const PENDING_SETUPS_KEY = "ezac_pending_password_setups";
 
 export type RegistrationSession = {
   branchId: string;
@@ -10,12 +9,7 @@ export type RegistrationSession = {
   codesAvailable?: number | null;
   registrationType?: RegistrationType;
   entityId?: string;
-  passwordSetupToken?: string;
   companyDocumentUploadToken?: string;
-  phone?: string;
-  /** The registered household's name and BIN, shown on the password step. */
-  fullName?: string;
-  bin?: string | null;
   kycDocuments?: KycDocument[];
   kycComplete?: boolean;
 };
@@ -66,65 +60,6 @@ export function setSelectedBranch(branch: SelectedBranch): RegistrationSession {
   return next;
 }
 
-/**
- * A household registered in this tab whose login password isn't set yet.
- * These are kept per household, apart from the in-progress registration, so
- * starting the next registration doesn't lose the earlier household's token.
- */
-export type PendingPasswordSetup = {
-  entityId: string;
-  passwordSetupToken: string;
-  registrationType: RegistrationType;
-  branchName?: string;
-  fullName?: string;
-  bin?: string | null;
-};
-
-function readPendingSetups(): Record<string, PendingPasswordSetup> {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = sessionStorage.getItem(PENDING_SETUPS_KEY);
-    const parsed: unknown = raw ? JSON.parse(raw) : null;
-    return parsed && typeof parsed === "object" ? (parsed as Record<string, PendingPasswordSetup>) : {};
-  } catch {
-    return {};
-  }
-}
-
-function writePendingSetups(setups: Record<string, PendingPasswordSetup>): void {
-  if (Object.keys(setups).length === 0) sessionStorage.removeItem(PENDING_SETUPS_KEY);
-  else sessionStorage.setItem(PENDING_SETUPS_KEY, JSON.stringify(setups));
-}
-
-export function savePendingPasswordSetup(setup: PendingPasswordSetup): void {
-  writePendingSetups({ ...readPendingSetups(), [setup.entityId]: setup });
-}
-
-export function getPendingPasswordSetup(beneficiaryId: string): PendingPasswordSetup | null {
-  const setup = readPendingSetups()[beneficiaryId];
-  return setup?.passwordSetupToken ? setup : null;
-}
-
-/** Forget one household's token once its password is set. */
-export function clearPendingPasswordSetup(beneficiaryId: string): void {
-  const setups = readPendingSetups();
-  delete setups[beneficiaryId];
-  writePendingSetups(setups);
-}
-
-/**
- * True while this tab still holds the password setup token for a household
- * registered here, i.e. registration stopped at the password step.
- */
-export function hasPendingPasswordSetup(beneficiaryId: string): boolean {
-  return getPendingPasswordSetup(beneficiaryId)?.registrationType === "manual";
-}
-
-/** The password step for a household registered in this tab. */
-export function passwordSetupHref(beneficiaryId: string): string {
-  return `/dashboard/register/manual/password?household=${encodeURIComponent(beneficiaryId)}`;
-}
-
 /** Keep branch context and set type; clear in-progress entity fields. */
 export function beginRegistration(
   type: RegistrationType,
@@ -144,36 +79,6 @@ export function beginRegistration(
   return next;
 }
 
-export function setRegistrationSession(
-  partial: Partial<RegistrationSession> & {
-    registrationType: RegistrationType;
-  },
-): RegistrationSession {
-  const current = readSession();
-  if (!current?.branchId || !current.branchName) {
-    throw new Error("Select a branch before continuing registration");
-  }
-
-  const next: RegistrationSession = {
-    branchId: partial.branchId ?? current.branchId,
-    branchName: partial.branchName ?? current.branchName,
-    codesAvailable: partial.codesAvailable ?? current.codesAvailable ?? null,
-    registrationType: partial.registrationType,
-    entityId: partial.entityId ?? current.entityId ?? "",
-    passwordSetupToken:
-      partial.passwordSetupToken ?? current.passwordSetupToken ?? "",
-    companyDocumentUploadToken:
-      partial.companyDocumentUploadToken ?? current.companyDocumentUploadToken,
-    phone: partial.phone ?? current.phone,
-    fullName: partial.fullName ?? current.fullName,
-    bin: partial.bin ?? current.bin,
-    kycDocuments: partial.kycDocuments ?? current.kycDocuments,
-    kycComplete: partial.kycComplete ?? current.kycComplete,
-  };
-  writeSession(next);
-  return next;
-}
-
 export function updateRegistrationSession(
   partial: Partial<RegistrationSession>,
 ): RegistrationSession | null {
@@ -184,18 +89,14 @@ export function updateRegistrationSession(
   return next;
 }
 
-/** End the in-progress registration; pending password setups stay. */
+/** End the in-progress registration. */
 export function clearInProgressRegistration(): void {
   sessionStorage.removeItem(STORAGE_KEY);
 }
 
-/**
- * Forget all registration state in this tab, every pending password setup
- * included. Used at sign-out: branch PCs are shared.
- */
+/** Forget all registration state in this tab. Used at sign-out: branch PCs are shared. */
 export function clearRegistrationSession(): void {
   sessionStorage.removeItem(STORAGE_KEY);
-  sessionStorage.removeItem(PENDING_SETUPS_KEY);
 }
 
 export function setRegistrationSuccessFlag(): void {
@@ -207,12 +108,4 @@ export function consumeRegistrationSuccessFlag(): boolean {
   if (!value) return false;
   sessionStorage.removeItem("ezac_registration_success");
   return true;
-}
-
-export function requireRegistrationSession(): RegistrationSession {
-  const session = readSession();
-  if (!session?.entityId || !session.passwordSetupToken) {
-    throw new Error("Registration session expired");
-  }
-  return session;
 }

@@ -15,13 +15,16 @@ import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { DetailList, Panel } from "@/components/dashboard/panel";
 import { RequireRole } from "@/components/dashboard/require-role";
+import { VersionConflictAlert } from "@/components/staff/version-conflict-alert";
 import { DetailSkeleton } from "@/components/dashboard/skeletons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api/client";
+import { isVersionConflict } from "@/lib/api/errors";
 import type { Branch } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
 import { branchContact } from "@/lib/branches/contact";
+import { withVersion } from "@/lib/branches/version";
 
 export default function BranchDetailPage() {
   return (
@@ -39,6 +42,8 @@ function BranchDetail() {
   // The status when the dialog opened, so its text doesn't flip while it closes.
   const [wasActive, setWasActive] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
+  // Someone else changed the branch since it was loaded.
+  const [conflict, setConflict] = useState(false);
   useBreadcrumbLabel(branch?.name);
 
   if (isLoading && !branch) {
@@ -63,11 +68,22 @@ function BranchDetail() {
 
   async function toggleActive() {
     if (!branch) return;
-    const updated = await apiClient<Branch>(path, {
-      method: "PATCH",
-      body: JSON.stringify({ active: !branch.active }),
-    });
-    mutate(updated);
+    try {
+      const updated = await apiClient<Branch>(path, {
+        method: "PATCH",
+        body: JSON.stringify(withVersion({ active: !branch.active }, branch)),
+      });
+      mutate(updated);
+    } catch (toggleError) {
+      if (!isVersionConflict(toggleError)) throw toggleError;
+      // Close the dialog: its question may no longer be right once reloaded.
+      setConflict(true);
+    }
+  }
+
+  function reloadAfterConflict() {
+    setConflict(false);
+    reload();
   }
 
   return (
@@ -78,8 +94,8 @@ function BranchDetail() {
         title={wasActive ? "Deactivate branch?" : "Activate branch?"}
         description={
           wasActive
-            ? "The branch is marked inactive and you can't generate new codes for it. For now this doesn't stop the branch officer signing in: to stop their access, also reset their password. To stop its unused codes being used, revoke them below."
-            : "The branch is marked active again and you can generate codes for it."
+            ? "The branch officer's login is turned off and their open sessions end within 30 seconds. You can't generate new codes for an inactive branch. To stop its unused codes being used, revoke them below."
+            : "The branch officer can sign in again with their current password, and you can generate codes for the branch."
         }
         confirmLabel={wasActive ? "Deactivate" : "Activate"}
         destructive={wasActive}
@@ -116,7 +132,15 @@ function BranchDetail() {
         }
       />
 
-      <EditBranchDialog branch={branch} open={editOpen} onOpenChange={setEditOpen} onSaved={mutate} />
+      {conflict ? <VersionConflictAlert onReload={reloadAfterConflict} /> : null}
+
+      <EditBranchDialog
+        branch={branch}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        onSaved={mutate}
+        onReload={reload}
+      />
 
       <CodeStatTiles stats={branch.codeStats} />
 

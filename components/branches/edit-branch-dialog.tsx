@@ -4,6 +4,7 @@ import { type FormEvent, useState } from "react";
 
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
+import { VersionConflictAlert } from "@/components/staff/version-conflict-alert";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,9 +16,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { apiClient } from "@/lib/api/client";
-import { ApiError, errorMessage, fieldErrorMap } from "@/lib/api/errors";
+import { ApiError, errorMessage, fieldErrorMap, isVersionConflict } from "@/lib/api/errors";
 import type { Branch } from "@/lib/api/types";
 import { branchContact } from "@/lib/branches/contact";
+import { withVersion } from "@/lib/branches/version";
 
 /** Edit branch details. Region and the officer's phone (their login) are fixed. */
 export function EditBranchDialog({
@@ -25,11 +27,14 @@ export function EditBranchDialog({
   open,
   onOpenChange,
   onSaved,
+  onReload,
 }: {
   branch: Branch;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: (branch: Branch) => void;
+  /** Loads the branch again after someone else changed it. */
+  onReload: () => void;
 }) {
   const initial = {
     name: branch.name ?? "",
@@ -41,6 +46,7 @@ export function EditBranchDialog({
   const [form, setForm] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [conflict, setConflict] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   // Start from the saved branch every time the dialog opens. The page opens it
@@ -53,6 +59,7 @@ export function EditBranchDialog({
       setForm(initial);
       setError(null);
       setFieldErrors({});
+      setConflict(false);
     }
   }
 
@@ -74,14 +81,20 @@ export function EditBranchDialog({
     setIsSaving(true);
     setError(null);
     setFieldErrors({});
+    setConflict(false);
     try {
+      // The version from the last load; the saved branch carries the next one.
       const updated = await apiClient<Branch>(
         `/bff/backoffice/admin/branches/${encodeURIComponent(branch.id)}`,
-        { method: "PATCH", body: JSON.stringify(changed) },
+        { method: "PATCH", body: JSON.stringify(withVersion(changed, branch)) },
       );
       onSaved(updated);
       onOpenChange(false);
     } catch (saveError) {
+      if (isVersionConflict(saveError)) {
+        setConflict(true);
+        return;
+      }
       setError(errorMessage(saveError, "Failed to update branch"));
       if (saveError instanceof ApiError) setFieldErrors(fieldErrorMap(saveError.errors));
     } finally {
@@ -97,9 +110,18 @@ export function EditBranchDialog({
             <DialogTitle className="text-navy">Edit branch</DialogTitle>
             <DialogDescription>
               The region ({branch.region ?? "—"}) and the officer&apos;s login phone ({branchContact(branch).phone ?? "—"}) can&apos;t be changed.
+              The officer&apos;s name here is also the name on their login.
             </DialogDescription>
           </DialogHeader>
           {error ? <InlineAlert>{error}</InlineAlert> : null}
+          {conflict ? (
+            <VersionConflictAlert
+              onReload={() => {
+                setConflict(false);
+                onReload();
+              }}
+            />
+          ) : null}
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Branch name" htmlFor="eb-name" required error={fieldErrors.name} className="sm:col-span-2">
               <Input id="eb-name" value={form.name} onChange={(e) => set("name", e.target.value)} required />

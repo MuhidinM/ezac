@@ -29,7 +29,10 @@ import { pageMetadata } from "@/lib/seo";
 import { breadcrumbJsonLd } from "@/lib/structured-data";
 import type { CalculatorConfig, LivestockRow } from "@/lib/zakat/calculator-config";
 import {
+  type NeedBand,
+  collectedEtb,
   formatCount,
+  formatDate,
   formatDateTime,
   formatEtb,
   formatEtbCompact,
@@ -37,6 +40,8 @@ import {
   getCalculatorConfig,
   getHomeSummary,
   getImpactSummary,
+  getScoringBands,
+  needBands,
 } from "@/lib/zakat/impact";
 
 type Strings = Dictionary["transparency"]["howItWorks"];
@@ -69,17 +74,25 @@ const ELIGIBLE = [
 
 const QURAN_9_60 = "https://quran.com/9/60";
 
+/** The need bands' colours, low to high. */
+const BAND_CLASSES: Record<NeedBand["key"], string> = {
+  low: "bg-[#4c9a7a] text-navy",
+  medium: "bg-accent-fill text-navy",
+  high: "bg-[#b4532a] text-white",
+};
+
 /**
- * Example need bands (out of 270 points). Fixed in this page, not read from the
- * active points table (there is no public endpoint for it yet), so they are
- * labelled as an example rather than as the bands in force.
+ * Shown only when the bands in force (beneficiary-service's public scoring
+ * bands) can't be read, and labelled as an example.
  */
-const BAND_MAX = 270;
-const BANDS = [
-  { key: "low", from: 0, to: 110, className: "bg-[#4c9a7a] text-navy" },
-  { key: "medium", from: 110, to: 180, className: "bg-accent-fill text-navy" },
-  { key: "high", from: 180, to: 270, className: "bg-[#b4532a] text-white" },
-] as const;
+const EXAMPLE_BANDS: { bands: NeedBand[]; maxTotal: number } = {
+  maxTotal: 270,
+  bands: [
+    { key: "low", min: 0, max: 109, from: 0, to: 110 },
+    { key: "medium", min: 110, max: 179, from: 110, to: 180 },
+    { key: "high", min: 180, max: 270, from: 180, to: 270 },
+  ],
+};
 
 type Accent = "brand" | "navy";
 const ACCENT_CLASSES: Record<Accent, { fill: string; text: string }> = {
@@ -264,9 +277,18 @@ export default async function HowItWorksPage({ params }: PageProps<"/[lang]/how-
   // null means not published (the section is left out); an outage throws, so
   // ISR keeps serving the last good page.
   // The config comes checked: a partial one is null, so the rules table is left out instead of crashing.
-  const [config, home, impact] = await Promise.all([getCalculatorConfig(), getHomeSummary(), getImpactSummary()]);
+  // The need bands come from another service: when it is down, the page shows its example instead of failing.
+  const [config, home, impact, scoring] = await Promise.all([
+    getCalculatorConfig(),
+    getHomeSummary(),
+    getImpactSummary(),
+    getScoringBands().catch(() => null),
+  ]);
+  const liveBands = needBands(scoring);
+  const { bands, maxTotal } = liveBands ?? EXAMPLE_BANDS;
+  const bandsSince = liveBands ? formatDate(scoring?.activeSince, locale, "long") : null;
   const live = [
-    { value: formatEtbCompact(home?.totalCollectedEtb, locale), label: t.live.collected },
+    { value: formatEtbCompact(collectedEtb(home), locale), label: t.live.collected },
     { value: formatCount(home?.totalBeneficiariesSupported, locale), label: t.live.familiesSupported },
     { value: formatEtbCompact(impact?.distributedFundsEtb, locale), label: t.live.distributed },
     { value: formatCount(impact?.activeProjects, locale), label: t.live.activeCauses },
@@ -343,13 +365,21 @@ export default async function HowItWorksPage({ params }: PageProps<"/[lang]/how-
       <Section muted>
         <SectionHeading eyebrow={t.needLevels.eyebrow} title={t.needLevels.title} intro={t.needLevels.intro} />
         <div className="mx-auto mt-10 max-w-3xl">
-          <p className="mb-3 text-center text-xs tracking-[0.16em] text-brand uppercase">{t.needLevels.example}</p>
+          {liveBands ? (
+            bandsSince ? (
+              <p className="mb-3 text-center text-xs tracking-[0.16em] text-brand uppercase">
+                {format(t.needLevels.inForce, { date: bandsSince })}
+              </p>
+            ) : null
+          ) : (
+            <p className="mb-3 text-center text-xs tracking-[0.16em] text-brand uppercase">{t.needLevels.example}</p>
+          )}
           <div className="flex h-12 overflow-hidden rounded-xl text-sm font-medium" aria-hidden="true">
-            {BANDS.map((band) => (
+            {bands.map((band) => (
               <div
                 key={band.key}
-                className={`flex items-center justify-center px-1 text-center ${band.className}`}
-                style={{ width: `${((band.to - band.from) / BAND_MAX) * 100}%` }}
+                className={`flex items-center justify-center px-1 text-center ${BAND_CLASSES[band.key]}`}
+                style={{ width: `${((band.to - band.from) / maxTotal) * 100}%` }}
               >
                 {t.needLevels.bands[band.key]}
               </div>
@@ -357,27 +387,33 @@ export default async function HowItWorksPage({ params }: PageProps<"/[lang]/how-
           </div>
           <div className="relative mt-1 h-5 text-xs text-navy/70 tabular-nums" aria-hidden="true">
             <span className="absolute start-0">{scale.format(0)}</span>
-            {BANDS.slice(1).map((band) => (
+            {bands.slice(1).map((band) => (
               <span
                 key={band.key}
                 className="absolute -translate-x-1/2 rtl:translate-x-1/2"
-                style={{ insetInlineStart: `${(band.from / BAND_MAX) * 100}%` }}
+                style={{ insetInlineStart: `${(band.from / maxTotal) * 100}%` }}
               >
                 {scale.format(band.from)}
               </span>
             ))}
-            <span className="absolute end-0">{scale.format(BAND_MAX)}</span>
+            <span className="absolute end-0">{scale.format(maxTotal)}</span>
           </div>
           <div className="mt-6 grid gap-4 sm:grid-cols-3">
-            {t.needLevels.levels.map((level) => (
+            {t.needLevels.levels.map((level, index) => (
               <div key={level.title} className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
                 <h3 className="font-medium text-navy">{level.title}</h3>
-                <p className="text-sm text-brand tabular-nums">{level.range}</p>
+                <p className="text-sm text-brand tabular-nums">
+                  {liveBands && bands[index]
+                    ? format(t.needLevels.range, { min: scale.format(bands[index].min), max: scale.format(bands[index].max) })
+                    : level.range}
+                </p>
                 <p className="mt-2 text-sm text-muted-ink">{level.body}</p>
               </div>
             ))}
           </div>
-          <p className="mt-4 text-center text-xs text-navy/70">{t.needLevels.note}</p>
+          <p className="mt-4 text-center text-xs text-navy/70">
+            {liveBands ? format(t.needLevels.liveNote, { version: scoring?.version ?? "" }) : t.needLevels.note}
+          </p>
         </div>
       </Section>
 

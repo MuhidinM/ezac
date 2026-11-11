@@ -338,6 +338,11 @@ export function safeFileResponse(upstream: Response): Response {
 
   if (contentType) headers.set("Content-Type", contentType);
   if (contentLength) headers.set("Content-Length", contentLength);
+  // CSV exports say when they were cut at 10,000 rows.
+  for (const name of ["X-Total-Count", "X-Export-Truncated"]) {
+    const value = upstream.headers.get(name);
+    if (value) headers.set(name, value);
+  }
   headers.set("Cache-Control", "private, no-store");
   headers.set("X-Content-Type-Options", "nosniff");
 
