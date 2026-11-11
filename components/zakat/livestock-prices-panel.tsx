@@ -1,186 +1,235 @@
 "use client";
 
-import Link from "next/link";
 import { type FormEvent, useState } from "react";
 import { Save } from "lucide-react";
 
+import { ErrorAlert } from "@/components/dashboard/error-alert";
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { Panel } from "@/components/dashboard/panel";
+import { TableMessageRow, TableSkeletonRows } from "@/components/dashboard/table-states";
+import { staffRef } from "@/components/zakat/staff-ref";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { ANIMALS, type Animal, livestockUpdate } from "@/app/(portal)/dashboard/zakat/prices/price-update";
 import { apiClient } from "@/lib/api/client";
-import { ApiError, errorMessage } from "@/lib/api/errors";
+import { ApiError, errorMessage, fieldErrorMap } from "@/lib/api/errors";
 import { useResource } from "@/lib/api/use-resource";
 import { formatEtb } from "@/lib/backoffice/format";
 import { formatDateTime } from "@/lib/beneficiary/format";
 
-type RulesVersion = {
-  version: number;
-  name: string;
-  active: boolean;
-  createdAt: string;
-  rules: Record<string, unknown> & { livestockAverageUnitPriceEtb?: Record<Animal, number> };
+/** One animal's price, as GET/PUT /admin/livestock-prices and its history return it. */
+type LivestockPrice = {
+  animal: Animal;
+  unitPriceEtb: number;
+  enteredBy: string | null;
+  enteredByName: string | null;
+  enteredAt: string;
 };
 
-const ANIMALS = [
-  { key: "sheep", label: "Sheep" },
-  { key: "goat", label: "Goat" },
-  { key: "cattle", label: "Cattle (one head)" },
-  { key: "camel", label: "Camel" },
-] as const;
+const BASE = "/bff/zakat-admin/livestock-prices";
+const HISTORY_LIMIT = 20;
+const ANIMAL_LABEL = Object.fromEntries(ANIMALS.map(({ key, label }) => [key, label])) as Record<Animal, string>;
 
-type Animal = (typeof ANIMALS)[number]["key"];
-
+function byAnimal(prices: LivestockPrice[]): Partial<Record<Animal, LivestockPrice>> {
+  return Object.fromEntries(prices.map((price) => [price.animal, price]));
+}
 
 /**
  * Average livestock prices. The calculator works out livestock zakat in
  * animals, not birr, so these prices change no one's amount: the public
- * "How it works" page lists them as a guide to each animal's value. They live
- * in the versioned calculator rules, so saving creates a new version from the
- * active one with only these prices changed, and activates it.
+ * "How it works" page lists them as a guide to each animal's value. They are
+ * kept apart from the calculator rules, so activating a rules version never
+ * changes them.
  */
-export function LivestockPricesPanel({ onChanged }: { onChanged?: () => void }) {
-  const { data, error, mutate } = useResource<RulesVersion>("/bff/zakat-admin/calculator-configs/active");
-  // Kept here: the form remounts on the new version, so its own state is lost.
-  const [notice, setNotice] = useState<{ tone: "success" | "warning"; text: string } | null>(null);
+export function LivestockPricesPanel() {
+  const prices = useResource<LivestockPrice[]>(BASE);
+  const [animal, setAnimal] = useState<Animal | "">("");
+  const history = useResource<LivestockPrice[]>(
+    `${BASE}/history?limit=${HISTORY_LIMIT}${animal ? `&animal=${animal}` : ""}`,
+  );
+  // Kept here: the form remounts after a save, so its own state is lost.
+  const [notice, setNotice] = useState<string | null>(null);
+  const rows = history.data ?? [];
+
   return (
     <Panel
       title="Livestock prices"
-      description="Average price per animal. Livestock zakat is worked out in animals, so these prices don't change any amount; the public How it works page lists them as a guide to each animal's value. Saving publishes a new calculator rules version."
+      description="Average price per animal. Livestock zakat is worked out in animals, so these prices don't change any amount; the public How it works page lists them as a guide to each animal's value. Calculator rules versions don't change them."
     >
-      {error ? <InlineAlert>{error.message}</InlineAlert> : null}
-      {notice ? (
-        <InlineAlert tone={notice.tone} className="mb-4">
-          {notice.text}
-        </InlineAlert>
-      ) : null}
-      {data ? (
-        <LivestockForm
-          key={data.version}
-          active={data}
-          onEdit={() => setNotice(null)}
-          onSaved={(next) => {
-            setNotice({ tone: "success", text: `Saved as calculator rules v${next.version}. The public How it works page shows the new prices now.` });
-            mutate(next);
-            onChanged?.();
-          }}
-          onOutdated={(latest) => {
-            setNotice({
-              tone: "warning",
-              text: `Nothing was saved: calculator rules v${latest.version} (${latest.name}) was applied after this page loaded, and saving would have undone it. The form now shows v${latest.version}; enter the livestock prices again and save.`,
-            });
-            mutate(latest);
-            onChanged?.();
-          }}
-        />
-      ) : !error ? (
-        <p className="text-sm text-black/60">Loading…</p>
-      ) : null}
+      <div className="space-y-6">
+        <ErrorAlert error={prices.error} onRetry={prices.reload} />
+        {notice ? <InlineAlert tone="success">{notice}</InlineAlert> : null}
+        {prices.data ? (
+          <LivestockForm
+            key={prices.data.map((price) => `${price.animal}:${price.unitPriceEtb}`).join(",")}
+            current={byAnimal(prices.data)}
+            onEdit={() => setNotice(null)}
+            onSaved={(next, count) => {
+              setNotice(`${count === 1 ? "Price" : "Prices"} saved. The public How it works page shows them now.`);
+              prices.mutate(next);
+              history.reload();
+            }}
+          />
+        ) : !prices.error ? (
+          <p className="text-sm text-black/60">Loading…</p>
+        ) : null}
+
+        <div className="space-y-3 border-t border-black/[0.06] pt-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-medium text-navy">Price history</h3>
+              <p className="text-xs text-black/60">Newest first, the latest {HISTORY_LIMIT}.</p>
+            </div>
+            <NativeSelect
+              aria-label="Animal"
+              value={animal}
+              onChange={(event) => setAnimal(event.target.value as Animal | "")}
+              className="w-44"
+            >
+              <option value="">All animals</option>
+              {ANIMALS.map(({ key, label }) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </NativeSelect>
+          </div>
+          <ErrorAlert error={history.error} onRetry={history.reload} />
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-black/[0.015]">
+                <TableHead>Set on</TableHead>
+                <TableHead>Animal</TableHead>
+                <TableHead className="text-right">Price</TableHead>
+                <TableHead>By</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {history.isLoading && rows.length === 0 ? (
+                <TableSkeletonRows colSpan={4} />
+              ) : rows.length === 0 ? (
+                <TableMessageRow colSpan={4}>{history.error ? "Couldn't load the price history." : "No prices set yet."}</TableMessageRow>
+              ) : (
+                rows.map((row) => (
+                  <TableRow key={`${row.animal}-${row.enteredAt}`}>
+                    <TableCell>{formatDateTime(row.enteredAt)}</TableCell>
+                    <TableCell>{ANIMAL_LABEL[row.animal] ?? row.animal}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatEtb(row.unitPriceEtb)}</TableCell>
+                    <TableCell className="text-sm text-black/60">{staffRef(row.enteredBy, row.enteredByName) ?? "—"}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
     </Panel>
   );
 }
 
 function LivestockForm({
-  active,
+  current,
   onEdit,
   onSaved,
-  onOutdated,
 }: {
-  active: RulesVersion;
+  current: Partial<Record<Animal, LivestockPrice>>;
   onEdit: () => void;
-  onSaved: (version: RulesVersion) => void;
-  /** Another version became active after this form loaded; nothing was saved. */
-  onOutdated: (latest: RulesVersion) => void;
+  onSaved: (prices: LivestockPrice[], count: number) => void;
 }) {
-  const current = active.rules.livestockAverageUnitPriceEtb;
-  const [prices, setPrices] = useState<Record<Animal, string>>(() =>
-    Object.fromEntries(ANIMALS.map(({ key }) => [key, current?.[key] != null ? String(current[key]) : ""])) as Record<Animal, string>,
+  const now = Object.fromEntries(ANIMALS.flatMap(({ key }) => (current[key] ? [[key, current[key].unitPriceEtb]] : []))) as Partial<
+    Record<Animal, number>
+  >;
+  const [values, setValues] = useState<Record<Animal, string>>(
+    () => Object.fromEntries(ANIMALS.map(({ key }) => [key, now[key] != null ? String(now[key]) : ""])) as Record<Animal, string>,
   );
-  const [note, setNote] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<Animal, string>>>({});
   const [isSaving, setIsSaving] = useState(false);
 
-  const changed = ANIMALS.filter(({ key }) => prices[key].trim() !== "" && Number(prices[key]) !== current?.[key]);
-  const valid = ANIMALS.every(({ key }) => Number(prices[key]) > 0);
+  const update = livestockUpdate(values, now);
+  const changed = Object.keys(update.body).length;
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
     onEdit();
+    setFieldErrors(update.errors);
+    if (Object.keys(update.errors).length > 0 || changed === 0) return;
     setIsSaving(true);
-    const livestockAverageUnitPriceEtb = Object.fromEntries(ANIMALS.map(({ key }) => [key, Number(prices[key])]));
-    const today = new Date().toLocaleDateString("en", { dateStyle: "medium" });
     try {
-      // The new version copies every other rule from the active one. Read it again
-      // now: a version applied since this page loaded (another tab or admin) would
-      // otherwise be undone by a copy of the older rules.
-      const latest = await apiClient<RulesVersion>("/bff/zakat-admin/calculator-configs/active");
-      if (latest.version !== active.version) {
-        onOutdated(latest);
-        return;
-      }
-      const created = await apiClient<RulesVersion>("/bff/zakat-admin/calculator-configs", {
-        method: "POST",
-        body: JSON.stringify({
-          name: (note.trim() || `Livestock prices ${today}`).slice(0, 160),
-          rules: { ...latest.rules, livestockAverageUnitPriceEtb },
-          activate: true,
-        }),
-      });
-      onSaved(created);
+      const saved = await apiClient<LivestockPrice[]>(BASE, { method: "PUT", body: JSON.stringify(update.body) });
+      onSaved(saved, changed);
     } catch (saveError) {
-      const details = saveError instanceof ApiError ? saveError.errors.map((item) => item.message).join(" ") : "";
-      setMessage([errorMessage(saveError, "Couldn't save the prices"), details].filter(Boolean).join(" "));
+      setMessage(errorMessage(saveError, "Couldn't save the prices"));
+      if (saveError instanceof ApiError) {
+        const map = fieldErrorMap(saveError.errors);
+        setFieldErrors(Object.fromEntries(ANIMALS.flatMap(({ key }) => (map[key] ? [[key, map[key]]] : []))));
+      }
     } finally {
       setIsSaving(false);
     }
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form onSubmit={onSubmit} className="space-y-4" noValidate>
       {message ? <InlineAlert>{message}</InlineAlert> : null}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {ANIMALS.map(({ key, label }) => (
-          <FormField
-            key={key}
-            label={label}
-            htmlFor={`livestock-${key}`}
-            required
-            hint={current?.[key] != null ? `Now ${formatEtb(current[key])}` : undefined}
-          >
-            <div className="relative">
-              <span className="pointer-events-none absolute top-1/2 start-3 -translate-y-1/2 text-xs text-black/60">ETB</span>
-              <Input
-                id={`livestock-${key}`}
-                type="number"
-                min={1}
-                step="1"
-                value={prices[key]}
-                onChange={(event) => {
-                  onEdit();
-                  setPrices((prev) => ({ ...prev, [key]: event.target.value }));
-                }}
-                required
-                className="ps-11 tabular-nums"
-              />
-            </div>
-          </FormField>
-        ))}
+        {ANIMALS.map(({ key, label }) => {
+          const price = current[key];
+          const by = price ? staffRef(price.enteredBy, price.enteredByName) : null;
+          return (
+            <FormField
+              key={key}
+              label={label}
+              htmlFor={`livestock-${key}`}
+              error={fieldErrors[key]}
+              hint={
+                price ? (
+                  <>
+                    Now {formatEtb(price.unitPriceEtb)}, set {formatDateTime(price.enteredAt)}
+                    {by ? <> by {by}</> : null}
+                  </>
+                ) : (
+                  "No price yet"
+                )
+              }
+            >
+              <div className="relative">
+                <span className="pointer-events-none absolute top-1/2 start-3 -translate-y-1/2 text-xs text-black/60">ETB</span>
+                <Input
+                  id={`livestock-${key}`}
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  step="0.01"
+                  value={values[key]}
+                  onChange={(event) => {
+                    onEdit();
+                    setValues((prev) => ({ ...prev, [key]: event.target.value }));
+                  }}
+                  aria-invalid={fieldErrors[key] ? true : undefined}
+                  className="ps-11 tabular-nums"
+                />
+              </div>
+            </FormField>
+          );
+        })}
       </div>
-      <FormField label="Note" htmlFor="livestock-note" hint="Optional; becomes the rules version name">
-        <Input id="livestock-note" maxLength={160} value={note} onChange={(event) => setNote(event.target.value)} placeholder="e.g. Market survey, Meskerem 2019" />
-      </FormField>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-black/[0.06] pt-4">
-        <p className="text-xs text-black/60">
-          From rules v{active.version} ({active.name}), {formatDateTime(active.createdAt)}.{" "}
-          <Link href="/dashboard/zakat/rules" className="underline underline-offset-2">
-            All calculator rules
-          </Link>
-        </p>
-        <Button type="submit" disabled={isSaving || !valid || changed.length === 0}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs text-black/60">Change only what you need; the other animals keep their price.</p>
+        <Button type="submit" disabled={isSaving || (changed === 0 && Object.keys(update.errors).length === 0)}>
           <Save />
-          {isSaving ? "Saving…" : "Save and apply"}
+          {isSaving ? "Saving…" : "Save prices"}
         </Button>
       </div>
     </form>

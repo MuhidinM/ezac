@@ -14,6 +14,7 @@ import { DetailList, Panel } from "@/components/dashboard/panel";
 import { RequireRole } from "@/components/dashboard/require-role";
 import { ResetPasswordButton } from "@/components/dashboard/reset-password-button";
 import { DetailSkeleton } from "@/components/dashboard/skeletons";
+import { VersionConflictAlert } from "@/components/staff/version-conflict-alert";
 import { assignmentLabel } from "@/components/field-officers/assignment-badges";
 import { BulkReassignDialog } from "@/components/field-officers/bulk-reassign-dialog";
 import { EditOfficerDialog } from "@/components/field-officers/edit-officer-dialog";
@@ -39,9 +40,11 @@ import {
 } from "@/components/ui/table";
 import type { FieldOfficer, StaffAssignment } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
-import { ApiError, errorMessage, fieldErrorMap } from "@/lib/api/errors";
+import { ApiError, errorMessage, fieldErrorMap, isVersionConflict } from "@/lib/api/errors";
 import { useResource } from "@/lib/api/use-resource";
 import { formatDateTime } from "@/lib/beneficiary/format";
+import { assignmentHistory } from "@/lib/branches/assignments";
+import { withVersion } from "@/lib/branches/version";
 
 export default function FieldOfficerDetailPage() {
   return (
@@ -60,13 +63,15 @@ function FieldOfficerDetail() {
   // The status when the dialog opened, so its text doesn't flip while it closes.
   const [wasActive, setWasActive] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
+  // Someone else changed the officer since it was loaded.
+  const [conflict, setConflict] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
   const [busyAssignment, setBusyAssignment] = useState<string | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
   // Bumped after a move so the performance panel reloads its coverage.
   const [statsKey, setStatsKey] = useState(0);
   const [reassignOpen, setReassignOpen] = useState(false);
-  const [reassignNotice, setReassignNotice] = useState<{ message: string; complete: boolean } | null>(null);
+  const [reassignNotice, setReassignNotice] = useState<string | null>(null);
   useBreadcrumbLabel(officer?.fullName);
 
   if (isLoading && !officer) {
@@ -104,11 +109,22 @@ function FieldOfficerDetail() {
 
   async function toggleActive() {
     if (!officer) return;
-    const updated = await apiClient<FieldOfficer>(path, {
-      method: "PATCH",
-      body: JSON.stringify({ active: !officer.active }),
-    });
-    mutate({ ...officer, ...updated });
+    try {
+      const updated = await apiClient<FieldOfficer>(path, {
+        method: "PATCH",
+        body: JSON.stringify(withVersion({ active: !officer.active }, officer)),
+      });
+      mutate({ ...officer, ...updated });
+    } catch (toggleError) {
+      if (!isVersionConflict(toggleError)) throw toggleError;
+      // Close the dialog: its question may no longer be right once reloaded.
+      setConflict(true);
+    }
+  }
+
+  function reloadAfterConflict() {
+    setConflict(false);
+    reload();
   }
 
   async function toggleAssignment(assignment: StaffAssignment) {
@@ -132,7 +148,8 @@ function FieldOfficerDetail() {
   const current = active.find((assignment) => assignment.branchId) ?? null;
   // Officers now cover one branch; older accounts may still have extra or region-wide access.
   const extra = active.filter((assignment) => assignment !== current);
-  const history = assignments.filter((assignment) => !assignment.active);
+  // Moving back to a former branch adds a new row, so one branch can appear more than once.
+  const history = assignmentHistory(assignments);
 
   return (
     <section className="space-y-6">
@@ -142,8 +159,8 @@ function FieldOfficerDetail() {
         title={wasActive ? "Deactivate field officer?" : "Reactivate field officer?"}
         description={
           wasActive
-            ? `${officer.fullName} is marked inactive. For now this doesn't stop them signing in or working on assessments: to stop their access, also reset their password. The old password then stops working at once, and a session that is already open ends within 5 minutes. Their branch is kept and comes back if you reactivate them.${openNote}`
-            : `${officer.fullName} is marked active again and works in their current branch.`
+            ? `${officer.fullName}'s login is turned off and their open sessions end within 30 seconds. Their branch is kept and comes back if you reactivate them.${openNote}`
+            : `${officer.fullName} can sign in again with their current password and works in their current branch.`
         }
         confirmLabel={wasActive ? "Deactivate" : "Reactivate"}
         destructive={wasActive}
@@ -161,8 +178,8 @@ function FieldOfficerDetail() {
         officer={officer}
         open={reassignOpen}
         onOpenChange={setReassignOpen}
-        onFinished={(summary) => {
-          setReassignNotice(summary);
+        onFinished={(message) => {
+          setReassignNotice(message);
           reload();
           setStatsKey((value) => value + 1);
         }}
@@ -202,8 +219,10 @@ function FieldOfficerDetail() {
         }
       />
 
+      {conflict ? <VersionConflictAlert onReload={reloadAfterConflict} /> : null}
+
       {reassignNotice ? (
-        <InlineAlert tone={reassignNotice.complete ? "success" : "warning"}>{reassignNotice.message}</InlineAlert>
+        <InlineAlert tone="success">{reassignNotice}</InlineAlert>
       ) : null}
 
       <Panel
@@ -243,7 +262,13 @@ function FieldOfficerDetail() {
         />
       </Panel>
 
-      <EditOfficerDialog officer={officer} open={editOpen} onOpenChange={setEditOpen} onSaved={mutate} />
+      <EditOfficerDialog
+        officer={officer}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        onSaved={mutate}
+        onReload={reload}
+      />
 
       <OfficerStatsPanel key={statsKey} officerId={officer.id} />
 

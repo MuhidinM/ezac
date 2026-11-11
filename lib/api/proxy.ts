@@ -17,7 +17,10 @@ import {
   upstreamError,
   upstreamFetch,
 } from "@/lib/api/upstream";
-import { clearAuthCookies } from "@/lib/auth/session";
+import { clearAuthCookies, markPasswordChangeRequired } from "@/lib/auth/session";
+
+/** The backend's rule: 1-128 letters, digits or . _ : - */
+const IDEMPOTENCY_KEY = /^[A-Za-z0-9._:-]{1,128}$/;
 
 type ProxyOptions = {
   /** Upstream path prefix, e.g. /api/beneficiaries/v1 */
@@ -91,6 +94,9 @@ export function createProxy({
     const headers = new Headers({ Authorization: `Bearer ${auth.caller.accessToken}` });
     const contentType = request.headers.get("Content-Type");
     if (contentType) headers.set("Content-Type", contentType);
+    // Create calls send a key so a retry never creates twice; the backend checks its shape too.
+    const idempotencyKey = request.headers.get("Idempotency-Key");
+    if (idempotencyKey && IDEMPOTENCY_KEY.test(idempotencyKey)) headers.set("Idempotency-Key", idempotencyKey);
 
     const call = await upstreamFetch(
       `${upstreamPrefix}/${path.map(encodeURIComponent).join("/")}${request.nextUrl.search}`,
@@ -126,7 +132,15 @@ export function createProxy({
       return bffJson(parsed.value ?? { success: true, data: null }, { status: upstream.status });
     }
 
-    return bffError(upstreamError(call, parsed.kind === "json" ? parsed.value : null));
+    const error = upstreamError(call, parsed.kind === "json" ? parsed.value : null);
+    if (error.status === 403 && error.code === "ACCOUNT_DEACTIVATED") {
+      // The branch or officer record was switched off: end the session like a 401.
+      await clearAuthCookies();
+    } else if (error.status === 403 && error.code === "PASSWORD_CHANGE_REQUIRED") {
+      // Set the gate so the route guard sends every page to the change-password form.
+      await markPasswordChangeRequired();
+    }
+    return bffError(error);
   }
 
   async function forward(request: NextRequest, context: RouteContext) {

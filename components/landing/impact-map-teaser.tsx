@@ -7,6 +7,7 @@ import { LocalizedLink, useI18n } from "@/lib/i18n/client";
 import { type Locale, splitLocale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { format } from "@/lib/i18n/messages";
+import { foreignLang } from "@/lib/zakat/content";
 import type { ImpactRegion } from "@/lib/zakat/impact";
 
 import { useNearViewport } from "./use-deferred-load";
@@ -179,7 +180,9 @@ export function ImpactMapTeaser({ regions = [], t }: { regions?: ImpactRegion[];
                 const facts = regionFacts(region, t, intlLocale);
                 return (
                   <li key={region.code} className="bg-white p-5">
-                    <p className="font-medium text-navy">{region.name}</p>
+                    <p lang={foreignLang(region.lang, locale)} className="font-medium text-navy">
+                      {region.name}
+                    </p>
                     <p className="mt-1 text-sm text-muted-ink">{facts.length > 0 ? facts.join(" · ") : t.noFigures}</p>
                   </li>
                 );

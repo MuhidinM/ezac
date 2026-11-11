@@ -22,18 +22,19 @@ import type {
  */
 const ACCESS: AccessOptions = { access: "admin", label: "admin/branches" };
 
-/** Every create field is required; the labels match the New branch form. */
-const REQUIRED_LABELS: Record<keyof CreateBranchBody, string> = {
+/** Required create fields; the labels match the New branch form. The email is optional. */
+const REQUIRED_LABELS: Record<Exclude<keyof CreateBranchBody, "branchEmail">, string> = {
   name: "Branch name",
   region: "Region",
   zone: "Zone",
   woreda: "Woreda",
   branchFullName: "Officer's full name",
   branchPhone: "Officer's phone",
-  branchEmail: "Officer's email",
 };
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** The backend's rule for the key: 1-128 letters, digits or . _ : - */
+const IDEMPOTENCY_KEY = /^[A-Za-z0-9._:-]{1,128}$/;
 
 function field(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -41,10 +42,10 @@ function field(value: unknown): string {
 
 export async function GET(request: NextRequest) {
   const upstreamQuery = new URLSearchParams();
-  const page = request.nextUrl.searchParams.get("page");
-  const limit = request.nextUrl.searchParams.get("limit");
-  if (page) upstreamQuery.set("page", page);
-  if (limit) upstreamQuery.set("limit", limit);
+  for (const key of ["page", "limit", "search", "region", "active"] as const) {
+    const value = request.nextUrl.searchParams.get(key)?.trim();
+    if (value) upstreamQuery.set(key, value);
+  }
 
   const query = upstreamQuery.toString();
   const path = `/api/beneficiaries/v1/admin/branches${query ? `?${query}` : ""}`;
@@ -59,18 +60,17 @@ export async function POST(request: Request) {
   return withStaffAccess(async (accessToken) => {
     const body = (await readJsonBody<Partial<Record<keyof CreateBranchBody, unknown>> | null>(request)) ?? {};
 
-    // The backend rejects a blank email, so it is required here too.
-    const payload: Required<CreateBranchBody> = {
+    const payload: CreateBranchBody = {
       name: field(body.name),
       region: field(body.region),
       zone: field(body.zone),
       woreda: field(body.woreda),
       branchPhone: field(body.branchPhone),
       branchFullName: field(body.branchFullName),
-      branchEmail: field(body.branchEmail),
     };
+    const branchEmail = field(body.branchEmail);
 
-    const missing = (Object.keys(REQUIRED_LABELS) as (keyof CreateBranchBody)[]).filter((key) => !payload[key]);
+    const missing = (Object.keys(REQUIRED_LABELS) as (keyof typeof REQUIRED_LABELS)[]).filter((key) => !payload[key]);
     if (missing.length > 0) {
       throw new ApiError(
         `Fill in ${missing.map((key) => REQUIRED_LABELS[key].toLowerCase()).join(", ")}.`,
@@ -78,15 +78,25 @@ export async function POST(request: Request) {
         missing.map((key) => ({ field: key, message: `Enter the ${REQUIRED_LABELS[key].toLowerCase()}.` })),
       );
     }
-    if (!EMAIL.test(payload.branchEmail)) {
-      throw new ApiError("Enter a valid email address for the branch officer.", 400, [
-        { field: "branchEmail", message: "Enter a valid email address, e.g. name@example.com." },
-      ]);
+    // The branch email is optional; when given it must be valid.
+    if (branchEmail) {
+      if (!EMAIL.test(branchEmail)) {
+        throw new ApiError("Enter a valid email address for the branch officer.", 400, [
+          { field: "branchEmail", message: "Enter a valid email address, e.g. name@example.com." },
+        ]);
+      }
+      payload.branchEmail = branchEmail;
     }
+
+    // One key per create action, so a retry never creates the branch twice.
+    const headers = new Headers();
+    const idempotencyKey = request.headers.get("Idempotency-Key");
+    if (idempotencyKey && IDEMPOTENCY_KEY.test(idempotencyKey)) headers.set("Idempotency-Key", idempotencyKey);
 
     return gatewayRequest<BranchCreateResponse>("/api/beneficiaries/v1/admin/branches", {
       method: "POST",
       body: JSON.stringify(payload),
+      headers,
       accessToken,
     });
   }, ACCESS);

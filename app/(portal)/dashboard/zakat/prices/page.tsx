@@ -208,7 +208,7 @@ function Prices() {
         />
       </div>
 
-      <LivestockPricesPanel onChanged={() => config.reload()} />
+      <LivestockPricesPanel />
 
       <Panel
         title="Gold and silver per gram"

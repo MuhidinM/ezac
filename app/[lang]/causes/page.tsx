@@ -63,7 +63,7 @@ export default async function CausesPage({ params, searchParams }: PageProps<"/[
   // null means none published. This page reads searchParams, so it renders per
   // request; the data itself is cached (lib/zakat/impact.ts), and an outage
   // with nothing cached shows the error page.
-  const result = await getCauses({ status, page, limit: PAGE_SIZE });
+  const result = await getCauses({ status, page, limit: PAGE_SIZE, locale });
   const causes = result?.items ?? [];
   const totalPages = result?.pagination.totalPages ?? 0;
   // A page past the end (an old link after causes closed) is not a page.

@@ -5,7 +5,7 @@ import { isRecord, readUpstreamJson, upstreamError, upstreamFetch } from "@/lib/
 
 const NOT_CHECKED = "Couldn't check the certificate. Try again in a moment.";
 
-/** Validity can change (a revoked certificate), so answers are never cached. */
+/** Validity can change (a voided certificate verifies as not valid), so answers are never cached. */
 function json(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
 }
@@ -21,10 +21,10 @@ function optionalText(value: unknown): string | null {
 }
 
 /**
- * Only these fields reach the public, whatever the payment service adds
- * later: the page shows validity, amount, zakat type and date, never who paid.
- * Readers: components/site/certificate-verify.tsx and the admin check on
- * app/dashboard/zakat/payments/page.tsx.
+ * The fields payment-service sends since 11 November; anything it adds later
+ * is dropped here. The page shows validity, amount, zakat type and date, never
+ * who paid. Readers: components/site/certificate-verify.tsx and the admin
+ * check on app/(portal)/dashboard/zakat/payments/page.tsx.
  */
 function publicCertificate(data: Record<string, unknown>, requestedId: string) {
   return {

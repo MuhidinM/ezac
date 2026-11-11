@@ -8,6 +8,7 @@ import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import type { PasswordResetResponse } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
+import { oneTimeCredentials } from "@/lib/branches/credentials";
 
 /** Reset a branch or field officer password and show the new one once. */
 export function ResetPasswordButton({
@@ -35,7 +36,7 @@ export function ResetPasswordButton({
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         title="Reset password?"
-        description={`A new temporary password is generated and the old one stops working at once. If the ${recipient} is signed in right now, that session can keep working for up to 5 minutes before it ends.`}
+        description={`A new temporary password is made and the old one stops working at once. The ${recipient}'s open sessions end within 30 seconds, and they must change the new password when they sign in.`}
         confirmLabel="Reset password"
         onConfirm={async () => {
           setResult(await apiClient<PasswordResetResponse>(path, { method: "POST" }));
@@ -46,9 +47,7 @@ export function ResetPasswordButton({
         <CredentialsOnceDialog
           title="New temporary password"
           recipient={recipient}
-          login={result.username || login}
-          initialPassword={result.initialPassword}
-          passwordChangeRequired={result.passwordChangeRequired}
+          {...oneTimeCredentials(result, login)}
           onClose={() => setResult(null)}
         />
       ) : null}

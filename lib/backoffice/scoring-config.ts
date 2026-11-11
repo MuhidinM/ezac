@@ -1,3 +1,5 @@
+import { ApiError, errorData } from "@/lib/api/errors";
+
 /** Scoring config versions (ADMIN). A version is an editable DRAFT or a frozen PUBLISHED one. */
 
 export type ScoringConfigVersion = {
@@ -15,7 +17,44 @@ export type ScoringConfigVersion = {
   activatedBy?: string | null;
   activatedByName?: string | null;
   activationReason?: string | null;
+  /** Who last edited the draft; with the creator, they can't activate it. */
+  updatedBy?: string | null;
+  updatedByName?: string | null;
+  /** Sent back on every draft edit; a stale one is refused (409). */
+  editVersion?: number | null;
+  /** The server's view: the draft was copied from a version that is no longer active. */
+  stale?: boolean | null;
   config: Record<string, unknown>;
+};
+
+/** One period a version was active (`GET /admin/scoring-configs/activations`, newest first). */
+export type ScoringActivation = {
+  version: number;
+  activatedAt: string | null;
+  activatedBy?: string | null;
+  activatedByName?: string | null;
+  reason?: string | null;
+  previousVersion?: number | null;
+  /** Null while this is the active period. */
+  retiredAt?: string | null;
+  retiredBy?: string | null;
+  retiredByName?: string | null;
+  /** Activated although it was copied from a version that was no longer active. */
+  staleConfirmed?: boolean | null;
+};
+
+type Actor = { by?: string | null; byName?: string | null; at?: string | null };
+
+/** `GET /admin/scoring-configs/{version}/history`: drafted, every edit, every activation. */
+export type ScoringVersionHistory = {
+  version: number;
+  name?: string | null;
+  status?: string | null;
+  active?: boolean | null;
+  basedOnVersion?: number | null;
+  drafted?: Actor | null;
+  edits?: Actor[] | null;
+  activations?: ScoringActivation[] | null;
 };
 
 export type SchemaField = {
@@ -110,4 +149,58 @@ export function draftToContinue(versions: readonly ScoringConfigVersion[]) {
   const live = versions.find((item) => item.active) ?? null;
   const drafts = versions.filter((item) => item.status === "DRAFT").sort((a, b) => b.version - a.version);
   return drafts.find((item) => live != null && item.basedOnVersion === live.version) ?? drafts[0] ?? null;
+}
+
+/**
+ * Whether the signed-in ADMIN may not activate this version: the one who
+ * created it or last edited it must leave that to another ADMIN (403).
+ */
+export function activationNeedsAnotherAdmin(version: ScoringConfigVersion, myUserId: string | null): boolean {
+  if (!myUserId) return false;
+  return version.createdBy === myUserId || version.updatedBy === myUserId;
+}
+
+/**
+ * 409 STALE_DRAFT on activate: the draft was copied from a version that is no
+ * longer active. Returns both versions (null when unknown), or null for any other error.
+ */
+export function staleDraftConflict(error: unknown): { basedOnVersion: number | null; activeVersion: number | null } | null {
+  if (!(error instanceof ApiError) || error.status !== 409 || error.code !== "STALE_DRAFT") return null;
+  const details = errorData(error);
+  const number = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : null);
+  return { basedOnVersion: number(details.basedOnVersion), activeVersion: number(details.activeVersion) };
+}
+
+export type HistoryStep = { title: string; byName: string | null; at: string | null; note: string | null };
+
+/** One version's history as plain steps, oldest first: drafted, each edit, each activation and retirement. */
+export function scoringHistorySteps(history: ScoringVersionHistory): HistoryStep[] {
+  const steps: HistoryStep[] = [];
+  if (history.drafted) {
+    steps.push({
+      title: history.basedOnVersion != null ? `Drafted from v${history.basedOnVersion}` : "Drafted",
+      byName: history.drafted.byName ?? null,
+      at: history.drafted.at ?? null,
+      note: null,
+    });
+  }
+  for (const edit of history.edits ?? []) {
+    steps.push({ title: "Edited", byName: edit.byName ?? null, at: edit.at ?? null, note: null });
+  }
+  for (const activation of history.activations ?? []) {
+    steps.push({
+      title: "Activated",
+      byName: activation.activatedByName ?? null,
+      at: activation.activatedAt,
+      note: activation.reason?.trim() || null,
+    });
+    if (activation.retiredAt) {
+      steps.push({ title: "Replaced by another version", byName: activation.retiredByName ?? null, at: activation.retiredAt, note: null });
+    }
+  }
+  // Sorted by time; steps without one keep their place at the start.
+  return steps
+    .map((step, index) => ({ step, index }))
+    .sort((a, b) => (a.step.at ?? "").localeCompare(b.step.at ?? "") || a.index - b.index)
+    .map(({ step }) => step);
 }

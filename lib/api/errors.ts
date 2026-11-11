@@ -62,9 +62,42 @@ export function errorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-/** The session is over (401): the user must sign in again before retrying. */
+/**
+ * The session is over: the user must sign in again before retrying. That is
+ * every 401 (SESSION_EXPIRED, SESSION_ENDED, ACCOUNT_DISABLED) and the 403 the
+ * backend sends when the branch or officer record was deactivated.
+ */
 export function isSessionEnded(error: unknown): boolean {
-  return error instanceof ApiError && error.status === 401;
+  if (!(error instanceof ApiError)) return false;
+  return error.status === 401 || (error.status === 403 && error.code === "ACCOUNT_DEACTIVATED");
+}
+
+/** The backend wants a password change before anything else (403 PASSWORD_CHANGE_REQUIRED). */
+export function isPasswordChangeRequired(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 403 && error.code === "PASSWORD_CHANGE_REQUIRED";
+}
+
+export const VERSION_CONFLICT_MESSAGE =
+  "Someone else changed this while you were editing. Reload to see their changes, then make yours again.";
+
+/** The record changed since it was loaded (409 VERSION_CONFLICT on an edit that sent `version`). */
+export function isVersionConflict(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 409 && error.code === "VERSION_CONFLICT";
+}
+
+/**
+ * Another ADMIN must do this step (403 SAME_APPROVER): the person who started
+ * an action can't also approve, confirm or resolve it.
+ */
+export function isSameApprover(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 403 && error.code === "SAME_APPROVER";
+}
+
+/** The error's `data` (or beneficiary-service `details`) as a record, for reading extra fields. */
+export function errorData(error: unknown): Record<string, unknown> {
+  if (!(error instanceof ApiError)) return {};
+  const data = error.data;
+  return data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
 }
 
 /**

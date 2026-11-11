@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
 
 import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { apiClient } from "@/lib/api/client";
 import { ApiError, errorMessage, fieldErrorMap } from "@/lib/api/errors";
+import { idempotencyHeader, newIdempotencyKey } from "@/lib/api/idempotency";
 import type { BranchCreateResponse, CreateBranchBody } from "@/lib/api/types";
 import { ETHIOPIAN_REGIONS } from "@/lib/constants/regions";
 import { isValidEthiopianPhone, normalizePhoneToE164 } from "@/lib/registration/phone";
@@ -42,6 +43,17 @@ export function CreateBranchDialog({ open, onOpenChange, onCreated }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // One key per new branch: a retry of the same form (a timeout, a double
+  // click) reuses it, so the branch is never created twice.
+  const idempotencyKey = useRef(newIdempotencyKey());
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setError(null);
+      setFieldErrors({});
+    }
+  }
 
   function set(key: keyof typeof EMPTY, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -66,14 +78,17 @@ export function CreateBranchDialog({ open, onOpenChange, onCreated }: Props) {
       woreda: form.woreda.trim(),
       branchPhone: normalizePhoneToE164(form.branchPhone.trim()),
       branchFullName: form.branchFullName.trim(),
-      branchEmail: form.branchEmail.trim(),
     };
+    // The email is optional.
+    if (form.branchEmail.trim()) body.branchEmail = form.branchEmail.trim();
 
     try {
       const created = await apiClient<BranchCreateResponse>("/bff/admin/branches", {
         method: "POST",
         body: JSON.stringify(body),
+        headers: idempotencyHeader(idempotencyKey.current),
       });
+      idempotencyKey.current = newIdempotencyKey();
       setForm(EMPTY);
       onCreated(created);
     } catch (submitError) {
@@ -142,8 +157,8 @@ export function CreateBranchDialog({ open, onOpenChange, onCreated }: Props) {
                   aria-invalid={fieldErrors.branchPhone ? true : undefined}
                 />
               </FormField>
-              <FormField label="Email" htmlFor="b-email" required error={fieldErrors.branchEmail}>
-                <Input id="b-email" type="email" value={form.branchEmail} onChange={(e) => set("branchEmail", e.target.value)} required />
+              <FormField label="Email" htmlFor="b-email" hint="Optional" error={fieldErrors.branchEmail}>
+                <Input id="b-email" type="email" value={form.branchEmail} onChange={(e) => set("branchEmail", e.target.value)} />
               </FormField>
             </div>
           </div>

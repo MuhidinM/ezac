@@ -1,11 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type { FieldOfficer } from "@/lib/api/backoffice-types";
-import { type ReassignItem, groupByBranch, officersForBranch, runInOrder } from "@/lib/backoffice/bulk-reassign";
-
-function assessment(id: string, branchId: string | null, branchName?: string): ReassignItem {
-  return { id, beneficiaryId: `b${id}`, status: "DRAFT", branchId, branchName };
-}
+import { ApiError } from "@/lib/api/errors";
+import {
+  activeBranchIds,
+  officersForBranches,
+  reassignFailures,
+  reassignedCount,
+} from "@/lib/backoffice/bulk-reassign";
 
 function officer(id: string, active: boolean, branches: { id: string; active?: boolean }[]): FieldOfficer {
   return {
@@ -22,27 +24,22 @@ function officer(id: string, active: boolean, branches: { id: string; active?: b
   };
 }
 
-describe("groupByBranch", () => {
-  it("splits assessments by branch in first-seen order", () => {
-    const groups = groupByBranch([
-      assessment("1", "3", "Bole Branch"),
-      assessment("2", "7", "QA Test Branch"),
-      assessment("3", "3", "Bole Branch"),
-    ]);
-    expect(groups.map((group) => [group.branchId, group.branchName, group.items.map((item) => item.id)])).toEqual([
-      ["3", "Bole Branch", ["1", "3"]],
-      ["7", "QA Test Branch", ["2"]],
-    ]);
+describe("activeBranchIds", () => {
+  it("lists the branches of active assignments once each", () => {
+    const item = officer("1", true, [{ id: "3" }, { id: "5", active: false }, { id: "3" }]);
+    expect(activeBranchIds(item)).toEqual(["3"]);
   });
 
-  it("names a branch without a name, and keeps rows without a branch together", () => {
-    const groups = groupByBranch([assessment("1", "9"), assessment("2", null)]);
-    expect(groups.map((group) => group.branchName)).toEqual(["Branch #9", "Unknown branch"]);
-    expect(groups[1].branchId).toBe("");
+  it("skips region-wide assignments without a branch", () => {
+    const item: FieldOfficer = {
+      ...officer("1", true, []),
+      assignments: [{ id: "a", branchId: null, region: "Afar", active: true }],
+    };
+    expect(activeBranchIds(item)).toEqual([]);
   });
 });
 
-describe("officersForBranch", () => {
+describe("officersForBranches", () => {
   const officers = [
     officer("5", true, [{ id: "3" }]),
     officer("6", true, [{ id: "3", active: false }, { id: "7" }]),
@@ -50,34 +47,47 @@ describe("officersForBranch", () => {
     officer("3", true, [{ id: "3" }]),
   ];
 
-  it("offers active officers with an active assignment in the branch, never the officer being emptied", () => {
-    expect(officersForBranch(officers, "3", "3").map((item) => item.id)).toEqual(["5"]);
-    expect(officersForBranch(officers, "7", "3").map((item) => item.id)).toEqual(["6"]);
+  it("offers active officers working in one of the branches, never the officer being emptied", () => {
+    expect(officersForBranches(officers, ["3"], "3").map((item) => item.id)).toEqual(["5"]);
+    expect(officersForBranches(officers, ["3", "7"], "3").map((item) => item.id)).toEqual(["5", "6"]);
   });
 
-  it("offers every other active officer when the branch is unknown", () => {
-    expect(officersForBranch(officers, "", "3").map((item) => item.id)).toEqual(["5", "6"]);
+  it("offers every other active officer when the officer has no branch", () => {
+    expect(officersForBranches(officers, [], "3").map((item) => item.id)).toEqual(["5", "6"]);
   });
 });
 
-describe("runInOrder", () => {
-  it("runs every task in order and reports progress", async () => {
-    const seen: number[] = [];
-    const progress = vi.fn();
-    const result = await runInOrder([1, 2, 3], async (item) => void seen.push(item), progress);
-    expect(seen).toEqual([1, 2, 3]);
-    expect(progress.mock.calls).toEqual([[1], [2], [3]]);
-    expect(result).toEqual({ done: 3, failed: null });
+describe("reassignFailures", () => {
+  it("reads the blocked assessments from a 409 REASSIGN_FAILED", () => {
+    const error = new ApiError(
+      "Some assessments cannot be reassigned",
+      409,
+      [],
+      { failures: [{ assessmentId: 12, reason: "Officer does not work in Bole Branch" }, "Locked", null] },
+      "REASSIGN_FAILED",
+    );
+    expect(reassignFailures(error)).toEqual([
+      { assessmentId: "12", message: "Officer does not work in Bole Branch" },
+      { assessmentId: null, message: "Locked" },
+    ]);
   });
 
-  it("stops at the first failure and leaves the rest untried", async () => {
-    const seen: number[] = [];
-    const refused = new Error("Officer does not work in this branch");
-    const result = await runInOrder([1, 2, 3], async (item) => {
-      if (item === 2) throw refused;
-      seen.push(item);
-    });
-    expect(seen).toEqual([1]);
-    expect(result).toEqual({ done: 1, failed: { item: 2, error: refused } });
+  it("is empty for other errors", () => {
+    expect(reassignFailures(new Error("offline"))).toEqual([]);
+    expect(reassignFailures(new ApiError("Bad", 400))).toEqual([]);
+  });
+});
+
+describe("reassignedCount", () => {
+  it("reads a count or a list of moved ids", () => {
+    expect(reassignedCount({ reassigned: 4 })).toBe(4);
+    expect(reassignedCount({ assessmentIds: ["1", "2"] })).toBe(2);
+    expect(reassignedCount(["1"])).toBe(1);
+    expect(reassignedCount(3)).toBe(3);
+  });
+
+  it("is null when the answer doesn't say", () => {
+    expect(reassignedCount(null)).toBeNull();
+    expect(reassignedCount({ message: "done" })).toBeNull();
   });
 });

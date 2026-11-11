@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ClipboardPlus, Pencil } from "lucide-react";
@@ -31,7 +31,8 @@ import { useResource } from "@/lib/api/use-resource";
 import { useSession } from "@/lib/auth/use-session";
 import { assessmentBlockedReason, isEditable } from "@/lib/backoffice/assessment-steps";
 import { formatDate, todayIso } from "@/lib/backoffice/format";
-import { useScoreMax } from "@/lib/backoffice/score-max";
+import { idempotencyHeader, newIdempotencyKey } from "@/lib/api/idempotency";
+import { keepIdempotencyKey } from "@/lib/registration/submit";
 
 const CLOSED: AssessmentStatus[] = ["APPROVED", "DEFERRED", "REJECTED", "CANCELLED"];
 
@@ -41,12 +42,14 @@ export function BeneficiaryAssessments({ beneficiary }: { beneficiary: Beneficia
   const { session } = useSession();
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  // One key per "Start assessment": a retry after a lost answer returns the
+  // assessment already made instead of starting a second one.
+  const startKey = useRef<string | null>(null);
 
   const { data, error, isLoading } = useResource<AssessmentListItem[] | PaginatedItems<AssessmentListItem>>(
     `/bff/backoffice/beneficiaries/${encodeURIComponent(beneficiary.id)}/assessments`,
   );
   const history = Array.isArray(data) ? data : (data?.items ?? []);
-  const scoreMax = useScoreMax(history.some((item) => item.totalScore != null && !item.maxScore));
 
   const officer = isFieldOfficer(session);
   const open = history.find((item) => !CLOSED.includes(item.status));
@@ -55,13 +58,18 @@ export function BeneficiaryAssessments({ beneficiary }: { beneficiary: Beneficia
   async function start() {
     setIsStarting(true);
     setStartError(null);
+    startKey.current ??= newIdempotencyKey();
     try {
       const created = await apiClient<Assessment>("/bff/backoffice/assessments", {
         method: "POST",
+        headers: idempotencyHeader(startKey.current),
         body: JSON.stringify({ beneficiaryId: beneficiary.id, assessmentDate: todayIso() }),
       });
+      startKey.current = null;
       router.push(`/dashboard/assessments/${created.id}/edit`);
     } catch (createError) {
+      // A clear refusal ends the attempt; a lost answer is retried with the same key.
+      if (!keepIdempotencyKey(createError)) startKey.current = null;
       setStartError(errorMessage(createError, "Couldn't start the assessment"));
       setIsStarting(false);
     }
@@ -138,7 +146,7 @@ export function BeneficiaryAssessments({ beneficiary }: { beneficiary: Beneficia
                   <AssessmentStatusBadge status={item.status} />
                 </TableCell>
                 <TableCell>
-                  <ScoreMeter score={item.totalScore} max={item.maxScore || scoreMax} risk={item.riskCategory} />
+                  <ScoreMeter score={item.totalScore} max={item.maxScore} risk={item.riskCategory} />
                 </TableCell>
                 <TableCell className="pr-5">
                   {item.totalScore != null ? <RiskBadge risk={item.riskCategory} /> : <span className="text-black/60">—</span>}

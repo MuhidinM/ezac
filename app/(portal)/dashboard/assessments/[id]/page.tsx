@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { Pencil } from "lucide-react";
 
 import { AssessmentSummary } from "@/components/assessment/assessment-summary";
+import { DecisionHistory } from "@/components/assessment/decision-history";
 import { DocumentsList } from "@/components/assessment/documents-panel";
 import { AssessmentManagement, BranchReview } from "@/components/assessment/review-actions";
 import { ScoreHistory, ScorePanel, SignOffTimeline } from "@/components/assessment/score-panel";
@@ -24,11 +25,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Assessment } from "@/lib/api/backoffice-types";
 import { useResource } from "@/lib/api/use-resource";
 import { useSession } from "@/lib/auth/use-session";
-import { assessmentBeneficiaryId, assessmentCrumb, isEditable, reviewInfo } from "@/lib/backoffice/assessment-steps";
+import {
+  assessmentBeneficiaryId,
+  assessmentCrumb,
+  isEditable,
+  reviewInfo,
+  type AssessmentDetail,
+} from "@/lib/backoffice/assessment-steps";
 import { formatDate } from "@/lib/backoffice/format";
 import { useNotice } from "@/lib/backoffice/notice";
 
-type TabKey = "score" | "responses" | "documents" | "history";
+type TabKey = "score" | "responses" | "documents" | "decisions" | "scores";
 
 export default function AssessmentDetailPage() {
   return (
@@ -44,7 +51,7 @@ function AssessmentDetail() {
   const [tab, setTab] = useState<TabKey | null>(null);
   // Also shows the notice the wizard leaves after a submission.
   const [notice, setNotice] = useNotice(`assessment:${id}`);
-  const { data: assessment, error, isLoading, reload, mutate } = useResource<Assessment>(
+  const { data: assessment, error, isLoading, reload, mutate } = useResource<AssessmentDetail>(
     `/bff/backoffice/assessments/${encodeURIComponent(id)}`,
   );
   useBreadcrumbLabel(assessmentCrumb(assessment));
@@ -72,7 +79,8 @@ function AssessmentDetail() {
   const review = reviewInfo(assessment);
   const canEdit = isFieldOfficer(session) && isEditable(assessment.status);
   const canReview = (session?.isBranch ?? false) && assessment.status === "SUBMITTED";
-  const canCancel = assessment.status === "DRAFT" && ((session?.isAdmin ?? false) || isFieldOfficer(session));
+  // A returned assessment can be cancelled too, instead of corrected.
+  const canCancel = isEditable(assessment.status) && ((session?.isAdmin ?? false) || isFieldOfficer(session));
   const canReassign =
     (session?.isAdmin ?? false) && ["DRAFT", "SUBMITTED", "RETURNED"].includes(assessment.status);
   const documents = assessment.documents ?? [];
@@ -82,7 +90,8 @@ function AssessmentDetail() {
     { key: "score", label: "Assessment & score" },
     { key: "responses", label: "Responses" },
     { key: "documents", label: `Documents (${documents.length})` },
-    { key: "history", label: "Score history" },
+    { key: "decisions", label: "Decision history" },
+    { key: "scores", label: "Score history" },
   ];
 
   function onActionDone(message: string) {
@@ -138,6 +147,11 @@ function AssessmentDetail() {
           {review.comment}
         </InlineAlert>
       ) : null}
+      {assessment.status === "DEFERRED" && assessment.deferredUntil ? (
+        <InlineAlert tone="info" title={`Deferred until ${formatDate(assessment.deferredUntil)}`}>
+          The branch wants to look at this household again from that date. A new assessment can be started then.
+        </InlineAlert>
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <Panel flush className="min-w-0">
@@ -158,7 +172,11 @@ function AssessmentDetail() {
             <TabsContent value="documents" className="p-5">
               <DocumentsList assessmentId={assessment.id} documents={documents} />
             </TabsContent>
-            <TabsContent value="history">
+            <TabsContent value="decisions">
+              {/* Keyed by status so a decision made here shows up straight away. */}
+              <DecisionHistory key={assessment.status} assessmentId={assessment.id} />
+            </TabsContent>
+            <TabsContent value="scores">
               <ScoreHistory assessmentId={assessment.id} />
             </TabsContent>
           </Tabs>

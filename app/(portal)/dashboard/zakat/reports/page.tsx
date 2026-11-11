@@ -11,6 +11,10 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { Panel } from "@/components/dashboard/panel";
 import { RequireRole } from "@/components/dashboard/require-role";
 import { TableMessageRow, TableSkeletonRows } from "@/components/dashboard/table-states";
+import { adminMediaSrc } from "@/components/zakat/content/media";
+import type { ReportAdmin } from "@/components/zakat/content/types";
+import { VersionConflictAlert } from "@/components/zakat/content/version-conflict-alert";
+import { staffRef } from "@/components/zakat/staff-ref";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,28 +36,13 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api/client";
-import { errorMessage } from "@/lib/api/errors";
+import { errorMessage, isVersionConflict } from "@/lib/api/errors";
 import { useResource } from "@/lib/api/use-resource";
 import { formatBytes } from "@/lib/backoffice/format";
 import { formatDateTime } from "@/lib/beneficiary/format";
-import { mediaSrc } from "@/lib/zakat/content";
 
 const API = "/bff/zakat-admin/impact/reports";
 const MAX_BYTES = 20 * 1024 * 1024;
-
-type AdminReport = {
-  id: string;
-  title: string;
-  period: string | null;
-  summary: string | null;
-  status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
-  publishedAt: string | null;
-  fileMediaId: string | null;
-  fileUrl: string | null;
-  sizeBytes: number | null;
-  createdAt: string | null;
-  updatedAt: string | null;
-};
 
 const STATUS: Record<string, { label: string; tone: BadgeTone }> = {
   DRAFT: { label: "Draft", tone: "warning" },
@@ -71,10 +60,10 @@ export default function ImpactReportsAdminPage() {
 
 function ImpactReportsAdmin() {
   // Plain array, newest first (not paginated).
-  const { data, error, isLoading, reload } = useResource<AdminReport[]>(API);
+  const { data, error, isLoading, reload } = useResource<ReportAdmin[]>(API);
   const reports = data ?? [];
-  const [editing, setEditing] = useState<AdminReport | "new" | null>(null);
-  const [action, setAction] = useState<{ report: AdminReport; kind: "publish" | "archive" } | null>(null);
+  const [editing, setEditing] = useState<ReportAdmin | "new" | null>(null);
+  const [action, setAction] = useState<{ report: ReportAdmin; kind: "publish" | "archive" } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   return (
@@ -124,8 +113,9 @@ function ImpactReportsAdmin() {
                       <span className="flex items-start gap-3">
                         <FileText className="mt-0.5 size-4 shrink-0 text-black/40" />
                         <span className="min-w-0">
-                          {report.fileUrl ? (
-                            <a href={mediaSrc(report.fileUrl) ?? report.fileUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-navy hover:underline">
+                          {(report.adminFileUrl ?? report.fileUrl) ? (
+                            // The admin route also serves a draft's PDF; the public one is 404 for drafts.
+                            <a href={adminMediaSrc(report.adminFileUrl ?? report.fileUrl) ?? undefined} target="_blank" rel="noopener noreferrer" className="font-medium text-navy hover:underline">
                               {report.title}
                             </a>
                           ) : (
@@ -134,6 +124,9 @@ function ImpactReportsAdmin() {
                           <span className="block max-w-md truncate text-xs text-black/60">
                             {[report.summary, formatBytes(report.sizeBytes)].filter(Boolean).join(" · ") || "—"}
                           </span>
+                          {report.createdBy || report.createdByName ? (
+                            <span className="block text-xs text-black/60">Added by {staffRef(report.createdBy, report.createdByName)}</span>
+                          ) : null}
                         </span>
                       </span>
                     </TableCell>
@@ -174,6 +167,10 @@ function ImpactReportsAdmin() {
         report={editing === "new" ? null : editing}
         open={editing !== null}
         onOpenChange={(open) => !open && setEditing(null)}
+        onReload={() => {
+          setEditing(null);
+          reload();
+        }}
         onSaved={(created) => {
           setNotice(
             created
@@ -210,11 +207,14 @@ function ReportDialog({
   report,
   open,
   onOpenChange,
+  onReload,
   onSaved,
 }: {
-  report: AdminReport | null;
+  report: ReportAdmin | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Close and load the list again (after someone else changed the report). */
+  onReload: () => void;
   onSaved: (created: boolean) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -223,11 +223,13 @@ function ReportDialog({
   const [summary, setSummary] = useState(report?.summary ?? "");
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [conflict, setConflict] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setConflict(false);
     if (!file && !report?.fileMediaId) {
       setError("Choose the PDF file.");
       return;
@@ -260,6 +262,8 @@ function ReportDialog({
           period: period.trim(),
           summary: summary.trim() || null,
           fileMediaId,
+          // An edit sends the loaded version; a stale one is refused (409).
+          ...(report ? { version: report.version } : {}),
         }),
       });
       setTitle("");
@@ -270,6 +274,10 @@ function ReportDialog({
       onOpenChange(false);
       onSaved(!report);
     } catch (saveError) {
+      if (isVersionConflict(saveError)) {
+        setConflict(true);
+        return;
+      }
       setError(errorMessage(saveError, "Couldn't save the report"));
     } finally {
       setIsSaving(false);
@@ -288,6 +296,7 @@ function ReportDialog({
                 : "Upload the PDF; the report is saved as a draft until you publish it."}
             </DialogDescription>
           </DialogHeader>
+          {conflict ? <VersionConflictAlert onReload={onReload} /> : null}
           {error ? <InlineAlert>{error}</InlineAlert> : null}
           <FormField label="Title" htmlFor="report-title" required>
             <Input id="report-title" maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Annual report 1447" required />

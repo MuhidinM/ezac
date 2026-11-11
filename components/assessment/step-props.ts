@@ -1,9 +1,5 @@
-import type {
-  Assessment,
-  AssessmentTotals,
-  HouseholdSummary,
-} from "@/lib/api/backoffice-types";
-import type { AssessmentDraft } from "@/lib/backoffice/assessment-steps";
+import type { AssessmentTotals, HouseholdSummary } from "@/lib/api/backoffice-types";
+import type { AssessmentDetail, AssessmentDraft } from "@/lib/backoffice/assessment-steps";
 
 export type StepProps = {
   draft: AssessmentDraft;
@@ -14,7 +10,7 @@ export type StepProps = {
   ) => void;
   /** Field errors keyed by API path, e.g. `housing.roofType`. */
   errors: Record<string, string>;
-  assessment: Assessment;
+  assessment: AssessmentDetail;
   totals?: AssessmentTotals | null;
   summary?: HouseholdSummary | null;
 };

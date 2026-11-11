@@ -14,13 +14,13 @@ const LINK_CLASS =
  * be reached the section is left out, and when nothing is open it says so.
  */
 export async function FeaturedCauses({ t, locale }: { t: Dictionary["home"]["causes"]; locale: Locale }) {
-  const urgent = await getCauses({ urgent: true, limit: 6 });
+  const urgent = await getCauses({ urgent: true, limit: 6, locale });
   const showingUrgent = Boolean(urgent?.items.length);
-  const page = showingUrgent ? urgent : await getCauses({ limit: 6 });
+  const page = showingUrgent ? urgent : await getCauses({ limit: 6, locale });
   if (!page) return null;
   const open = page.items;
   // Nothing open: show the latest completed causes rather than an empty section.
-  const closed = open.length === 0 ? ((await getCauses({ status: "closed", limit: 3 }).catch(() => null))?.items ?? []) : [];
+  const closed = open.length === 0 ? ((await getCauses({ status: "closed", limit: 3, locale }).catch(() => null))?.items ?? []) : [];
   const showingClosed = closed.length > 0;
   const causes = showingClosed ? closed : open;
   // Only call them urgent when they are: the fallback is the newest open causes.

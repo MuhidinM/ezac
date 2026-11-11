@@ -5,6 +5,7 @@ import { Ban, CheckCircle2, Clock, CornerUpLeft, UserRoundCog, XCircle } from "l
 
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { FormField } from "@/components/dashboard/form-field";
+import { Input } from "@/components/ui/input";
 import { Panel } from "@/components/dashboard/panel";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -14,6 +15,7 @@ import { apiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import type { PaginatedItems } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
+import { formatDate, todayIso } from "@/lib/backoffice/format";
 import { OFFICER_RECOMMENDATION, labelFor } from "@/lib/backoffice/options";
 
 function actionPath(id: string, action: string) {
@@ -61,7 +63,7 @@ const REVIEW_COPY: Record<
   },
   DEFERRED: {
     title: "Defer",
-    description: "The household isn't supported now. A new assessment can start later.",
+    description: "The household isn't supported now. A new assessment can start later. Add a date if the branch should look again then.",
     confirm: "Defer",
     required: true,
     placeholder: "Why is this deferred?",
@@ -88,18 +90,23 @@ export function BranchReview({
 }) {
   const [mode, setMode] = useState<ReviewMode | null>(null);
   const [comment, setComment] = useState("");
+  const [deferredUntil, setDeferredUntil] = useState("");
+  const today = todayIso();
+  const deferDateProblem = mode === "DEFERRED" && !!deferredUntil && deferredUntil < today ? "Pick today or a later date." : null;
   const copy = mode ? REVIEW_COPY[mode] : null;
   const system = assessment.score?.preliminaryRecommendation;
   const officer = assessment.recommendation?.officerRecommendation;
 
   async function confirm() {
     if (!mode) return;
+    const until = mode === "DEFERRED" && deferredUntil ? deferredUntil : undefined;
     const updated = await apiClient<Assessment>(actionPath(assessment.id, DECISION_PATH[mode]), {
       method: "POST",
-      body: JSON.stringify({ comment: comment.trim() || undefined }),
+      body: JSON.stringify({ comment: comment.trim() || undefined, deferredUntil: until }),
     });
     setComment("");
-    onDone(updated, REVIEW_COPY[mode].done);
+    setDeferredUntil("");
+    onDone(updated, until ? `Deferred until ${formatDate(until)}.` : REVIEW_COPY[mode].done);
   }
 
   return (
@@ -143,14 +150,27 @@ export function BranchReview({
           // A cancelled decision's comment must not reappear under the next one.
           setMode(null);
           setComment("");
+          setDeferredUntil("");
         }}
         title={copy?.title ?? ""}
         description={copy?.description}
         confirmLabel={copy?.confirm ?? "Confirm"}
         destructive={copy?.destructive}
-        confirmDisabled={!!copy?.required && !comment.trim()}
+        confirmDisabled={(!!copy?.required && !comment.trim()) || !!deferDateProblem}
         onConfirm={confirm}
       >
+        {mode === "DEFERRED" ? (
+          <FormField label="Look again from" htmlFor="review-deferred-until" hint="Optional" error={deferDateProblem}>
+            <Input
+              id="review-deferred-until"
+              type="date"
+              min={today}
+              value={deferredUntil}
+              onChange={(event) => setDeferredUntil(event.target.value)}
+              className="w-auto"
+            />
+          </FormField>
+        ) : null}
         <FormField
           label={mode === "return" ? "What needs fixing" : "Reason"}
           htmlFor="review-comment"
@@ -170,7 +190,7 @@ export function BranchReview({
   );
 }
 
-/** Cancel a draft (its officer or ADMIN) and reassign open ones (ADMIN). */
+/** Cancel a draft or a returned assessment (its officer or ADMIN) and reassign open ones (ADMIN). */
 export function AssessmentManagement({
   assessment,
   canCancel,
@@ -207,6 +227,8 @@ export function AssessmentManagement({
     );
   });
   const where = info?.branchName ?? "this branch";
+  const returned = assessment.status === "RETURNED";
+  const cancelLabel = returned ? "Cancel assessment" : "Cancel draft";
 
   return (
     <Panel title="Manage">
@@ -220,7 +242,7 @@ export function AssessmentManagement({
         {canCancel ? (
           <Button variant="destructive-outline" onClick={() => setCancelOpen(true)}>
             <Ban />
-            Cancel draft
+            {cancelLabel}
           </Button>
         ) : null}
       </div>
@@ -231,9 +253,11 @@ export function AssessmentManagement({
           setCancelOpen(open);
           if (!open) setReason("");
         }}
-        title="Cancel this draft?"
-        description="The assessment is kept as Cancelled and the beneficiary goes back to their previous state. A new assessment can be started later."
-        confirmLabel="Cancel draft"
+        title={returned ? "Cancel this assessment?" : "Cancel this draft?"}
+        description={`The assessment is kept as Cancelled and the beneficiary goes back to their previous state.${
+          returned ? " The corrections asked for are no longer needed." : ""
+        } A new assessment can be started later.`}
+        confirmLabel={cancelLabel}
         destructive
         confirmDisabled={!reason.trim()}
         onConfirm={async () => {
@@ -242,7 +266,7 @@ export function AssessmentManagement({
             body: JSON.stringify({ reason: reason.trim() }),
           });
           setReason("");
-          onDone(updated, "Draft cancelled.");
+          onDone(updated, returned ? "Assessment cancelled." : "Draft cancelled.");
         }}
       >
         <FormField label="Reason" htmlFor="cancel-reason" required>

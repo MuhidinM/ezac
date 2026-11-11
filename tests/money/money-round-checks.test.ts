@@ -1,20 +1,20 @@
 import { describe, expect, it } from "vitest";
 
-import { POOL_LIST_DEFAULTS, poolCountParams, poolQuery } from "@/lib/zakat/pool-list";
+import { POOL_LIST_DEFAULTS, poolFilterParams, poolQuery } from "@/lib/zakat/pool-list";
 import { cleanReceivingAccount, receivingAccountProblem } from "@/lib/zakat/payments";
 import { draftHasChanges } from "@/lib/zakat/rules-draft";
 
-describe("poolCountParams", () => {
-  it("keeps the filters, asks for one row on page 1 and drops the order", () => {
+describe("poolFilterParams", () => {
+  it("keeps the filters and drops paging and order", () => {
     const { params } = poolQuery({ ...POOL_LIST_DEFAULTS, region: "Afar", sort: "approvedAt:asc", page: 3 }, 270, 25);
-    expect(poolCountParams(params).toString()).toBe("page=1&limit=1&region=Afar");
+    expect(poolFilterParams(params).toString()).toBe("region=Afar");
     // The list's own query is left alone.
     expect(params.get("page")).toBe("3");
   });
 
   it("leaves out a score range the list leaves out", () => {
     const { params } = poolQuery({ ...POOL_LIST_DEFAULTS, scoreMin: "200", scoreMax: "100" }, 270, 25);
-    expect(poolCountParams(params).has("scoreMin")).toBe(false);
+    expect(poolFilterParams(params).has("scoreMin")).toBe(false);
   });
 });
 

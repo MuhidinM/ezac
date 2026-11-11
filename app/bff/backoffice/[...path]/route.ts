@@ -20,6 +20,9 @@ import { createProxy } from "@/lib/api/proxy";
  * | staff                   | staff  | Register beneficiary: staff/me, staff/beneficiaries (hq)                   |
  * | analytics               | staff  | Overview (hq; branch users are sent to their branch page)                  |
  * | branch/analytics        | portal | My branch (branch)                                                         |
+ * | admin/bank-change-requests | admin | Payout account changes waiting for a second ADMIN (admin)               |
+ * | admin/audit-log         | admin  | Household and sign-in audit logs (admin)                                   |
+ * | payout-banks            | staff  | Bank pickers on household edit and registration                           |
  */
 export const { GET, POST, PATCH, PUT, DELETE } = createProxy({
   label: "backoffice",
@@ -37,5 +40,8 @@ export const { GET, POST, PATCH, PUT, DELETE } = createProxy({
     staff: "staff",
     analytics: "staff",
     "branch/analytics": "portal",
+    "admin/bank-change-requests": "admin",
+    "admin/audit-log": "admin",
+    "payout-banks": "staff",
   },
 });

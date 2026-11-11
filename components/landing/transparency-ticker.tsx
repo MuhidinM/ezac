@@ -3,7 +3,7 @@ import { TrendingUpIcon } from "lucide-react";
 import { INTL_LOCALE, type Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { format } from "@/lib/i18n/messages";
-import { getCalculatorConfig, getHomeSummary, getImpactSummary } from "@/lib/zakat/impact";
+import { collectedEtb, getCalculatorConfig, getHomeSummary, getImpactSummary, householdFigures } from "@/lib/zakat/impact";
 
 type Strings = Dictionary["home"]["ticker"];
 
@@ -36,13 +36,17 @@ async function loadStats(locale: Locale, t: Strings): Promise<Stat[]> {
   const { has, birr, birrPerGram, birrCompact, count } = formatters(locale, t);
   const month = home?.currentMonth;
   const gold24k = config?.goldPricePerGramEtb["24k"];
+  // Online and offline together.
+  const collected = collectedEtb(home);
+  // Both count households: when they match, the figure is shown once.
+  const { families, lives } = householdFigures(home, impact);
 
   const stats: (Stat | null)[] = [
     config
       ? { value: birr(config.nisab.valueEtb), label: config.nisab.basis === "gold" ? t.nisabGold : t.nisabSilver }
       : null,
     has(gold24k) ? { value: birrPerGram(gold24k), label: t.gold24k } : null,
-    has(home?.totalCollectedEtb) ? { value: birrCompact(home.totalCollectedEtb), label: t.collected } : null,
+    has(collected) ? { value: birrCompact(collected), label: t.collected } : null,
     has(month?.collectedEtb)
       ? {
           value: `${birrCompact(month.collectedEtb)}${
@@ -51,9 +55,9 @@ async function loadStats(locale: Locale, t: Strings): Promise<Stat[]> {
           label: t.thisMonth,
         }
       : null,
-    has(home?.totalBeneficiariesSupported) ? { value: count(home.totalBeneficiariesSupported), label: t.families } : null,
+    has(families) ? { value: count(families), label: t.families } : null,
     has(impact?.distributedFundsEtb) ? { value: birrCompact(impact.distributedFundsEtb), label: t.distributed } : null,
-    has(impact?.livesTouched) ? { value: count(impact.livesTouched), label: t.lives } : null,
+    has(lives) ? { value: count(lives), label: t.lives } : null,
     has(impact?.activeProjects) ? { value: count(impact.activeProjects), label: t.projects } : null,
   ];
   return stats.filter((stat): stat is Stat => stat !== null);

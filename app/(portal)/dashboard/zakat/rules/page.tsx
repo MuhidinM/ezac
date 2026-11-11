@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { apiClient } from "@/lib/api/client";
 import { ApiError, errorMessage } from "@/lib/api/errors";
 import { useResource } from "@/lib/api/use-resource";
-import { draftHasChanges } from "@/lib/zakat/rules-draft";
+import { draftHasChanges, draftRules } from "@/lib/zakat/rules-draft";
 import { getPath } from "@/lib/backoffice/scoring-config";
 import { formatDateTime } from "@/lib/beneficiary/format";
 import { cn } from "@/lib/utils";
@@ -27,6 +27,8 @@ type RulesVersion = {
   name: string;
   active: boolean;
   createdBy: string | null;
+  /** Null on versions saved before 11 November. */
+  createdByName?: string | null;
   createdAt: string;
   rules: Record<string, unknown>;
 };
@@ -34,7 +36,6 @@ type RulesVersion = {
 type RulesSchema = { fields: SchemaField[]; rules: string[] };
 
 const BASE = "/bff/zakat-admin/calculator-configs";
-const LIVESTOCK_PRICES = "livestockAverageUnitPriceEtb";
 
 /** Versions zakat-engine created itself; the newest of them is the default. */
 const isBuiltIn = (version: RulesVersion) => version.createdBy === "system";
@@ -44,10 +45,11 @@ const isBuiltIn = (version: RulesVersion) => version.createdBy === "system";
  * checks are shown as sent; the "never edited" one repeats the page header.
  */
 const CHECK_WORDING: [RegExp, string | null][] = [
-  [/^Grams, kilograms and the hawl/i, "Grams, kilograms and the hawl must be above 0. Average animal prices can be 0 or more."],
-  [/^Livestock tables: each row/i, "Livestock tables: each row's maximum is at least its minimum, and each row starts above the previous row's maximum."],
+  [/^Grams, kilograms and the hawl/i, "Grams, kilograms and the hawl must be above 0."],
+  [/^Livestock tables: each row/i, "Livestock tables: each row's maximum is at least its minimum, and each row starts right after the previous row's maximum (no gaps or overlaps)."],
   [/^Only the last row of a table/i, "Only the last row of a table may leave the maximum empty (“and above”). Every other row needs what is due."],
-  [/^livestockAverageUnitPriceEtb/i, "Average prices are needed for sheep, goats, cattle and camels."],
+  // Average livestock prices are set on Prices & nisab; the page header says so.
+  [/^Average livestock prices are not part of a version/i, null],
   [/^Versions are never edited/i, null],
 ];
 
@@ -110,20 +112,16 @@ function ruleChanges(from: Record<string, unknown>, to: Record<string, unknown>,
   });
 }
 
-function ChangeSummary({ changes, livestockNote }: { changes: { path: string; text: string }[]; livestockNote: string }) {
+function ChangeSummary({ changes }: { changes: { path: string; text: string }[] }) {
   if (changes.length === 0) return <p className="text-sm text-black/60">Same rules as the active version.</p>;
-  const livestock = changes.some((change) => change.path.startsWith(`${LIVESTOCK_PRICES}.`));
   return (
-    <div className="space-y-3">
-      {livestock ? <InlineAlert tone="warning">{livestockNote}</InlineAlert> : null}
-      <div>
-        <p className="mb-1 text-xs font-medium text-black/60">Compared with the active version</p>
-        <ul className="max-h-56 list-disc space-y-0.5 overflow-y-auto pl-5 text-sm text-navy">
-          {changes.map((change) => (
-            <li key={change.path}>{change.text}</li>
-          ))}
-        </ul>
-      </div>
+    <div>
+      <p className="mb-1 text-xs font-medium text-black/60">Compared with the active version</p>
+      <ul className="max-h-56 list-disc space-y-0.5 overflow-y-auto pl-5 text-sm text-navy">
+        {changes.map((change) => (
+          <li key={change.path}>{change.text}</li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -141,6 +139,8 @@ function CalculatorRules() {
   const schema = useResource<RulesSchema>(`${BASE}/schema`);
   const [selected, setSelected] = useState<number | null>(null);
   const [draft, setDraft] = useState<Record<string, unknown> | null>(null);
+  // The version active when the draft started: zakat-engine answers 409 when another became active since.
+  const [baseVersion, setBaseVersion] = useState<number | null>(null);
   const [name, setName] = useState("");
   const [activate, setActivate] = useState(false);
   const [confirmSave, setConfirmSave] = useState(false);
@@ -169,7 +169,8 @@ function CalculatorRules() {
   }
 
   function startDraft(from: RulesVersion) {
-    setDraft(structuredClone(from.rules));
+    setDraft(draftRules(from.rules));
+    setBaseVersion(active?.version ?? null);
     setName("");
     setActivate(false);
     clearErrors();
@@ -208,7 +209,7 @@ function CalculatorRules() {
     try {
       const created = await apiClient<RulesVersion>(BASE, {
         method: "POST",
-        body: JSON.stringify({ name: name.trim(), rules: draft, activate }),
+        body: JSON.stringify({ name: name.trim(), rules: draft, activate, ...(baseVersion !== null ? { baseVersion } : {}) }),
       });
       setDraft(null);
       setSelected(created.version);
@@ -219,6 +220,7 @@ function CalculatorRules() {
       );
       versions.reload();
     } catch (error) {
+      if (error instanceof ApiError && error.status === 409 && (await rebaseOnActive())) return;
       setSaveError(
         error instanceof ApiError && error.errors.length > 0
           ? "Some values need fixing. Correct them, then save again."
@@ -243,11 +245,35 @@ function CalculatorRules() {
     }
   }
 
+  /**
+   * Another version became active after the draft started (409). The draft is
+   * kept and now builds on the new active version; the admin sees how the two
+   * differ and saves again. False when the active version can't be read.
+   */
+  async function rebaseOnActive(): Promise<boolean> {
+    if (!draft) return false;
+    try {
+      const latest = await apiClient<RulesVersion>(`${BASE}/active`);
+      // Same active version: the 409 is about something else, shown as sent.
+      if (latest.version === baseVersion) return false;
+      setBaseVersion(latest.version);
+      versions.reload();
+      const differences = ruleChanges(latest.rules, draft, fields).map((change) => change.text);
+      setSaveError(
+        `Nothing was saved: v${latest.version} (${latest.name}) was activated after you started. Your changes are kept. Check them against v${latest.version}, then save again.`,
+      );
+      setSaveErrors(differences.length > 0 ? [`Your draft differs from v${latest.version} in:`, ...differences] : []);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   return (
     <section className="space-y-6">
       <PageHeader
         title="Calculator rules"
-        description="Nisab basis, zakat rates, livestock tables and average livestock prices behind the public calculator. A version is never edited: save a new one, then activate it."
+        description="Nisab basis, zakat rates and livestock tables behind the public calculator. Average livestock prices are set on Prices & nisab. A version is never edited: save a new one, then activate it."
       />
 
       <ErrorAlert error={versions.error} onRetry={versions.reload} />
@@ -282,7 +308,9 @@ function CalculatorRules() {
                         <span className="block truncate text-sm font-medium text-navy">
                           v{item.version} · {item.name}
                         </span>
-                        <span className="block text-xs text-black/60">{formatDateTime(item.createdAt)}</span>
+                        <span className="block text-xs text-black/60">
+                          {[formatDateTime(item.createdAt), item.createdByName].filter(Boolean).join(" · ")}
+                        </span>
                       </span>
                       <span className="flex shrink-0 flex-col items-end gap-1">
                         {item.active ? <Badge tone="success">Active</Badge> : null}
@@ -357,7 +385,7 @@ function CalculatorRules() {
             <Panel
               title={`v${current.version} · ${current.name}`}
               description={[
-                `Created ${formatDateTime(current.createdAt)}`,
+                `Created ${formatDateTime(current.createdAt)}${current.createdByName ? ` by ${current.createdByName}` : ""}`,
                 current.version === defaultVersion?.version ? "the default rules, set up with the system" : null,
                 current.active ? "used by the public calculator" : null,
               ]
@@ -412,10 +440,7 @@ function CalculatorRules() {
         }}
       >
         {activateTarget && active && fields.length ? (
-          <ChangeSummary
-            changes={ruleChanges(active.rules, activateTarget.rules, fields)}
-            livestockNote="This version has other average livestock prices. Activating it replaces the prices set on Prices & nisab."
-          />
+          <ChangeSummary changes={ruleChanges(active.rules, activateTarget.rules, fields)} />
         ) : null}
       </ConfirmDialog>
 
@@ -442,10 +467,7 @@ function CalculatorRules() {
         onConfirm={save}
       >
         {draft && active && fields.length ? (
-          <ChangeSummary
-            changes={ruleChanges(active.rules, draft, fields)}
-            livestockNote="The average livestock prices change too. They replace the prices set on Prices & nisab."
-          />
+          <ChangeSummary changes={ruleChanges(active.rules, draft, fields)} />
         ) : null}
       </ConfirmDialog>
     </section>

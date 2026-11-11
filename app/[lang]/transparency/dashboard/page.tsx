@@ -9,8 +9,11 @@ import { format } from "@/lib/i18n/messages";
 import { getDictionary, localeFromParam } from "@/lib/i18n/server";
 import { pageMetadata } from "@/lib/seo";
 import { breadcrumbJsonLd } from "@/lib/structured-data";
+import { foreignLang } from "@/lib/zakat/content";
 import {
+  collectedEtb,
   formatCount,
+  formatDate,
   formatDateTime,
   formatEtbCompact,
   formatMonth,
@@ -19,6 +22,7 @@ import {
   getImpactRegions,
   getImpactSummary,
   getImpactTimeseries,
+  householdFigures,
 } from "@/lib/zakat/impact";
 
 export async function generateMetadata({ params }: PageProps<"/[lang]/transparency/dashboard">): Promise<Metadata> {
@@ -41,23 +45,29 @@ export default async function LiveDashboardPage({ params }: PageProps<"/[lang]/t
   const [home, impact, regions, series] = await Promise.all([
     getHomeSummary(),
     getImpactSummary(),
-    getImpactRegions(),
+    getImpactRegions(locale),
     getImpactTimeseries(),
   ]);
 
   const month = home?.currentMonth ?? null;
-  const stats: { value: string | null; label: string; trend?: number | null }[] = [
-    { value: formatEtbCompact(home?.totalCollectedEtb, locale), label: t.stats.totalCollected },
+  // Both count households: when they match, the figure is shown once.
+  const households = householdFigures(home, impact);
+  type Stat = { value: string | null; label: string; trend?: number | null };
+  const stats = ([
+    // Online and offline together; the note below says how much was offline.
+    { value: formatEtbCompact(collectedEtb(home), locale), label: t.stats.totalCollected },
     {
       value: formatEtbCompact(month?.collectedEtb, locale),
       label: t.stats.collectedThisMonth,
       trend: month?.changePercent ?? null,
     },
-    { value: formatCount(home?.totalBeneficiariesSupported, locale), label: t.stats.familiesSupported },
+    { value: formatCount(households.families, locale), label: t.stats.familiesSupported },
     { value: formatEtbCompact(impact?.distributedFundsEtb, locale), label: t.stats.fundsDistributed },
-    { value: formatCount(impact?.livesTouched, locale), label: t.stats.livesTouched },
+    households.lives != null ? { value: formatCount(households.lives, locale), label: t.stats.livesTouched } : null,
     { value: formatCount(impact?.activeProjects, locale), label: t.stats.activeProjects },
-  ];
+  ] satisfies (Stat | null)[]).filter((stat): stat is Stat => stat !== null);
+  const offlineAmount = (home?.offlineCollectedEtb ?? 0) > 0 ? formatEtbCompact(home?.offlineCollectedEtb, locale) : null;
+  const offlineDate = formatDate(home?.offlineAsOfDate, locale);
   const asOf = formatDateTime(impact?.asOf ?? home?.asOf, locale);
   const asnaf = (impact?.beneficiariesByAsnaf ?? []).filter((row) => row.count > 0).sort((a, b) => b.count - a.count);
   const maxAsnaf = Math.max(1, ...asnaf.map((row) => row.count));
@@ -96,6 +106,11 @@ export default async function LiveDashboardPage({ params }: PageProps<"/[lang]/t
             </div>
           ))}
         </div>
+        {offlineAmount && offlineDate ? (
+          <p className="mt-4 text-center text-xs text-muted-ink">
+            {format(t.glance.offline, { amount: offlineAmount, date: offlineDate })}
+          </p>
+        ) : null}
 
         {points.length > 0 ? (
           <div className="mt-12 rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
@@ -188,7 +203,7 @@ export default async function LiveDashboardPage({ params }: PageProps<"/[lang]/t
               <tbody>
                 {regionRows.map((region) => (
                   <tr key={region.code} className="border-b border-black/5 last:border-0">
-                    <th scope="row" className="px-6 py-3 text-start font-medium text-navy">
+                    <th scope="row" lang={foreignLang(region.lang, locale)} className="px-6 py-3 text-start font-medium text-navy">
                       {region.name}
                     </th>
                     <td className="px-6 py-3 text-end tabular-nums">{formatCount(region.beneficiaries, locale) ?? dash}</td>

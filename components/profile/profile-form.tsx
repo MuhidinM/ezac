@@ -19,6 +19,7 @@ import { sendToSignIn } from "@/lib/auth/client-session";
 import { filterAppRoles } from "@/lib/auth/constants";
 import { STAFF_PASSWORD_HINT, staffPasswordProblems } from "@/lib/auth/password-policy";
 import { fetchSession, resetSessionCache, useSession } from "@/lib/auth/use-session";
+import { canEditOwnName } from "@/lib/branches/staff-accounts";
 import { isValidEthiopianPhone } from "@/lib/registration/phone";
 
 const ROLE_LABELS: Record<AppRole, string> = {
@@ -96,9 +97,11 @@ function AccountDetails({
   // /me can leave out roles that are on the sign-in token, so show both.
   // Only EZAC roles: the sign-in service adds technical ones of its own.
   const roles = filterAppRoles([...profile.roles, ...(session?.roles ?? [])]);
+  const nameEditable = canEditOwnName(roles);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!nameEditable) return;
     setError(null);
     setNameError(null);
     onNotice(null);
@@ -142,12 +145,28 @@ function AccountDetails({
   return (
     <Panel
       title="Account details"
-      description="How your name appears across EZAC. An administrator manages your phone and email."
+      description={
+        nameEditable
+          ? "How your name appears across EZAC. An administrator manages your phone and email."
+          : "How your name appears across EZAC. An administrator manages these details."
+      }
     >
       <form onSubmit={onSubmit} className="space-y-4">
         {notice ? <InlineAlert tone="success">{notice}</InlineAlert> : null}
         {error ? <InlineAlert>{error}</InlineAlert> : null}
-        <FormField label="Display name" htmlFor="displayName" required error={nameError ?? undefined}>
+        <FormField
+          label="Display name"
+          htmlFor="displayName"
+          required={nameEditable}
+          error={nameError ?? undefined}
+          hint={
+            nameEditable
+              ? undefined
+              : roles.includes("BRANCH")
+                ? "Managed by an administrator on your branch record."
+                : "Managed by an administrator on your field officer record."
+          }
+        >
           <Input
             id="displayName"
             value={displayName}
@@ -156,6 +175,8 @@ function AccountDetails({
             maxLength={NAME_MAX_LENGTH}
             autoComplete="name"
             aria-invalid={nameError ? true : undefined}
+            disabled={!nameEditable}
+            readOnly={!nameEditable}
           />
         </FormField>
         <FormField
@@ -182,12 +203,14 @@ function AccountDetails({
             )}
           </div>
         </div>
-        <div className="flex justify-end border-t border-black/[0.06] pt-4">
-          <Button type="submit" disabled={isSaving}>
-            <Save />
-            {isSaving ? "Saving…" : "Save changes"}
-          </Button>
-        </div>
+        {nameEditable ? (
+          <div className="flex justify-end border-t border-black/[0.06] pt-4">
+            <Button type="submit" disabled={isSaving}>
+              <Save />
+              {isSaving ? "Saving…" : "Save changes"}
+            </Button>
+          </div>
+        ) : null}
       </form>
     </Panel>
   );

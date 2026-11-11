@@ -14,7 +14,7 @@ import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Panel } from "@/components/dashboard/panel";
 import { RequireRole } from "@/components/dashboard/require-role";
-import { DetailSkeleton, PanelSkeleton } from "@/components/dashboard/skeletons";
+import { DetailSkeleton } from "@/components/dashboard/skeletons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChoiceCards } from "@/components/ui/segmented-control";
@@ -28,7 +28,6 @@ import type {
 import { apiClient } from "@/lib/api/client";
 import type { BeneficiaryDetail } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
-import { useBranchScope } from "@/lib/backoffice/use-branch-scope";
 import { formatDateTime } from "@/lib/beneficiary/format";
 import { cn } from "@/lib/utils";
 
@@ -129,9 +128,6 @@ function DuplicateReviewView() {
   );
   // The middle crumb names the household instead of reading "Details".
   useBreadcrumbLabel(beneficiary?.fullName, `/dashboard/beneficiary/${id}`);
-  // The duplicate review is not branch-scoped upstream: same check as the profile.
-  const branch = useBranchScope(beneficiary);
-  const canResolve = branch.scope === "in";
 
   const [resolution, setResolution] = useState<DuplicateResolution | "">("");
   const [note, setNote] = useState("");
@@ -156,7 +152,7 @@ function DuplicateReviewView() {
 
   /** Throws to keep the confirmation open with the error. */
   async function resolve() {
-    if (!resolution || !canResolve) return;
+    if (!resolution) return;
     await apiClient(`/bff/backoffice/beneficiaries/${encodedId}/duplicate-review`, {
       method: "POST",
       body: JSON.stringify({ resolution, note: note.trim() }),
@@ -199,20 +195,6 @@ function DuplicateReviewView() {
       <ErrorAlert error={error} onRetry={reload} />
 
       {!beneficiary ? <ErrorAlert error={beneficiaryError} onRetry={reloadBeneficiary} /> : null}
-      {branch.scope === "out" ? (
-        <InlineAlert tone="info" title="This household belongs to another branch.">
-          You can view the review, but only staff of its branch can resolve it.
-        </InlineAlert>
-      ) : null}
-      {branch.scope === "unknown" ? (
-        <InlineAlert
-          tone="warning"
-          title="We couldn't check this household's branch."
-          action={<Button variant="outline" size="sm" onClick={branch.reload}>Retry</Button>}
-        >
-          You can resolve the review once the check works. {branch.error?.message}
-        </InlineAlert>
-      ) : null}
 
       {isLoading && !review ? <DetailSkeleton header={false} side={false} /> : null}
 
@@ -323,9 +305,7 @@ function DuplicateReviewView() {
             </div>
           </Panel>
 
-          {isOpen && !canResolve ? (
-            branch.scope === "checking" && !beneficiaryError ? <PanelSkeleton rows={2} /> : null
-          ) : isOpen ? (
+          {isOpen ? (
             <Panel title="Resolve">
               <form onSubmit={onSubmit} className="space-y-4">
                 {submitError ? <InlineAlert>{submitError}</InlineAlert> : null}

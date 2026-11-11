@@ -9,9 +9,8 @@ import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { RequireRole } from "@/components/dashboard/require-role";
 import { DetailSkeleton } from "@/components/dashboard/skeletons";
-import type { Assessment } from "@/lib/api/backoffice-types";
 import { useResource } from "@/lib/api/use-resource";
-import { assessmentCrumb, isEditable } from "@/lib/backoffice/assessment-steps";
+import { assessmentCrumb, isEditable, type AssessmentDetail } from "@/lib/backoffice/assessment-steps";
 
 export default function EditAssessmentPage() {
   return (
@@ -23,7 +22,7 @@ export default function EditAssessmentPage() {
 
 function EditAssessment() {
   const { id } = useParams<{ id: string }>();
-  const { data: assessment, error, isLoading, reload } = useResource<Assessment>(
+  const { data: assessment, error, isLoading, reload } = useResource<AssessmentDetail>(
     `/bff/backoffice/assessments/${encodeURIComponent(id)}`,
   );
   // The record crumb (one up from "Edit") shows the household and assessment number.

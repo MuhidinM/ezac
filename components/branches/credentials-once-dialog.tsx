@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check, Copy, KeyRound } from "lucide-react";
 
+import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,7 +18,11 @@ import { copyToClipboard } from "@/lib/clipboard";
 type Props = {
   /** Login username (the phone number for branch and field officers). */
   login: string;
-  initialPassword: string;
+  /**
+   * The temporary password. null when the backend didn't send it again (a
+   * create that was retried): it is only ever sent once.
+   */
+  initialPassword: string | null;
   passwordChangeRequired: boolean;
   title?: string;
   /** Who receives the credentials, e.g. "branch officer". */
@@ -70,8 +75,9 @@ export function CredentialsOnceDialog({
           <div className="space-y-1">
             <DialogTitle className="text-lg font-semibold tracking-tight text-navy">{title}</DialogTitle>
             <DialogDescription className="text-sm text-black/60">
-              Shown once only. Copy the login and temporary password and share them securely with the {recipient}{" "}
-              before closing.
+              {initialPassword
+                ? `Shown once only. Copy the login and temporary password and share them securely with the ${recipient} before closing.`
+                : `The account was created, but its temporary password can't be shown again.`}
             </DialogDescription>
           </div>
         </DialogHeader>
@@ -83,15 +89,21 @@ export function CredentialsOnceDialog({
             copied={copied === "login"}
             onCopy={() => void copyText(login, "login")}
           />
-          <CredentialRow
-            label="Temporary password"
-            value={initialPassword}
-            highlight
-            copied={copied === "password"}
-            onCopy={() => void copyText(initialPassword, "password")}
-          />
+          {initialPassword ? (
+            <CredentialRow
+              label="Temporary password"
+              value={initialPassword}
+              highlight
+              copied={copied === "password"}
+              onCopy={() => void copyText(initialPassword, "password")}
+            />
+          ) : (
+            <InlineAlert tone="warning">
+              The password was only sent with the first answer. Use Reset password on the account to make a new one.
+            </InlineAlert>
+          )}
 
-          {passwordChangeRequired ? (
+          {passwordChangeRequired && initialPassword ? (
             <p className="text-sm text-black/60">The {recipient} must change this password on first login.</p>
           ) : null}
 
@@ -103,16 +115,18 @@ export function CredentialsOnceDialog({
         </div>
 
         <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => void copyText(`Login: ${login}\nPassword: ${initialPassword}`, "both")}
-          >
-            {copied === "both" ? <Check /> : <Copy />}
-            {copied === "both" ? "Copied both" : "Copy both"}
-          </Button>
+          {initialPassword ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void copyText(`Login: ${login}\nPassword: ${initialPassword}`, "both")}
+            >
+              {copied === "both" ? <Check /> : <Copy />}
+              {copied === "both" ? "Copied both" : "Copy both"}
+            </Button>
+          ) : null}
           <Button type="button" onClick={onClose}>
-            I have saved these credentials
+            {initialPassword ? "I have saved these credentials" : "Close"}
           </Button>
         </DialogFooter>
       </DialogContent>

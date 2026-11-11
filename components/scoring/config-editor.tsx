@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, FlaskConical, Rocket, Save, Trash2 } from "lucide-react";
+import { Check, FlaskConical, RotateCw, Rocket, Save, Trash2 } from "lucide-react";
 
 import { BEFORE_SIGN_OUT_EVENT } from "@/components/auth/idle-sign-out";
 import { RiskBadge } from "@/components/backoffice/status-badges";
@@ -17,11 +17,18 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { RiskCategory } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
-import { ApiError, errorMessage } from "@/lib/api/errors";
 import {
+  ApiError,
+  VERSION_CONFLICT_MESSAGE,
+  errorMessage,
+  isSameApprover,
+} from "@/lib/api/errors";
+import {
+  activationNeedsAnotherAdmin,
   changedPaths,
   ruleText,
   setPath,
+  staleDraftConflict,
   type DraftBaseline,
   type ScoringConfigVersion,
   type ScoringPreview,
@@ -32,6 +39,8 @@ import { cn } from "@/lib/utils";
 /** How many changed settings the activate dialog names before "and N more". */
 const LISTED_CHANGES = 8;
 
+export const ANOTHER_ADMIN_MESSAGE = "Another admin must do this step.";
+
 /** Edit a DRAFT in three steps: change the points, check the impact, activate. */
 export function ConfigEditor({
   draft,
@@ -41,7 +50,9 @@ export function ConfigEditor({
   onSaved,
   onDeleted,
   onActivated,
+  onGone,
   onDirtyChange,
+  myUserId,
 }: {
   draft: ScoringConfigVersion;
   /** The live version (which activation replaces) and the one the draft was copied from. */
@@ -51,8 +62,12 @@ export function ConfigEditor({
   onSaved: (version: ScoringConfigVersion) => void;
   onDeleted: () => void;
   onActivated: () => void;
+  /** The draft was deleted or activated elsewhere: the page reloads the versions. */
+  onGone: () => void;
   /** Told whether there are unsaved edits, so the page can ask before leaving the draft. */
   onDirtyChange?: (dirty: boolean) => void;
+  /** The signed-in ADMIN: whoever made or last edited the draft can't activate it. */
+  myUserId: string | null;
 }) {
   const [name, setName] = useState(draft.name ?? "");
   const [config, setConfig] = useState<Record<string, unknown>>(draft.config);
@@ -64,11 +79,18 @@ export function ConfigEditor({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [acknowledged, setAcknowledged] = useState(false);
+  // Someone else saved the draft since it was loaded (409 on save).
+  const [conflict, setConflict] = useState(false);
+  const [isReloading, setIsReloading] = useState(false);
+  // The server refused to activate because the draft is stale (409 STALE_DRAFT).
+  const [serverStale, setServerStale] = useState<{ basedOnVersion: number | null; activeVersion: number | null } | null>(null);
   const signingOut = useRef(false);
 
   const versionPath = `${apiBase}/${draft.version}`;
   const isDirty = name !== (draft.name ?? "") || JSON.stringify(config) !== JSON.stringify(draft.config);
-  const { live, stale, compareWith } = baseline;
+  const { live, compareWith } = baseline;
+  const stale = baseline.stale || !!draft.stale || serverStale != null;
+  const needsAnotherAdmin = activationNeedsAnotherAdmin(draft, myUserId);
   // Counted against the live version: that is what activating this draft changes.
   const changes = compareWith ? changedPaths(schema.fields, compareWith.config, config) : [];
   const fieldsByPath = new Map(schema.fields.map((field) => [field.path, field]));
@@ -76,7 +98,8 @@ export function ConfigEditor({
     const field = fieldsByPath.get(path);
     return field ? fieldName(field) : path;
   });
-  const problems = validateScoring(schema, config);
+  // Band lists keep the count and direction of the version the draft was copied from.
+  const problems = validateScoring(schema, config, baseline.base?.config ?? compareWith?.config ?? null);
   const step = isDirty || changes.length === 0 ? 1 : preview ? 3 : 2;
 
   useEffect(() => {
@@ -123,20 +146,73 @@ export function ConfigEditor({
     }
     setIsSaving(true);
     setMessage(null);
+    setConflict(false);
     try {
       const saved = await apiClient<ScoringConfigVersion>(versionPath, {
         method: "PATCH",
-        body: JSON.stringify({ name: name.trim() || undefined, config }),
+        body: JSON.stringify({ name: name.trim() || undefined, config, editVersion: draft.editVersion ?? undefined }),
       });
       onSaved(saved);
       setMessage({ tone: "success", text: "Draft saved." });
       return true;
     } catch (saveError) {
-      setMessage({ tone: "error", text: scoringError(saveError, "Couldn't save the draft") });
+      // A stale editVersion (or a draft that changed state meanwhile): reload before editing again.
+      if (saveError instanceof ApiError && saveError.status === 409) setConflict(true);
+      else setMessage({ tone: "error", text: scoringError(saveError, "Couldn't save the draft") });
       return false;
     } finally {
       setIsSaving(false);
     }
+  }
+
+  /** After a 409: drop the unsaved edits and load the draft as it is saved now. */
+  async function reloadDraft() {
+    setIsReloading(true);
+    try {
+      const versions = await apiClient<ScoringConfigVersion[]>(apiBase);
+      const fresh = versions.find((item) => item.version === draft.version);
+      if (!fresh || fresh.status !== "DRAFT") {
+        onGone();
+        return;
+      }
+      setName(fresh.name ?? "");
+      setConfig(fresh.config);
+      setPreview(null);
+      setConflict(false);
+      setMessage(null);
+      onSaved(fresh);
+    } catch (reloadError) {
+      setMessage({ tone: "error", text: errorMessage(reloadError, "Couldn't load the draft. Try again.") });
+    } finally {
+      setIsReloading(false);
+    }
+  }
+
+  async function activate() {
+    try {
+      await apiClient(`${versionPath}/activate`, {
+        method: "POST",
+        body: JSON.stringify({ reason: reason.trim(), confirmStale: stale && acknowledged ? true : undefined }),
+      });
+    } catch (activateError) {
+      if (isSameApprover(activateError) || (activateError instanceof ApiError && activateError.status === 403)) {
+        throw new Error(ANOTHER_ADMIN_MESSAGE);
+      }
+      const staleConflict = staleDraftConflict(activateError);
+      if (staleConflict) {
+        // Ask first: the box below appears, and confirming again sends confirmStale.
+        setServerStale(staleConflict);
+        setAcknowledged(false);
+        throw new Error(
+          `v${staleConflict.activeVersion ?? live?.version ?? "?"} became the live version after this draft was copied from v${
+            staleConflict.basedOnVersion ?? draft.basedOnVersion ?? "?"
+          }. Tick the box to activate it anyway.`,
+        );
+      }
+      throw activateError;
+    }
+    setReason("");
+    onActivated();
   }
 
   async function runPreview() {
@@ -188,10 +264,12 @@ export function ConfigEditor({
               <FlaskConical />
               Preview impact
             </Button>
-            <Button size="sm" onClick={() => setActivateOpen(true)} disabled={isDirty || problems.length > 0}>
-              <Rocket />
-              Activate
-            </Button>
+            {needsAnotherAdmin ? null : (
+              <Button size="sm" onClick={() => setActivateOpen(true)} disabled={isDirty || problems.length > 0}>
+                <Rocket />
+                Activate
+              </Button>
+            )}
           </>
         }
       >
@@ -202,6 +280,25 @@ export function ConfigEditor({
               {draft.basedOnVersion != null ? `It was copied from v${draft.basedOnVersion}. ` : null}
               Activating it replaces all of v{live.version}&apos;s settings, so every value marked “was” changes back, including ones
               you didn&apos;t edit. To keep v{live.version}&apos;s settings, delete this draft and make a new one from v{live.version}.
+            </InlineAlert>
+          ) : null}
+          {needsAnotherAdmin ? (
+            <InlineAlert tone="info" title="Waiting for another admin">
+              You made or last changed this draft, so another admin must check it and activate it.
+            </InlineAlert>
+          ) : null}
+          {conflict ? (
+            <InlineAlert
+              tone="warning"
+              title="The draft wasn't saved"
+              action={
+                <Button type="button" variant="outline" size="sm" onClick={() => void reloadDraft()} loading={isReloading} loadingText="Loading…">
+                  <RotateCw />
+                  Reload
+                </Button>
+              }
+            >
+              {VERSION_CONFLICT_MESSAGE}
             </InlineAlert>
           ) : null}
           {message ? <InlineAlert tone={message.tone}>{message.text}</InlineAlert> : null}
@@ -254,11 +351,7 @@ export function ConfigEditor({
         }
         confirmLabel="Activate"
         confirmDisabled={!reason.trim() || (stale && !acknowledged)}
-        onConfirm={async () => {
-          await apiClient(`${versionPath}/activate`, { method: "POST", body: JSON.stringify({ reason: reason.trim() }) });
-          setReason("");
-          onActivated();
-        }}
+        onConfirm={activate}
       >
         {compareWith ? (
           <div className="text-sm text-black/65">
@@ -290,7 +383,7 @@ export function ConfigEditor({
             />
             <span>
               {draft.basedOnVersion != null
-                ? `This draft was copied from v${draft.basedOnVersion}, not from the live v${live.version}.`
+                ? `This draft was copied from v${serverStale?.basedOnVersion ?? draft.basedOnVersion}, not from the live v${live.version}.`
                 : `This draft wasn't copied from the live v${live.version}.`}{" "}
               I&apos;ve checked every setting that differs from v{live.version}, including ones I didn&apos;t edit.
             </span>

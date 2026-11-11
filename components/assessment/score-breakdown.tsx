@@ -1,5 +1,5 @@
 import { RiskBadge, ScoreMeter } from "@/components/backoffice/status-badges";
-import type { AssessmentScore } from "@/lib/api/backoffice-types";
+import type { AssessmentScore, ScoreSection } from "@/lib/api/backoffice-types";
 import { OFFICER_RECOMMENDATION, labelFor } from "@/lib/backoffice/options";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +33,14 @@ export function ScoreHeadline({
   );
 }
 
+/** A score section; since 10 November it carries a plain-language `explanation`. */
+type ExplainedSection = ScoreSection & { explanation?: string | null };
+
+/** Why the section scored what it did: the plain-language explanation, else the technical reason. */
+export function sectionWhy(section: ExplainedSection): string {
+  return section.explanation?.trim() || section.reason?.trim() || "—";
+}
+
 /** Per-section score table with horizontal bars. */
 export function ScoreBreakdown({ score, muted }: { score: AssessmentScore; muted?: boolean }) {
   return (
@@ -42,11 +50,11 @@ export function ScoreBreakdown({ score, muted }: { score: AssessmentScore; muted
           <tr className="border-b border-black/[0.06] text-left text-xs text-black/60">
             <th className="py-2 pr-4 font-medium">Section</th>
             <th className="w-56 py-2 pr-4 font-medium">Score</th>
-            <th className="py-2 font-medium">Reason</th>
+            <th className="py-2 font-medium">Why</th>
           </tr>
         </thead>
         <tbody>
-          {score.sections.map((section) => {
+          {score.sections.map((section: ExplainedSection) => {
             const percent = section.max > 0 ? (section.score / section.max) * 100 : 0;
             return (
               <tr key={section.key} className="border-b border-black/[0.04] last:border-0">
@@ -64,7 +72,9 @@ export function ScoreBreakdown({ score, muted }: { score: AssessmentScore; muted
                     </span>
                   </div>
                 </td>
-                <td className="py-2.5 text-xs text-black/60">{section.reason ?? "—"}</td>
+                <td className="py-2.5 text-xs text-black/60" title={section.explanation && section.reason ? section.reason : undefined}>
+                  {sectionWhy(section)}
+                </td>
               </tr>
             );
           })}

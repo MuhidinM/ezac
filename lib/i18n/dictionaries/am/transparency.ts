@@ -62,6 +62,7 @@ const transparency: Messages<typeof en> = {
       title: "አኃዞቹ",
       asOf: "እስከ {date} ድረስ ይፋ የተደረጉ አኃዞች።",
       noDate: "ይፋ የተደረጉ አኃዞች። ሰረዝ (—) አኃዙ ገና ይፋ አልተደረገም ማለት ነው።",
+      offline: "በቅርንጫፎች የተሰጠ {amount} ያካትታል፤ እስከ {date} ድረስ የተቆጠረ።",
     },
     stats: {
       totalCollected: "የተሰበሰበ ዘካ (በአጠቃላይ)",
@@ -351,6 +352,9 @@ const transparency: Messages<typeof en> = {
       intro:
         "ብዙ ነጥብ ማለት የበለጠ ፍላጎት ማለት ነው። ነጥቡ የሚያርፍበት ቦታ የፍላጎት ደረጃውን እና ቅርንጫፉ የሚያየውን ምክረ ሐሳብ ይወስናል፤ ውሳኔውን የሚሰጠው ግን አሁንም ቅርንጫፉ ነው።",
       example: "ምሳሌ",
+      inForce: "ከ{date} ጀምሮ በሥራ ላይ",
+      range: "ከ{min} እስከ {max}",
+      liveNote: "እነዚህ አሁን በሥራ ላይ ያሉት ደረጃዎች ናቸው (የነጥብ ሰንጠረዥ ስሪት {version})። ሊቀየሩ ይችላሉ፤ እያንዳንዱ ውጤት የተሰላበትን ስሪት ይይዛል።",
       bands: {
         low: "ዝቅተኛ ፍላጎት",
         medium: "መካከለኛ",

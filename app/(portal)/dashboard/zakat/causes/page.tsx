@@ -12,6 +12,8 @@ import { Panel } from "@/components/dashboard/panel";
 import { RequireRole } from "@/components/dashboard/require-role";
 import { TableMessageRow, TableSkeletonRows } from "@/components/dashboard/table-states";
 import { CauseStatusBadge } from "@/components/zakat/cause-status-badge";
+import { adminMediaSrc } from "@/components/zakat/content/media";
+import type { CauseAdmin } from "@/components/zakat/content/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,8 +29,7 @@ import type { PaginatedItems } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
 import { formatDate, formatEtb } from "@/lib/backoffice/format";
 import { useListState } from "@/lib/hooks/use-list-state";
-import { type AdminCause, categoryLabel, mediaSrc } from "@/lib/zakat/content";
-import { pageOfCauses } from "@/lib/zakat/causes-page";
+import { categoryLabel } from "@/lib/zakat/content";
 
 const PAGE_SIZE = 20;
 
@@ -54,9 +55,11 @@ function CausesAdmin() {
   const [list, setList] = useListState("", { status: "", page: 1 }, { allowed: { status: TABS.map((tab) => tab.key) } });
   const params = new URLSearchParams({ page: String(list.page), limit: String(PAGE_SIZE) });
   if (list.status) params.set("status", list.status);
-  const { data, error, isLoading, reload } = useResource<PaginatedItems<AdminCause> | AdminCause[]>(`/bff/zakat-admin/causes?${params}`);
-  // The API sends every cause as a plain list today; a paged answer is used as it comes.
-  const { items: causes, totalItems, totalPages } = pageOfCauses(data, list.page, PAGE_SIZE);
+  // With page and limit the API answers one page as {items, pagination} (a plain list only without them).
+  const { data, error, isLoading, reload } = useResource<PaginatedItems<CauseAdmin>>(`/bff/zakat-admin/causes?${params}`);
+  const causes = data?.items ?? [];
+  const totalItems = data?.pagination?.totalItems ?? causes.length;
+  const totalPages = Math.max(1, data?.pagination?.totalPages ?? 1);
 
   return (
     <section className="space-y-6">
@@ -91,8 +94,8 @@ function CausesAdmin() {
             {causes.some((cause) => cause.status === "ACTIVE" && cause.ended) ? (
               <div className="px-5 pt-4">
                 <InlineAlert tone="info">
-                  Causes marked Ended are past their end date: the app and website list them as completed. Close them, or set a later end
-                  date to keep them running.
+                  Causes marked Ended are past their end date and close automatically within the hour. Set a later end date to keep one
+                  running.
                 </InlineAlert>
               </div>
             ) : null}
@@ -117,9 +120,10 @@ function CausesAdmin() {
                     <TableRow key={cause.id} className="relative">
                       <TableCell className="pl-5">
                         <span className="flex items-center gap-3">
-                          {cause.imageUrl ? (
+                          {(cause.adminImageUrl ?? cause.imageUrl) ? (
+                            // The admin route also serves a draft's image; the public one is 404 for drafts.
                             // eslint-disable-next-line @next/next/no-img-element -- served by the zakat service
-                            <img src={mediaSrc(cause.imageUrl) ?? undefined} alt="" className="size-10 shrink-0 rounded-md object-cover" />
+                            <img src={adminMediaSrc(cause.adminImageUrl ?? cause.imageUrl) ?? undefined} alt="" className="size-10 shrink-0 rounded-md object-cover" />
                           ) : (
                             <span className="size-10 shrink-0 rounded-md bg-black/[0.05]" />
                           )}

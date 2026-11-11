@@ -10,18 +10,15 @@ import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api/errors";
 import { registerApiFormData } from "@/lib/registration/api";
 import {
-  KYC_FILE_TYPES,
-  MAX_KYC_FILE_SIZE,
-} from "@/lib/registration/constants";
-import {
   clearInProgressRegistration,
   getRegistrationSession,
   setRegistrationSuccessFlag,
   updateRegistrationSession,
 } from "@/lib/registration/session";
 import type { KycDocument, UploadDocumentResponse } from "@/lib/registration/types";
+import { uploadAccept, uploadProblem } from "@/lib/registration/uploads";
 
-const INSTITUTION_STEPS = ["Details", "Password", "Documents"];
+const INSTITUTION_STEPS = ["Details", "Documents"];
 
 export function InstitutionDocumentsStep() {
   const router = useRouter();
@@ -63,13 +60,9 @@ export function InstitutionDocumentsStep() {
       return;
     }
 
-    if (!KYC_FILE_TYPES.includes(file.type)) {
-      setError("Only PDF, JPG, and PNG files are supported.");
-      return;
-    }
-
-    if (file.size > MAX_KYC_FILE_SIZE) {
-      setError("File is too large. Maximum size is 10 MB.");
+    const problem = uploadProblem(file, "kyc");
+    if (problem) {
+      setError(problem);
       return;
     }
 
@@ -141,7 +134,7 @@ export function InstitutionDocumentsStep() {
       description="Upload each required KYC document to complete registration."
       branchName={branchName}
       steps={INSTITUTION_STEPS}
-      currentStep={2}
+      currentStep={1}
       error={error}
       footer={
         <div className="flex justify-between gap-3">
@@ -152,7 +145,7 @@ export function InstitutionDocumentsStep() {
               uploadingCode ? "pointer-events-none opacity-50" : undefined
             }
           >
-            <Link href="/dashboard/register/institution/password">Back</Link>
+            <Link href="/dashboard/register/institution">Back</Link>
           </Button>
           <Button onClick={onFinish} disabled={!kycComplete || !!uploadingCode}>
             Finish
@@ -216,7 +209,7 @@ function DocumentCard({
             ref={fileInput}
             id={inputId}
             type="file"
-            accept={KYC_FILE_TYPES.join(",")}
+            accept={uploadAccept("kyc")}
             className="hidden"
             tabIndex={-1}
             aria-hidden="true"

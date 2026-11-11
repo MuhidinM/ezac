@@ -1,19 +1,21 @@
 "use client";
 
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { CheckCircle2, CopyCheck, KeyRound, Pencil, RotateCw, XCircle } from "lucide-react";
+import { ArrowRightLeft, CheckCircle2, CopyCheck, Pencil, XCircle } from "lucide-react";
 
 import { BeneficiaryAssessments } from "@/components/assessment/beneficiary-assessments";
 import {
   DuplicateBadge,
   LifecycleBadge,
   PoolStatusBadge,
+  ScoreMeter,
   WhitelistBadge,
 } from "@/components/backoffice/status-badges";
 import { BasicDetailsDialog, bankLockFor, type BankLock } from "@/components/beneficiary/basic-details-dialog";
 import { BeneficiaryEditForm } from "@/components/beneficiary/beneficiary-edit-form";
+import { HouseholdLoginPanel } from "@/components/beneficiary/household-login-panel";
 import { LifecyclePanel } from "@/components/beneficiary/lifecycle-panel";
 import { WhitelistPanel } from "@/components/whitelist/whitelist-panel";
 import { KycDocumentsCard } from "@/components/beneficiary/kyc-documents-card";
@@ -24,7 +26,7 @@ import { FormField } from "@/components/dashboard/form-field";
 import { InlineAlert } from "@/components/dashboard/inline-alert";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { DetailList, Panel } from "@/components/dashboard/panel";
-import { DetailSkeleton, PanelSkeleton } from "@/components/dashboard/skeletons";
+import { DetailSkeleton } from "@/components/dashboard/skeletons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,73 +39,63 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { requestPath } from "@/components/whitelist/whitelist-form-dialog";
-import type { Assessment, AssessmentListItem, BeneficiaryWhitelist, PoolStatus } from "@/lib/api/backoffice-types";
+import type { AssessmentListItem, BeneficiaryWhitelist } from "@/lib/api/backoffice-types";
 import { apiClient } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errors";
-import type { BeneficiaryDetail } from "@/lib/api/types";
+import type { BeneficiaryDetail, PaginatedItems } from "@/lib/api/types";
 import { useResource } from "@/lib/api/use-resource";
 import { useSession } from "@/lib/auth/use-session";
-import { isLivePoolStatus } from "@/lib/backoffice/assessment-steps";
 import { useNotice } from "@/lib/backoffice/notice";
 import { MARITAL_STATUS, PRIMARY_LANGUAGE, SEX, labelFor } from "@/lib/backoffice/options";
-import { useBranchScope } from "@/lib/backoffice/use-branch-scope";
 import { formatBeneficiaryCategory, formatDateTime } from "@/lib/beneficiary/format";
-import { hasPendingPasswordSetup, passwordSetupHref } from "@/lib/registration/session";
+import type { HouseholdDetail } from "@/lib/beneficiary/types";
 
 type VerificationAction = "verified" | "rejected";
 
-/** The most recently changed APPROVED assessment: the one that carries the household's pool status. */
-function latestApproved(items: AssessmentListItem[]) {
-  const when = (item: AssessmentListItem) => item.updatedAt ?? item.submittedAt ?? item.createdAt ?? "";
-  return items.filter((item) => item.status === "APPROVED").sort((a, b) => when(b).localeCompare(when(a)))[0] ?? null;
-}
+const CONSENT_CONTEXT: Record<string, string> = {
+  REGISTRATION: "At registration",
+  ASSESSMENT: "At the assessment",
+};
 
 export default function BeneficiaryDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { session } = useSession();
-  const { data: beneficiary, error, isLoading, reload, mutate } = useResource<BeneficiaryDetail>(
+  const { data: beneficiary, error, isLoading, reload, mutate } = useResource<HouseholdDetail>(
     `/bff/beneficiaries/${encodeURIComponent(id)}`,
   );
-  // Assessment history: tells whether the bank account is settled, and
-  // whether the household is in the user's branches.
-  const branch = useBranchScope(beneficiary);
-  const assessmentHistory = branch.assessments;
-  // The detail GET has no pool status yet. The latest approved assessment
-  // carries it, or for a fast-track household pooled without an assessment,
-  // its whitelist entry.
-  const approved = beneficiary?.poolStatus ? null : latestApproved(assessmentHistory ?? []);
-  const { data: approvedAssessment } = useResource<Assessment>(
-    approved ? `/bff/backoffice/assessments/${encodeURIComponent(approved.id)}` : null,
+  const isInstitution = beneficiary?.beneficiaryType === "institution";
+  const isStaff = session?.isStaff ?? false;
+  // The assessment history settles the bank account (see bankLockFor).
+  const { data: historyData, error: historyError } = useResource<
+    AssessmentListItem[] | PaginatedItems<AssessmentListItem>
+  >(
+    beneficiary && !isInstitution && isStaff
+      ? `/bff/backoffice/beneficiaries/${encodeURIComponent(beneficiary.id)}/assessments`
+      : null,
   );
-  const {
-    data: whitelistData,
-    error: whitelistError,
-    reload: reloadWhitelist,
-  } = useResource<BeneficiaryWhitelist>(
-    beneficiary && beneficiary.beneficiaryType !== "institution" ? requestPath(beneficiary.id) : null,
+  const assessmentHistory = historyError
+    ? undefined
+    : Array.isArray(historyData)
+      ? historyData
+      : historyData?.items;
+  const { data: whitelistData, error: whitelistError, reload: reloadWhitelist } = useResource<BeneficiaryWhitelist>(
+    beneficiary && !isInstitution ? requestPath(beneficiary.id) : null,
   );
   // Undefined until it is read: the bank lock fails closed meanwhile.
   const whitelist = whitelistError ? undefined : whitelistData;
-  const fastTrackPool = whitelist?.current?.poolStatus;
-  const poolStatus: PoolStatus | null =
-    beneficiary?.poolStatus ??
-    (isLivePoolStatus(fastTrackPool) ? fastTrackPool : null) ??
-    approvedAssessment?.pool?.status ??
-    null;
+  const poolStatus = beneficiary?.poolStatus ?? null;
   useBreadcrumbLabel(beneficiary?.fullName);
 
   const [isEditingInstitution, setIsEditingInstitution] = useState(false);
   const [basicOpen, setBasicOpen] = useState(false);
   const [verificationAction, setVerificationAction] = useState<VerificationAction | null>(null);
-  const [passwordPending, setPasswordPending] = useState(false);
   // Left by registration ("Abebe K. is registered…"), shown once on the new profile.
   const [notice] = useNotice(`beneficiary:${id}`);
 
-  useEffect(() => {
-    // The setup token from registration lives in this tab's sessionStorage.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPasswordPending(hasPendingPasswordSetup(id));
-  }, [id]);
+  const isBranch = session?.isBranch ?? false;
+  const back = isBranch
+    ? { href: "/dashboard/assessments", label: "Assessments" }
+    : { href: "/dashboard/beneficiary", label: "Beneficiaries" };
 
   if (isLoading && !beneficiary) {
     return <DetailSkeleton />;
@@ -112,12 +104,15 @@ export default function BeneficiaryDetailPage() {
   if (!beneficiary) {
     return (
       <section className="space-y-6">
-        <PageHeader title="Beneficiary" back={{ href: "/dashboard/beneficiary", label: "Beneficiaries" }} />
+        <PageHeader title="Beneficiary" back={back} />
         {error?.status === 404 ? (
           // Retrying can't make a missing record appear.
           <InlineAlert>
             This beneficiary doesn&apos;t exist. Check the link, or search for the household in the Beneficiaries list.
           </InlineAlert>
+        ) : error?.status === 403 ? (
+          // OUTSIDE_SCOPE and ROLE_NOT_ALLOWED: the backend says why; retrying won't change it.
+          <InlineAlert title="You can't open this household.">{error.message}</InlineAlert>
         ) : (
           <ErrorAlert error={error} onRetry={reload} fallback="The beneficiary couldn't be loaded." />
         )}
@@ -125,27 +120,26 @@ export default function BeneficiaryDetailPage() {
     );
   }
 
-  const isInstitution = beneficiary.beneficiaryType === "institution";
   const isAdmin = session?.isAdmin ?? false;
   const canVerify =
     isAdmin &&
     beneficiary.verificationStatus !== "verified" &&
     beneficiary.verificationStatus !== "rejected";
-
-  // Branch scope: only a confirmed answer allows changes (fails closed).
-  const outOfScope = branch.scope === "out";
-  const scopeChecked = branch.scope !== "checking";
-  const canEdit = (session?.isStaff ?? false) && branch.scope === "in";
+  // ADMIN and FIELD_OFFICER edit; BRANCH reads (PATCH is 403 ROLE_NOT_ALLOWED for it).
+  const canEdit = isStaff;
+  const canManageLogin = (isAdmin || isBranch) && !isInstitution;
 
   // Bank account: settled once the assessment is with the branch or the
-  // household is (about to be) pooled. Only ADMIN may change it then.
+  // household is (about to be) pooled. A field officer can't change it then;
+  // an ADMIN's change of a locked account waits for a second ADMIN.
   const bankLock: BankLock = isInstitution
     ? null
     : bankLockFor({ isAdmin, assessments: assessmentHistory, poolStatus, whitelist });
-  const canEditBank = canEdit && (bankLock === null || bankLock === "warn");
+  const canEditBank = canEdit && (bankLock === null || bankLock === "warn") && !beneficiary.pendingBankChange;
+  const consent = beneficiary.consent;
 
-  // Merge: the PATCH answers leave out fields such as the lifecycle and BIN,
-  // so keep what we had, then reload the full record.
+  // Merge: keep what we had, take the saved record (with its new version),
+  // then reload the full record.
   function applyUpdate(updated: BeneficiaryDetail) {
     if (beneficiary) mutate({ ...beneficiary, ...updated });
     reload();
@@ -161,6 +155,10 @@ export default function BeneficiaryDetailPage() {
         <BeneficiaryEditForm
           beneficiary={beneficiary}
           onCancel={() => setIsEditingInstitution(false)}
+          onReload={() => {
+            reload();
+            setIsEditingInstitution(false);
+          }}
           onSaved={(updated) => {
             applyUpdate(updated);
             setIsEditingInstitution(false);
@@ -173,7 +171,7 @@ export default function BeneficiaryDetailPage() {
   return (
     <section className="space-y-6">
       <PageHeader
-        back={{ href: "/dashboard/beneficiary", label: "Beneficiaries" }}
+        back={back}
         documentTitle={beneficiary.fullName ?? "Unnamed beneficiary"}
         title={
           <span className="flex items-center gap-3">
@@ -229,41 +227,9 @@ export default function BeneficiaryDetailPage() {
 
       {notice ? <InlineAlert tone="success">{notice}</InlineAlert> : null}
 
-      {outOfScope ? (
-        <InlineAlert tone="info" title="This household belongs to another branch.">
-          You can view it but not change it.
-        </InlineAlert>
-      ) : null}
-      {branch.scope === "unknown" ? (
-        <InlineAlert
-          tone="warning"
-          title="We couldn't check this household's branch."
-          action={
-            <Button variant="outline" size="sm" onClick={branch.reload}>
-              <RotateCw />
-              Retry
-            </Button>
-          }
-        >
-          You can view it, but changes are off until the check works. {branch.error?.message}
-        </InlineAlert>
-      ) : null}
-
-      {passwordPending && !outOfScope ? (
-        <InlineAlert
-          tone="warning"
-          title="No login password yet"
-          action={
-            <Button size="sm" variant="outline" asChild>
-              <Link href={passwordSetupHref(beneficiary.id)}>
-                <KeyRound />
-                Set password
-              </Link>
-            </Button>
-          }
-        >
-          Registration stopped before the household&apos;s password was set. You can set it here until you
-          close this browser tab or sign out.
+      {isBranch ? (
+        <InlineAlert tone="info">
+          You can view this household. Its details are changed by head office and field officers.
         </InlineAlert>
       ) : null}
 
@@ -341,23 +307,59 @@ export default function BeneficiaryDetailPage() {
                 ) : null
               }
             >
-              {beneficiary.bankAccount?.accountNumber ? (
-                <DetailList
-                  items={[
-                    { label: "Bank", value: beneficiary.bankAccount.bankName ?? beneficiary.bankAccount.bankCode },
-                    {
-                      label: "Account number",
-                      value: <span className="font-mono">{beneficiary.bankAccount.accountNumber}</span>,
-                    },
-                    { label: "Account holder", value: beneficiary.bankAccount.accountHolderName },
-                  ]}
-                />
-              ) : (
-                <InlineAlert tone="warning">
-                  No bank account yet. Add it before the assessment is submitted. The household can&apos;t be paid
-                  without one.
-                </InlineAlert>
-              )}
+              <div className="space-y-4">
+                {beneficiary.pendingBankChange ? (
+                  <InlineAlert
+                    tone="warning"
+                    title="A change to this account is waiting for approval"
+                    action={
+                      isAdmin ? (
+                        <Button size="sm" variant="outline" asChild>
+                          <Link href="/dashboard/bank-changes">
+                            <ArrowRightLeft />
+                            Open request
+                          </Link>
+                        </Button>
+                      ) : null
+                    }
+                  >
+                    Another administrator must approve or reject it. Payments go to the account below until then,
+                    and the household can&apos;t be paid while the request waits.
+                  </InlineAlert>
+                ) : null}
+                {beneficiary.bankAccount?.accountNumber ? (
+                  <DetailList
+                    items={[
+                      { label: "Bank", value: beneficiary.bankAccount.bankName ?? beneficiary.bankAccount.bankCode },
+                      {
+                        label: "Account number",
+                        value: <span className="font-mono">{beneficiary.bankAccount.accountNumber}</span>,
+                      },
+                      { label: "Account holder", value: beneficiary.bankAccount.accountHolderName },
+                      ...(beneficiary.bankAccountChangedAt
+                        ? [
+                            {
+                              label: "Last changed",
+                              value: [
+                                formatDateTime(beneficiary.bankAccountChangedAt),
+                                beneficiary.bankAccountChangedByName
+                                  ? `by ${beneficiary.bankAccountChangedByName}`
+                                  : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" "),
+                            },
+                          ]
+                        : []),
+                    ]}
+                  />
+                ) : (
+                  <InlineAlert tone="warning">
+                    No bank account yet. Add it before the assessment is submitted. The household can&apos;t be paid
+                    without one.
+                  </InlineAlert>
+                )}
+              </div>
             </Panel>
           ) : null}
 
@@ -399,25 +401,13 @@ export default function BeneficiaryDetailPage() {
 
           {isInstitution ? (
             <KycDocumentsCard beneficiaryId={beneficiary.id} />
-          ) : !scopeChecked ? (
-            <PanelSkeleton rows={2} />
-          ) : outOfScope ? (
-            <Panel title="Assessments">
-              <p className="text-sm text-black/60">Only staff of this household&apos;s branch can see its assessments.</p>
-            </Panel>
           ) : (
             <BeneficiaryAssessments beneficiary={beneficiary} />
           )}
         </div>
 
         <div className="space-y-6">
-          {isInstitution ? null : !scopeChecked ? (
-            <PanelSkeleton rows={2} columns={1} />
-          ) : outOfScope ? (
-            <Panel title="Whitelist">
-              <p className="text-sm text-black/60">Only staff of this household&apos;s branch can see its whitelist.</p>
-            </Panel>
-          ) : (
+          {isInstitution ? null : (
             <WhitelistPanel
               beneficiaryId={beneficiary.id}
               beneficiaryName={beneficiary.fullName}
@@ -425,12 +415,15 @@ export default function BeneficiaryDetailPage() {
               onChanged={reloadWhitelist}
             />
           )}
-          {!isInstitution && session?.isStaff ? (
+          {canManageLogin ? <HouseholdLoginPanel household={beneficiary} onChanged={applyUpdate} /> : null}
+          {!isInstitution && isStaff ? (
             <LifecyclePanel
               beneficiaryId={beneficiary.id}
-              canChange={isAdmin && !outOfScope}
-              poolStatus={poolStatus}
-              onChanged={(lifecycleStatus) => mutate({ ...beneficiary, lifecycleStatus })}
+              canChange={isAdmin}
+              onChanged={(lifecycleStatus) => {
+                mutate({ ...beneficiary, lifecycleStatus });
+                reload();
+              }}
             />
           ) : null}
           <Panel title="Registration">
@@ -441,9 +434,44 @@ export default function BeneficiaryDetailPage() {
                 { label: "Branch", value: beneficiary.branchName },
                 { label: "Registered", value: formatDateTime(beneficiary.createdAt) },
                 { label: "Updated", value: formatDateTime(beneficiary.updatedAt) },
+                ...(beneficiary.score != null
+                  ? [
+                      {
+                        label: "Latest score",
+                        value: (
+                          <ScoreMeter score={beneficiary.score} max={beneficiary.maxScore} risk={beneficiary.riskCategory} />
+                        ),
+                      },
+                    ]
+                  : []),
               ]}
             />
           </Panel>
+          {consent ? (
+            <Panel title="Consent">
+              <DetailList
+                columns={2}
+                items={[
+                  {
+                    label: "Data processing",
+                    value:
+                      consent.dataProcessingConsent == null
+                        ? null
+                        : consent.dataProcessingConsent
+                          ? "Agreed"
+                          : "Refused",
+                  },
+                  { label: "Notice version", value: consent.noticeVersion },
+                  {
+                    label: "Recorded",
+                    value: consent.context ? (CONSENT_CONTEXT[consent.context] ?? consent.context) : null,
+                  },
+                  { label: "When", value: consent.consentedAt ? formatDateTime(consent.consentedAt) : null },
+                  { label: "By", value: consent.recordedByName },
+                ]}
+              />
+            </Panel>
+          ) : null}
           <Panel title="Review notes">
             <DetailList
               columns={2}
@@ -459,13 +487,14 @@ export default function BeneficiaryDetailPage() {
         </div>
       </div>
 
-      {!isInstitution ? (
+      {!isInstitution && canEdit ? (
         <BasicDetailsDialog
           beneficiaryId={beneficiary.id}
           initial={beneficiary}
           open={basicOpen}
           onOpenChange={setBasicOpen}
           onSaved={applyUpdate}
+          onReload={reload}
           bankLock={bankLock}
         />
       ) : null}

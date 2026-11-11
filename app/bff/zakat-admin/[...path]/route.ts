@@ -11,12 +11,14 @@ import { expirePublicZakatData } from "@/lib/zakat/public-cache";
  * | Prefix             | Access | UI callers                                                   |
  * | ------------------ | ------ | ------------------------------------------------------------ |
  * | prices             | admin  | Prices & nisab: status, refresh, history (RequireRole admin) |
- * | calculator-configs | admin  | Calculator rules; livestock prices on Prices & nisab (admin) |
+ * | calculator-configs | admin  | Calculator rules (admin)                                     |
  * | media              | admin  | image upload on Causes and Stories; report PDFs (admin)      |
  * | causes             | admin  | Causes (admin)                                               |
  * | zakat-al-fitr      | admin  | Zakat settings (admin)                                       |
  * | home               | admin  | Zakat settings, home adjustment (admin)                      |
  * | impact             | admin  | Impact regions, stories and reports (admin)                  |
+ * | livestock-prices   | admin  | Livestock prices on the Prices page (admin)                  |
+ * | audit-log          | admin  | Content audit log (admin)                                    |
  *
  * After a successful change the public pages and the public calculator config
  * are expired, so they show it on the next visit instead of up to 5 minutes
@@ -34,6 +36,8 @@ const proxy = createProxy({
     "zakat-al-fitr": "admin",
     home: "admin",
     impact: "admin",
+    "livestock-prices": "admin",
+    "audit-log": "admin",
   },
 });
 
