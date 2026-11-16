@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 
 import { createProxy } from "@/lib/api/proxy";
-import { expirePublicZakatData } from "@/lib/zakat/public-cache";
+import { expirePublicZakatData, expirePublicZakatDataOnStandby } from "@/lib/zakat/public-cache";
 
 /**
  * ADMIN back office on zakat-engine (WEB-ADMIN-ZAKAT-GUIDE.md).
@@ -49,7 +49,10 @@ function expiringPublicData(handler: Handler): Handler {
     const response = await handler(request, context);
     if (response.ok) {
       const { path } = await context.params;
-      if (path[0] !== "media") expirePublicZakatData();
+      if (path[0] !== "media") {
+        expirePublicZakatData();
+        expirePublicZakatDataOnStandby();
+      }
     }
     return response;
   };

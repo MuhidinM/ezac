@@ -78,7 +78,7 @@ const PUBLIC_ASSET_CACHE = [
 const nextConfig: NextConfig = {
   // Version-skew protection for blue/green deploys: a browser holding the old
   // release's pages does a full reload instead of fetching chunks that no longer exist.
-  deploymentId: process.env.GIT_SHA || undefined,
+  deploymentId: process.env.EZAC_DEPLOYMENT_ID || undefined,
   poweredByHeader: false,
   experimental: {
     // proxy.ts runs on /bff/* (Origin check, password-change gate), so Next

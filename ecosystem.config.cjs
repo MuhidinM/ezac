@@ -35,6 +35,9 @@ const PASS_THROUGH = [
   "API_BASE_URL",
   "NODE_EXTRA_CA_CERTS",
   "GIT_SHA",
+  // deploy.sh sets it to the commit at build and at start; next.config.ts reads it as
+  // deploymentId, which must be the same in both (else every navigation reloads).
+  "EZAC_DEPLOYMENT_ID",
   "SITE_URL",
   "ALLOW_INSECURE_AUTH_COOKIES",
   "TRUST_ROLELESS_ACCOUNTS",

@@ -40,13 +40,16 @@ SHA=$(grep -oE '\b[0-9a-f]{40}\b' <<<"$CMD" | head -1 || true)
 mkdir -p "$RELEASES" "$STATE"
 exec 9>"$BASE/.deploy.lock"
 flock -n 9 || die "another deploy or rollback is running"
+# Keep pm2 (and the apps it forks) from inheriting the lock, which would block every later deploy.
+pm2() { command pm2 "$@" 9>&-; }
+touch "$BASE/deploy.log" && chmod 600 "$BASE/deploy.log"
 exec > >(tee -a "$BASE/deploy.log") 2>&1
 trap 'log "FAILED at line $LINENO: $BASH_COMMAND"' ERR
 
 active() { cat "$STATE/active-color" 2>/dev/null || echo blue; }
 other() { [ "$1" = blue ] && echo green || echo blue; }
 port() { [ "$1" = blue ] && echo 3000 || echo 3001; }
-linkof() { readlink -f "$1" 2>/dev/null || true; }
+linkof() { [ -L "$1" ] && readlink -f "$1" || true; }   # empty when the link doesn't exist
 
 # Healthy = /bff/health answers (with the expected release when given) and the home page renders.
 healthy() { # <port> [sha]
@@ -69,9 +72,11 @@ start_colour() { # <colour> <dir> <sha>
   [ "$1" = blue ] && { pm2 delete ezac >/dev/null 2>&1 || true; }
   # A clean environment: everything else comes from shared/.env.production, which
   # ecosystem.config.cjs reads (NODE_EXTRA_CA_CERTS must be set before Node starts).
+  # Fresh logs per start, so a failure shows only this release's output.
+  rm -f "$PM2_HOME/logs/$name-out.log" "$PM2_HOME/logs/$name-error.log"
   (cd "$2" && env -i HOME="$HOME" PATH="$PATH" PM2_HOME="$PM2_HOME" PM2_NODE=/usr/bin/node \
-    PM2_APP_NAME="$name" PORT="$(port "$1")" GIT_SHA="$3" \
-    pm2 start ecosystem.config.cjs --only "$name" >/dev/null)
+    PM2_APP_NAME="$name" PORT="$(port "$1")" GIT_SHA="$3" EZAC_DEPLOYMENT_ID="$3" \
+    pm2 start ecosystem.config.cjs --only "$name" >/dev/null 9>&-)
 }
 
 switch_to() { sudo -n /usr/local/sbin/ezac-switch-web "$1"; echo "$1" >"$STATE/active-color"; }
@@ -93,7 +98,7 @@ build() { # <sha> <dir>
     ca=$(sed -n 's/^NODE_EXTRA_CA_CERTS=//p' "$SHARED/.env.production" | tail -1)
     [ -n "$ca" ] && export NODE_EXTRA_CA_CERTS="$ca"
     # GIT_SHA is the deploymentId (version-skew protection) baked into the build.
-    export GIT_SHA="$1"
+    export GIT_SHA="$1" EZAC_DEPLOYMENT_ID="$1"
     nice -n 10 ionice -c3 "${INSTALL_CMD[@]}"
     nice -n 10 ionice -c3 "${BUILD_CMD[@]}"
     touch .build-ok
@@ -130,13 +135,23 @@ deploy() {
   log "starting $SHA as $target on :$(port "$target")"
   start_colour "$target" "$dir" "$SHA"
   if ! healthy "$(port "$target")" "$SHA"; then
-    pm2 logs "ezac-$target" --nostream --lines 60 || true
+    # App logs can hold phone numbers and IPs: keep them on the server, never in the (public) CI log.
+    local f="$STATE/failed-$SHA.log" p
+    (umask 077; pm2 logs "ezac-$target" --nostream --lines 80 >"$f" 2>&1 || true)
     pm2 delete "ezac-$target" || true
-    die "$SHA failed its health check; $live keeps serving"
+    # Put the previous release back on this colour so nginx keeps a backup and rollback still works.
+    p=$(linkof "$BASE/previous")
+    if [ -n "$p" ] && [ -f "$p/.build-ok" ]; then
+      start_colour "$target" "$p" "$(basename "$p")"
+      healthy "$(port "$target")" || log "could not restore $(basename "$p") as standby"
+      pm2 save --force >/dev/null
+    fi
+    die "$SHA failed its health check; $live keeps serving. App output: $f (server only)"
   fi
   switch_to "$target"
+  # The first blue/green deploy replaces the old in-place app, which stays running as the standby.
   prev=$(linkof "$BASE/current")
-  [ -n "$prev" ] && ln -sfn "$prev" "$BASE/previous"
+  ln -sfn "${prev:-$SRC}" "$BASE/previous"
   ln -sfn "$dir" "$BASE/current"
   pm2 save --force >/dev/null
   log "LIVE: $SHA on $target; $live stays up as nginx backup and instant rollback"
@@ -151,6 +166,8 @@ rollback() {
   [ -n "$prev" ] || die "no previous release recorded"
   healthy "$(port "$standby")" || die "standby $standby is not answering; redeploy the previous sha instead"
   switch_to "$standby"
+  # Content changed while it was standby may still be cached there.
+  curl -fsS -o /dev/null --max-time 5 -X POST "http://127.0.0.1:$(port "$standby")/bff/internal/expire-public" || true
   ln -sfn "$(linkof "$BASE/current")" "$BASE/previous"
   ln -sfn "$prev" "$BASE/current"
   pm2 save --force >/dev/null
