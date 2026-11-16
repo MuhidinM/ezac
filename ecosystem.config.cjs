@@ -85,8 +85,10 @@ module.exports = {
       name,
       cwd: __dirname,
       script: `${__dirname}/node_modules/next/dist/bin/next`,
-      // Loopback only: nginx is the way in.
-      args: `start -H 127.0.0.1 -p ${port}`,
+      // No -H: with -H 127.0.0.1, Next treats its own "/" -> "/en" rewrite (built on
+      // "localhost") as external and proxies it to itself over https, which fails.
+      // Ports 3000/3001 are closed by the firewall (ufw default deny); nginx is the way in.
+      args: `start -p ${port}`,
       interpreter: process.env.PM2_NODE || "node",
       env: {
         ...passed,
