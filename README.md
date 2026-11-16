@@ -146,4 +146,4 @@ Redirect plain HTTP to HTTPS, and every other address of the site (`www`, the IP
 - Preferred: revert the bad commit on `master` and push. Verify and deploy run as usual.
 - Faster, once `deploy.sh` checks out `$GIT_SHA`: in GitHub Actions open the last good run of "CI and deploy" and
   choose **Re-run jobs**. It deploys that run's commit again.
-- By hand: on the server, check out the last good commit, build, and `pm2 restart ezac`.
+- On the server: `/var/www/ezac/deploy.sh rollback` (instant; see RUNBOOK.md).

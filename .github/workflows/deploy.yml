@@ -71,37 +71,27 @@ jobs:
           echo "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      # deploy.sh lives on the server. It must check out GIT_SHA (the commit
-      # verify just passed, not whatever master is by now) and export it for pm2.
+      # deploy.sh (deploy/deploy.sh in this repo) is the forced command of this key on the
+      # server. It builds this exact commit in its own folder, starts it next to the live
+      # release, health-checks it and only then switches nginx: no downtime, and the old
+      # release keeps running for an instant rollback (Rollback workflow).
       - name: Deploy
-        # Keepalives: npm ci can run for minutes with no output, and an idle
-        # connection was dropped mid-install on 6 November.
+        # Keepalives: npm ci can run for minutes with no output.
         run: |
-          ssh -i ~/.ssh/deploy_key -p "${{ secrets.SSH_PORT }}" -o ServerAliveInterval=30 -o ServerAliveCountMax=20 \
-            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-            "GIT_SHA=${{ github.sha }} bash /var/www/ezac/deploy.sh"
+          ssh -i ~/.ssh/deploy_key -p "${{ secrets.SSH_PORT }}" -o BatchMode=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=20 "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "deploy ${{ github.sha }}"
 
-      # Set the repository variable SITE_URL (e.g. https://ezac.gov.et) to turn this on.
-      - name: Check the site is up
-        if: vars.SITE_URL != ''
+      - name: Check the live site serves this commit
         env:
-          SITE_URL: ${{ vars.SITE_URL }}
+          SITE_URL: ${{ vars.SITE_URL || 'https://ezaac.com' }}
           EXPECTED_RELEASE: ${{ github.sha }}
         run: |
           url="${SITE_URL%/}/bff/health"
           for attempt in 1 2 3 4 5 6; do
-            if body=$(curl --fail --silent --show-error --max-time 10 "$url"); then
-              echo "$body"
-              # /bff/health reports GIT_SHA as "release". A different value means
-              # deploy.sh did not export GIT_SHA, or the old build is still running.
-              case "$body" in
-                *"$EXPECTED_RELEASE"*) ;;
-                *) echo "::warning::$url does not report release $EXPECTED_RELEASE. Check that deploy.sh checks out and exports GIT_SHA." ;;
-              esac
-              exit 0
-            fi
-            echo "Not healthy yet (attempt $attempt); retrying in 10 s."
+            body=$(curl -fsS --max-time 10 "$url" || true)
+            # The full sha (blue/green deploy.sh) or its first 12 characters (older deploys).
+            case "$body" in *"\"release\":\"${EXPECTED_RELEASE:0:12}"*) echo "$body"; exit 0 ;; esac
+            echo "attempt $attempt: $body"
             sleep 10
           done
-          echo "::error::The site did not answer $url after the deploy."
+          echo "::error::$url does not report release $EXPECTED_RELEASE"
           exit 1

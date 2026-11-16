@@ -8,8 +8,8 @@ import { logGatewayUnreachable } from "@/lib/api/network-error";
  * personal data.
  *
  * - GET /bff/health: the app is up. 200 `{ status: "ok", release, uptimeSeconds }`.
- * - GET /bff/health?deep=1: also checks the gateway answers (any HTTP status
- *   counts, even 404). 503 `{ status: "degraded" }` when it doesn't.
+ * - GET /bff/health?deep=1: also checks the gateway's /actuator/health says UP.
+ *   503 `{ status: "degraded" }` when it doesn't (unreachable, error or not UP).
  *
  * `release` is GIT_SHA, set at deploy time.
  */
@@ -21,13 +21,14 @@ let lastCheck: { at: number; reachable: Promise<boolean> } | null = null;
 
 async function probeGateway(): Promise<boolean> {
   try {
-    await fetch(getApiBaseUrl(), {
-      method: "HEAD",
+    const response = await fetch(new URL("/actuator/health", getApiBaseUrl()), {
       cache: "no-store",
       redirect: "manual",
       signal: AbortSignal.timeout(GATEWAY_CHECK_TIMEOUT_MS),
     });
-    return true;
+    if (!response.ok) return false;
+    const body = (await response.json().catch(() => null)) as { status?: unknown } | null;
+    return body?.status === "UP";
   } catch (error) {
     logGatewayUnreachable("health", error);
     return false;

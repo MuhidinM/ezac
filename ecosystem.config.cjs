@@ -35,6 +35,9 @@ const PASS_THROUGH = [
   "API_BASE_URL",
   "NODE_EXTRA_CA_CERTS",
   "GIT_SHA",
+  // deploy.sh sets it to the commit at build and at start; next.config.ts reads it as
+  // deploymentId, which must be the same in both (else every navigation reloads).
+  "EZAC_DEPLOYMENT_ID",
   "SITE_URL",
   "ALLOW_INSECURE_AUTH_COOKIES",
   "TRUST_ROLELESS_ACCOUNTS",
@@ -71,16 +74,26 @@ function currentCommit() {
 
 const gitSha = passed.GIT_SHA ?? currentCommit();
 
+// Blue/green: deploy.sh starts "ezac-blue" on 3000 and "ezac-green" on 3001 from the
+// release folder; nginx sends traffic to one and keeps the other as backup.
+const name = process.env.PM2_APP_NAME || "ezac";
+const port = process.env.PORT || "3000";
+
 module.exports = {
   apps: [
     {
-      name: "ezac",
+      name,
       cwd: __dirname,
       script: `${__dirname}/node_modules/next/dist/bin/next`,
-      args: `start -p ${process.env.PORT ?? 3000}`,
+      // No -H: with -H 127.0.0.1, Next treats its own "/" -> "/en" rewrite (built on
+      // "localhost") as external and proxies it to itself over https, which fails.
+      // Ports 3000/3001 are closed by the firewall (ufw default deny); nginx is the way in.
+      args: `start -p ${port}`,
+      interpreter: process.env.PM2_NODE || "node",
       env: {
         ...passed,
         ...(gitSha ? { GIT_SHA: gitSha } : {}),
+        PORT: port,
         NODE_ENV: "production",
         // Server-rendered dates and log timestamps in Ethiopian time, whatever
         // zone the host is set to (Ethiopia has no daylight saving).
@@ -88,6 +101,8 @@ module.exports = {
       },
       // next start finishes in-flight requests on SIGINT; give it time before pm2 kills it.
       kill_timeout: 15000,
+      // A crash loop backs off instead of hammering the gateway.
+      exp_backoff_restart_delay: 200,
       // Restart instead of letting a leak take the server down.
       max_memory_restart: "1G",
       // Timestamps on every line; stdout and stderr of restarts share one file each.

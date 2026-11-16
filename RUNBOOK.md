@@ -41,7 +41,7 @@ On the server:
 
 ```bash
 pm2 status ezac          # online, restarts, memory
-pm2 logs ezac --lines 200
+pm2 logs ezac-blue --lines 200   # or ezac-green: `deploy.sh status` says which is live
 ```
 
 ## Deploying
@@ -51,18 +51,30 @@ A push to `master` deploys once the **verify** job (lint, type-check, tests, bui
 
 1. Watch the workflow's "Check the site is up" step (runs when the repository variable `SITE_URL` is set).
 2. Open the public home page and `/login`, sign in, and open the dashboard.
-3. `pm2 logs ezac` for a minute: no `startup_config` or a burst of `request_error` lines.
+3. `pm2 logs ezac-blue` (or `ezac-green`, whichever is live) for a minute: no `startup_config` or a burst of `request_error` lines.
 
-`deploy.sh` lives only on the server (`/var/www/ezac/deploy.sh`). **TODO (Commission):** keep a copy in this repo or
-in the server's configuration management so it can be rebuilt.
+`deploy.sh` is kept in this repo as [`deploy/deploy.sh`](deploy/deploy.sh) and installed on the server as
+`/var/www/ezac/deploy.sh`. After changing it, copy it to the server by hand (it is not deployed by CI).
+
+How a deploy works (blue/green, no downtime):
+1. The commit is built in `/var/www/ezac/releases/<sha>` while the live release keeps serving.
+2. It starts on the idle port (blue = 127.0.0.1:3000, green = 127.0.0.1:3001) and must pass `/bff/health` and render
+   the home page.
+3. Only then nginx switches to it (`/usr/local/sbin/ezac-switch-web`). The old release keeps running as nginx's
+   backup and for an instant rollback. A failed build or health check leaves the live release untouched.
+
+On the server: `/var/www/ezac/deploy.sh status` shows what is live; the log is `/var/www/ezac/deploy.log`.
 
 ## Rolling back
 
-1. Preferred: revert the bad commit on `master` and push. Verify and deploy run as usual.
-2. Faster: in GitHub Actions, open the last good run of "CI and deploy" and choose **Re-run jobs**. It deploys that
-   run's commit again (this needs `deploy.sh` to check out `$GIT_SHA`).
-3. By hand, on the server: check out the last good commit, `pnpm install --frozen-lockfile`, `pnpm build`, then
-   `GIT_SHA=<commit> pm2 startOrRestart ecosystem.config.cjs --update-env`.
+1. Fastest (about a second): run the **Roll back web app** workflow in GitHub Actions, or on the server
+   `/var/www/ezac/deploy.sh rollback`. nginx switches back to the previous release, which is still running.
+2. Further back: open an older green run of "CI and deploy" and choose **Re-run jobs**. It redeploys that commit
+   (rebuilt, or reused if its release folder is still there; the last 5 are kept).
+3. Lasting fix: revert the bad commit on `master` and push.
+
+**Never** run `jcmd`, `jstack` or `kill -3` against the backend or Keycloak processes: on 16 November a `jcmd` crashed
+Keycloak (sign-in down for about 16 seconds).
 
 Then check `/bff/health` reports the old commit as `release`.
 
@@ -71,7 +83,7 @@ backend.
 
 ## Reading the logs
 
-pm2 keeps the app's output in `~/.pm2/logs/ezac-out.log` (info) and `~/.pm2/logs/ezac-error.log` (warnings and
+pm2 keeps the app's output in `~/.pm2/logs/ezac-<colour>-out.log` (info) and `~/.pm2/logs/ezac-<colour>-error.log` (warnings and
 errors). Every line the app writes is one JSON object, after the timestamp pm2 adds:
 
 ```text
@@ -81,7 +93,7 @@ errors). Every line the app writes is one JSON object, after the timestamp pm2 a
 To filter with `jq`, drop the timestamp first:
 
 ```bash
-sed 's/^[^{]*//' ~/.pm2/logs/ezac-error.log | jq -c 'select(.event == "gateway_unreachable")'
+sed 's/^[^{]*//' ~/.pm2/logs/ezac-*-error.log | jq -c 'select(.event == "gateway_unreachable")'
 ```
 
 **A user quotes "Reference: …"**: search for it. It is either a `requestId` (a failed call to the gateway; the same id

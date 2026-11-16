@@ -211,6 +211,15 @@ function roleHome(accessToken: string | undefined): string {
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // No Server Actions in this app; scanners post fake ones (Next-Action: x).
+  if (request.headers.has("next-action")) {
+    return new NextResponse(null, { status: 404, headers: { "Cache-Control": "no-store" } });
+  }
+  // Dot-folders other than /.well-known are never ours (/.env, /.git/config).
+  if (/^\/\.(?!well-known(\/|$))/.test(pathname)) {
+    return new NextResponse(null, { status: 404, headers: { "Cache-Control": "no-store" } });
+  }
+
   if (pathname.startsWith("/bff/")) {
     return guardBff(request) ?? NextResponse.next();
   }

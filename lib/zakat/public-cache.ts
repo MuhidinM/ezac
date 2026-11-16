@@ -16,3 +16,19 @@ export const ZAKAT_PUBLIC_TAG = "zakat-public";
 export function expirePublicZakatData() {
   revalidateTag(ZAKAT_PUBLIC_TAG, { expire: 0 });
 }
+
+/**
+ * Blue/green: the other copy of the app (3000 <-> 3001) keeps its own cache and
+ * serves as nginx's backup and the rollback target, so expire it there too.
+ * Best effort: when no other copy runs, nothing answers and nothing is lost.
+ */
+export function expirePublicZakatDataOnStandby() {
+  const port = process.env.PORT;
+  const other = port === "3000" ? "3001" : port === "3001" ? "3000" : null;
+  if (!other) return;
+  void fetch(`http://127.0.0.1:${other}/bff/internal/expire-public`, {
+    method: "POST",
+    cache: "no-store",
+    signal: AbortSignal.timeout(2_000),
+  }).catch(() => undefined);
+}
