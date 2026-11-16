@@ -71,16 +71,24 @@ function currentCommit() {
 
 const gitSha = passed.GIT_SHA ?? currentCommit();
 
+// Blue/green: deploy.sh starts "ezac-blue" on 3000 and "ezac-green" on 3001 from the
+// release folder; nginx sends traffic to one and keeps the other as backup.
+const name = process.env.PM2_APP_NAME || "ezac";
+const port = process.env.PORT || "3000";
+
 module.exports = {
   apps: [
     {
-      name: "ezac",
+      name,
       cwd: __dirname,
       script: `${__dirname}/node_modules/next/dist/bin/next`,
-      args: `start -p ${process.env.PORT ?? 3000}`,
+      // Loopback only: nginx is the way in.
+      args: `start -H 127.0.0.1 -p ${port}`,
+      interpreter: process.env.PM2_NODE || "node",
       env: {
         ...passed,
         ...(gitSha ? { GIT_SHA: gitSha } : {}),
+        PORT: port,
         NODE_ENV: "production",
         // Server-rendered dates and log timestamps in Ethiopian time, whatever
         // zone the host is set to (Ethiopia has no daylight saving).
@@ -88,6 +96,8 @@ module.exports = {
       },
       // next start finishes in-flight requests on SIGINT; give it time before pm2 kills it.
       kill_timeout: 15000,
+      // A crash loop backs off instead of hammering the gateway.
+      exp_backoff_restart_delay: 200,
       // Restart instead of letting a leak take the server down.
       max_memory_restart: "1G",
       // Timestamps on every line; stdout and stderr of restarts share one file each.
