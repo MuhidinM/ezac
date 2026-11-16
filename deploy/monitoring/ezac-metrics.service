@@ -1,0 +1,9 @@
+[Unit]
+Description=Write EZAC metrics for Grafana Alloy (backups, deploy state, pm2)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/ezac-metrics.sh
+Nice=10
+# oneshot has no start timeout by default: a hang would stop every later run.
+TimeoutStartSec=50s
