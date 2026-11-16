@@ -117,9 +117,20 @@ prune() {
   done
 }
 
+# The server's link to GitHub sometimes resets mid-fetch: try a few times.
+fetch_master() {
+  local i
+  for i in 1 2 3 4; do
+    timeout 180 git -C "$SRC" fetch -q origin master && return 0
+    log "git fetch failed (attempt $i); retrying"
+    sleep $((i * 10))
+  done
+  die "could not fetch master from GitHub"
+}
+
 deploy() {
   [[ $SHA =~ ^[0-9a-f]{40}$ ]] || die "usage: deploy <40-character commit sha>"
-  git -C "$SRC" fetch -q origin master
+  fetch_master
   git -C "$SRC" merge-base --is-ancestor "$SHA" origin/master || die "$SHA is not on master"
   local live target dir=$RELEASES/$SHA prev
   live=$(active)
