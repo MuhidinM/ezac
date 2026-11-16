@@ -19,12 +19,13 @@ describe("POST /bff/internal/expire-public", () => {
   });
 
   it("refuses anything that came through nginx or names another host", async () => {
-    for (const headers of [
+    const refused: Record<string, string>[] = [
       { host: "ezaac.com", "x-forwarded-for": "196.188.1.1" },
       { host: "127.0.0.1:3001", "x-forwarded-for": "196.188.1.1" },
       { host: "127.0.0.1:3001", "x-real-ip": "196.188.1.1" },
       { host: "localhost:3001" },
-    ]) {
+    ];
+    for (const headers of refused) {
       expect((await call(headers)).status).toBe(404);
     }
     expect(expire).not.toHaveBeenCalled();
