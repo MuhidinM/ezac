@@ -12,7 +12,7 @@ groups:
     interval: 1m
     rules:
       - alert: SiteDown
-        expr: probe_success{instance="ezac-prod", target=~"site_home|site_health_deep"} == 0
+        expr: probe_success{asserts_env="", instance="ezac-prod", target=~"site_home|site_health_deep"} == 0
         for: 2m
         labels: { severity: critical }
         annotations:
@@ -21,8 +21,8 @@ groups:
 
       - alert: WebStandbyDown
         expr: |
-          probe_success{target=~"web_blue|web_green"} == 0
-          and on(color) (ezac_web_active_color == 0)
+          probe_success{asserts_env="", target=~"web_blue|web_green"} == 0
+          and on(color) (ezac_web_active_color{asserts_env=""} == 0)
         for: 10m
         labels: { severity: warning }
         annotations:
@@ -31,8 +31,8 @@ groups:
 
       - alert: WebLiveCopyDown
         expr: |
-          probe_success{target=~"web_blue|web_green"} == 0
-          and on(color) (ezac_web_active_color == 1)
+          probe_success{asserts_env="", target=~"web_blue|web_green"} == 0
+          and on(color) (ezac_web_active_color{asserts_env=""} == 1)
         for: 1m
         labels: { severity: critical }
         annotations:
@@ -41,9 +41,9 @@ groups:
 
       - alert: High5xxRate
         expr: |
-          sum(rate(loki_process_custom_nginx_http_requests_total{status_class="5"}[5m]))
-            / clamp_min(sum(rate(loki_process_custom_nginx_http_requests_total[5m])), 0.01) > 0.05
-          and sum(rate(loki_process_custom_nginx_http_requests_total[5m])) > 0.05
+          sum(rate(loki_process_custom_nginx_http_requests_total{asserts_env="", status_class="5"}[5m]))
+            / clamp_min(sum(rate(loki_process_custom_nginx_http_requests_total{asserts_env=""}[5m])), 0.01) > 0.05
+          and sum(rate(loki_process_custom_nginx_http_requests_total{asserts_env=""}[5m])) > 0.05
         for: 5m
         labels: { severity: critical }
         annotations:
@@ -52,15 +52,15 @@ groups:
 
       - alert: SlowPages
         expr: |
-          histogram_quantile(0.95, sum by (le) (rate(loki_process_custom_nginx_http_request_duration_seconds_bucket{route!="_next"}[10m]))) > 3
-          and sum(rate(loki_process_custom_nginx_http_request_duration_seconds_count{route!="_next"}[10m])) > 0.05
+          histogram_quantile(0.95, sum by (le) (rate(loki_process_custom_nginx_http_request_duration_seconds_bucket{asserts_env="", route!="_next"}[10m]))) > 3
+          and sum(rate(loki_process_custom_nginx_http_request_duration_seconds_count{asserts_env="", route!="_next"}[10m])) > 0.05
         for: 15m
         labels: { severity: warning }
         annotations:
           summary: "ezaac.com is slow: 95% of requests take up to {{ $value | humanizeDuration }}"
 
       - alert: TLSCertificateExpiresSoon
-        expr: (probe_ssl_earliest_cert_expiry{target="site_home"} - time()) / 86400 < 14
+        expr: (probe_ssl_earliest_cert_expiry{asserts_env="", target="site_home"} - time()) / 86400 < 14
         for: 1h
         labels: { severity: warning }
         annotations:
@@ -68,13 +68,13 @@ groups:
           description: "certbot renews at 30 days left, so renewal is failing. Run `sudo certbot renew --dry-run`."
 
       - alert: WebAppRestarting
-        expr: increase(ezac_pm2_restarts_total[15m]) > 3
+        expr: increase(ezac_pm2_restarts_total{asserts_env=""}[15m]) > 3
         labels: { severity: warning }
         annotations:
           summary: "pm2 restarted {{ $labels.app }} {{ $value | humanize }} times in 15 minutes (crash loop)"
 
       - alert: DeployFailed
-        expr: time() - ezac_web_last_failed_deploy_timestamp_seconds < 1800
+        expr: time() - ezac_web_last_failed_deploy_timestamp_seconds{asserts_env=""} < 1800
         labels: { severity: warning }
         annotations:
           summary: "A web deploy failed its health check; the live site was not changed"
@@ -85,7 +85,7 @@ groups:
     rules:
       # Observed only: the backend team owns these services.
       - alert: GatewayDown
-        expr: probe_success{target="gateway"} == 0
+        expr: probe_success{asserts_env="", target="gateway"} == 0
         for: 2m
         labels: { severity: critical }
         annotations:
@@ -93,7 +93,7 @@ groups:
           description: "Tell the backend team. `systemctl status gateway-service`."
 
       - alert: BackendServiceDown
-        expr: probe_success{target=~"auth_service|zakat_engine|beneficiary_service|payment_service|keycloak|postgres"} == 0
+        expr: probe_success{asserts_env="", target=~"auth_service|zakat_engine|beneficiary_service|payment_service|keycloak|postgres"} == 0
         for: 3m
         labels: { severity: critical }
         annotations:
@@ -104,7 +104,7 @@ groups:
     interval: 1m
     rules:
       - alert: ServerMetricsMissing
-        expr: absent_over_time(node_uname_info{instance="ezac-prod"}[5m])
+        expr: absent_over_time(node_uname_info{asserts_env="", instance="ezac-prod"}[5m])
         for: 5m
         labels: { severity: critical }
         annotations:
@@ -112,8 +112,8 @@ groups:
 
       - alert: DiskFillingUp
         expr: |
-          100 * (1 - node_filesystem_avail_bytes{instance="ezac-prod", fstype!~"tmpfs|overlay"}
-            / node_filesystem_size_bytes{instance="ezac-prod", fstype!~"tmpfs|overlay"}) > 85
+          100 * (1 - node_filesystem_avail_bytes{asserts_env="", instance="ezac-prod", fstype!~"tmpfs|overlay"}
+            / node_filesystem_size_bytes{asserts_env="", instance="ezac-prod", fstype!~"tmpfs|overlay"}) > 85
         for: 10m
         labels: { severity: warning }
         annotations:
@@ -122,23 +122,23 @@ groups:
       - alert: DiskWillFillIn24h
         # 24h window so the nightly backup's step does not look like a trend; only when over half full.
         expr: |
-          predict_linear(node_filesystem_avail_bytes{instance="ezac-prod", mountpoint="/"}[24h], 24 * 3600) < 0
-          and node_filesystem_avail_bytes{instance="ezac-prod", mountpoint="/"}
-            / node_filesystem_size_bytes{instance="ezac-prod", mountpoint="/"} < 0.5
+          predict_linear(node_filesystem_avail_bytes{asserts_env="", instance="ezac-prod", mountpoint="/"}[24h], 24 * 3600) < 0
+          and node_filesystem_avail_bytes{asserts_env="", instance="ezac-prod", mountpoint="/"}
+            / node_filesystem_size_bytes{asserts_env="", instance="ezac-prod", mountpoint="/"} < 0.5
         for: 1h
         labels: { severity: critical }
         annotations:
           summary: "At the current rate the root disk is full within 24 hours"
 
       - alert: MemoryLow
-        expr: node_memory_MemAvailable_bytes{instance="ezac-prod"} / node_memory_MemTotal_bytes{instance="ezac-prod"} < 0.10
+        expr: node_memory_MemAvailable_bytes{asserts_env="", instance="ezac-prod"} / node_memory_MemTotal_bytes{asserts_env="", instance="ezac-prod"} < 0.10
         for: 10m
         labels: { severity: warning }
         annotations:
           summary: "Less than 10% memory available on the server"
 
       - alert: CPUSaturated
-        expr: 1 - avg(rate(node_cpu_seconds_total{instance="ezac-prod", mode="idle"}[5m])) > 0.9
+        expr: 1 - avg(rate(node_cpu_seconds_total{asserts_env="", instance="ezac-prod", mode="idle"}[5m])) > 0.9
         for: 15m
         labels: { severity: warning }
         annotations:
@@ -146,28 +146,28 @@ groups:
 
       - alert: SystemdUnitFailed
         # The backup units have their own alerts (BackupJobFailed, RestoreTestFailed).
-        expr: node_systemd_unit_state{instance="ezac-prod", state="failed", name!~"ezac-(backup|restore-test)[.]service"} == 1
+        expr: node_systemd_unit_state{asserts_env="", instance="ezac-prod", state="failed", name!~"ezac-(backup|restore-test)[.]service"} == 1
         for: 5m
         labels: { severity: warning }
         annotations:
           summary: "systemd unit {{ $labels.name }} has failed"
 
       - alert: OOMKill
-        expr: increase(node_vmstat_oom_kill{instance="ezac-prod"}[10m]) > 0
+        expr: increase(node_vmstat_oom_kill{asserts_env="", instance="ezac-prod"}[10m]) > 0
         labels: { severity: warning }
         annotations:
           summary: "The kernel killed a process for lack of memory"
           description: "`journalctl -k | grep -i oom` on the server shows which one."
 
       - alert: ProbeMetricsMissing
-        expr: absent(probe_success{instance="ezac-prod", target="site_home"})
+        expr: absent(probe_success{asserts_env="", instance="ezac-prod", target="site_home"})
         for: 10m
         labels: { severity: warning }
         annotations:
           summary: "No probe results from the server: site and backend alerts are blind (Alloy config?)"
 
       - alert: ServerRebooted
-        expr: (time() - node_boot_time_seconds{instance="ezac-prod"}) < 600
+        expr: (time() - node_boot_time_seconds{asserts_env="", instance="ezac-prod"}) < 600
         labels: { severity: warning }
         annotations:
           summary: "The EZAC server rebooted less than 10 minutes ago"
@@ -176,7 +176,7 @@ groups:
     interval: 5m
     rules:
       - alert: BackupMissed
-        expr: time() - ezac_backup_last_success_timestamp_seconds > 26 * 3600
+        expr: time() - ezac_backup_last_success_timestamp_seconds{asserts_env=""} > 26 * 3600
         for: 15m
         labels: { severity: critical }
         annotations:
@@ -184,7 +184,7 @@ groups:
           description: "`journalctl -u ezac-backup` on the server. The nightly run is at 02:15."
 
       - alert: BackupJobFailed
-        expr: ezac_systemd_unit_failed{unit="ezac-backup"} == 1
+        expr: ezac_systemd_unit_failed{asserts_env="", unit="ezac-backup"} == 1
         for: 5m
         labels: { severity: critical }
         annotations:
@@ -192,7 +192,7 @@ groups:
           description: "`journalctl -u ezac-backup` on the server, then `sudo systemctl start ezac-backup`."
 
       - alert: RestoreTestFailed
-        expr: ezac_systemd_unit_failed{unit="ezac-restore-test"} == 1
+        expr: ezac_systemd_unit_failed{asserts_env="", unit="ezac-restore-test"} == 1
         for: 5m
         labels: { severity: warning }
         annotations:
@@ -201,8 +201,8 @@ groups:
 
       - alert: BackupMetricMissing
         expr: |
-          absent(ezac_backup_last_success_timestamp_seconds{instance="ezac-prod"})
-          or absent(ezac_backup_last_restore_test_timestamp_seconds{instance="ezac-prod"})
+          absent(ezac_backup_last_success_timestamp_seconds{asserts_env="", instance="ezac-prod"})
+          or absent(ezac_backup_last_restore_test_timestamp_seconds{asserts_env="", instance="ezac-prod"})
         for: 30m
         labels: { severity: critical }
         annotations:
@@ -210,30 +210,30 @@ groups:
 
       - alert: OffsiteBackupMissed
         expr: |
-          (time() - ezac_backup_last_offsite_timestamp_seconds > 26 * 3600
-            or absent(ezac_backup_last_offsite_timestamp_seconds{instance="ezac-prod"}))
-          and on() ezac_backup_offsite_configured{instance="ezac-prod"} == 1
+          (time() - ezac_backup_last_offsite_timestamp_seconds{asserts_env=""} > 26 * 3600
+            or absent(ezac_backup_last_offsite_timestamp_seconds{asserts_env="", instance="ezac-prod"}))
+          and on() ezac_backup_offsite_configured{asserts_env="", instance="ezac-prod"} == 1
         for: 15m
         labels: { severity: critical }
         annotations:
           summary: "No backup copied off the server in over a day: losing the server would lose the backups too"
 
       - alert: RestoreTestOverdue
-        expr: time() - ezac_backup_last_restore_test_timestamp_seconds > 8 * 86400
+        expr: time() - ezac_backup_last_restore_test_timestamp_seconds{asserts_env=""} > 8 * 86400
         for: 1h
         labels: { severity: warning }
         annotations:
           summary: "The weekly restore test has not passed for {{ $value | humanizeDuration }}"
 
       - alert: BackupShrank
-        expr: ezac_backup_last_size_bytes < 0.5 * max_over_time(ezac_backup_last_size_bytes[8d])
+        expr: ezac_backup_last_size_bytes{asserts_env=""} < 0.5 * max_over_time(ezac_backup_last_size_bytes{asserts_env=""}[8d])
         for: 1h
         labels: { severity: warning }
         annotations:
           summary: "Last backup is less than half the size of the biggest in 8 days (data lost, or a dump failed quietly)"
 
       - alert: MetricsScriptStale
-        expr: time() - ezac_metrics_last_run_timestamp_seconds > 600
+        expr: time() - ezac_metrics_last_run_timestamp_seconds{asserts_env=""} > 600
         for: 5m
         labels: { severity: warning }
         annotations:
