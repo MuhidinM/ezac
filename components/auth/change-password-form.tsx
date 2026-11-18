@@ -12,6 +12,7 @@ import { sendToSignIn } from "@/lib/auth/client-session";
 import { defaultDashboardPath } from "@/lib/auth/constants";
 import { STAFF_PASSWORD_HINT, staffPasswordProblems } from "@/lib/auth/password-policy";
 import { fetchSession, resetSessionCache } from "@/lib/auth/use-session";
+import { PasswordInput } from "@/components/ui/password-input";
 
 /**
  * Sign in with the password just set. The change ends the old session (the
@@ -125,14 +126,13 @@ export function ChangePasswordForm() {
         <span className="mb-2 block text-xs uppercase tracking-[0.12em] text-black/60">
           Current password
         </span>
-        <input
-          type="password"
+        <PasswordInput
           name="currentPassword"
           autoComplete="current-password"
           value={currentPassword}
           onChange={(event) => setCurrentPassword(event.target.value)}
           required
-          className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-navy placeholder:text-black/35 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
+          className="h-auto w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-navy placeholder:text-black/35 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
         />
       </label>
 
@@ -140,8 +140,7 @@ export function ChangePasswordForm() {
         <span className="mb-2 block text-xs uppercase tracking-[0.12em] text-black/60">
           New password
         </span>
-        <input
-          type="password"
+        <PasswordInput
           name="newPassword"
           autoComplete="new-password"
           value={newPassword}
@@ -149,7 +148,7 @@ export function ChangePasswordForm() {
           minLength={10}
           required
           aria-describedby="new-password-hint"
-          className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-navy placeholder:text-black/35 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
+          className="h-auto w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-navy placeholder:text-black/35 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
         />
         <span id="new-password-hint" className="mt-1.5 block text-xs text-black/60">
           {STAFF_PASSWORD_HINT}
@@ -160,15 +159,14 @@ export function ChangePasswordForm() {
         <span className="mb-2 block text-xs uppercase tracking-[0.12em] text-black/60">
           Confirm new password
         </span>
-        <input
-          type="password"
+        <PasswordInput
           name="confirmNewPassword"
           autoComplete="new-password"
           value={confirmNewPassword}
           onChange={(event) => setConfirmNewPassword(event.target.value)}
           minLength={10}
           required
-          className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-navy placeholder:text-black/35 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
+          className="h-auto w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-navy placeholder:text-black/35 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
         />
       </label>
 
