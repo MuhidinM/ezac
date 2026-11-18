@@ -208,6 +208,8 @@ const calculator = {
     chooseCrop: "Choose a crop",
     /** Names of the crop groups in the crop list. */
     groups: {
+      /** The first group: the crops most farmers grow. */
+      common: "Most common",
       cereals: "Cereals",
       pulses: "Pulses (beans and peas)",
       oilseeds: "Oilseeds",
@@ -237,10 +239,14 @@ const calculator = {
     },
     /** {unit} is "kg" or "quintal". */
     price: "Price of 1 {unit} where you live (ETB)",
-    priceHelp: "The Commission has no crop prices yet. Enter your local market price to see what this is worth in cash. You can leave it empty.",
+    /** Shown once above the crop lines. */
+    priceHelp: "Prices: the Commission has no crop prices yet. Enter the market price where you live to see what your Zakat is worth in cash. You can leave it empty.",
     /** The line's result. {amount} kg of {crop} at {rate}. */
-    due: "Zakat due: {amount} kg of {crop} ({rate})",
-    dueValue: "≈ ETB {value}",
+    due: "Zakat due: {amount} of {crop} ({rate})",
+    dueValue: "Worth about ETB {value}",
+    /** An amount in the unit the visitor chose. */
+    amountKg: "{kg} kg",
+    amountQuintal: "{quintal} quintal ({kg} kg)",
     /** Shown instead of a value when no price was entered. */
     dueNoPrice: "Add a price to see its value in cash.",
     /** This crop, all its lines together, is under the Nisab. */
@@ -264,14 +270,23 @@ const calculator = {
     /** Remove button on a herd. */
     removeLabel: "Remove {type}",
     freelyGrazing: "Grazing freely most of the year",
-    usedForWork: "Used for work (ploughing, carrying)",
+    /** How many of the herd work; they are left out. */
+    working: "How many of them work (ploughing, carrying)?",
+    workingHelp: "Working animals owe no Zakat, so they are not counted. Leave empty if none.",
+    /** The herd's own Hawl question; same answer as the one in the total. */
+    hawl: "I have owned these animals for a full lunar year (Hawl)",
+    /** Sheep and goats: which one the owner gives when the table says a sheep. */
+    giveLabel: "When a sheep is due, what will you give?",
+    give: { sheep: "A sheep", goat: "A goat" },
     sheepGoatCount: "Number of sheep and goats",
     cattleCount: "Number of cattle and buffaloes",
     camelsCount: "Number of camels",
     /** Under the count while the herd is under its Nisab. {min} is the first count that owes Zakat. */
     belowNisab: "No Zakat yet: it starts at {min}.",
     /** Working or stall-fed animals owe no livestock Zakat. */
-    notEligible: "No Zakat is due on animals that are used for work or are not grazing freely.",
+    notEligible: "No Zakat is due on animals that are fed by you most of the year instead of grazing.",
+    /** Short summary read out when the animals due change. {type}: herd, {animals}: what is due. */
+    dueSummary: "Zakat due on {type}: {animals}",
     /** Heading of what this herd owes. */
     dueHeading: "Zakat due",
     /** The price field of one animal due. {kind} is its name. */
@@ -284,13 +299,16 @@ const calculator = {
     priceNone: "The Commission has no price for this animal. Enter your local price to see its value in cash.",
     /** Button that puts the Commission's price back. */
     resetPrice: "Use the Commission's price",
+    /** The same button's full name for screen readers. */
+    resetPriceLabel: "Use the Commission's price for {kind}: ETB {price}",
     /** The value of the animals due. {count} × {price} = {value}. */
     lineValue: "{count} × ETB {price} = ETB {value}",
     /** Names of the Commission's priced animals, for priceOfficial. */
     animals: { sheep: "sheep", goat: "goat", cattle: "cow or ox", camel: "camel" },
     /** Animals due as Zakat, by the kind codes the zakat service sends. */
     kinds: {
-      sheep: "Sheep",
+      sheep: "Sheep (at least 1 year old)",
+      goat: "Goat (at least 2 years old)",
       bint_makhad: "Bint Makhad (1-year-old female camel)",
       bint_labun: "Bint Labun (2-year-old female camel)",
       hiqqah: "Hiqqah (3-year-old female camel)",
@@ -328,12 +346,16 @@ const calculator = {
     inKindChoice: "You may also give the crops or animals themselves instead of their cash value.",
     /** Some crop or animal due has no price, so the total leaves it out. */
     inKindUnpriced: "Some crops or animals have no price, so they are not in this total. Add a price above to include them.",
-    breakdownCrops: "Crops (Ushr)",
+    breakdownCrops: "Crops ({rate})",
     breakdownLivestock: "Livestock",
     /** One crop in the breakdown: "40 kg Teff". */
     cropItem: "{amount} kg {crop}",
     /** One herd in the breakdown: "Camels: 1 Hiqqah (…)". */
     herdItem: "{type}: {animals}",
+    /** A herd under its Nisab, in the breakdown. {min} is where Zakat starts. */
+    herdNone: "{type}: {count}, none due (starts at {min})",
+    /** Under the total: crops and animals due that have no price, so are not in it. */
+    unpricedItems: "Not in this total (no price): {items}",
     /** In place of an amount the visitor hasn't priced. */
     noPrice: "no price",
     breakdown: {
@@ -345,7 +367,7 @@ const calculator = {
       minerals: "Minerals ({rate})",
       liabilities: "Less liabilities",
     },
-    netBase: "Net zakatable base",
+    netBase: "Cash, gold and trade goods, less debts",
     nisabThreshold: "Nisab threshold",
     nisabMet: "met",
     nisabBelow: "below",
@@ -357,8 +379,8 @@ const calculator = {
     /** Under every result: the calculator's standing. */
     guidance:
       "This calculator is a guide only. For a ruling on your own situation, ask a qualified scholar or contact the Commission.",
-    noHawl: "Wealth has not completed a full lunar year — no wealth Zakat is due yet.",
-    belowNisab: "Your net wealth is below Nisab — no wealth Zakat is due yet.",
+    noHawl: "Your cash, gold and trade goods have not been held a full lunar year, so no Zakat is due on them yet.",
+    belowNisab: "Your cash, gold and trade goods are below the Nisab, so no Zakat is due on them. Crops and animals have their own Nisab, shown above.",
     noHawlLivestock: "Your animals have not been held for a full lunar year — no livestock Zakat is due yet.",
     pay: "Proceed to Pay Zakat",
     /** Under the disabled pay button while the official rates are unavailable. */

@@ -56,8 +56,12 @@ export type CropLineItem = {
   price: string;
 };
 
-/** One kind of animal (one herd) the visitor owns. */
-export type Herd = { count: string; freelyGrazing: boolean; usedForWork: boolean };
+/**
+ * One kind of animal (one herd) the visitor owns. `working` is how many of them
+ * are used for work (ploughing, carrying): they owe no Zakat and are left out
+ * of the count. `give` is what a sheep/goat owner gives when a sheep is due.
+ */
+export type Herd = { count: string; freelyGrazing: boolean; working: string; give: "sheep" | "goat" };
 
 /** The calculator form. Amounts stay as typed (strings) so the field shows exactly what was entered. */
 export type CalculatorState = {
@@ -96,10 +100,10 @@ export type AmountField = {
   [K in keyof CalculatorState]: CalculatorState[K] extends string ? K : never;
 }[keyof CalculatorState];
 
-const NEW_HERD: Herd = { count: "", freelyGrazing: true, usedForWork: false };
+const NEW_HERD: Herd = { count: "", freelyGrazing: true, working: "", give: "sheep" };
 
 export function emptyCropItem(id: string): CropLineItem {
-  return { id, crop: "", amount: "", unit: "kg", method: "rain", price: "" };
+  return { id, crop: "", amount: "", unit: "quintal", method: "rain", price: "" };
 }
 
 export const INITIAL_STATE: CalculatorState = {
@@ -392,8 +396,13 @@ export type AnimalDue = { kind: string; count: number; unitPrice: number | null;
 
 export type HerdResult = {
   herd: LivestockMode;
+  /** All the animals of this kind. */
   count: number;
-  /** Grazing freely, not working, and held a full Hawl. */
+  /** Those used for work, left out (never more than count). */
+  working: number;
+  /** The animals Zakat is counted on: count less working. */
+  zakatable: number;
+  /** Grazing freely and held a full Hawl. */
   eligible: boolean;
   owed: LivestockDue;
   /** The animals due, each valued at its price; empty when nothing is due or the service sent only wording. */
@@ -434,7 +443,9 @@ function activeFields(form: CalculatorState, has: (key: CategoryKey) => boolean)
     ...(has("agriculture") ? form.cropItems.flatMap((item) => [item.amount, item.price]) : []),    ...(has("rikazMinerals") ? [form.rikazValue, form.mineralsValue] : []),
     ...(has("debts") ? [form.shortTermPersonalLiabilities, form.upcomingLoanPayments12m] : []),
   ].map((value): [string, boolean] => [value, false]);
-  if (has("livestock")) for (const herd of form.herdsAdded) fields.push([form.herds[herd].count, true]);
+  if (has("livestock")) {
+    for (const herd of form.herdsAdded) fields.push([form.herds[herd].count, true], [form.herds[herd].working, true]);
+  }
   return fields;
 }
 
@@ -528,19 +539,24 @@ export function calculateZakat(
   const herds: HerdResult[] = (has("livestock") ? form.herdsAdded : []).map((herd) => {
     const entry = form.herds[herd];
     const count = parseAmount(entry.count, { wholeNumber: true }).value;
-    const eligible = form.hawlCompleted && entry.freelyGrazing && !entry.usedForWork;
-    const owed = eligible ? livestockDue(config?.livestock ?? FALLBACK_LIVESTOCK, herd, count) : null;
+    const working = Math.min(count, parseAmount(entry.working, { wholeNumber: true }).value);
+    const zakatable = count - working;
+    const eligible = form.hawlCompleted && entry.freelyGrazing;
+    const owed = eligible ? livestockDue(config?.livestock ?? FALLBACK_LIVESTOCK, herd, zakatable) : null;
+    // A sheep/goat owner may give a goat where the table says a sheep.
+    const kindOf = (kind: string) => (herd === "sheepGoat" && entry.give === "goat" && kind === "sheep" ? "goat" : kind);
     const animals: AnimalDue[] =
       owed && "items" in owed
         ? owed.items.map((item) => {
-            const unitPrice = animalUnitPrice(form, config, item.kind);
-            return { ...item, unitPrice, valueEtb: unitPrice === null ? null : unitPrice * item.count };
+            const kind = kindOf(item.kind);
+            const unitPrice = animalUnitPrice(form, config, kind);
+            return { kind, count: item.count, unitPrice, valueEtb: unitPrice === null ? null : unitPrice * item.count };
           })
         : [];
     // Wording-only dues ("text") can't be priced.
     const unpriced = (owed !== null && !("items" in owed)) || animals.some((item) => item.valueEtb === null);
     const valueEtb = unpriced ? null : animals.reduce((sum, item) => sum + (item.valueEtb ?? 0), 0);
-    return { herd, count, eligible, owed, animals, valueEtb };
+    return { herd, count, working, zakatable, eligible, owed, animals, valueEtb };
   });
 
   // Pooled wealth: only the categories the visitor has added count.

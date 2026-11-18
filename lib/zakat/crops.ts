@@ -124,3 +124,6 @@ const BY_KEY = new Map(CROPS.map((crop) => [crop.key, crop]));
 export function cropName(key: string, locale: Locale) {
   return BY_KEY.get(key)?.name[locale] ?? "";
 }
+
+/** The crops most Ethiopian farmers grow, listed first so they are found without scrolling. */
+export const COMMON_CROPS: readonly string[] = ["teff", "maize", "wheat", "sorghum", "barley", "faba_bean", "coffee", "sesame"];

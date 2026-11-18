@@ -47,7 +47,8 @@ function PasswordInput({
         onClick={() => setVisible((value) => !value)}
         onMouseDown={(event) => event.preventDefault()}
         disabled={disabled}
-        aria-label={label}
+        // One signal for screen readers: a fixed name, with pressed on or off.
+        aria-label={showLabel}
         aria-pressed={visible}
         title={label}
         className="absolute inset-y-0 end-0 flex w-11 items-center justify-center rounded-e-xl text-black/50 transition-colors hover:text-brand focus-visible:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:pointer-events-none disabled:opacity-50"

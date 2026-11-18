@@ -67,14 +67,15 @@ function fromOldForm(form: OldForm): CalculatorState {
   return {
     ...INITIAL_STATE,
     ...rest,
-    cropItems: [{ ...emptyCropItem("c"), crop: "teff", amount: cropsHarvestKg, method: OLD_METHOD[irrigationMode] }],
+    cropItems: [{ ...emptyCropItem("c"), crop: "teff", amount: cropsHarvestKg, unit: "kg", method: OLD_METHOD[irrigationMode] }],
     herdsAdded: [livestockMode],
     herds: {
       ...INITIAL_STATE.herds,
       [livestockMode]: {
         count: form[OLD_COUNT[livestockMode]] ?? "",
         freelyGrazing: livestockFreelyGrazing,
-        usedForWork: livestockUsedForWork,
+        working: livestockUsedForWork ? (form[OLD_COUNT[livestockMode]] ?? "") : "",
+        give: "sheep",
       },
     },
   };
@@ -275,7 +276,8 @@ describe("crops and livestock together, valued in birr", () => {
   const herd = (count: string, more: Partial<CalculatorState["herds"]["camels"]> = {}) => ({
     count,
     freelyGrazing: true,
-    usedForWork: false,
+    working: "",
+    give: "sheep" as const,
     ...more,
   });
 
@@ -316,8 +318,22 @@ describe("crops and livestock together, valued in birr", () => {
     expect(calculateZakat(base, ["livestock"], config).hasInputErrors).toBe(false);
   });
 
+  it("leaves working animals out of the count", () => {
+    // 32 cattle, 3 plough oxen: 29 left, under the 30 minimum.
+    const form = { ...INITIAL_STATE, herdsAdded: ["cattle"] as LivestockMode[], herds: { ...INITIAL_STATE.herds, cattle: herd("32", { working: "3" }) } };
+    const [cattle] = calculateZakat(form, ["livestock"], config).herds;
+    expect(cattle).toMatchObject({ count: 32, working: 3, zakatable: 29, owed: null });
+  });
+
+  it("prices a goat when a goat owner gives a goat", () => {
+    const form = { ...INITIAL_STATE, herdsAdded: ["sheepGoat"] as LivestockMode[], herds: { ...INITIAL_STATE.herds, sheepGoat: herd("45", { give: "goat" }) } };
+    expect(calculateZakat(form, ["livestock"], config).herds[0].animals).toEqual([
+      { kind: "goat", count: 1, unitPrice: 7000, valueEtb: 7000 },
+    ]);
+  });
+
   it("nothing is due on working animals or without a Hawl", () => {
-    const working = { ...INITIAL_STATE, herdsAdded: ["camels"] as LivestockMode[], herds: { ...INITIAL_STATE.herds, camels: herd("50", { usedForWork: true }) } };
+    const working = { ...INITIAL_STATE, herdsAdded: ["camels"] as LivestockMode[], herds: { ...INITIAL_STATE.herds, camels: herd("50", { working: "50" }) } };
     expect(calculateZakat(working, ["livestock"], config).herds[0].owed).toBeNull();
     const noHawl = { ...working, herds: { ...INITIAL_STATE.herds, camels: herd("50") }, hawlCompleted: false };
     expect(calculateZakat(noHawl, ["livestock"], config).herds[0].owed).toBeNull();
@@ -350,7 +366,7 @@ describe("crops and livestock together, valued in birr", () => {
 
   it("leaves an unpriced crop out of the cash total and says so", () => {
     const result = calculateZakat(
-      { ...INITIAL_STATE, cashOnHand: "2000000", cropItems: [{ ...emptyCropItem("a"), crop: "wheat", amount: "1000" }] },
+      { ...INITIAL_STATE, cashOnHand: "2000000", cropItems: [{ ...emptyCropItem("a"), crop: "wheat", amount: "1000", unit: "kg" }] },
       ["cash", "agriculture"],
       config,
     );
