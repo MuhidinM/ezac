@@ -19,8 +19,10 @@ RELEASES=$BASE/releases
 SHARED=$BASE/shared                    # .env.production and the UAT gateway certificate
 STATE=$BASE/state
 KEEP=5
-INSTALL_CMD=(npm ci --no-audit --no-fund)   # Node 22 batch: (corepack pnpm install --frozen-lockfile)
-BUILD_CMD=(npm run build)                   # Node 22 batch: (corepack pnpm build)
+# The pnpm version comes from package.json "packageManager" (corepack), the same one
+# CI and laptops use, and installs exactly what pnpm-lock.yaml says.
+INSTALL_CMD=(corepack pnpm install --frozen-lockfile)
+BUILD_CMD=(corepack pnpm build)
 
 export HOME=/home/ezaacadmin PM2_HOME=/home/ezaacadmin/.pm2 PATH=/usr/local/bin:/usr/bin:/bin
 export NEXT_TELEMETRY_DISABLED=1 CI=1 COREPACK_ENABLE_DOWNLOAD_PROMPT=0
