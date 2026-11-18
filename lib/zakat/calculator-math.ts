@@ -34,8 +34,30 @@ export const KARATS = [24, 22, 21, 20, 18, 16, 14, 10] as const;
 export type MetalType = "gold" | "silver";
 export type Karat = (typeof KARATS)[number];
 export type MetalLineItem = { id: string; metal: MetalType; grams: string; karat: Karat };
+/** A herd: animals that share one Nisab table. Sheep and goats count together. */
 export type LivestockMode = "sheepGoat" | "cattle" | "camels";
-export type IrrigationMode = "natural" | "mixed" | "artificial";
+export const HERDS: readonly LivestockMode[] = ["sheepGoat", "cattle", "camels"];
+/** How a crop was watered: rain only, partly irrigated, or irrigated. */
+export type IrrigationMode = "rain" | "mixed" | "irrigated";
+export const CROP_METHODS: readonly IrrigationMode[] = ["rain", "mixed", "irrigated"];
+/** Harvests are weighed in kilograms or quintals (100 kg), as Ethiopian markets quote them. */
+export type CropUnit = "kg" | "quintal";
+export const KG_PER_UNIT: Record<CropUnit, number> = { kg: 1, quintal: 100 };
+
+/** One harvest line: a crop, how much, how it was watered, and its local price per unit (optional). */
+export type CropLineItem = {
+  id: string;
+  /** A key from lib/zakat/crops.ts; "" until the visitor picks one. */
+  crop: string;
+  amount: string;
+  unit: CropUnit;
+  method: IrrigationMode;
+  /** ETB per `unit`, typed by the visitor; "" leaves the crop out of the cash total. */
+  price: string;
+};
+
+/** One kind of animal (one herd) the visitor owns. */
+export type Herd = { count: string; freelyGrazing: boolean; usedForWork: boolean };
 
 /** The calculator form. Amounts stay as typed (strings) so the field shows exactly what was entered. */
 export type CalculatorState = {
@@ -53,14 +75,15 @@ export type CalculatorState = {
   stocksTradingValue: string;
   stocksDividendCash: string;
   longTermCompanyZakatableAssets: string;
-  cropsHarvestKg: string;
-  irrigationMode: IrrigationMode;
-  livestockMode: LivestockMode;
-  livestockFreelyGrazing: boolean;
-  livestockUsedForWork: boolean;
-  sheepGoatCount: string;
-  cattleCount: string;
-  camelsCount: string;
+  cropItems: CropLineItem[];
+  /** The herds the visitor has added, in the order added. */
+  herdsAdded: LivestockMode[];
+  herds: Record<LivestockMode, Herd>;
+  /**
+   * ETB per animal due, by kind ("sheep", "hiqqah"…), as the visitor typed it.
+   * A kind left out uses the Commission's average price (animalUnitPrice).
+   */
+  animalPrices: Partial<Record<string, string>>;
   rikazValue: string;
   mineralsValue: string;
   shortTermPersonalLiabilities: string;
@@ -70,8 +93,14 @@ export type CalculatorState = {
 
 /** The typed-amount fields (everything in the form that is a string). */
 export type AmountField = {
-  [K in keyof CalculatorState]: string extends CalculatorState[K] ? K : never;
+  [K in keyof CalculatorState]: CalculatorState[K] extends string ? K : never;
 }[keyof CalculatorState];
+
+const NEW_HERD: Herd = { count: "", freelyGrazing: true, usedForWork: false };
+
+export function emptyCropItem(id: string): CropLineItem {
+  return { id, crop: "", amount: "", unit: "kg", method: "rain", price: "" };
+}
 
 export const INITIAL_STATE: CalculatorState = {
   cashOnHand: "",
@@ -88,14 +117,10 @@ export const INITIAL_STATE: CalculatorState = {
   stocksTradingValue: "",
   stocksDividendCash: "",
   longTermCompanyZakatableAssets: "",
-  cropsHarvestKg: "",
-  irrigationMode: "natural",
-  livestockMode: "sheepGoat",
-  livestockFreelyGrazing: true,
-  livestockUsedForWork: false,
-  sheepGoatCount: "",
-  cattleCount: "",
-  camelsCount: "",
+  cropItems: [emptyCropItem("crop-1")],
+  herdsAdded: [],
+  herds: { sheepGoat: NEW_HERD, cattle: NEW_HERD, camels: NEW_HERD },
+  animalPrices: {},
   rikazValue: "",
   mineralsValue: "",
   shortTermPersonalLiabilities: "",
@@ -151,9 +176,41 @@ export function fineMetalGrams(grossGrams: number, karat: Karat) {
   return grossGrams * (karat / 24);
 }
 
-/** The head-count field for the chosen kind of animal. */
-export function livestockCountField(mode: LivestockMode): AmountField {
-  return mode === "sheepGoat" ? "sheepGoatCount" : mode === "cattle" ? "cattleCount" : "camelsCount";
+/**
+ * Which of the Commission's average animal prices (livestockAverageUnitPriceEtb)
+ * values each kind of animal due. The Commission prices one camel and one head
+ * of cattle whatever their age or sex, so every camel age shares the camel
+ * price until the backend prices them by age and sex.
+ */
+export const ANIMAL_PRICE_KEY: Record<string, string> = {
+  sheep: "sheep",
+  goat: "goat",
+  tabi: "cattle",
+  musinnah: "cattle",
+  bint_makhad: "camel",
+  bint_labun: "camel",
+  hiqqah: "camel",
+  jadhaah: "camel",
+};
+
+/** The Commission's average ETB price for one animal of this kind, or null when it has none. */
+export function officialAnimalPrice(config: CalculatorConfig | null, kind: string): number | null {
+  const key = Object.prototype.hasOwnProperty.call(ANIMAL_PRICE_KEY, kind) ? ANIMAL_PRICE_KEY[kind] : null;
+  const price = key ? config?.livestockAverageUnitPriceEtb?.[key] : undefined;
+  return typeof price === "number" && price > 0 ? price : null;
+}
+
+/** The price used for one animal of this kind: the visitor's own, else the Commission's; null when neither. */
+export function animalUnitPrice(form: CalculatorState, config: CalculatorConfig | null, kind: string) {
+  const typed = form.animalPrices[kind];
+  // A field the visitor emptied means "no price", not the Commission's: the
+  // value shown and the value used must agree.
+  if (typed !== undefined) {
+    if (typed.trim() === "") return null;
+    const parsed = parseAmount(typed);
+    return parsed.error || parsed.value <= 0 ? null : parsed.value;
+  }
+  return officialAnimalPrice(config, kind);
 }
 
 // ---- Rules: official, or the fixed fiqh figures while the config is missing ----
@@ -235,9 +292,9 @@ export function irrigationRate(mode: IrrigationMode, rules: RuleFigures) {
   switch (mode) {
     case "mixed":
       return rules.mixedRate;
-    case "artificial":
+    case "irrigated":
       return rules.irrigatedRate;
-    case "natural":
+    case "rain":
     default:
       return rules.rainFedRate;
   }
@@ -277,9 +334,18 @@ export type ZakatResult = {
   silverFineGrams: number;
   /** Gold and silver in birr; null without the official prices (left out of the total). */
   preciousMetalsValue: number | null;
-  /** Ushr in kg of produce (in kind, outside the birr total). */
+  /** Ushr in kg of produce, all crops together. */
   agricultureDue: number;
-  livestockOwed: LivestockDue;
+  /** Each harvest line with a weight: its Ushr in kg and, with a price, in birr. */
+  crops: CropResult[];
+  /** Each herd the visitor added, with the animals due and their value. */
+  herds: HerdResult[];
+  /** Crops and animals due, valued in birr where a price is known. */
+  inKindValueEtb: number;
+  /** Some crop or animal due has no price, so it is missing from inKindValueEtb. */
+  inKindUnpriced: boolean;
+  /** Everything due if paid all in cash: totalEtbDue plus inKindValueEtb; null like totalEtbDue. */
+  grandTotalEtb: number | null;
   rikazDue: number;
   mineralsDue: number | null;
   deductibleLiabilities: number;
@@ -308,6 +374,42 @@ export type ZakatResult = {
   showHawl: boolean;
 };
 
+export type CropResult = {
+  id: string;
+  crop: string;
+  kg: number;
+  method: IrrigationMode;
+  rate: number;
+  /** All lines of this crop together reach the crop Nisab. */
+  meetsNisab: boolean;
+  dueKg: number;
+  /** ETB per kg from the visitor's price; null without one. */
+  pricePerKg: number | null;
+  dueEtb: number | null;
+};
+
+export type AnimalDue = { kind: string; count: number; unitPrice: number | null; valueEtb: number | null };
+
+export type HerdResult = {
+  herd: LivestockMode;
+  count: number;
+  /** Grazing freely, not working, and held a full Hawl. */
+  eligible: boolean;
+  owed: LivestockDue;
+  /** The animals due, each valued at its price; empty when nothing is due or the service sent only wording. */
+  animals: AnimalDue[];
+  /** null when any animal due has no price. */
+  valueEtb: number | null;
+};
+
+/**
+ * Crop Nisab is weighed per crop: lines of the same crop (teff, part rain-fed
+ * and part irrigated) add up; different crops don't. This is the majority
+ * view; the Shari'ah board should confirm it, since the config has a single
+ * crop Nisab and says nothing on combining.
+ */
+export const CROP_NISAB_PER_CROP = true;
+
 const MONETARY_CATEGORIES = ["cash", "gold", "business", "propertyStocks"] as const;
 
 /** Every typed field of the categories the visitor has added, with whether it is a head count. */
@@ -329,11 +431,10 @@ function activeFields(form: CalculatorState, has: (key: CategoryKey) => boolean)
     ...(has("propertyStocks")
       ? [form.rentalSavings, form.stocksTradingValue, form.stocksDividendCash, form.longTermCompanyZakatableAssets]
       : []),
-    ...(has("agriculture") ? [form.cropsHarvestKg] : []),
-    ...(has("rikazMinerals") ? [form.rikazValue, form.mineralsValue] : []),
+    ...(has("agriculture") ? form.cropItems.flatMap((item) => [item.amount, item.price]) : []),    ...(has("rikazMinerals") ? [form.rikazValue, form.mineralsValue] : []),
     ...(has("debts") ? [form.shortTermPersonalLiabilities, form.upcomingLoanPayments12m] : []),
   ].map((value): [string, boolean] => [value, false]);
-  if (has("livestock")) fields.push([form[livestockCountField(form.livestockMode)], true]);
+  if (has("livestock")) for (const herd of form.herdsAdded) fields.push([form.herds[herd].count, true]);
   return fields;
 }
 
@@ -387,10 +488,34 @@ export function calculateZakat(
     amount(form.stocksDividendCash) +
     amount(form.longTermCompanyZakatableAssets);
 
-  // Agriculture: due on harvest, no Hawl.
-  const harvestKg = amount(form.cropsHarvestKg);
-  const agricultureDue =
-    has("agriculture") && harvestKg >= rules.agriNisabKg ? harvestKg * irrigationRate(form.irrigationMode, rules) : 0;
+  // Agriculture: due on harvest, no Hawl. Each line at its own watering rate.
+  const cropLines = has("agriculture") ? form.cropItems : [];
+  const kgOf = (item: CropLineItem) => amount(item.amount) * KG_PER_UNIT[item.unit];
+  const nisabKey = (item: CropLineItem) => (CROP_NISAB_PER_CROP ? item.crop : "");
+  const kgByCrop = new Map<string, number>();
+  for (const item of cropLines) kgByCrop.set(nisabKey(item), (kgByCrop.get(nisabKey(item)) ?? 0) + kgOf(item));
+  const crops: CropResult[] = cropLines
+    .filter((item) => kgOf(item) > 0)
+    .map((item) => {
+      const kg = kgOf(item);
+      const rate = irrigationRate(item.method, rules);
+      const meets = (kgByCrop.get(nisabKey(item)) ?? 0) >= rules.agriNisabKg;
+      const dueKg = meets ? kg * rate : 0;
+      const price = parseAmount(item.price);
+      const pricePerKg = !price.error && price.value > 0 ? price.value / KG_PER_UNIT[item.unit] : null;
+      return {
+        id: item.id,
+        crop: item.crop,
+        kg,
+        method: item.method,
+        rate,
+        meetsNisab: meets,
+        dueKg,
+        pricePerKg,
+        dueEtb: pricePerKg === null ? null : dueKg * pricePerKg,
+      };
+    });
+  const agricultureDue = crops.reduce((sum, line) => sum + line.dueKg, 0);
 
   // Minerals owe the wealth rate once they reach the Nisab; Rikaz is due at once, with no Nisab.
   const mineralsBase = has("rikazMinerals") ? amount(form.mineralsValue) : 0;
@@ -399,12 +524,24 @@ export function calculateZakat(
   const rikazDue = has("rikazMinerals") ? amount(form.rikazValue) * rules.rikazRate : 0;
 
   // Livestock: whole animals only, and a full Hawl like wealth (only crops and Rikaz are exempt).
-  const livestockCount = parseAmount(form[livestockCountField(form.livestockMode)], { wholeNumber: true }).value;
-  const livestockEligible = form.hawlCompleted && form.livestockFreelyGrazing && !form.livestockUsedForWork;
-  const livestockOwed: LivestockDue =
-    has("livestock") && livestockEligible
-      ? livestockDue(config?.livestock ?? FALLBACK_LIVESTOCK, form.livestockMode, livestockCount)
-      : null;
+  // Each herd has its own Nisab table; sheep and goats are one herd.
+  const herds: HerdResult[] = (has("livestock") ? form.herdsAdded : []).map((herd) => {
+    const entry = form.herds[herd];
+    const count = parseAmount(entry.count, { wholeNumber: true }).value;
+    const eligible = form.hawlCompleted && entry.freelyGrazing && !entry.usedForWork;
+    const owed = eligible ? livestockDue(config?.livestock ?? FALLBACK_LIVESTOCK, herd, count) : null;
+    const animals: AnimalDue[] =
+      owed && "items" in owed
+        ? owed.items.map((item) => {
+            const unitPrice = animalUnitPrice(form, config, item.kind);
+            return { ...item, unitPrice, valueEtb: unitPrice === null ? null : unitPrice * item.count };
+          })
+        : [];
+    // Wording-only dues ("text") can't be priced.
+    const unpriced = (owed !== null && !("items" in owed)) || animals.some((item) => item.valueEtb === null);
+    const valueEtb = unpriced ? null : animals.reduce((sum, item) => sum + (item.valueEtb ?? 0), 0);
+    return { herd, count, eligible, owed, animals, valueEtb };
+  });
 
   // Pooled wealth: only the categories the visitor has added count.
   const includedCash = has("cash") ? cashBase : 0;
@@ -430,11 +567,19 @@ export function calculateZakat(
 
   // Any malformed amount in an added category blocks the total, so nobody pays
   // from a figure built on a misread number.
-  const hasInputErrors = activeFields(form, has).some(
-    ([value, wholeNumber]) => parseAmount(value, { wholeNumber }).error !== null,
-  );
+  // Animal prices count only for the animals shown as due right now.
+  const shownPrices = herds.flatMap((herd) => herd.animals.map((item) => form.animalPrices[item.kind] ?? ""));
+  const hasInputErrors =
+    activeFields(form, has).some(([value, wholeNumber]) => parseAmount(value, { wholeNumber }).error !== null) ||
+    shownPrices.some((value) => parseAmount(value).error !== null);
 
-  const hasInKind = agricultureDue > 0 || livestockOwed !== null;
+  const dueCrops = crops.filter((line) => line.dueKg > 0);
+  const dueHerds = herds.filter((herd) => herd.owed !== null);
+  const hasInKind = dueCrops.length > 0 || dueHerds.length > 0;
+  const inKindValueEtb =
+    dueCrops.reduce((sum, line) => sum + (line.dueEtb ?? 0), 0) +
+    dueHerds.flatMap((herd) => herd.animals).reduce((sum, item) => sum + (item.valueEtb ?? 0), 0);
+  const inKindUnpriced = dueCrops.some((line) => line.dueEtb === null) || dueHerds.some((herd) => herd.valueEtb === null);
   const somethingDue = !hasInputErrors && (totalEtbDue === null || totalEtbDue > 0 || hasInKind);
   const hasMonetaryCategory = MONETARY_CATEGORIES.some((key) => has(key));
 
@@ -449,7 +594,11 @@ export function calculateZakat(
     silverFineGrams,
     preciousMetalsValue,
     agricultureDue,
-    livestockOwed,
+    crops,
+    herds,
+    inKindValueEtb,
+    inKindUnpriced,
+    grandTotalEtb: totalEtbDue === null ? null : totalEtbDue + inKindValueEtb,
     rikazDue,
     mineralsDue,
     deductibleLiabilities,
