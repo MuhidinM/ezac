@@ -1,5 +1,7 @@
 # Monitoring (Grafana Cloud)
 
+Dashboard: https://fondcrab2567.grafana.net/d/ezac-overview · Alerts: Alerting → Alert rules → folder `ezac`.
+
 Dashboards and alerts live in Grafana Cloud (free tier). The server sends **metrics only**; logs stay on the server
 because they hold phone numbers and IPs.
 
@@ -20,7 +22,7 @@ Backend services are **observed only** (health GET or TCP connect); nothing here
 - `config.alloy` → `/etc/alloy/config.alloy`
 - `ezac-metrics.sh` → `/usr/local/sbin/ezac-metrics.sh` (root, every minute via `ezac-metrics.timer`)
 - `ezac-metrics.service`, `ezac-metrics.timer` → `/etc/systemd/system/`
-- `alerts.yaml`: alert rules, loaded into Grafana Cloud with `mimirtool`
+- `alerts.yaml`: alert rules (Prometheus format), loaded as Grafana-managed rules
 - `dashboard.json`: the EZAC overview dashboard (import in Grafana → Dashboards → New → Import)
 
 Credentials go only in `/etc/default/alloy` (`root:alloy`, mode 640), never in the repository:
@@ -36,8 +38,7 @@ GCLOUD_TOKEN="<access policy token: metrics:write>"
 ## Setting up Grafana Cloud (once)
 
 1. Sign up at grafana.com and create a stack (region: the closest EU one).
-2. **Access policy token** (My Account → Access Policies → Create): scopes `metrics:write`, `rules:read`,
-   `rules:write`, `alerts:read`, `alerts:write`. Use it for Alloy and `mimirtool`.
+2. **Access policy token** (grafana.com/orgs/<org>/access-policies): scope `metrics:write` (Alloy).
 3. Stack → Prometheus → Details: copy the remote-write URL and the instance ID (username).
 4. Alerts → Contact points: email to the on-call person and a Telegram bot (BotFather token + group chat ID).
    Notification policy: `severity=critical` repeat every 1h; `severity=warning` repeat every 12h.
@@ -46,10 +47,27 @@ GCLOUD_TOKEN="<access policy token: metrics:write>"
 
 ## Loading the alert rules
 
+The rules run as **Grafana-managed** alerts (folder `ezac`), so they use Grafana's contact points and the
+notification policy (Telegram `ezac-telegram`; critical repeats every 1h, warning every 12h). Load or update them
+with Grafana's Prometheus-conversion API and a service account token (role Admin), one group at a time:
+
 ```bash
-mimirtool rules load deploy/monitoring/alerts.yaml \
-  --address=https://prometheus-prod-XX-....grafana.net --id=<instance ID> --key=<token>
+python - <<'PY'
+import yaml, urllib.request
+TOKEN = "glsa_..."   # Administration → Service accounts
+d = yaml.safe_load(open("deploy/monitoring/alerts.yaml"))
+for g in d["groups"]:
+    req = urllib.request.Request(
+        "https://fondcrab2567.grafana.net/api/convert/prometheus/config/v1/rules/ezac",
+        data=yaml.safe_dump(g, sort_keys=False).encode(), method="POST",
+        headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/yaml",
+                 "X-Grafana-Alerting-Datasource-UID": "grafanacloud-prom", "X-Disable-Provenance": "true"})
+    print(g["name"], urllib.request.urlopen(req).status)
+PY
 ```
+
+Every selector carries `asserts_env=""`: Grafana Cloud's Knowledge graph app stores a copy of each series with an
+`asserts_env` label, which would otherwise double values and fire each alert twice.
 
 ## Checking on the server
 
