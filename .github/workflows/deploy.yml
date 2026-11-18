@@ -20,7 +20,7 @@ jobs:
 
       # Installs the pnpm version in package.json "packageManager" (the one
       # that wrote pnpm-lock.yaml), so CI and laptops can't drift apart.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v4
         with:
