@@ -249,6 +249,8 @@ const calculator = {
     amountQuintal: "{quintal} quintal ({kg} kg)",
     /** Shown instead of a value when no price was entered. */
     dueNoPrice: "Add a price to see its value in cash.",
+    /** On a line under the Nisab alone that reaches it with the other lines of the same crop. */
+    combined: "Counted together with your other {crop}: {total} kg in all, which reaches the Nisab.",
     /** This crop, all its lines together, is under the Nisab. */
     belowNisab: "Below Nisab: {crop} owes Zakat from {nisabKg} kg. You have {amount} kg in total.",
     /** Stands in for the crop name when none is chosen yet. */

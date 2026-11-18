@@ -73,7 +73,7 @@ export const CROPS: readonly Crop[] = [
   // Roots and tubers
   { key: "potato", group: "roots", name: { en: "Potato", am: "ድንች", om: "Dinnicha", ar: "البطاطس" } },
   { key: "sweet_potato", group: "roots", name: { en: "Sweet potato", am: "ስኳር ድንች", om: "Mixaaxishii", ar: "البطاطا الحلوة" } },
-  { key: "enset", group: "roots", name: { en: "Enset (false banana)", am: "እንሰት", om: "Warqee", ar: "الإنست (الموز الكاذب)" } },
+  { key: "enset", group: "roots", name: { en: "Enset (false banana)", am: "እንሰት", om: "Qocoo (warqee)", ar: "الإنست (الموز الكاذب)" } },
   { key: "taro", group: "roots", name: { en: "Taro (godere)", am: "ጎደሬ", om: "Godarree", ar: "القلقاس" } },
   { key: "cassava", group: "roots", name: { en: "Cassava", am: "ካሳቫ", om: "Kaasaavaa", ar: "الكسافا" } },
   { key: "yam", group: "roots", name: { en: "Yam", am: "ቦዬ", om: "Boyyee", ar: "اليام" } },

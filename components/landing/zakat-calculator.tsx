@@ -625,7 +625,7 @@ export function ZakatCalculator({
                   key={method}
                   type="button"
                   aria-pressed={active}
-                  aria-label={`${t.agriculture.methods[method]}, ${fmt.pct(rate)}`}
+                  aria-label={`${t.agriculture.methods[method]}${locale === "ar" ? "، " : ", "}${fmt.pct(rate)}`}
                   aria-describedby={helpId}
                   onClick={() => updateCropItem(item.id, "method", method as IrrigationMode)}
                   className={`rounded-xl border px-3 py-2.5 text-start transition-colors ${FOCUS_RING} ${
@@ -668,6 +668,14 @@ export function ZakatCalculator({
                     ? t.agriculture.dueNoPrice
                     : fill(t.agriculture.dueValue, { value: <Num>{fmt.currency(line.dueEtb)}</Num> })}
                 </p>
+                {line.kg < agriNisabKg ? (
+                  <p className="text-[13px] text-neutral-600">
+                    {fill(t.agriculture.combined, {
+                      crop: cropLabel(item.crop),
+                      total: <Num>{fmt.kg(cropTotalKg)}</Num>,
+                    })}
+                  </p>
+                ) : null}
               </>
             ) : (
               <p aria-live="polite" className="text-[13px] text-neutral-700">
@@ -1158,7 +1166,7 @@ export function ZakatCalculator({
   const breakdownRows: { key: string; label: ReactNode; value: ReactNode; deduction?: boolean }[] = [];
   const wealthRate = rateNum(zakatRate);
   const breakdown = t.result.breakdown;
-  if (has("cash"))
+  if (has("cash") && (result.cashBase > 0 || !result.hasInKind))
     breakdownRows.push({ key: "cash", label: fill(breakdown.cash, { rate: wealthRate }), value: moneyOrDash(shares.cash) });
   if (has("gold"))
     breakdownRows.push({
@@ -1447,7 +1455,7 @@ export function ZakatCalculator({
                   {breakdownRows.map((row) => (
                     <p key={row.key} className="flex items-center justify-between gap-3">
                       <span>{row.label}</span>
-                      <span className={`text-end ${row.deduction ? "text-accent-ink" : "text-navy"}`}>{row.value}</span>
+                      <span className={`shrink-0 whitespace-nowrap text-end ${row.deduction ? "text-accent-ink" : "text-navy"}`}>{row.value}</span>
                     </p>
                   ))}
                 </div>

@@ -7,9 +7,8 @@ import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
 type PasswordInputProps = Omit<React.ComponentProps<"input">, "type"> & {
-  /** Button labels, for pages in another language. */
+  /** The button's name, for pages in another language; aria-pressed says whether it is on. */
   showLabel?: string
-  hideLabel?: string
 }
 
 /**
@@ -22,12 +21,10 @@ type PasswordInputProps = Omit<React.ComponentProps<"input">, "type"> & {
 function PasswordInput({
   className,
   showLabel = "Show password",
-  hideLabel = "Hide password",
   disabled,
   ...rest
 }: PasswordInputProps) {
   const [visible, setVisible] = React.useState(false)
-  const label = visible ? hideLabel : showLabel
   const Icon = visible ? EyeOffIcon : EyeIcon
 
   return (
@@ -50,7 +47,6 @@ function PasswordInput({
         // One signal for screen readers: a fixed name, with pressed on or off.
         aria-label={showLabel}
         aria-pressed={visible}
-        title={label}
         className="absolute inset-y-0 end-0 flex w-11 items-center justify-center rounded-e-xl text-black/50 transition-colors hover:text-brand focus-visible:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:pointer-events-none disabled:opacity-50"
       >
         <Icon className="h-4 w-4" aria-hidden="true" />
