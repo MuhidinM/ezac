@@ -66,8 +66,9 @@ for g in d["groups"]:
 PY
 ```
 
-Every selector carries `asserts_env=""`: Grafana Cloud's Knowledge graph app stores a copy of each series with an
-`asserts_env` label, which would otherwise double values and fire each alert twice.
+Grafana Cloud's Knowledge graph app adds an `asserts_env` label to standard series (node, probe) on arrival. Never
+filter on it: when it is switched on or off, the old and new series overlap for a few minutes (values look doubled),
+then settle back to one each.
 
 ## Checking on the server
 

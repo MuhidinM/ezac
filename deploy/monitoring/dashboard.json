@@ -43,7 +43,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "probe_success{asserts_env=\"\", instance=\"ezac-prod\",target=~\"site_home|site_health_deep\"}",
+          "expr": "probe_success{instance=\"ezac-prod\",target=~\"site_home|site_health_deep\"}",
           "legendFormat": "{{target}}"
         }
       ],
@@ -112,7 +112,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "probe_success{asserts_env=\"\", instance=\"ezac-prod\",target=~\"web_blue|web_green\"}",
+          "expr": "probe_success{instance=\"ezac-prod\",target=~\"web_blue|web_green\"}",
           "legendFormat": "{{color}}"
         }
       ],
@@ -181,7 +181,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "ezac_web_active_color{asserts_env=\"\", instance=\"ezac-prod\"} == 1",
+          "expr": "ezac_web_active_color{instance=\"ezac-prod\"} == 1",
           "legendFormat": "live: {{color}}"
         },
         {
@@ -190,7 +190,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "ezac_web_release_info{asserts_env=\"\", instance=\"ezac-prod\"}",
+          "expr": "ezac_web_release_info{instance=\"ezac-prod\"}",
           "legendFormat": "release {{release}}"
         }
       ],
@@ -230,7 +230,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "(probe_ssl_earliest_cert_expiry{asserts_env=\"\", instance=\"ezac-prod\",target=\"site_home\"} - time()) / 86400",
+          "expr": "(probe_ssl_earliest_cert_expiry{instance=\"ezac-prod\",target=\"site_home\"} - time()) / 86400",
           "legendFormat": "__auto"
         }
       ],
@@ -289,7 +289,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "probe_success{asserts_env=\"\", instance=\"ezac-prod\",target=~\"gateway|auth_service|zakat_engine|beneficiary_service|payment_service|keycloak|postgres\"}",
+          "expr": "probe_success{instance=\"ezac-prod\",target=~\"gateway|auth_service|zakat_engine|beneficiary_service|payment_service|keycloak|postgres\"}",
           "legendFormat": "{{target}}"
         }
       ],
@@ -358,7 +358,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum by (status_class) (rate(loki_process_custom_nginx_http_requests_total{asserts_env=\"\", instance=\"ezac-prod\"}[$__rate_interval]))",
+          "expr": "sum by (status_class) (rate(loki_process_custom_nginx_http_requests_total{instance=\"ezac-prod\"}[$__rate_interval]))",
           "legendFormat": "{{status_class}}xx"
         }
       ],
@@ -391,7 +391,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "(sum(rate(loki_process_custom_nginx_http_requests_total{asserts_env=\"\", instance=\"ezac-prod\",status_class=\"5\"}[$__rate_interval])) / clamp_min(sum(rate(loki_process_custom_nginx_http_requests_total{asserts_env=\"\", instance=\"ezac-prod\"}[$__rate_interval])), 0.001)) or vector(0)",
+          "expr": "(sum(rate(loki_process_custom_nginx_http_requests_total{instance=\"ezac-prod\",status_class=\"5\"}[$__rate_interval])) / clamp_min(sum(rate(loki_process_custom_nginx_http_requests_total{instance=\"ezac-prod\"}[$__rate_interval])), 0.001)) or vector(0)",
           "legendFormat": "5xx"
         }
       ],
@@ -424,7 +424,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(loki_process_custom_nginx_http_request_duration_seconds_bucket{asserts_env=\"\", instance=\"ezac-prod\",route!=\"_next\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(loki_process_custom_nginx_http_request_duration_seconds_bucket{instance=\"ezac-prod\",route!=\"_next\"}[$__rate_interval])))",
           "legendFormat": "p50"
         },
         {
@@ -433,7 +433,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(loki_process_custom_nginx_http_request_duration_seconds_bucket{asserts_env=\"\", instance=\"ezac-prod\",route!=\"_next\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(loki_process_custom_nginx_http_request_duration_seconds_bucket{instance=\"ezac-prod\",route!=\"_next\"}[$__rate_interval])))",
           "legendFormat": "p95"
         }
       ],
@@ -466,7 +466,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "1 - avg(rate(node_cpu_seconds_total{asserts_env=\"\", instance=\"ezac-prod\",mode=\"idle\"}[$__rate_interval]))",
+          "expr": "1 - avg(rate(node_cpu_seconds_total{instance=\"ezac-prod\",mode=\"idle\"}[$__rate_interval]))",
           "legendFormat": "cpu"
         }
       ],
@@ -499,7 +499,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "node_memory_MemAvailable_bytes{asserts_env=\"\", instance=\"ezac-prod\"} / node_memory_MemTotal_bytes{asserts_env=\"\", instance=\"ezac-prod\"}",
+          "expr": "node_memory_MemAvailable_bytes{instance=\"ezac-prod\"} / node_memory_MemTotal_bytes{instance=\"ezac-prod\"}",
           "legendFormat": "available"
         }
       ],
@@ -532,7 +532,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "1 - node_filesystem_avail_bytes{asserts_env=\"\", instance=\"ezac-prod\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{asserts_env=\"\", instance=\"ezac-prod\",fstype!~\"tmpfs|overlay\"}",
+          "expr": "1 - node_filesystem_avail_bytes{instance=\"ezac-prod\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{instance=\"ezac-prod\",fstype!~\"tmpfs|overlay\"}",
           "legendFormat": "{{mountpoint}}"
         }
       ],
@@ -584,7 +584,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum by (groupname) (namedprocess_namegroup_memory_bytes{asserts_env=\"\", instance=\"ezac-prod\",memtype=\"resident\"})",
+          "expr": "sum by (groupname) (namedprocess_namegroup_memory_bytes{instance=\"ezac-prod\",memtype=\"resident\"})",
           "legendFormat": "{{groupname}}"
         }
       ],
@@ -617,7 +617,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum by (groupname) (rate(namedprocess_namegroup_cpu_seconds_total{asserts_env=\"\", instance=\"ezac-prod\"}[$__rate_interval]))",
+          "expr": "sum by (groupname) (rate(namedprocess_namegroup_cpu_seconds_total{instance=\"ezac-prod\"}[$__rate_interval]))",
           "legendFormat": "{{groupname}}"
         }
       ],
@@ -650,7 +650,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "time() - ezac_backup_last_success_timestamp_seconds{asserts_env=\"\", instance=\"ezac-prod\"}",
+          "expr": "time() - ezac_backup_last_success_timestamp_seconds{instance=\"ezac-prod\"}",
           "legendFormat": "__auto"
         }
       ],
@@ -708,7 +708,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "time() - ezac_backup_last_restore_test_timestamp_seconds{asserts_env=\"\", instance=\"ezac-prod\"}",
+          "expr": "time() - ezac_backup_last_restore_test_timestamp_seconds{instance=\"ezac-prod\"}",
           "legendFormat": "__auto"
         }
       ],
@@ -762,7 +762,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "ezac_backup_last_size_bytes{asserts_env=\"\", instance=\"ezac-prod\"}",
+          "expr": "ezac_backup_last_size_bytes{instance=\"ezac-prod\"}",
           "legendFormat": "size"
         }
       ],
@@ -795,7 +795,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "increase(ezac_pm2_restarts_total{asserts_env=\"\", instance=\"ezac-prod\"}[1h])",
+          "expr": "increase(ezac_pm2_restarts_total{instance=\"ezac-prod\"}[1h])",
           "legendFormat": "{{app}}"
         }
       ],
@@ -845,7 +845,7 @@
         },
         "enable": true,
         "iconColor": "blue",
-        "expr": "changes(ezac_web_release_timestamp_seconds{asserts_env=\"\", instance=\"ezac-prod\"}[2m]) > 0",
+        "expr": "changes(ezac_web_release_timestamp_seconds{instance=\"ezac-prod\"}[2m]) > 0",
         "titleFormat": "Deploy",
         "step": "60s"
       }
