@@ -1,0 +1,253 @@
+// Grafana Alloy on the EZAC server: metrics only, sent to Grafana Cloud.
+// Installed as /etc/alloy/config.alloy. Credentials come from /etc/default/alloy
+// (root:alloy 640), never from this file: the repository is public.
+//
+// No logs leave the server: the app and nginx logs hold phone numbers and IPs.
+// nginx's access log is read here only to count requests by status and timing.
+
+// ---------- Where metrics go ----------
+
+prometheus.remote_write "grafana_cloud" {
+  endpoint {
+    url = sys.env("GCLOUD_PROM_URL")
+    basic_auth {
+      username = sys.env("GCLOUD_PROM_USER")
+      password = sys.env("GCLOUD_TOKEN")
+    }
+  }
+  external_labels = { instance = "ezac-prod", env = "production" }
+}
+
+// ---------- The server: CPU, memory, disk, network, systemd, plus ezac-metrics.sh ----------
+
+prometheus.exporter.unix "host" {
+  set_collectors = ["cpu", "diskstats", "filesystem", "loadavg", "meminfo", "netdev", "netstat",
+    "pressure", "stat", "time", "timex", "uname", "vmstat", "systemd", "textfile", "conntrack", "sockstat"]
+
+  filesystem {
+    mount_points_exclude = "^/(dev|proc|run|sys|snap|var/lib/docker/.+)($|/)"
+    fs_types_exclude     = "^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs|tmpfs)$"
+  }
+  systemd {
+    unit_include = "(nginx|postgresql@16-main|ezac-.*|pm2-ezaacadmin|ssh|fail2ban|unattended-upgrades|certbot|alloy|keycloak.*|ethio-zakat.*|auth-service|zakat-engine|beneficiary-service|payment-service|gateway-service)\\.(service|timer)"
+  }
+  textfile {
+    directory = "/var/lib/ezac-metrics"
+  }
+}
+
+prometheus.scrape "host" {
+  targets         = prometheus.exporter.unix.host.targets
+  forward_to      = [prometheus.relabel.instance.receiver]
+  scrape_interval = "30s"
+}
+
+// ---------- Processes: is each service running, its CPU and memory ----------
+
+prometheus.exporter.process "services" {
+  matcher {
+    name    = "web"
+    cmdline = ["^next-server"]
+  }
+  matcher {
+    name    = "{{.Matches.svc}}"
+    cmdline = ["/opt/ethio-zakat/(?P<svc>[a-z-]+)/app\\.jar"]
+  }
+  matcher {
+    name    = "keycloak"
+    cmdline = ["io\\.quarkus\\.bootstrap|keycloak"]
+    comm    = ["java"]
+  }
+  matcher {
+    name = "postgres"
+    comm = ["postgres"]
+  }
+  matcher {
+    name = "nginx"
+    comm = ["nginx"]
+  }
+  track_children = false
+  track_threads  = false
+  gather_smaps   = false
+}
+
+prometheus.scrape "process" {
+  targets         = prometheus.exporter.process.services.targets
+  forward_to      = [prometheus.relabel.instance.receiver]
+  scrape_interval = "30s"
+}
+
+// ---------- Probes from inside the server (read-only GETs and TCP connects) ----------
+
+prometheus.exporter.blackbox "probes" {
+  config = "{ modules: { http_2xx: { prober: http, timeout: 8s, http: { preferred_ip_protocol: ip4, valid_status_codes: [200] } }, site: { prober: http, timeout: 10s, http: { preferred_ip_protocol: ip4, valid_status_codes: [200], fail_if_not_ssl: true } }, tcp: { prober: tcp, timeout: 5s } } }"
+
+  // The site as visitors get it, through nginx and TLS (gives certificate expiry too).
+  target {
+    name    = "site_home"
+    address = "https://ezaac.com/en"
+    module  = "site"
+  }
+  target {
+    name    = "site_health_deep"
+    address = "https://ezaac.com/bff/health?deep=1"
+    module  = "site"
+  }
+  // Both web colours directly: the live one and the standby (instant rollback).
+  target {
+    name    = "web_blue"
+    address = "http://127.0.0.1:3000/bff/health"
+    module  = "http_2xx"
+    labels  = { color = "blue" }
+  }
+  target {
+    name    = "web_green"
+    address = "http://127.0.0.1:3001/bff/health"
+    module  = "http_2xx"
+    labels  = { color = "green" }
+  }
+  // Backend: observed only.
+  target {
+    name    = "gateway"
+    address = "http://127.0.0.1:8090/actuator/health"
+    module  = "http_2xx"
+  }
+  target {
+    name    = "auth_service"
+    address = "127.0.0.1:8081"
+    module  = "tcp"
+  }
+  target {
+    name    = "zakat_engine"
+    address = "127.0.0.1:8082"
+    module  = "tcp"
+  }
+  target {
+    name    = "beneficiary_service"
+    address = "127.0.0.1:8083"
+    module  = "tcp"
+  }
+  target {
+    name    = "payment_service"
+    address = "127.0.0.1:8084"
+    module  = "tcp"
+  }
+  target {
+    name    = "keycloak"
+    address = "127.0.0.1:8180"
+    module  = "tcp"
+  }
+  target {
+    name    = "postgres"
+    address = "127.0.0.1:5432"
+    module  = "tcp"
+  }
+}
+
+prometheus.scrape "probes" {
+  targets         = prometheus.exporter.blackbox.probes.targets
+  forward_to      = [prometheus.relabel.probes.receiver]
+  scrape_interval = "30s"
+  scrape_timeout  = "15s"
+}
+
+// Alloy names each probe in the job label (integrations/blackbox/site_home): move the
+// name to a "target" label so the alerts and dashboard can select probes by name.
+prometheus.relabel "probes" {
+  rule {
+    source_labels = ["job"]
+    regex         = "integrations/blackbox/(.+)"
+    target_label  = "target"
+    replacement   = "$1"
+  }
+  rule {
+    source_labels = ["job"]
+    regex         = "integrations/blackbox/.+"
+    target_label  = "job"
+    replacement   = "integrations/blackbox"
+  }
+  forward_to = [prometheus.relabel.instance.receiver]
+}
+
+// ---------- nginx: request counts and timings from the access log ----------
+
+local.file_match "nginx_access" {
+  path_targets = [
+    { __path__ = "/var/log/nginx/ezaac.access.log", vhost = "ezaac.com" },
+  ]
+}
+
+loki.source.file "nginx_access" {
+  targets       = local.file_match.nginx_access.targets
+  forward_to    = [loki.process.nginx_metrics.receiver]
+  tail_from_end = true
+}
+
+// Turns each JSON access-log line into counters and a latency histogram. The lines
+// themselves are dropped here (forward_to is empty), so nothing is shipped.
+loki.process "nginx_metrics" {
+  stage.json {
+    expressions = { status = "st", rt = "rt", method = "m", path = "path", upstream = "ua_addr" }
+  }
+  // Status class ("2" for 2xx) and a coarse route group: never the full path (ids, query strings).
+  stage.regex {
+    source     = "status"
+    expression = "^(?P<status_class>[1-5])"
+  }
+  stage.regex {
+    source     = "path"
+    expression = "^/(?P<route>bff|_next|dashboard|login)?"
+  }
+  stage.template {
+    source   = "route"
+    template = "{{ if .route }}{{ .route }}{{ else }}page{{ end }}"
+  }
+  stage.labels {
+    values = { status_class = "", route = "" }
+  }
+  stage.metrics {
+    metric.counter {
+      name              = "nginx_http_requests_total"
+      description       = "Requests to ezaac.com by status class and route group."
+      match_all         = true
+      action            = "inc"
+      max_idle_duration = "24h"
+    }
+    metric.histogram {
+      name              = "nginx_http_request_duration_seconds"
+      description       = "Time nginx took to answer, by route group."
+      source            = "rt"
+      buckets           = [0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30]
+      max_idle_duration = "24h"
+    }
+  }
+  forward_to = []
+}
+
+// Alloy's own metrics, which include the nginx counters above (loki_process_custom_*).
+prometheus.exporter.self "alloy" { }
+
+prometheus.scrape "alloy" {
+  targets         = prometheus.exporter.self.alloy.targets
+  forward_to      = [prometheus.relabel.alloy_keep.receiver]
+  scrape_interval = "30s"
+}
+
+// Keep only the nginx counters and a few health series from Alloy's own metrics
+// (the rest would cost free-tier series for nothing).
+prometheus.relabel "alloy_keep" {
+  rule {
+    source_labels = ["__name__"]
+    regex         = "loki_process_custom_.*|alloy_build_info|prometheus_remote_storage_samples_failed_total|prometheus_remote_write_wal_samples_appended_total|up"
+    action        = "keep"
+  }
+  forward_to = [prometheus.relabel.instance.receiver]
+}
+
+prometheus.relabel "instance" {
+  rule {
+    target_label = "instance"
+    replacement  = "ezac-prod"
+  }
+  forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+}
