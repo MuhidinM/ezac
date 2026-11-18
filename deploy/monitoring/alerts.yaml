@@ -146,7 +146,7 @@ groups:
 
       - alert: SystemdUnitFailed
         # The backup units have their own alerts (BackupJobFailed, RestoreTestFailed).
-        expr: node_systemd_unit_state{instance="ezac-prod", state="failed", name!~"ezac-(backup|restore-test)\.service"} == 1
+        expr: node_systemd_unit_state{instance="ezac-prod", state="failed", name!~"ezac-(backup|restore-test)[.]service"} == 1
         for: 5m
         labels: { severity: warning }
         annotations:
