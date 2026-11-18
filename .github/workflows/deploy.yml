@@ -76,7 +76,7 @@ jobs:
       # release, health-checks it and only then switches nginx: no downtime, and the old
       # release keeps running for an instant rollback (Rollback workflow).
       - name: Deploy
-        # Keepalives: npm ci can run for minutes with no output.
+        # Keepalives: the install can run for minutes with no output.
         run: |
           ssh -i ~/.ssh/deploy_key -p "${{ secrets.SSH_PORT }}" -o BatchMode=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=20 "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "deploy ${{ github.sha }}"
 
