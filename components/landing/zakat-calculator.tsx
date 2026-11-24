@@ -47,6 +47,7 @@ import {
   emptyCropItem,
   isPriceStale,
   officialAnimalPrice,
+  officialCropPrice,
   parseAmount,
   type AmountField,
   type CalculatorState,
@@ -281,7 +282,7 @@ export function ZakatCalculator({
   const { zakatRate, agriNisabKg, goldNisabGrams, silverNisabGrams } = rules;
   // Fallback figures must never read as the Commission's live rule.
   const usingEstimates = !config && !pricingLoading;
-  const pricesStale = config !== null && openedAtMs !== null && isPriceStale(config.pricesAsOf, openedAtMs);
+  const pricesStale = config !== null && openedAtMs !== null && isPriceStale(config.pricesAsOf, openedAtMs, config.priceMaxAgeHours);
   const pricesAsOf =
     config?.pricesAsOf && !Number.isNaN(Date.parse(config.pricesAsOf)) ? fmt.dateTime(new Date(config.pricesAsOf)) : null;
 
@@ -474,13 +475,13 @@ export function ZakatCalculator({
   /** Choosing a crop another line already priced copies that price and unit, so it isn't typed twice. */
   const chooseCrop = (id: string, crop: string) =>
     setForm((prev) => {
-      const priced = prev.cropItems.find((other) => other.id !== id && other.crop === crop && other.price.trim());
+      const priced = prev.cropItems.find((other) => other.id !== id && other.crop === crop && other.price?.trim());
       return {
         ...prev,
         cropItems: prev.cropItems.map((item) =>
           item.id !== id
             ? item
-            : priced && !item.price.trim()
+            : priced && !item.price?.trim()
               ? { ...item, crop, unit: priced.unit, price: priced.price }
               : { ...item, crop },
         ),
@@ -522,6 +523,8 @@ export function ZakatCalculator({
     const titleId = `${baseId}-crop-title-${item.id}`;
     const methodLabelId = `${baseId}-method-${item.id}`;
     const unitLabelId = `${baseId}-unit-${item.id}`;
+    const priceInputId = `${baseId}-crop-price-${item.id}`;
+    const officialPerKg = officialCropPrice(config, item.crop);
     return (
       <div
         key={item.id}
@@ -646,10 +649,30 @@ export function ZakatCalculator({
         </div>
 
         {renderNumberInput({
-          id: `${baseId}-crop-price-${item.id}`,
+          id: priceInputId,
           label: format(t.agriculture.price, { unit: unitLabel }),
-          value: item.price,
+          // The Commission's price per kg, shown in the unit chosen, until the visitor types their own.
+          value: item.price ?? (officialPerKg === null ? "" : String(Math.round(officialPerKg * KG_PER_UNIT[item.unit] * 100) / 100)),
           onChange: (value) => updateCropItem(item.id, "price", value),
+          helper:
+            officialPerKg === null ? undefined : item.price === undefined ? (
+              t.agriculture.priceOfficial
+            ) : (
+              <>
+                {t.livestock.priceOwn}{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateCropItem(item.id, "price", undefined);
+                    focusAfterRender.current = priceInputId;
+                    setFocusTick((n) => n + 1);
+                  }}
+                  className={`rounded-sm font-medium text-brand underline underline-offset-2 ${FOCUS_RING}`}
+                >
+                  {t.livestock.resetPrice}
+                </button>
+              </>
+            ),
         })}
 
         {line ? (
@@ -1073,7 +1096,9 @@ export function ZakatCalculator({
             <p className="text-sm text-neutral-700">
               {fill(t.agriculture.intro, { nisabKg: <Num>{fmt.kg(agriNisabKg)}</Num> })}
             </p>
-            <p className="text-[13px] leading-snug text-neutral-600">{t.agriculture.priceHelp}</p>
+            {config?.cropPricesEtbPerKg ? null : (
+              <p className="text-[13px] leading-snug text-neutral-600">{t.agriculture.priceHelp}</p>
+            )}
             {form.cropItems.map(renderCropLine)}
             <button
               type="button"

@@ -218,6 +218,7 @@ const calculator: Messages<typeof en> = {
     },
     price: "በአካባቢዎ የ1 {unit} ዋጋ (ETB)",
     priceHelp: "ዋጋ፦ ኮሚሽኑ እስካሁን የሰብል ዋጋ የለውም። ዘካዎ በገንዘብ ስንት እንደሚሆን ለማየት በአካባቢዎ ያለውን የገበያ ዋጋ ያስገቡ። ባዶ መተው ይችላሉ።",
+    priceOfficial: "ይህ የኮሚሽኑ የአሁኑ አማካይ ዋጋ ነው። ዋጋ እንደ አካባቢው ይለያያል፤ የአካባቢዎን ዋጋ ማስገባት ይችላሉ።",
     due: "የሚከፈለው ዘካ፦ {amount} {crop} ({rate})",
     dueValue: "በገንዘብ ETB {value} ገደማ ይሆናል",
     amountKg: "{kg} ኪ.ግ.",

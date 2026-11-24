@@ -34,16 +34,25 @@ export type CalculatorConfig = {
     silverValueEtb: number;
   };
   wealth: { rate: number; hawlLunarDays: number };
-  crops: { nisabKg: number; rainFedRate: number; irrigatedRate: number };
+  /** `mixedRate` only once zakat-engine serves it (backend request A3); MIXED_IRRIGATION_RATE otherwise. */
+  crops: { nisabKg: number; rainFedRate: number; irrigatedRate: number; mixedRate?: number };
+  /** Rikaz rate, once served (A3); RIKAZ_RATE otherwise. */
+  rikaz?: { rate: number };
   livestock: {
     sheepGoats: LivestockRow[];
     cattle: { minimum: number; tabiPer: number; musinnahPer: number };
     camels: LivestockRow[];
   };
   livestockAverageUnitPriceEtb?: Record<string, number>;
+  /** ETB per animal due, by due kind (sheep, goat, tabi, hiqqah…), once served (A2). */
+  livestockPricesEtb?: Record<string, number>;
+  /** The Commission's average crop prices in ETB per kg, by crop key, once served (A1). */
+  cropPricesEtbPerKg?: Record<string, number>;
+  /** How old prices may be before the public page warns (A7); 48 hours otherwise. */
+  priceMaxAgeHours?: number;
 };
 
-/** Fixed rules the config doesn't carry (confirmed by the backend). */
+/** Used while the config doesn't carry them (backend request A3 asks it to). */
 export const MIXED_IRRIGATION_RATE = 0.075;
 export const RIKAZ_RATE = 0.2;
 

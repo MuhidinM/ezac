@@ -241,6 +241,8 @@ const calculator = {
     price: "Price of 1 {unit} where you live (ETB)",
     /** Shown once above the crop lines. */
     priceHelp: "Prices: the Commission has no crop prices yet. Enter the market price where you live to see what your Zakat is worth in cash. You can leave it empty.",
+    /** Under a crop price that came from the Commission. */
+    priceOfficial: "The Commission's current average price. Prices differ by area: change it to your local price.",
     /** The line's result. {amount} kg of {crop} at {rate}. */
     due: "Zakat due: {amount} of {crop} ({rate})",
     dueValue: "Worth about ETB {value}",

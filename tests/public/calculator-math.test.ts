@@ -439,3 +439,59 @@ describe("isPriceStale", () => {
     expect(isPriceStale("yesterday", at("2030-01-01T00:00:00Z"))).toBe(false);
   });
 });
+
+describe("optional config fields the backend may add (final request A1-A3, A7, A9)", () => {
+  const withExtras = readCalculatorConfig({
+    ...UAT_CALCULATOR_CONFIG,
+    crops: { ...UAT_CALCULATOR_CONFIG.crops, mixedRate: 0.08 },
+    rikaz: { rate: 0.25 },
+    livestockPricesEtb: { hiqqah: 200000, sheep: 8000 },
+    cropPrices: { asOf: "2026-11-24T03:00:00Z", etbPerKg: { teff: 120 } },
+    priceMaxAgeHours: 72,
+  }) as CalculatorConfig;
+
+  it("reads them, and today's config still reads without them", () => {
+    expect(withExtras.crops.mixedRate).toBe(0.08);
+    expect(withExtras.rikaz).toEqual({ rate: 0.25 });
+    expect(withExtras.cropPricesEtbPerKg).toEqual({ teff: 120 });
+    expect(withExtras.priceMaxAgeHours).toBe(72);
+    expect(config.crops.mixedRate).toBeUndefined();
+    expect(config.rikaz).toBeUndefined();
+  });
+
+  it("ignores a bad optional rate instead of rejecting the config", () => {
+    const bad = readCalculatorConfig({ ...UAT_CALCULATOR_CONFIG, crops: { ...UAT_CALCULATOR_CONFIG.crops, mixedRate: 7.5 } });
+    expect(bad).not.toBeNull();
+    expect(bad?.crops.mixedRate).toBeUndefined();
+  });
+
+  it("treats rules without prices as no config", () => {
+    expect(readCalculatorConfig({ ...UAT_CALCULATOR_CONFIG, pricesPublished: false })).toBeNull();
+    expect(readCalculatorConfig({ ...UAT_CALCULATOR_CONFIG, pricesPublished: true })).not.toBeNull();
+  });
+
+  it("uses the served rates", () => {
+    expect(ruleFigures(withExtras)).toMatchObject({ mixedRate: 0.08, rikazRate: 0.25 });
+  });
+
+  it("prices the animal due before the species average", () => {
+    const form = {
+      ...INITIAL_STATE,
+      herdsAdded: ["camels"] as LivestockMode[],
+      herds: { ...INITIAL_STATE.herds, camels: { count: "50", freelyGrazing: true, working: "", give: "sheep" as const } },
+    };
+    expect(calculateZakat(form, ["livestock"], withExtras).herds[0].animals).toEqual([
+      { kind: "hiqqah", count: 1, unitPrice: 200000, valueEtb: 200000 },
+    ]);
+  });
+
+  it("values a crop at the Commission's price until the visitor types one", () => {
+    const line = { ...emptyCropItem("a"), crop: "teff", amount: "10" };
+    const official = calculateZakat({ ...INITIAL_STATE, cropItems: [line] }, ["agriculture"], withExtras).crops[0];
+    expect(official).toMatchObject({ dueKg: 100, pricePerKg: 120, dueEtb: 12000 });
+    const typed = calculateZakat({ ...INITIAL_STATE, cropItems: [{ ...line, price: "10000" }] }, ["agriculture"], withExtras).crops[0];
+    expect(typed).toMatchObject({ pricePerKg: 100, dueEtb: 10000 });
+    const cleared = calculateZakat({ ...INITIAL_STATE, cropItems: [{ ...line, price: "" }] }, ["agriculture"], withExtras).crops[0];
+    expect(cleared.dueEtb).toBeNull();
+  });
+});

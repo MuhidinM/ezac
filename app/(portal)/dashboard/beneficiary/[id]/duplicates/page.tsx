@@ -51,11 +51,32 @@ const REASON_LABELS: Record<string, string> = {
   name_dob: "Same name and date of birth",
 };
 
-/** A compared record; candidates may carry the bank account once the backend sends it. */
+/**
+ * A compared record. Candidates in scope carry only the last 4 digits of their
+ * bank account (`bankAccount.accountNumberLast4`); the household under review
+ * carries its full account.
+ */
 type CompareRecord = DuplicateCandidate & {
-  bankAccount?: BankAccount | null;
+  bankAccount?: (Partial<BankAccount> & { accountNumberLast4?: string | null }) | null;
   bankAccountNumber?: string | null;
 };
+
+const digits = (value: string | null | undefined) => (value ?? "").replace(/\D/g, "");
+
+/** The account as shown: the full number, or "•••• 1234" when only the last 4 digits are sent. */
+function accountShown(record: CompareRecord) {
+  const full = record.bankAccount?.accountNumber ?? record.bankAccountNumber;
+  if (full) return full;
+  const last4 = record.bankAccount?.accountNumberLast4;
+  return last4 ? `•••• ${last4}` : null;
+}
+
+/** Same account as far as both records show: the last 4 digits when one is masked. */
+function sameAccount(candidate: CompareRecord, current: CompareRecord) {
+  const a = digits(accountShown(candidate));
+  const b = digits(accountShown(current));
+  return a.length >= 4 && b.length >= 4 && a.slice(-4) === b.slice(-4);
+}
 
 /** The review plus who resolved it and why, when the backend sends that. */
 type Review = DuplicateReview & {
@@ -71,6 +92,8 @@ type Row = {
   reason?: string;
   /** True when the record came without this value at all (not "empty"). */
   notSent?: (record: CompareRecord) => boolean;
+  /** How a candidate's value is matched against the household's; plain text equality otherwise. */
+  same?: (candidate: CompareRecord, current: CompareRecord) => boolean;
   mono?: boolean;
 };
 
@@ -80,8 +103,9 @@ const ROWS: Row[] = [
   { label: "Phone", value: (r) => r.phone, reason: "phone" },
   {
     label: "Bank account",
-    value: (r) => r.bankAccount?.accountNumber ?? r.bankAccountNumber,
+    value: accountShown,
     reason: "bank_account",
+    same: sameAccount,
     notSent: (r) => !("bankAccount" in r) && !("bankAccountNumber" in r),
     mono: true,
   },
@@ -284,7 +308,9 @@ function DuplicateReviewView() {
                           reasons.includes(row.reason) &&
                           !!value &&
                           !!current &&
-                          normalise(value, row.mono) === normalise(row.value(current), row.mono);
+                          (row.same
+                            ? row.same(candidate, current)
+                            : normalise(value, row.mono) === normalise(row.value(current), row.mono));
                         return (
                           <td
                             key={candidate.id}

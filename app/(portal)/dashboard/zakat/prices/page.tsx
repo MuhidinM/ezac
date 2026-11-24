@@ -86,11 +86,17 @@ function toPriceValues(record: PriceRecord): PriceValues {
   };
 }
 
-type ChartState = { key: string | null; points?: PriceRecord[]; capped?: boolean; error?: ApiError | null };
+type ChartState = { key: string | null; points?: PriceRecord[]; capped?: boolean; daily?: boolean; error?: ApiError | null };
+
+const newestFirst = (points: PriceRecord[]) =>
+  [...points].sort((a, b) => Date.parse(b.pricesAsOf) - Date.parse(a.pricesAsOf));
 
 /**
- * Every stored price in the range for the chart, newest first, read 50 at a
- * time (the API's limit) up to CHART_MAX_PAGES pages.
+ * The chart's prices in the range, newest first. zakat-engine serves one
+ * snapshot per day (the last of the day) for up to 366 days at
+ * /prices/history/daily, so a year fits in one call. A gateway without it
+ * (404, or 400 on the range) falls back to every stored price, 50 a page, up
+ * to CHART_MAX_PAGES pages.
  */
 function usePriceChart(query: string) {
   const [nonce, setNonce] = useState(0);
@@ -99,7 +105,13 @@ function usePriceChart(query: string) {
 
   useEffect(() => {
     let cancelled = false;
-    async function load() {
+    async function loadDaily() {
+      const data = await apiClient<PriceRecord[] | { items: PriceRecord[] }>(
+        `/bff/zakat-admin/prices/history/daily?${query}`,
+      );
+      return Array.isArray(data) ? data : (data?.items ?? []);
+    }
+    async function loadPaged() {
       const points: PriceRecord[] = [];
       let totalPages = 1;
       for (let page = 1; page <= Math.min(totalPages, CHART_MAX_PAGES); page++) {
@@ -110,7 +122,16 @@ function usePriceChart(query: string) {
         points.push(...data.items);
         totalPages = data.pagination.totalPages;
       }
-      return { points, capped: totalPages > CHART_MAX_PAGES };
+      return { points: newestFirst(points), capped: totalPages > CHART_MAX_PAGES, daily: false };
+    }
+    async function load() {
+      try {
+        const daily = await loadDaily();
+        return { points: newestFirst(daily), capped: false, daily: true };
+      } catch (error) {
+        if (error instanceof ApiError && (error.status === 404 || error.status === 400)) return loadPaged();
+        throw error;
+      }
     }
     load()
       .then((result) => {
@@ -129,6 +150,7 @@ function usePriceChart(query: string) {
   return {
     points: state.points ?? [],
     capped: state.capped ?? false,
+    daily: state.daily ?? false,
     error: state.key === key ? (state.error ?? null) : null,
     isLoading: state.key !== key,
     reload: () => setNonce((value) => value + 1),
@@ -164,7 +186,7 @@ function Prices() {
     <section className="space-y-6">
       <PageHeader
         title="Prices & nisab"
-        description="Gold and silver prices behind the public Zakat calculator and the nisab it applies, plus the average livestock prices shown on the public How it works page."
+        description="Gold and silver prices behind the public Zakat calculator and the nisab it applies, plus the average livestock prices the calculator uses to value animals due in cash."
         actions={<RangeSelect value={range} onChange={(value) => { setRange(value); setPage(1); }} />}
       />
 
@@ -212,7 +234,7 @@ function Prices() {
 
       <Panel
         title="Gold and silver per gram"
-        description={`ETB, from the stored price history${chart.capped ? ` (the latest ${CHART_PAGE_SIZE * CHART_MAX_PAGES} prices)` : ""}`}
+        description={`ETB, ${chart.daily ? "the last price of each day" : "from the stored price history"}${chart.capped ? ` (the latest ${CHART_PAGE_SIZE * CHART_MAX_PAGES} prices)` : ""}`}
       >
         {chart.error ? (
           <ErrorAlert error={chart.error} onRetry={chart.reload} />

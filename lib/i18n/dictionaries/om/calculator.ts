@@ -213,6 +213,7 @@ const calculator: Messages<typeof en> = {
     },
     price: "Gatii {unit} 1 naannoo keessanitti (ETB)",
     priceHelp: "Gatii: Komishiniin ammaaf gatii midhaanii hin qabu. Zakaan keessan maallaqaan hammam akka ta'u arguuf gatii gabaa naannoo keessanii galchaa. Duwwaa dhiisuus ni dandeessu.",
+    priceOfficial: "Kun gatii giddugaleessaa Komishinii ammaa ti. Gatiin naannoon garaagara; gatii naannoo keessanii galchuu ni dandeessu.",
     due: "Zakaa ba'u: {crop} {amount} ({rate})",
     dueValue: "Gatiin isaa gara ETB {value}",
     amountKg: "{kg} kg",

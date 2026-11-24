@@ -52,8 +52,11 @@ export type CropLineItem = {
   amount: string;
   unit: CropUnit;
   method: IrrigationMode;
-  /** ETB per `unit`, typed by the visitor; "" leaves the crop out of the cash total. */
-  price: string;
+  /**
+   * ETB per `unit` as the visitor typed it. Left out (undefined): the
+   * Commission's price for the crop, if it has one; "" means no price.
+   */
+  price?: string;
 };
 
 /**
@@ -103,7 +106,7 @@ export type AmountField = {
 const NEW_HERD: Herd = { count: "", freelyGrazing: true, working: "", give: "sheep" };
 
 export function emptyCropItem(id: string): CropLineItem {
-  return { id, crop: "", amount: "", unit: "quintal", method: "rain", price: "" };
+  return { id, crop: "", amount: "", unit: "quintal", method: "rain" };
 }
 
 export const INITIAL_STATE: CalculatorState = {
@@ -199,9 +202,26 @@ export const ANIMAL_PRICE_KEY: Record<string, string> = {
 
 /** The Commission's average ETB price for one animal of this kind, or null when it has none. */
 export function officialAnimalPrice(config: CalculatorConfig | null, kind: string): number | null {
+  // A price for the very animal due (backend request A2) wins over the species average.
+  const exact = config?.livestockPricesEtb?.[kind];
+  if (typeof exact === "number" && exact > 0) return exact;
   const key = Object.prototype.hasOwnProperty.call(ANIMAL_PRICE_KEY, kind) ? ANIMAL_PRICE_KEY[kind] : null;
   const price = key ? config?.livestockAverageUnitPriceEtb?.[key] : undefined;
   return typeof price === "number" && price > 0 ? price : null;
+}
+
+/** The Commission's average price of a crop in ETB per kg, or null when it has none. */
+export function officialCropPrice(config: CalculatorConfig | null, crop: string): number | null {
+  const price = crop ? config?.cropPricesEtbPerKg?.[crop] : undefined;
+  return typeof price === "number" && price > 0 ? price : null;
+}
+
+/** The price used for a harvest line in ETB per kg: the visitor's own, else the Commission's; null when neither. */
+export function cropPricePerKg(item: CropLineItem, config: CalculatorConfig | null): number | null {
+  if (item.price === undefined) return officialCropPrice(config, item.crop);
+  if (item.price.trim() === "") return null;
+  const parsed = parseAmount(item.price);
+  return parsed.error || parsed.value <= 0 ? null : parsed.value / KG_PER_UNIT[item.unit];
 }
 
 /** The price used for one animal of this kind: the visitor's own, else the Commission's; null when neither. */
@@ -286,9 +306,9 @@ export function ruleFigures(config: CalculatorConfig | null): RuleFigures {
     silverNisabGrams: config?.nisab.silverGrams ?? FALLBACK_RULES.silverNisabGrams,
     agriNisabKg: config?.crops.nisabKg ?? FALLBACK_RULES.agriNisabKg,
     rainFedRate: config?.crops.rainFedRate ?? FALLBACK_RULES.rainFedRate,
-    mixedRate: FALLBACK_RULES.mixedRate,
+    mixedRate: config?.crops.mixedRate ?? FALLBACK_RULES.mixedRate,
     irrigatedRate: config?.crops.irrigatedRate ?? FALLBACK_RULES.irrigatedRate,
-    rikazRate: FALLBACK_RULES.rikazRate,
+    rikazRate: config?.rikaz?.rate ?? FALLBACK_RULES.rikazRate,
   };
 }
 
@@ -440,7 +460,7 @@ function activeFields(form: CalculatorState, has: (key: CategoryKey) => boolean)
     ...(has("propertyStocks")
       ? [form.rentalSavings, form.stocksTradingValue, form.stocksDividendCash, form.longTermCompanyZakatableAssets]
       : []),
-    ...(has("agriculture") ? form.cropItems.flatMap((item) => [item.amount, item.price]) : []),    ...(has("rikazMinerals") ? [form.rikazValue, form.mineralsValue] : []),
+    ...(has("agriculture") ? form.cropItems.flatMap((item) => [item.amount, item.price ?? ""]) : []),    ...(has("rikazMinerals") ? [form.rikazValue, form.mineralsValue] : []),
     ...(has("debts") ? [form.shortTermPersonalLiabilities, form.upcomingLoanPayments12m] : []),
   ].map((value): [string, boolean] => [value, false]);
   if (has("livestock")) {
@@ -512,8 +532,7 @@ export function calculateZakat(
       const rate = irrigationRate(item.method, rules);
       const meets = (kgByCrop.get(nisabKey(item)) ?? 0) >= rules.agriNisabKg;
       const dueKg = meets ? kg * rate : 0;
-      const price = parseAmount(item.price);
-      const pricePerKg = !price.error && price.value > 0 ? price.value / KG_PER_UNIT[item.unit] : null;
+      const pricePerKg = cropPricePerKg(item, config);
       return {
         id: item.id,
         crop: item.crop,
