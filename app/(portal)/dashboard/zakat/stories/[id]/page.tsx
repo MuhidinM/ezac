@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
 import { Archive, Send } from "lucide-react";
 
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api/client";
+import { idempotencyHeader, keepKeyAfter, newIdempotencyKey } from "@/lib/api/idempotency";
 import { ApiError, errorMessage, fieldErrorMap, isVersionConflict } from "@/lib/api/errors";
 import { useResource } from "@/lib/api/use-resource";
 import { formatDateTime } from "@/lib/beneficiary/format";
@@ -109,15 +110,20 @@ export default function StoryEditorPage() {
 function StoryEditor() {
   const params = useParams<{ id: string }>();
   const isNew = params.id === "new";
-  // No single-story admin endpoint; the list is small and unpaginated.
-  const { data, error, reload } = useResource<StoryAdmin[]>(isNew ? null : API);
+  // GET /admin/impact/stories/{id} (B10). Before that release it answers 404,
+  // so a 404 falls back to finding the story in the list (also "not found" for real).
+  const single = useResource<StoryAdmin>(isNew ? null : `${API}/${encodeURIComponent(params.id)}`);
+  const useList = single.error?.status === 404;
+  const list = useResource<StoryAdmin[]>(useList ? API : null);
   const [notice, setNotice] = useState<string | null>(null);
-  useBreadcrumbLabel(isNew ? "New story" : data?.find((item) => item.id === params.id)?.title);
+  const story = useList ? list.data?.find((item) => item.id === params.id) : single.data;
+  useBreadcrumbLabel(isNew ? "New story" : story?.title);
+  const error = useList ? list.error : single.error;
+  const reload = () => (useList ? list.reload() : single.reload());
 
   if (isNew) return <StoryForm initial={EMPTY} notice={null} onNotice={setNotice} />;
   if (error) return <ErrorAlert error={error} onRetry={reload} />;
-  if (!data) return <p className="text-sm text-black/60">Loading…</p>;
-  const story = data.find((item) => item.id === params.id);
+  if (useList ? !list.data : !single.data) return <p className="text-sm text-black/60">Loading…</p>;
   if (!story) return <InlineAlert>Story not found.</InlineAlert>;
   return (
     <StoryForm
@@ -145,6 +151,7 @@ function StoryForm({
   onChanged?: () => void;
 }) {
   const router = useRouter();
+  const createKey = useRef(newIdempotencyKey());
   const regions = useResource<{ code: string; name: string }[]>("/bff/zakat-admin/impact/regions");
   const [form, setForm] = useState<Form>(initial);
   const [error, setError] = useState<string | null>(null);
@@ -182,7 +189,10 @@ function StoryForm({
       const saved = await apiClient<StoryAdmin>(story ? `${API}/${encodeURIComponent(story.id)}` : API, {
         method: story ? "PUT" : "POST",
         body: JSON.stringify(toBody(form, story?.version)),
+        // A retry after a timeout must not create the story twice (B8).
+        headers: story ? undefined : idempotencyHeader(createKey.current),
       });
+      createKey.current = newIdempotencyKey();
       if (!story) {
         router.replace(`/dashboard/zakat/stories/${encodeURIComponent(saved.id)}`);
         return;
@@ -190,6 +200,7 @@ function StoryForm({
       onNotice("Changes saved.");
       onChanged?.();
     } catch (saveError) {
+      if (!keepKeyAfter(saveError)) createKey.current = newIdempotencyKey();
       if (isVersionConflict(saveError)) {
         setConflict(true);
         return;
