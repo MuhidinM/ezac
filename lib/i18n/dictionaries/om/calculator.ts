@@ -148,6 +148,7 @@ const calculator: Messages<typeof en> = {
     loading: "Gatii ifaa fe'aa jira...",
     errorExcluded: "{error} Hanga gatiin ifaa fe'amutti, warqee fi meetiin waliigala keessatti hin herregaman.",
     pricesAsOf: "Gatii yeroo {date}",
+    manualUntil: "Harkaan galfame, hanga {date} hojii irra jira",
     usdEtb: "USD/ETB {rate}",
     metalLabel: "Sibiila #{number}",
     metals: { gold: "Warqee", silver: "Meetii" },

@@ -27,8 +27,9 @@ function explain(error: unknown): never {
 /**
  * The household's app login: create it (households registered without one),
  * reset its password, or correct its login phone. ADMIN, and BRANCH for its
- * own households. The detail does not say whether a login exists, so both
- * create and reset are offered and the backend's 409 says which applies.
+ * own households. The detail says whether a login exists (hasLogin), so only
+ * the action that applies is offered; an older backend that doesn't say gets
+ * both, and its 409 says which applies.
  */
 export function HouseholdLoginPanel({
   household,
@@ -38,6 +39,8 @@ export function HouseholdLoginPanel({
   onChanged: (updated: HouseholdDetail) => void;
 }) {
   const base = `/bff/backoffice/beneficiaries/${encodeURIComponent(household.id)}`;
+  // null/undefined: an older backend that doesn't say.
+  const loginKnown = typeof household.hasLogin === "boolean" ? household.hasLogin : undefined;
   const [action, setAction] = useState<Action | null>(null);
   const [credentials, setCredentials] = useState<HouseholdCredentials | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -55,6 +58,7 @@ export function HouseholdLoginPanel({
   async function createLogin() {
     const result = await apiClient<HouseholdCredentials>(`${base}/create-login`, { method: "POST" }).catch(explain);
     setCredentials(result);
+    if (result) onChanged({ ...household, hasLogin: true, loginUsername: result.username });
   }
 
   async function resetPassword() {
@@ -79,21 +83,34 @@ export function HouseholdLoginPanel({
       <div className="space-y-3">
         {notice ? <InlineAlert tone="success">{notice}</InlineAlert> : null}
         <p className="text-sm text-black/60">
-          Login phone: <span className="text-navy tabular-nums">{household.phone ?? "none"}</span>
+          {loginKnown === false ? (
+            "No app login yet. Create one so the household can sign in."
+          ) : (
+            <>
+              Login phone:{" "}
+              <span className="text-navy tabular-nums">{household.loginUsername ?? household.phone ?? "none"}</span>
+            </>
+          )}
         </p>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" onClick={() => open("create")}>
-            <UserPlus />
-            Create login
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => open("reset")}>
-            <KeyRound />
-            Reset password
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => open("phone")}>
-            <Phone />
-            Change login phone
-          </Button>
+          {loginKnown !== true ? (
+            <Button size="sm" variant={loginKnown === false ? "default" : "outline"} onClick={() => open("create")}>
+              <UserPlus />
+              Create login
+            </Button>
+          ) : null}
+          {loginKnown !== false ? (
+            <>
+              <Button size="sm" variant="outline" onClick={() => open("reset")}>
+                <KeyRound />
+                Reset password
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => open("phone")}>
+                <Phone />
+                Change login phone
+              </Button>
+            </>
+          ) : null}
         </div>
       </div>
 

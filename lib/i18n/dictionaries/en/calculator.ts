@@ -168,6 +168,7 @@ const calculator = {
     /** Shown when the official rates failed: the metals can't be valued, so the total leaves them out. */
     errorExcluded: "{error} Gold and silver are left out of the total until the official prices load.",
     pricesAsOf: "Prices as of {date}",
+    manualUntil: "Entered by hand, in force until {date}",
     usdEtb: "USD/ETB {rate}",
     metalLabel: "Metal #{number}",
     metals: { gold: "Gold", silver: "Silver" },

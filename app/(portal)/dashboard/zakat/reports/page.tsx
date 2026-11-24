@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api/client";
+import { idempotencyHeader, keepIdempotencyKey, newIdempotencyKey } from "@/lib/api/idempotency";
 import { errorMessage, isVersionConflict } from "@/lib/api/errors";
 import { useResource } from "@/lib/api/use-resource";
 import { formatBytes } from "@/lib/backoffice/format";
@@ -218,6 +219,7 @@ function ReportDialog({
   onSaved: (created: boolean) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const createKey = useRef(newIdempotencyKey());
   const [title, setTitle] = useState(report?.title ?? "");
   const [period, setPeriod] = useState(report?.period ?? "");
   const [summary, setSummary] = useState(report?.summary ?? "");
@@ -265,7 +267,10 @@ function ReportDialog({
           // An edit sends the loaded version; a stale one is refused (409).
           ...(report ? { version: report.version } : {}),
         }),
+        // A retry after a timeout must not create the report twice (B8).
+        headers: report ? undefined : idempotencyHeader(createKey.current),
       });
+      createKey.current = newIdempotencyKey();
       setTitle("");
       setPeriod("");
       setSummary("");
@@ -274,6 +279,7 @@ function ReportDialog({
       onOpenChange(false);
       onSaved(!report);
     } catch (saveError) {
+      if (!keepIdempotencyKey(saveError)) createKey.current = newIdempotencyKey();
       if (isVersionConflict(saveError)) {
         setConflict(true);
         return;

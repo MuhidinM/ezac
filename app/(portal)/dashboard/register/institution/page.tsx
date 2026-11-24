@@ -1,7 +1,5 @@
-import { InstitutionRegistrationUnavailable } from "./unavailable";
+import { InstitutionDetailsForm } from "@/components/registration/institution-details-form";
 
-// Was <NgoRegistrationWizard /> from "@/components/ngo-registration/ngo-registration-wizard".
-// It is switched off until it submits to the backend; see ./unavailable.tsx.
 export default function InstitutionRegisterPage() {
-  return <InstitutionRegistrationUnavailable />;
+  return <InstitutionDetailsForm />;
 }

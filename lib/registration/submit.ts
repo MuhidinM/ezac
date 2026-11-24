@@ -33,16 +33,4 @@ export function accountExists(error: unknown): { field: string; beneficiaryId: s
   return { field, beneficiaryId: beneficiaryId || null };
 }
 
-/**
- * Whether a retry after this error must reuse the same Idempotency-Key. The
- * backend keeps only successful answers, so after a clear refusal (4xx) the
- * officer may fix the form and send it as a new attempt. When the answer was
- * lost (offline, timeout, 5xx) or the first request is still running, the
- * household may already exist: the same key makes the retry return it
- * instead of registering it twice.
- */
-export function keepIdempotencyKey(error: unknown): boolean {
-  if (!(error instanceof ApiError)) return true;
-  if (error.code === "IDEMPOTENCY_IN_PROGRESS") return true;
-  return error.status === 0 || error.status >= 500;
-}
+export { keepIdempotencyKey } from "@/lib/api/idempotency";
