@@ -156,11 +156,12 @@ export function LoginForm() {
         />
       </label>
 
-      <label className="block">
+      <label htmlFor="login-password" className="block">
         <span className="mb-2 block text-xs uppercase tracking-[0.12em] text-black/60">
           Password
         </span>
         <PasswordInput
+          id="login-password"
           ref={passwordInput}
           name="password"
           autoComplete="current-password"

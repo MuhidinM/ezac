@@ -122,11 +122,12 @@ export function ChangePasswordForm() {
         </div>
       ) : null}
 
-      <label className="block">
+      <label htmlFor="currentPassword" className="block">
         <span className="mb-2 block text-xs uppercase tracking-[0.12em] text-black/60">
           Current password
         </span>
         <PasswordInput
+          id="currentPassword"
           name="currentPassword"
           autoComplete="current-password"
           value={currentPassword}
@@ -136,11 +137,12 @@ export function ChangePasswordForm() {
         />
       </label>
 
-      <label className="block">
+      <label htmlFor="newPassword" className="block">
         <span className="mb-2 block text-xs uppercase tracking-[0.12em] text-black/60">
           New password
         </span>
         <PasswordInput
+          id="newPassword"
           name="newPassword"
           autoComplete="new-password"
           value={newPassword}
@@ -155,11 +157,12 @@ export function ChangePasswordForm() {
         </span>
       </label>
 
-      <label className="block">
+      <label htmlFor="confirmNewPassword" className="block">
         <span className="mb-2 block text-xs uppercase tracking-[0.12em] text-black/60">
           Confirm new password
         </span>
         <PasswordInput
+          id="confirmNewPassword"
           name="confirmNewPassword"
           autoComplete="new-password"
           value={confirmNewPassword}
