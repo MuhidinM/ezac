@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, UserRound, type LucideIcon } from "lucide-react";
+import { ArrowRight, Building2, UserRound, type LucideIcon } from "lucide-react";
 
 import { RegistrationShell } from "@/components/registration/registration-shell";
 import { Button } from "@/components/ui/button";
@@ -27,14 +27,13 @@ const OPTIONS: {
     icon: UserRound,
     href: "/dashboard/register/manual",
   },
-  // While "Individual" is the only option, the branch step skips this page
-  // (FIRST_DETAILS_STEP in lib/registration/constants.ts); point it back here
-  // when a second option returns.
-  // "Institution" is hidden until the NGO wizard (components/ngo-registration)
-  // submits to the backend: today it only logs the application in the browser
-  // and shows a made-up reference number, so the application is lost. Restore
-  // the option (type "institution", href "/dashboard/register/institution")
-  // together with the pages under app/dashboard/register/institution.
+  {
+    type: "institution",
+    title: "Institution",
+    description: "A company, NGO, cooperative or government body. Its registration documents are uploaded next.",
+    icon: Building2,
+    href: "/dashboard/register/institution",
+  },
 ];
 
 export function WelcomeStep() {
@@ -92,10 +91,6 @@ export function WelcomeStep() {
               </button>
             ))}
           </div>
-
-          <p className="text-sm text-black/60">
-            Institutions (NGOs and organisations) can&apos;t be registered here yet.
-          </p>
 
           <div className="flex flex-wrap gap-2 border-t border-black/[0.06] pt-5">
             <Button variant="outline" asChild>

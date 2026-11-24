@@ -25,7 +25,7 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api/client";
-import { idempotencyHeader, keepKeyAfter, newIdempotencyKey } from "@/lib/api/idempotency";
+import { idempotencyHeader, keepIdempotencyKey, newIdempotencyKey } from "@/lib/api/idempotency";
 import { ApiError, errorMessage, fieldErrorMap, isVersionConflict } from "@/lib/api/errors";
 import { useResource } from "@/lib/api/use-resource";
 import { formatEtb } from "@/lib/backoffice/format";
@@ -261,7 +261,7 @@ function CauseForm({
       onNotice("Changes saved.");
       onReplaced?.(saved);
     } catch (saveError) {
-      if (!keepKeyAfter(saveError)) createKey.current = newIdempotencyKey();
+      if (!keepIdempotencyKey(saveError)) createKey.current = newIdempotencyKey();
       if (isVersionConflict(saveError)) {
         setConflict(true);
         return;

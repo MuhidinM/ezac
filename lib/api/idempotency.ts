@@ -1,3 +1,5 @@
+import { ApiError } from "@/lib/api/errors";
+
 /**
  * A fresh Idempotency-Key for one create action. Keep the key for the whole
  * attempt (including retries after a timeout) and make a new one only when the
@@ -10,15 +12,17 @@ export function newIdempotencyKey(): string {
 }
 
 /**
- * Whether a failed create may be retried with the same key: no answer came
- * (offline, gateway timeout) or the first try is still running. Any other
- * answer is final for that key, and a retry after the user changes the form
- * would be refused as IDEMPOTENCY_KEY_REUSED, so a new key is needed.
+ * Whether a retry after this error must reuse the same Idempotency-Key. The
+ * backend keeps only successful answers, so after a clear refusal (4xx) the
+ * user may fix the form and send it as a new attempt. When the answer was
+ * lost (offline, timeout, 5xx) or the first request is still running, the
+ * record may already exist: the same key makes the retry return it
+ * instead of creating it twice.
  */
-export function keepKeyAfter(error: unknown): boolean {
-  if (!error || typeof error !== "object" || !("status" in error)) return true;
-  const { status, code } = error as { status: unknown; code?: unknown };
-  return status === 0 || status === 502 || status === 503 || status === 504 || code === "IDEMPOTENCY_IN_PROGRESS";
+export function keepIdempotencyKey(error: unknown): boolean {
+  if (!(error instanceof ApiError)) return true;
+  if (error.code === "IDEMPOTENCY_IN_PROGRESS") return true;
+  return error.status === 0 || error.status >= 500;
 }
 
 /** The header to send with a create call: `apiClient(path, { headers: idempotencyHeader(key) })`. */

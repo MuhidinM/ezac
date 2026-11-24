@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api/client";
-import { idempotencyHeader, keepKeyAfter, newIdempotencyKey } from "@/lib/api/idempotency";
+import { idempotencyHeader, keepIdempotencyKey, newIdempotencyKey } from "@/lib/api/idempotency";
 import { errorMessage, isVersionConflict } from "@/lib/api/errors";
 import { useResource } from "@/lib/api/use-resource";
 import { formatBytes } from "@/lib/backoffice/format";
@@ -279,7 +279,7 @@ function ReportDialog({
       onOpenChange(false);
       onSaved(!report);
     } catch (saveError) {
-      if (!keepKeyAfter(saveError)) createKey.current = newIdempotencyKey();
+      if (!keepIdempotencyKey(saveError)) createKey.current = newIdempotencyKey();
       if (isVersionConflict(saveError)) {
         setConflict(true);
         return;
