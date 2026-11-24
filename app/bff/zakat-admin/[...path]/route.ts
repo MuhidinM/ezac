@@ -18,6 +18,7 @@ import { expirePublicZakatData, expirePublicZakatDataOnStandby } from "@/lib/zak
  * | home               | admin  | Zakat settings, home adjustment (admin)                      |
  * | impact             | admin  | Impact regions, stories and reports (admin)                  |
  * | livestock-prices   | admin  | Livestock prices on the Prices page (admin)                  |
+ * | crop-prices        | admin  | Crop prices on the Prices page (admin)                       |
  * | audit-log          | admin  | Content audit log (admin)                                    |
  *
  * After a successful change the public pages and the public calculator config
@@ -37,6 +38,7 @@ const proxy = createProxy({
     home: "admin",
     impact: "admin",
     "livestock-prices": "admin",
+    "crop-prices": "admin",
     "audit-log": "admin",
   },
 });
