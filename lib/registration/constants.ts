@@ -30,14 +30,11 @@ export const GENDER_OPTIONS: { value: Gender; label: string }[] = [
   { value: "female", label: "Female" },
 ];
 
-/**
- * Stepper labels for staff registration, the same on every page. The type
- * step is skipped while "Individual" is the only type (see welcome-step.tsx).
- */
+/** Stepper labels for registering an individual, the same on every page. */
 export const REGISTRATION_STEPS = ["Branch", "Details", "Login"];
 
-/** Where the branch step goes next while individuals are the only type. */
-export const FIRST_DETAILS_STEP = "/dashboard/register/manual";
+/** Where the branch step goes next: the choice between an individual and an institution. */
+export const FIRST_DETAILS_STEP = "/dashboard/register/type";
 
 export const PHONE_PREFIX = "+251";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
 import { Lock, Send } from "lucide-react";
 
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api/client";
+import { idempotencyHeader, keepIdempotencyKey, newIdempotencyKey } from "@/lib/api/idempotency";
 import { ApiError, errorMessage, fieldErrorMap, isVersionConflict } from "@/lib/api/errors";
 import { useResource } from "@/lib/api/use-resource";
 import { formatEtb } from "@/lib/backoffice/format";
@@ -184,6 +185,7 @@ function CauseForm({
   onReload?: () => void;
 }) {
   const router = useRouter();
+  const createKey = useRef(newIdempotencyKey());
   const [form, setForm] = useState<Form>(initial);
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
@@ -248,7 +250,10 @@ function CauseForm({
         body: JSON.stringify(
           toBody(form, regionCodeFor(form.region), cause?.version),
         ),
+        // A retry after a timeout must not create the cause twice (B8).
+        headers: cause ? undefined : idempotencyHeader(createKey.current),
       });
+      createKey.current = newIdempotencyKey();
       if (!cause) {
         router.replace(`/dashboard/zakat/causes/${encodeURIComponent(saved.id)}`);
         return;
@@ -256,6 +261,7 @@ function CauseForm({
       onNotice("Changes saved.");
       onReplaced?.(saved);
     } catch (saveError) {
+      if (!keepIdempotencyKey(saveError)) createKey.current = newIdempotencyKey();
       if (isVersionConflict(saveError)) {
         setConflict(true);
         return;

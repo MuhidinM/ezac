@@ -29,6 +29,10 @@ export type HouseholdDetail = BeneficiaryDetail & {
   score?: number | null;
   maxScore?: number | null;
   riskCategory?: RiskCategory | null;
+  /** Whether the household has an app login (B4): true → Reset password, false → Create login. Missing on older backends. */
+  hasLogin?: boolean | null;
+  /** The login username (the household phone) when hasLogin is true. */
+  loginUsername?: string | null;
   /**
    * Set by our BFF (not the backend) when a PATCH answered 202: the bank
    * change was stored as a request for a second ADMIN. The backend's message.

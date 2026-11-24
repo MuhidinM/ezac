@@ -156,6 +156,7 @@ const calculator: Messages<typeof en> = {
     loading: "جارٍ تحميل الأسعار الرسمية…",
     errorExcluded: "{error} يُستبعَد الذهب والفضة من المجموع إلى أن تُحمَّل الأسعار الرسمية.",
     pricesAsOf: "الأسعار بتاريخ {date}",
+    manualUntil: "أُدخلت يدويًا، وتبقى سارية حتى {date}",
     usdEtb: "USD/ETB {rate}",
     metalLabel: "المعدن رقم {number}",
     metals: { gold: "ذهب", silver: "فضة" },

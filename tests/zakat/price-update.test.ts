@@ -7,6 +7,9 @@ import {
   karatOrderProblems,
   largeChanges,
   livestockUpdate,
+  unitPriceUpdate,
+  ageOrderWarnings,
+  CROP_PRICE_MAX,
   manualUntilProblem,
   priceErrorField,
   type PriceInputs,
@@ -136,17 +139,42 @@ describe("tooManyDecimals", () => {
   });
 });
 
+describe("unitPriceUpdate", () => {
+  it("refuses prices above the ceiling", () => {
+    const result = unitPriceUpdate(["teff", "maize"], { teff: "100001", maize: "100000" }, {}, CROP_PRICE_MAX);
+    expect(result.body).toEqual({ maize: 100000 });
+    expect(Object.keys(result.errors)).toEqual(["teff"]);
+  });
+});
+
 describe("livestockUpdate", () => {
   const now = { sheep: 9000, goat: 7000, cattle: 60000, camel: 180000 };
 
   it("sends only changed animals", () => {
     const result = livestockUpdate({ sheep: "9500", goat: "7000", cattle: "", camel: "185000" }, now);
-    expect(result).toEqual({ body: { sheep: 9500, camel: 185000 }, errors: {} });
+    expect(result).toEqual({ body: { sheep: 9500, camel: 185000 }, errors: {}, large: [] });
+  });
+
+  it("prices the animals due too, and flags moves above 15%", () => {
+    const result = livestockUpdate({ sheep: "11000", hiqqah: "200000", tabi: "" }, now);
+    expect(result.body).toEqual({ sheep: 11000, hiqqah: 200000 });
+    // A first price has nothing to compare with, so only sheep needs confirming.
+    expect(result.large).toEqual([{ key: "sheep", before: 9000, after: 11000 }]);
   });
 
   it("refuses 0, negatives and more than 2 decimals", () => {
     const result = livestockUpdate({ sheep: "0", goat: "-5", cattle: "60000.123", camel: "180000" }, now);
     expect(result.body).toEqual({});
     expect(Object.keys(result.errors).sort()).toEqual(["cattle", "goat", "sheep"]);
+  });
+});
+
+describe("ageOrderWarnings", () => {
+  it("warns when an older animal costs less than a younger one", () => {
+    const order = [["bint_makhad", "bint_labun", "hiqqah"]];
+    expect(ageOrderWarnings(order, { bint_makhad: 90000, bint_labun: 120000, hiqqah: 100000 }, { hiqqah: "Hiqqah", bint_labun: "Bint Labun" })).toEqual([
+      "Hiqqah is priced below Bint Labun, which is younger.",
+    ]);
+    expect(ageOrderWarnings(order, { bint_makhad: 90000, hiqqah: 100000 }, {})).toEqual([]);
   });
 });

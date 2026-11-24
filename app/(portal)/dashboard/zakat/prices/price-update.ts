@@ -166,32 +166,85 @@ export function manualUntilProblem(value: string, today: string): string | null 
   return null;
 }
 
+/**
+ * Livestock prices (A2): the species averages, and each animal that can be
+ * due. Until an animal due has a price, the calculator uses its species average.
+ */
 export const ANIMALS = [
-  { key: "sheep", label: "Sheep" },
-  { key: "goat", label: "Goat" },
-  { key: "cattle", label: "Cattle (one head)" },
-  { key: "camel", label: "Camel" },
+  { key: "sheep", label: "Sheep", group: "average" },
+  { key: "goat", label: "Goat", group: "average" },
+  { key: "cattle", label: "Cattle (one head)", group: "average" },
+  { key: "camel", label: "Camel", group: "average" },
+  { key: "tabi", label: "Tabi' (1-year-old calf)", group: "cattleDue" },
+  { key: "musinnah", label: "Musinnah (2-year-old cow)", group: "cattleDue" },
+  { key: "bint_makhad", label: "Bint Makhad (1-year-old female camel)", group: "camelDue" },
+  { key: "bint_labun", label: "Bint Labun (2-year-old female camel)", group: "camelDue" },
+  { key: "hiqqah", label: "Hiqqah (3-year-old female camel)", group: "camelDue" },
+  { key: "jadhaah", label: "Jadh'ah (4-year-old female camel)", group: "camelDue" },
 ] as const;
 
 export type Animal = (typeof ANIMALS)[number]["key"];
 
+/** zakat-engine's ceiling for one crop price, in ETB per kg (A1). */
+export const CROP_PRICE_MAX = 100_000;
+
+export type UnitPriceChange<K extends string> = { key: K; before: number; after: number };
+
 /**
- * The PUT /admin/livestock-prices body (only the animals whose price changed)
- * and a message per animal whose value can't be sent. An empty field keeps
- * its price.
+ * The PUT body for a set of unit prices (livestock, crops): only the keys
+ * whose price changed, a message per key whose value can't be sent, and the
+ * changes above 15% that need `confirmLargeChange: true`. An empty field
+ * keeps its price.
  */
-export function livestockUpdate(
-  values: Record<Animal, string>,
-  current: Partial<Record<Animal, number>>,
-): { body: Partial<Record<Animal, number>>; errors: Partial<Record<Animal, string>> } {
-  const body: Partial<Record<Animal, number>> = {};
-  const errors: Partial<Record<Animal, string>> = {};
-  for (const { key } of ANIMALS) {
-    const price = parsePrice(values[key]);
+export function unitPriceUpdate<K extends string>(
+  keys: readonly K[],
+  values: Partial<Record<K, string>>,
+  current: Partial<Record<K, number>>,
+  max?: number,
+): { body: Partial<Record<K, number>>; errors: Partial<Record<K, string>>; large: UnitPriceChange<K>[] } {
+  const body: Partial<Record<K, number>> = {};
+  const errors: Partial<Record<K, string>> = {};
+  const large: UnitPriceChange<K>[] = [];
+  for (const key of keys) {
+    const text = values[key] ?? "";
+    const price = parsePrice(text);
     if (price === null) continue;
     if (Number.isNaN(price)) errors[key] = "Enter a price above 0.";
-    else if (tooManyDecimals(values[key])) errors[key] = "Use at most 2 decimals.";
-    else if (price !== current[key]) body[key] = price;
+    else if (tooManyDecimals(text)) errors[key] = "Use at most 2 decimals.";
+    else if (max !== undefined && price > max) errors[key] = `Enter at most ${max.toLocaleString("en")}.`;
+    else if (price !== current[key]) {
+      body[key] = price;
+      const before = current[key];
+      if (before && Math.abs(price - before) / before > LARGE_CHANGE) large.push({ key, before, after: price });
+    }
   }
-  return { body, errors };
+  return { body, errors, large };
+}
+
+/** Livestock prices: unitPriceUpdate over the ten animals. */
+export function livestockUpdate(values: Partial<Record<Animal, string>>, current: Partial<Record<Animal, number>>) {
+  return unitPriceUpdate(
+    ANIMALS.map(({ key }) => key),
+    values,
+    current,
+  );
+}
+
+/** "Hiqqah is priced below Bint Labun", for each older animal cheaper than a younger one. */
+export function ageOrderWarnings(
+  orders: readonly (readonly string[])[],
+  prices: Record<string, number | undefined>,
+  labelOf: Record<string, string>,
+): string[] {
+  return orders.flatMap((order) =>
+    order.flatMap((older, index) =>
+      order.slice(0, index).flatMap((younger) => {
+        const olderPrice = prices[older];
+        const youngerPrice = prices[younger];
+        return olderPrice != null && youngerPrice != null && olderPrice < youngerPrice
+          ? [`${labelOf[older] ?? older} is priced below ${labelOf[younger] ?? younger}, which is younger.`]
+          : [];
+      }),
+    ),
+  );
 }

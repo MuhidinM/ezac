@@ -7,6 +7,8 @@ import {
   INITIAL_STATE,
   calculateZakat,
   isPriceStale,
+  karatChoices,
+  manualPricesInForce,
   parseAmount,
   ruleFigures,
   type CalculatorState,
@@ -468,6 +470,25 @@ describe("optional config fields the backend may add (final request A1-A3, A7, A
   it("treats rules without prices as no config", () => {
     expect(readCalculatorConfig({ ...UAT_CALCULATOR_CONFIG, pricesPublished: false })).toBeNull();
     expect(readCalculatorConfig({ ...UAT_CALCULATOR_CONFIG, pricesPublished: true })).not.toBeNull();
+  });
+
+  it("offers only the gold karats that are priced, keeping the one already chosen", () => {
+    const priced = readCalculatorConfig({ ...UAT_CALCULATOR_CONFIG, goldKarats: [24, 22, 21, 18, 14, "x", 99] });
+    expect(priced?.goldKarats).toEqual([24, 22, 21, 18, 14]);
+    expect(karatChoices(priced, "gold", 24)).toEqual([24, 22, 21, 18, 14]);
+    expect(karatChoices(priced, "gold", 20)).toEqual([24, 22, 21, 20, 18, 14]);
+    expect(karatChoices(priced, "silver", 24)).toHaveLength(8);
+    expect(karatChoices(config, "gold", 24)).toHaveLength(8);
+  });
+
+  it("knows when hand-entered prices are in force, by the Addis Ababa date", () => {
+    const read = readCalculatorConfig({ ...UAT_CALCULATOR_CONFIG, manualUntil: "2026-11-30" });
+    expect(read?.manualUntil).toBe("2026-11-30");
+    expect(readCalculatorConfig({ ...UAT_CALCULATOR_CONFIG, manualUntil: null })?.manualUntil).toBeUndefined();
+    // 30 Nov 22:00 UTC is already 1 December in Addis Ababa.
+    expect(manualPricesInForce("2026-11-30", Date.parse("2026-11-30T20:59:00Z"))).toBe(true);
+    expect(manualPricesInForce("2026-11-30", Date.parse("2026-11-30T22:00:00Z"))).toBe(false);
+    expect(manualPricesInForce(undefined, Date.parse("2026-11-30T00:00:00Z"))).toBe(false);
   });
 
   it("uses the served rates", () => {

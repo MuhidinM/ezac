@@ -12,6 +12,7 @@ import { Panel } from "@/components/dashboard/panel";
 import { RangeSelect } from "@/components/dashboard/range-select";
 import { RequireRole } from "@/components/dashboard/require-role";
 import { TableMessageRow, TableSkeletonRows } from "@/components/dashboard/table-states";
+import { CropPricesPanel } from "@/components/zakat/crop-prices-panel";
 import { LivestockPricesPanel } from "@/components/zakat/livestock-prices-panel";
 import { enteredByLabel, PriceStatusPanel, type PriceValues } from "@/components/zakat/price-status-panel";
 import { Badge } from "@/components/ui/badge";
@@ -231,6 +232,8 @@ function Prices() {
       </div>
 
       <LivestockPricesPanel />
+
+      <CropPricesPanel />
 
       <Panel
         title="Gold and silver per gram"

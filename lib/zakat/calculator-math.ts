@@ -332,6 +332,21 @@ export function irrigationRate(mode: IrrigationMode, rules: RuleFigures) {
 export const STALE_PRICE_HOURS = 48;
 
 /** True when the official prices are more than STALE_PRICE_HOURS old at `now`; false when the date is unreadable. */
+/** The karats to offer for a metal: gold only those zakat-engine prices, plus the one already chosen. */
+export function karatChoices(config: CalculatorConfig | null, metal: MetalType, current: Karat): Karat[] {
+  const priced = metal === "gold" ? config?.goldKarats : undefined;
+  if (!priced) return [...KARATS];
+  return KARATS.filter((karat) => karat === current || priced.includes(karat));
+}
+
+/** True while hand-entered prices are in force: their age is then expected, not a warning. */
+export function manualPricesInForce(manualUntil: string | undefined, now: number) {
+  if (!manualUntil) return false;
+  // Today's date in Addis Ababa (UTC+3, no daylight saving).
+  const today = new Date(now + 3 * 3_600_000).toISOString().slice(0, 10);
+  return today <= manualUntil;
+}
+
 export function isPriceStale(pricesAsOf: string | null | undefined, now: number, maxHours = STALE_PRICE_HOURS) {
   const asOf = pricesAsOf ? Date.parse(pricesAsOf) : Number.NaN;
   return Number.isFinite(asOf) && now - asOf > maxHours * 3_600_000;
