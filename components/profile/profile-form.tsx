@@ -11,6 +11,7 @@ import { Panel } from "@/components/dashboard/panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { apiClient } from "@/lib/api/client";
 import { ApiError, errorMessage } from "@/lib/api/errors";
 import type { AppRole, MeProfile } from "@/lib/api/types";
@@ -267,13 +268,13 @@ function ChangePassword() {
           <InlineAlert>{error}</InlineAlert>
         ) : null}
         <FormField label="Current password" htmlFor="currentPassword" required>
-          <Input id="currentPassword" type="password" autoComplete="current-password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required />
+          <PasswordInput id="currentPassword" autoComplete="current-password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required />
         </FormField>
         <FormField label="New password" htmlFor="newPassword" hint={STAFF_PASSWORD_HINT} required>
-          <Input id="newPassword" type="password" autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} minLength={10} required />
+          <PasswordInput id="newPassword" autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} minLength={10} required />
         </FormField>
         <FormField label="Confirm new password" htmlFor="confirmNewPassword" required>
-          <Input id="confirmNewPassword" type="password" autoComplete="new-password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} minLength={10} required />
+          <PasswordInput id="confirmNewPassword" autoComplete="new-password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} minLength={10} required />
         </FormField>
         <div className="flex justify-end border-t border-black/[0.06] pt-4">
           <Button type="submit" disabled={isSaving}>

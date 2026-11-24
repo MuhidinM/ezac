@@ -11,6 +11,8 @@ import {
   ruleFigures,
   type CalculatorState,
   type CategoryKey,
+  emptyCropItem,
+  type LivestockMode,
   type ZakatResult,
 } from "@/lib/zakat/calculator-math";
 import { livestockDue } from "@/lib/zakat/calculator-config";
@@ -21,23 +23,71 @@ import golden from "./fixtures/calculator-golden.json";
 
 const config = readCalculatorConfig(UAT_CALCULATOR_CONFIG) as CalculatorConfig;
 
+/**
+ * The recorded cases come from the calculator with one harvest and one herd.
+ * Their form is turned into today's shape (one crop line, one herd) and the
+ * result back into theirs (livestockOwed), so the same sums are checked.
+ */
+type OldForm = Partial<CalculatorState> & {
+  cropsHarvestKg?: string;
+  irrigationMode?: "natural" | "mixed" | "artificial";
+  livestockMode?: LivestockMode;
+  livestockFreelyGrazing?: boolean;
+  livestockUsedForWork?: boolean;
+  sheepGoatCount?: string;
+  cattleCount?: string;
+  camelsCount?: string;
+};
 type GoldenCase = {
   config: "uat" | null;
   added: string[];
-  form: Partial<CalculatorState>;
-  expected: Omit<ZakatResult, "rules" | "deductibleLiabilities">;
+  form: OldForm;
+  expected: Record<string, unknown>;
 };
 const cases = golden.cases as GoldenCase[];
 
-const run = (item: Pick<GoldenCase, "added" | "form" | "config">) =>
-  calculateZakat({ ...INITIAL_STATE, ...item.form }, item.added as CategoryKey[], item.config ? config : null);
+const OLD_METHOD = { natural: "rain", mixed: "mixed", artificial: "irrigated" } as const;
+const OLD_COUNT = { sheepGoat: "sheepGoatCount", cattle: "cattleCount", camels: "camelsCount" } as const;
 
-/** The result without the fields the old code didn't return as such. */
-function comparable(result: ZakatResult) {
-  const { rules, deductibleLiabilities, ...rest } = result;
-  void rules;
-  void deductibleLiabilities;
-  return rest;
+function fromOldForm(form: OldForm): CalculatorState {
+  const {
+    cropsHarvestKg = "",
+    irrigationMode = "natural",
+    livestockMode = "sheepGoat",
+    livestockFreelyGrazing = true,
+    livestockUsedForWork = false,
+    sheepGoatCount,
+    cattleCount,
+    camelsCount,
+    ...rest
+  } = form;
+  void sheepGoatCount;
+  void cattleCount;
+  void camelsCount;
+  return {
+    ...INITIAL_STATE,
+    ...rest,
+    cropItems: [{ ...emptyCropItem("c"), crop: "teff", amount: cropsHarvestKg, unit: "kg", method: OLD_METHOD[irrigationMode] }],
+    herdsAdded: [livestockMode],
+    herds: {
+      ...INITIAL_STATE.herds,
+      [livestockMode]: {
+        count: form[OLD_COUNT[livestockMode]] ?? "",
+        freelyGrazing: livestockFreelyGrazing,
+        working: livestockUsedForWork ? (form[OLD_COUNT[livestockMode]] ?? "") : "",
+        give: "sheep",
+      },
+    },
+  };
+}
+
+const run = (item: Pick<GoldenCase, "added" | "form" | "config">) =>
+  calculateZakat(fromOldForm(item.form), item.added as CategoryKey[], item.config ? config : null);
+
+/** The result in the recorded shape: one herd's animals as livestockOwed, and only the recorded fields. */
+function comparable(result: ZakatResult, expected: Record<string, unknown>) {
+  const old: Record<string, unknown> = { ...result, livestockOwed: result.herds[0]?.owed ?? null };
+  return Object.fromEntries(Object.keys(expected).map((key) => [key, old[key]]));
 }
 
 describe("calculateZakat matches the calculator it was moved out of", () => {
@@ -48,7 +98,7 @@ describe("calculateZakat matches the calculator it was moved out of", () => {
 
   const withConfig = cases.map((item, index) => [index, item] as const).filter(([, item]) => item.config === "uat");
   it.each(withConfig)("official rates, case %i", (_, item) => {
-    expect(comparable(run(item))).toEqual(item.expected);
+    expect(comparable(run(item), item.expected)).toEqual(item.expected);
   });
 
   // Without the official rates the Nisab in birr is unknown (logic-public-1):
@@ -64,7 +114,7 @@ describe("calculateZakat matches the calculator it was moved out of", () => {
       silverGrossGrams: result.silverGrossGrams,
       silverFineGrams: result.silverFineGrams,
       agricultureDue: result.agricultureDue,
-      livestockOwed: result.livestockOwed,
+      livestockOwed: result.herds[0]?.owed ?? null,
       rikazDue: result.rikazDue,
       adjustedAnnualBase: result.adjustedAnnualBase,
       hasInputErrors: result.hasInputErrors,
@@ -201,20 +251,129 @@ describe("without the official rates", () => {
   });
 
   it("works out crops and livestock in kind", () => {
-    const result = noConfig(
-      { cropsHarvestKg: "1000", irrigationMode: "mixed", livestockMode: "camels", camelsCount: "130" },
+    const result = calculateZakat(
+      fromOldForm({ cropsHarvestKg: "1000", irrigationMode: "mixed", livestockMode: "camels", camelsCount: "130" }),
       ["agriculture", "livestock"],
+      null,
     );
     expect(result.agricultureDue).toBe(75);
-    expect(result.livestockOwed).toEqual({
+    expect(result.herds[0].owed).toEqual({
       items: [
         { kind: "bint_labun", count: 2 },
         { kind: "hiqqah", count: 1 },
       ],
     });
+    // No Commission prices and none typed: the animals can't be valued.
+    expect(result.herds[0].valueEtb).toBeNull();
+    expect(result.inKindUnpriced).toBe(true);
     expect(result.totalEtbDue).toBe(0);
     expect(result.somethingDue).toBe(true);
     expect(result.readyToPay).toBe(false);
+  });
+});
+
+describe("crops and livestock together, valued in birr", () => {
+  const herd = (count: string, more: Partial<CalculatorState["herds"]["camels"]> = {}) => ({
+    count,
+    freelyGrazing: true,
+    working: "",
+    give: "sheep" as const,
+    ...more,
+  });
+
+  it("counts every herd the visitor owns, each on its own table", () => {
+    const result = calculateZakat(
+      {
+        ...INITIAL_STATE,
+        herdsAdded: ["sheepGoat", "camels", "cattle"],
+        herds: { sheepGoat: herd("150"), camels: herd("50"), cattle: herd("29") },
+      },
+      ["livestock"],
+      config,
+    );
+    const [sheep, camels, cattle] = result.herds;
+    expect(sheep.animals).toEqual([{ kind: "sheep", count: 2, unitPrice: 9000, valueEtb: 18000 }]);
+    // Every camel age takes the Commission's one camel price for now.
+    expect(camels.animals).toEqual([{ kind: "hiqqah", count: 1, unitPrice: 180000, valueEtb: 180000 }]);
+    expect(cattle.owed).toBeNull();
+    expect(result.inKindValueEtb).toBe(198000);
+    expect(result.inKindUnpriced).toBe(false);
+    expect(result.grandTotalEtb).toBe(198000);
+  });
+
+  it("uses the visitor's own animal price over the Commission's", () => {
+    const result = calculateZakat(
+      { ...INITIAL_STATE, herdsAdded: ["sheepGoat"], herds: { ...INITIAL_STATE.herds, sheepGoat: herd("50") }, animalPrices: { sheep: "7,500" } },
+      ["livestock"],
+      config,
+    );
+    expect(result.herds[0].valueEtb).toBe(7500);
+    expect(result.grandTotalEtb).toBe(7500);
+  });
+
+  it("flags a malformed animal price only while that animal is due", () => {
+    const base = { ...INITIAL_STATE, herdsAdded: ["sheepGoat"] as LivestockMode[], animalPrices: { sheep: "1.2.3" } };
+    const due = { ...base, herds: { ...INITIAL_STATE.herds, sheepGoat: herd("50") } };
+    expect(calculateZakat(due, ["livestock"], config).hasInputErrors).toBe(true);
+    expect(calculateZakat(base, ["livestock"], config).hasInputErrors).toBe(false);
+  });
+
+  it("leaves working animals out of the count", () => {
+    // 32 cattle, 3 plough oxen: 29 left, under the 30 minimum.
+    const form = { ...INITIAL_STATE, herdsAdded: ["cattle"] as LivestockMode[], herds: { ...INITIAL_STATE.herds, cattle: herd("32", { working: "3" }) } };
+    const [cattle] = calculateZakat(form, ["livestock"], config).herds;
+    expect(cattle).toMatchObject({ count: 32, working: 3, zakatable: 29, owed: null });
+  });
+
+  it("prices a goat when a goat owner gives a goat", () => {
+    const form = { ...INITIAL_STATE, herdsAdded: ["sheepGoat"] as LivestockMode[], herds: { ...INITIAL_STATE.herds, sheepGoat: herd("45", { give: "goat" }) } };
+    expect(calculateZakat(form, ["livestock"], config).herds[0].animals).toEqual([
+      { kind: "goat", count: 1, unitPrice: 7000, valueEtb: 7000 },
+    ]);
+  });
+
+  it("nothing is due on working animals or without a Hawl", () => {
+    const working = { ...INITIAL_STATE, herdsAdded: ["camels"] as LivestockMode[], herds: { ...INITIAL_STATE.herds, camels: herd("50", { working: "50" }) } };
+    expect(calculateZakat(working, ["livestock"], config).herds[0].owed).toBeNull();
+    const noHawl = { ...working, herds: { ...INITIAL_STATE.herds, camels: herd("50") }, hawlCompleted: false };
+    expect(calculateZakat(noHawl, ["livestock"], config).herds[0].owed).toBeNull();
+  });
+
+  it("weighs each crop against the Nisab, adding lines of the same crop", () => {
+    const result = calculateZakat(
+      {
+        ...INITIAL_STATE,
+        cropItems: [
+          { ...emptyCropItem("a"), crop: "teff", amount: "4", unit: "quintal", method: "rain", price: "12000" },
+          { ...emptyCropItem("b"), crop: "teff", amount: "300", unit: "kg", method: "irrigated", price: "120" },
+          { ...emptyCropItem("c"), crop: "maize", amount: "600", unit: "kg", method: "mixed" },
+        ],
+      },
+      ["agriculture"],
+      config,
+    );
+    const [rain, irrigated, maize] = result.crops;
+    // Teff: 400 + 300 = 700 kg, over the 653 kg Nisab, each line at its own rate.
+    expect(rain).toMatchObject({ kg: 400, dueKg: 40, pricePerKg: 120, dueEtb: 4800 });
+    expect(irrigated).toMatchObject({ kg: 300, dueKg: 15, dueEtb: 1800 });
+    // Maize alone is below the Nisab.
+    expect(maize).toMatchObject({ kg: 600, meetsNisab: false, dueKg: 0, dueEtb: null });
+    expect(result.agricultureDue).toBe(55);
+    expect(result.inKindValueEtb).toBe(6600);
+    // Maize owes nothing, so its missing price doesn't matter.
+    expect(result.inKindUnpriced).toBe(false);
+  });
+
+  it("leaves an unpriced crop out of the cash total and says so", () => {
+    const result = calculateZakat(
+      { ...INITIAL_STATE, cashOnHand: "2000000", cropItems: [{ ...emptyCropItem("a"), crop: "wheat", amount: "1000", unit: "kg" }] },
+      ["cash", "agriculture"],
+      config,
+    );
+    expect(result.agricultureDue).toBe(100);
+    expect(result.inKindUnpriced).toBe(true);
+    expect(result.grandTotalEtb).toBe(result.totalEtbDue);
+    expect(result.readyToPay).toBe(true);
   });
 });
 
@@ -278,5 +437,61 @@ describe("isPriceStale", () => {
     expect(isPriceStale("", at("2030-01-01T00:00:00Z"))).toBe(false);
     expect(isPriceStale(null, at("2030-01-01T00:00:00Z"))).toBe(false);
     expect(isPriceStale("yesterday", at("2030-01-01T00:00:00Z"))).toBe(false);
+  });
+});
+
+describe("optional config fields the backend may add (final request A1-A3, A7, A9)", () => {
+  const withExtras = readCalculatorConfig({
+    ...UAT_CALCULATOR_CONFIG,
+    crops: { ...UAT_CALCULATOR_CONFIG.crops, mixedRate: 0.08 },
+    rikaz: { rate: 0.25 },
+    livestockPricesEtb: { hiqqah: 200000, sheep: 8000 },
+    cropPrices: { asOf: "2026-11-24T03:00:00Z", etbPerKg: { teff: 120 } },
+    priceMaxAgeHours: 72,
+  }) as CalculatorConfig;
+
+  it("reads them, and today's config still reads without them", () => {
+    expect(withExtras.crops.mixedRate).toBe(0.08);
+    expect(withExtras.rikaz).toEqual({ rate: 0.25 });
+    expect(withExtras.cropPricesEtbPerKg).toEqual({ teff: 120 });
+    expect(withExtras.priceMaxAgeHours).toBe(72);
+    expect(config.crops.mixedRate).toBeUndefined();
+    expect(config.rikaz).toBeUndefined();
+  });
+
+  it("ignores a bad optional rate instead of rejecting the config", () => {
+    const bad = readCalculatorConfig({ ...UAT_CALCULATOR_CONFIG, crops: { ...UAT_CALCULATOR_CONFIG.crops, mixedRate: 7.5 } });
+    expect(bad).not.toBeNull();
+    expect(bad?.crops.mixedRate).toBeUndefined();
+  });
+
+  it("treats rules without prices as no config", () => {
+    expect(readCalculatorConfig({ ...UAT_CALCULATOR_CONFIG, pricesPublished: false })).toBeNull();
+    expect(readCalculatorConfig({ ...UAT_CALCULATOR_CONFIG, pricesPublished: true })).not.toBeNull();
+  });
+
+  it("uses the served rates", () => {
+    expect(ruleFigures(withExtras)).toMatchObject({ mixedRate: 0.08, rikazRate: 0.25 });
+  });
+
+  it("prices the animal due before the species average", () => {
+    const form = {
+      ...INITIAL_STATE,
+      herdsAdded: ["camels"] as LivestockMode[],
+      herds: { ...INITIAL_STATE.herds, camels: { count: "50", freelyGrazing: true, working: "", give: "sheep" as const } },
+    };
+    expect(calculateZakat(form, ["livestock"], withExtras).herds[0].animals).toEqual([
+      { kind: "hiqqah", count: 1, unitPrice: 200000, valueEtb: 200000 },
+    ]);
+  });
+
+  it("values a crop at the Commission's price until the visitor types one", () => {
+    const line = { ...emptyCropItem("a"), crop: "teff", amount: "10" };
+    const official = calculateZakat({ ...INITIAL_STATE, cropItems: [line] }, ["agriculture"], withExtras).crops[0];
+    expect(official).toMatchObject({ dueKg: 100, pricePerKg: 120, dueEtb: 12000 });
+    const typed = calculateZakat({ ...INITIAL_STATE, cropItems: [{ ...line, price: "10000" }] }, ["agriculture"], withExtras).crops[0];
+    expect(typed).toMatchObject({ pricePerKg: 100, dueEtb: 10000 });
+    const cleared = calculateZakat({ ...INITIAL_STATE, cropItems: [{ ...line, price: "" }] }, ["agriculture"], withExtras).crops[0];
+    expect(cleared.dueEtb).toBeNull();
   });
 });

@@ -7,6 +7,7 @@ import { forgetLoginName, rememberLoginName } from "@/components/auth/login-name
 import { RESUME_REASON, announceSignedIn, closeResumeTab } from "@/components/auth/resume-sign-in";
 import { defaultDashboardPath } from "@/lib/auth/constants";
 import { fetchSession } from "@/lib/auth/use-session";
+import { PasswordInput } from "@/components/ui/password-input";
 
 type LoginResponse = {
   success?: boolean;
@@ -155,20 +156,20 @@ export function LoginForm() {
         />
       </label>
 
-      <label className="block">
+      <label htmlFor="login-password" className="block">
         <span className="mb-2 block text-xs uppercase tracking-[0.12em] text-black/60">
           Password
         </span>
-        <input
+        <PasswordInput
+          id="login-password"
           ref={passwordInput}
-          type="password"
           name="password"
           autoComplete="current-password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           placeholder="Enter your password"
           required
-          className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-navy placeholder:text-black/35 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
+          className="h-auto w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-navy placeholder:text-black/35 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
         />
       </label>
 

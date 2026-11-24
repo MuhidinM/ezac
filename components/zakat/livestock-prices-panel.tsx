@@ -45,10 +45,12 @@ function byAnimal(prices: LivestockPrice[]): Partial<Record<Animal, LivestockPri
 }
 
 /**
- * Average livestock prices. The calculator works out livestock zakat in
- * animals, not birr, so these prices change no one's amount: the public
- * "How it works" page lists them as a guide to each animal's value. They are
- * kept apart from the calculator rules, so activating a rules version never
+ * Average livestock prices. Livestock Zakat is due in animals; the public
+ * calculator values those animals at these prices for people who pay in cash
+ * (visitors may change them to their local price), and the "How it works"
+ * page lists them. Camels and cattle have one price for every age until
+ * zakat-engine prices each animal due (backend request A2). They are kept
+ * apart from the calculator rules, so activating a rules version never
  * changes them.
  */
 export function LivestockPricesPanel() {
@@ -64,7 +66,7 @@ export function LivestockPricesPanel() {
   return (
     <Panel
       title="Livestock prices"
-      description="Average price per animal. Livestock zakat is worked out in animals, so these prices don't change any amount; the public How it works page lists them as a guide to each animal's value. Calculator rules versions don't change them."
+      description="Average price per animal. Livestock Zakat is due in animals; the public calculator uses these prices to show what the animals due are worth in cash (visitors can change them to their local price), and the How it works page lists them. One camel or cattle price covers every age. Calculator rules versions don't change them."
     >
       <div className="space-y-6">
         <ErrorAlert error={prices.error} onRetry={prices.reload} />
@@ -75,7 +77,7 @@ export function LivestockPricesPanel() {
             current={byAnimal(prices.data)}
             onEdit={() => setNotice(null)}
             onSaved={(next, count) => {
-              setNotice(`${count === 1 ? "Price" : "Prices"} saved. The public How it works page shows them now.`);
+              setNotice(`${count === 1 ? "Price" : "Prices"} saved. The public calculator and How it works page use them now.`);
               prices.mutate(next);
               history.reload();
             }}

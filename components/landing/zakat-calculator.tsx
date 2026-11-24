@@ -14,14 +14,15 @@ import {
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowRightIcon,
+  CheckIcon,
   Building2Icon,
   BriefcaseIcon,
   CoinsIcon,
   FactoryIcon,
   GemIcon,
   InfoIcon,
-  LandmarkIcon,
   LeafIcon,
+  PawPrintIcon,
   PlusIcon,
   RefreshCwIcon,
   ScaleIcon,
@@ -34,21 +35,34 @@ import type { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { format } from "@/lib/i18n/messages";
 import type { CalculatorConfig, LivestockDue } from "@/lib/zakat/calculator-config";
 import {
+  ANIMAL_PRICE_KEY,
+  CROP_METHODS,
+  FALLBACK_LIVESTOCK,
+  HERDS,
   INITIAL_STATE,
+  KG_PER_UNIT,
   KARATS,
   calculateZakat,
   cleanAmount,
+  emptyCropItem,
   isPriceStale,
+  officialAnimalPrice,
+  officialCropPrice,
   parseAmount,
   type AmountField,
   type CalculatorState,
   type CategoryKey,
+  type CropLineItem,
+  type CropUnit,
+  type Herd,
+  type HerdResult,
   type IrrigationMode,
   type Karat,
   type LivestockMode,
   type MetalLineItem,
   type MetalType,
 } from "@/lib/zakat/calculator-math";
+import { COMMON_CROPS, CROPS, CROP_GROUPS, cropName } from "@/lib/zakat/crops";
 
 import { readCalculatorConfig } from "@/lib/zakat/calculator-read";
 
@@ -66,7 +80,7 @@ const CATEGORIES: { key: CategoryKey; icon: LucideIcon }[] = [
   { key: "business", icon: BriefcaseIcon },
   { key: "propertyStocks", icon: Building2Icon },
   { key: "agriculture", icon: LeafIcon },
-  { key: "livestock", icon: LandmarkIcon },
+  { key: "livestock", icon: PawPrintIcon },
   { key: "rikazMinerals", icon: FactoryIcon },
   { key: "debts", icon: ScaleIcon },
 ];
@@ -88,7 +102,14 @@ function createMetalItem(): MetalLineItem {
   };
 }
 
-type RatesError = { reason: "status"; status: number } | { reason: "incomplete" | "generic" };
+function createCropItem(): CropLineItem {
+  return emptyCropItem(`crop-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+}
+
+/** Kinds the Commission prices per animal, not per age: say so under their price. */
+const ANY_AGE_PRICE = new Set(["cattle", "camel"]);
+
+type RatesError ={ reason: "status"; status: number } | { reason: "incomplete" | "generic" };
 
 /** The official rates, or why they could not be used. */
 async function loadCalculatorConfig(): Promise<{ config: CalculatorConfig } | { error: RatesError }> {
@@ -203,7 +224,7 @@ export function ZakatCalculator({
   t: CalculatorText;
   initialConfig?: CalculatorConfig | null;
 }) {
-  const { intlLocale } = useI18n();
+  const { intlLocale, locale } = useI18n();
   const fmt = useFormatters(intlLocale);
   const baseId = useId();
 
@@ -215,6 +236,8 @@ export function ZakatCalculator({
   const openedAtMs = useSyncExternalStore(subscribeToNothing, clientOpenedAt, serverOpenedAt);
   // Adding or removing a category removes the button that was clicked; focus moves to what replaced it.
   const focusAfterRender = useRef<string | null>(null);
+  // Bumped when a new line (not a category) should take focus.
+  const [focusTick, setFocusTick] = useState(0);
   const mounted = useRef(false);
 
   const fetchRates = useCallback(() => {
@@ -249,17 +272,17 @@ export function ZakatCalculator({
     if (!target) return;
     focusAfterRender.current = null;
     document.getElementById(target)?.focus();
-  }, [added]);
+  }, [added, focusTick]);
 
   const sectionId = (key: CategoryKey) => `${baseId}-section-${key}`;
   const chipId = (key: CategoryKey) => `${baseId}-add-${key}`;
 
   const result = calculateZakat(form, added, config);
-  const { rules, nisabEtb, preciousMetalsValue, hasInputErrors, totalEtbDue } = result;
+  const { rules, nisabEtb, preciousMetalsValue, hasInputErrors, grandTotalEtb } = result;
   const { zakatRate, agriNisabKg, goldNisabGrams, silverNisabGrams } = rules;
   // Fallback figures must never read as the Commission's live rule.
   const usingEstimates = !config && !pricingLoading;
-  const pricesStale = config !== null && openedAtMs !== null && isPriceStale(config.pricesAsOf, openedAtMs);
+  const pricesStale = config !== null && openedAtMs !== null && isPriceStale(config.pricesAsOf, openedAtMs, config.priceMaxAgeHours);
   const pricesAsOf =
     config?.pricesAsOf && !Number.isNaN(Date.parse(config.pricesAsOf)) ? fmt.dateTime(new Date(config.pricesAsOf)) : null;
 
@@ -295,6 +318,19 @@ export function ZakatCalculator({
             )
             .join(t.livestock.dueSeparator);
 
+  /** What a herd owes, naming the animals actually given (a goat where the table says a sheep). */
+  const animalsFor = (herd: HerdResult) =>
+    herd.animals.length > 0
+      ? herd.animals
+          .map((item) =>
+            format(t.livestock.dueItem, {
+              count: fmt.count(item.count),
+              kind: Object.prototype.hasOwnProperty.call(kindLabels, item.kind) ? kindLabels[item.kind] : item.kind,
+            }),
+          )
+          .join(t.livestock.dueSeparator)
+      : animalsText(herd.owed);
+
   const rulingValues: Record<string, ReactNode> = {
     rate: rateNum(zakatRate),
     goldGrams: <Num>{fmt.grams(goldNisabGrams)}</Num>,
@@ -328,11 +364,6 @@ export function ZakatCalculator({
 
   // ---- Form handlers -----------------------------------------------------
 
-  const updateAmount = (key: AmountField) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = cleanAmount(e.target.value);
-    setForm((prev) => ({ ...prev, [key]: value }));
-  };
-
   const updateMetalItem = (
     id: string,
     key: keyof Omit<MetalLineItem, "id">,
@@ -355,42 +386,62 @@ export function ZakatCalculator({
     }));
   };
 
-  const renderAmountInput = (
-    field: AmountField,
-    label: string,
-    helper?: ReactNode,
-    { wholeNumber = false }: { wholeNumber?: boolean } = {},
-  ) => {
-    const inputId = `${baseId}-${field}`;
-    const value = form[field];
+  /** A typed number with its label, inline error and helper text. `after` sits beside the field (a unit picker). */
+  const renderNumberInput = ({
+    id: inputId,
+    label,
+    value,
+    onChange,
+    helper,
+    wholeNumber = false,
+    after,
+  }: {
+    id: string;
+    label: ReactNode;
+    value: string;
+    onChange: (value: string) => void;
+    helper?: ReactNode;
+    wholeNumber?: boolean;
+    after?: ReactNode;
+  }) => {
     const { error } = parseAmount(value, { wholeNumber });
     const describedBy = [error ? `${inputId}-error` : null, helper ? `${inputId}-help` : null]
       .filter(Boolean)
       .join(" ");
+    const input = (
+      <input
+        id={inputId}
+        type="text"
+        inputMode={wholeNumber ? "numeric" : "decimal"}
+        maxLength={32}
+        value={value}
+        onChange={(e) => onChange(cleanAmount(e.target.value))}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy || undefined}
+        className={`${FIELD_CLASS} ${error ? "border-accent-ink" : "border-black/10"} ${FOCUS_RING}`}
+        placeholder="0"
+      />
+    );
     return (
       <div className="space-y-1.5">
-        <label htmlFor={inputId} className="text-xs text-neutral-500">
+        <label htmlFor={inputId} className="block text-sm text-neutral-700">
           {label}
         </label>
-        <input
-          id={inputId}
-          type="text"
-          inputMode={wholeNumber ? "numeric" : "decimal"}
-          maxLength={32}
-          value={value}
-          onChange={updateAmount(field)}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={describedBy || undefined}
-          className={`${FIELD_CLASS} ${error ? "border-accent-ink" : "border-black/10"} ${FOCUS_RING}`}
-          placeholder="0"
-        />
+        {after ? (
+          <div className="flex items-stretch gap-2">
+            <div className="min-w-0 flex-1">{input}</div>
+            {after}
+          </div>
+        ) : (
+          input
+        )}
         {error && (
-          <p id={`${inputId}-error`} className="text-xs text-accent-ink">
+          <p id={`${inputId}-error`} className="text-[13px] text-accent-ink">
             {t.inputErrors[error]}
           </p>
         )}
         {helper && (
-          <p id={`${inputId}-help`} className="text-xs text-neutral-500">
+          <p id={`${inputId}-help`} className="text-[13px] leading-snug text-neutral-600">
             {helper}
           </p>
         )}
@@ -398,28 +449,489 @@ export function ZakatCalculator({
     );
   };
 
-  /** A row of mutually exclusive options; aria-pressed marks the chosen one. */
-  const renderChoiceChips = <K extends string>(
-    options: { key: K; label: ReactNode }[],
-    selected: K,
-    onSelect: (key: K) => void,
+  const renderAmountInput = (
+    field: AmountField,
+    label: string,
+    helper?: ReactNode,
+    { wholeNumber = false }: { wholeNumber?: boolean } = {},
   ) =>
-    options.map((item) => {
-      const isActive = item.key === selected;
-      return (
-        <button
-          key={item.key}
-          type="button"
-          aria-pressed={isActive}
-          onClick={() => onSelect(item.key)}
-          className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${FOCUS_RING} ${
-            isActive ? "border-brand bg-brand/10 font-medium text-brand" : "border-black/[0.12] text-neutral-500 hover:text-brand"
-          }`}
-        >
-          {item.label}
-        </button>
-      );
+    renderNumberInput({
+      id: `${baseId}-${field}`,
+      label,
+      value: form[field],
+      onChange: (value) => setForm((prev) => ({ ...prev, [field]: value })),
+      helper,
+      wholeNumber,
     });
+
+  // ---- Crops ---------------------------------------------------------------
+
+  const updateCropItem = <K extends keyof Omit<CropLineItem, "id">>(id: string, key: K, value: CropLineItem[K]) =>
+    setForm((prev) => ({
+      ...prev,
+      cropItems: prev.cropItems.map((item) => (item.id === id ? { ...item, [key]: value } : item)),
+    }));
+
+  /** Choosing a crop another line already priced copies that price and unit, so it isn't typed twice. */
+  const chooseCrop = (id: string, crop: string) =>
+    setForm((prev) => {
+      const priced = prev.cropItems.find((other) => other.id !== id && other.crop === crop && other.price?.trim());
+      return {
+        ...prev,
+        cropItems: prev.cropItems.map((item) =>
+          item.id !== id
+            ? item
+            : priced && !item.price?.trim()
+              ? { ...item, crop, unit: priced.unit, price: priced.price }
+              : { ...item, crop },
+        ),
+      };
+    });
+
+  const addCropItem = () => {
+    const item = createCropItem();
+    focusAfterRender.current = `${baseId}-crop-${item.id}`;
+    // A new line starts in the unit the visitor has been using.
+    setForm((prev) => ({
+      ...prev,
+      cropItems: [...prev.cropItems, { ...item, unit: prev.cropItems.at(-1)?.unit ?? item.unit }],
+    }));
+    setFocusTick((n) => n + 1);
+  };
+
+  const removeCropItem = (id: string) =>
+    setForm((prev) => ({
+      ...prev,
+      cropItems: prev.cropItems.length > 1 ? prev.cropItems.filter((item) => item.id !== id) : prev.cropItems,
+    }));
+
+  const cropLabel = (key: string) => cropName(key, locale) || t.agriculture.thisCrop;
+  /** A weight in the unit the visitor chose: "0.9 quintal (90 kg)" or "90 kg". */
+  const cropAmount = (kg: number, unit: CropUnit) =>
+    unit === "quintal"
+      ? fill(t.agriculture.amountQuintal, {
+          quintal: <Num>{fmt.grams(kg / KG_PER_UNIT.quintal)}</Num>,
+          kg: <Num>{fmt.kg(kg)}</Num>,
+        })
+      : fill(t.agriculture.amountKg, { kg: <Num>{fmt.kg(kg)}</Num> });
+
+  const renderCropLine = (item: CropLineItem, index: number) => {
+    const number = fmt.count(index + 1);
+    const line = result.crops.find((crop) => crop.id === item.id);
+    const cropTotalKg = result.crops.filter((crop) => crop.crop === item.crop).reduce((sum, crop) => sum + crop.kg, 0);
+    const unitLabel = t.agriculture.units[item.unit];
+    const titleId = `${baseId}-crop-title-${item.id}`;
+    const methodLabelId = `${baseId}-method-${item.id}`;
+    const unitLabelId = `${baseId}-unit-${item.id}`;
+    const priceInputId = `${baseId}-crop-price-${item.id}`;
+    const officialPerKg = officialCropPrice(config, item.crop);
+    return (
+      <div
+        key={item.id}
+        role="group"
+        aria-labelledby={titleId}
+        className="space-y-4 rounded-2xl border border-black/10 p-3 sm:p-4"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <p id={titleId} className="text-sm font-medium text-navy">
+            {format(t.agriculture.lineLabel, { number })}
+            {item.crop ? `: ${cropLabel(item.crop)}` : null}
+          </p>
+          {form.cropItems.length > 1 ? (
+            <button
+              type="button"
+              onClick={() => removeCropItem(item.id)}
+              aria-label={format(t.agriculture.removeLabel, { number })}
+              className={`min-h-9 rounded-full border border-black/10 px-3 text-sm text-neutral-600 transition-colors hover:border-accent-ink hover:text-accent-ink ${FOCUS_RING}`}
+            >
+              {t.agriculture.remove}
+            </button>
+          ) : null}
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-1.5">
+            <label htmlFor={`${baseId}-crop-${item.id}`} className="block text-sm text-neutral-700">
+              {t.agriculture.crop}
+            </label>
+            <select
+              id={`${baseId}-crop-${item.id}`}
+              value={item.crop}
+              onChange={(e) => chooseCrop(item.id, e.target.value)}
+              className={`${FIELD_CLASS} border-black/10 ${item.crop ? "" : "text-neutral-500"} ${FOCUS_RING}`}
+            >
+              <option value="">{t.agriculture.chooseCrop}</option>
+              <optgroup label={t.agriculture.groups.common}>
+                {COMMON_CROPS.map((key) => (
+                  <option key={`common-${key}`} value={key}>
+                    {cropName(key, locale)}
+                  </option>
+                ))}
+              </optgroup>
+              {CROP_GROUPS.map((group) => (
+                <optgroup key={group} label={t.agriculture.groups[group]}>
+                  {CROPS.filter((crop) => crop.group === group).map((crop) => (
+                    <option key={crop.key} value={crop.key}>
+                      {crop.name[locale]}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </div>
+          {renderNumberInput({
+            id: `${baseId}-crop-amount-${item.id}`,
+            label: t.agriculture.amount,
+            value: item.amount,
+            onChange: (value) => updateCropItem(item.id, "amount", value),
+            // Always there, so the fields below don't jump when the unit changes.
+            helper: t.agriculture.quintalHelp,
+            after: (
+              <div
+                role="group"
+                aria-labelledby={unitLabelId}
+                className="flex shrink-0 overflow-hidden rounded-xl border border-black/10"
+              >
+                <span id={unitLabelId} className="sr-only">
+                  {t.agriculture.unitGroup}
+                </span>
+                {(["quintal", "kg"] as CropUnit[]).map((unit) => (
+                  <button
+                    key={unit}
+                    type="button"
+                    aria-pressed={item.unit === unit}
+                    onClick={() => updateCropItem(item.id, "unit", unit)}
+                    className={`min-h-11 min-w-12 px-3 text-sm transition-colors ${FOCUS_RING} ${
+                      item.unit === unit ? "bg-brand font-medium text-white" : "bg-white text-neutral-700 hover:text-brand"
+                    }`}
+                  >
+                    {t.agriculture.units[unit]}
+                  </button>
+                ))}
+              </div>
+            ),
+          })}
+        </div>
+
+        <div className="space-y-2">
+          <p id={methodLabelId} className="text-sm text-neutral-700">
+            {t.agriculture.irrigation}
+          </p>
+          <div role="group" aria-labelledby={methodLabelId} className="grid gap-2 sm:grid-cols-3">
+            {CROP_METHODS.map((method) => {
+              const active = item.method === method;
+              const rate =
+                method === "rain" ? rules.rainFedRate : method === "mixed" ? rules.mixedRate : rules.irrigatedRate;
+              const helpId = `${baseId}-method-${item.id}-${method}`;
+              return (
+                <button
+                  key={method}
+                  type="button"
+                  aria-pressed={active}
+                  aria-label={`${t.agriculture.methods[method]}${locale === "ar" ? "، " : ", "}${fmt.pct(rate)}`}
+                  aria-describedby={helpId}
+                  onClick={() => updateCropItem(item.id, "method", method as IrrigationMode)}
+                  className={`rounded-xl border px-3 py-2.5 text-start transition-colors ${FOCUS_RING} ${
+                    active ? "border-brand bg-brand/10" : "border-black/[0.12] hover:border-brand"
+                  }`}
+                >
+                  <span className={`flex items-center gap-1.5 text-sm ${active ? "font-medium text-brand" : "text-navy"}`}>
+                    {active ? <CheckIcon className="h-4 w-4 shrink-0" aria-hidden="true" /> : null}
+                    {t.agriculture.methods[method]}
+                  </span>
+                  <span id={helpId} className="block text-[13px] text-neutral-600">
+                    {fill(t.agriculture.methodHelp[method], { rate: rateNum(rate) })}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {renderNumberInput({
+          id: priceInputId,
+          label: format(t.agriculture.price, { unit: unitLabel }),
+          // The Commission's price per kg, shown in the unit chosen, until the visitor types their own.
+          value: item.price ?? (officialPerKg === null ? "" : String(Math.round(officialPerKg * KG_PER_UNIT[item.unit] * 100) / 100)),
+          onChange: (value) => updateCropItem(item.id, "price", value),
+          helper:
+            officialPerKg === null ? undefined : item.price === undefined ? (
+              t.agriculture.priceOfficial
+            ) : (
+              <>
+                {t.livestock.priceOwn}{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateCropItem(item.id, "price", undefined);
+                    focusAfterRender.current = priceInputId;
+                    setFocusTick((n) => n + 1);
+                  }}
+                  className={`rounded-sm font-medium text-brand underline underline-offset-2 ${FOCUS_RING}`}
+                >
+                  {t.livestock.resetPrice}
+                </button>
+              </>
+            ),
+        })}
+
+        {line ? (
+          <div className="rounded-xl bg-neutral-100 px-3 py-2.5 text-sm">
+            {line.meetsNisab ? (
+              <>
+                <p aria-live="polite" className="font-medium text-navy">
+                  {fill(t.agriculture.due, {
+                    amount: cropAmount(line.dueKg, item.unit),
+                    crop: cropLabel(item.crop),
+                    rate: rateNum(line.rate),
+                  })}
+                </p>
+                <p className="text-[13px] text-neutral-700">
+                  {line.dueEtb === null
+                    ? t.agriculture.dueNoPrice
+                    : fill(t.agriculture.dueValue, { value: <Num>{fmt.currency(line.dueEtb)}</Num> })}
+                </p>
+                {line.kg < agriNisabKg ? (
+                  <p className="text-[13px] text-neutral-600">
+                    {fill(t.agriculture.combined, {
+                      crop: cropLabel(item.crop),
+                      total: <Num>{fmt.kg(cropTotalKg)}</Num>,
+                    })}
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <p aria-live="polite" className="text-[13px] text-neutral-700">
+                {fill(t.agriculture.belowNisab, {
+                  crop: cropLabel(item.crop),
+                  nisabKg: <Num>{fmt.kg(agriNisabKg)}</Num>,
+                  amount: <Num>{fmt.kg(cropTotalKg)}</Num>,
+                })}
+              </p>
+            )}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
+  // ---- Livestock -----------------------------------------------------------
+
+  const livestockTables = config?.livestock ?? FALLBACK_LIVESTOCK;
+  const herdMinimum = (herd: LivestockMode) =>
+    herd === "cattle"
+      ? livestockTables.cattle.minimum
+      : ((herd === "sheepGoat" ? livestockTables.sheepGoats : livestockTables.camels)[0]?.min ?? 0);
+
+  const toggleHerd = (herd: LivestockMode) =>
+    setForm((prev) => ({
+      ...prev,
+      herdsAdded: prev.herdsAdded.includes(herd)
+        ? prev.herdsAdded.filter((key) => key !== herd)
+        : HERDS.filter((key) => key === herd || prev.herdsAdded.includes(key)),
+    }));
+
+  const updateHerd = <K extends keyof Herd>(herd: LivestockMode, key: K, value: Herd[K]) =>
+    setForm((prev) => ({ ...prev, herds: { ...prev.herds, [herd]: { ...prev.herds[herd], [key]: value } } }));
+
+  const setAnimalPrice = (kind: string, value: string | undefined) =>
+    setForm((prev) => {
+      const animalPrices = { ...prev.animalPrices };
+      if (value === undefined) delete animalPrices[kind];
+      else animalPrices[kind] = value;
+      return { ...prev, animalPrices };
+    });
+
+  const kindLabel = (kind: string) =>
+    Object.prototype.hasOwnProperty.call(kindLabels, kind) ? kindLabels[kind] : kind;
+  const countField: Record<LivestockMode, string> = {
+    sheepGoat: t.livestock.sheepGoatCount,
+    cattle: t.livestock.cattleCount,
+    camels: t.livestock.camelsCount,
+  };
+  const checkboxClass = "h-5 w-5 shrink-0 accent-brand";
+  const checkboxLabelClass =
+    "flex min-h-11 items-center gap-2.5 rounded-xl border border-black/10 px-3 py-2 text-sm text-neutral-700";
+
+  const renderAnimalDue = (herd: LivestockMode, animal: HerdResult["animals"][number]) => {
+    const official = officialAnimalPrice(config, animal.kind);
+    const typed = form.animalPrices[animal.kind];
+    const priceKey = Object.prototype.hasOwnProperty.call(ANIMAL_PRICE_KEY, animal.kind)
+      ? ANIMAL_PRICE_KEY[animal.kind]
+      : "";
+    const animalWord = priceKey ? t.livestock.animals[priceKey as keyof typeof t.livestock.animals] : "";
+    const inputId = `${baseId}-price-${herd}-${animal.kind}`;
+    const helper =
+      typed !== undefined ? (
+        <>
+          {t.livestock.priceOwn}{" "}
+          {official !== null ? (
+            <button
+              type="button"
+              onClick={() => {
+                setAnimalPrice(animal.kind, undefined);
+                // The button goes away: keep the visitor's place on the field it changed.
+                focusAfterRender.current = inputId;
+                setFocusTick((n) => n + 1);
+              }}
+              aria-label={format(t.livestock.resetPriceLabel, {
+                kind: kindLabel(animal.kind),
+                price: fmt.currency(official),
+              })}
+              className={`rounded-sm font-medium text-brand underline underline-offset-2 ${FOCUS_RING}`}
+            >
+              {t.livestock.resetPrice}
+            </button>
+          ) : null}
+        </>
+      ) : official !== null ? (
+        format(ANY_AGE_PRICE.has(priceKey) ? t.livestock.priceAnyAge : t.livestock.priceOfficial, {
+          animal: animalWord,
+        })
+      ) : (
+        t.livestock.priceNone
+      );
+    return (
+      <div key={animal.kind} className="space-y-2 rounded-xl bg-neutral-100 p-3">
+        <p className="text-base font-medium text-navy">
+          {format(t.livestock.dueItem, { count: fmt.count(animal.count), kind: kindLabel(animal.kind) })}
+        </p>
+        {renderNumberInput({
+          id: inputId,
+          label: format(t.livestock.price, { kind: kindLabel(animal.kind) }),
+          value: typed ?? (official === null ? "" : String(official)),
+          onChange: (value) => setAnimalPrice(animal.kind, value),
+          helper,
+        })}
+        {animal.unitPrice !== null && animal.valueEtb !== null ? (
+          <p className="text-sm text-navy">
+            {fill(t.livestock.lineValue, {
+              count: <Num>{fmt.count(animal.count)}</Num>,
+              price: <Num>{fmt.currency(animal.unitPrice)}</Num>,
+              value: <Num>{fmt.currency(animal.valueEtb)}</Num>,
+            })}
+          </p>
+        ) : null}
+      </div>
+    );
+  };
+
+  const renderHerd = (herd: LivestockMode) => {
+    const entry = form.herds[herd];
+    const herdResult = result.herds.find((item) => item.herd === herd);
+    const count = herdResult?.count ?? 0;
+    const typeLabel = t.livestock.types[herd];
+    const removeLabel = format(t.livestock.removeLabel, { type: typeLabel });
+    const titleId = `${baseId}-herd-title-${herd}`;
+    const giveLabelId = `${baseId}-give-${herd}`;
+    const owed = herdResult?.owed ?? null;
+    return (
+      <div
+        key={herd}
+        role="group"
+        aria-labelledby={titleId}
+        className="space-y-4 rounded-2xl border border-black/10 p-3 sm:p-4"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <h4 id={titleId} className="text-base font-medium text-navy">
+            {typeLabel}
+          </h4>
+          <button
+            type="button"
+            onClick={() => toggleHerd(herd)}
+            aria-label={removeLabel}
+            title={removeLabel}
+            className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-black/10 text-neutral-600 transition-colors hover:border-accent-ink hover:text-accent-ink ${FOCUS_RING}`}
+          >
+            <XIcon className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+        {renderNumberInput({
+          id: `${baseId}-herd-${herd}`,
+          label: countField[herd],
+          value: entry.count,
+          onChange: (value) => updateHerd(herd, "count", value),
+          wholeNumber: true,
+        })}
+        <label className={checkboxLabelClass}>
+          <input
+            type="checkbox"
+            className={checkboxClass}
+            checked={entry.freelyGrazing}
+            onChange={(e) => updateHerd(herd, "freelyGrazing", e.target.checked)}
+          />
+          {t.livestock.freelyGrazing}
+        </label>
+        {/* Sheep and goats aren't worked; cattle and camels often are. */}
+        {herd !== "sheepGoat"
+          ? renderNumberInput({
+              id: `${baseId}-working-${herd}`,
+              label: t.livestock.working,
+              value: entry.working,
+              onChange: (value) => updateHerd(herd, "working", value),
+              helper: t.livestock.workingHelp,
+              wholeNumber: true,
+            })
+          : null}
+        {herd === "sheepGoat" ? (
+          <div className="space-y-2">
+            <p id={giveLabelId} className="text-sm text-neutral-700">
+              {t.livestock.giveLabel}
+            </p>
+            <div role="group" aria-labelledby={giveLabelId} className="flex flex-wrap gap-2">
+              {(["sheep", "goat"] as const).map((give) => (
+                <button
+                  key={give}
+                  type="button"
+                  aria-pressed={entry.give === give}
+                  onClick={() => updateHerd(herd, "give", give)}
+                  className={`inline-flex min-h-11 items-center gap-1.5 rounded-xl border px-4 text-sm transition-colors ${FOCUS_RING} ${
+                    entry.give === give
+                      ? "border-brand bg-brand/10 font-medium text-brand"
+                      : "border-black/[0.12] text-navy hover:border-brand"
+                  }`}
+                >
+                  {entry.give === give ? <CheckIcon className="h-4 w-4" aria-hidden="true" /> : null}
+                  {t.livestock.give[give]}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {count > 0 && herdResult ? (
+          <div className="space-y-2">
+            {!entry.freelyGrazing ? (
+              <p aria-live="polite" className="text-sm text-accent-ink">
+                {t.livestock.notEligible}
+              </p>
+            ) : !form.hawlCompleted ? null : owed === null ? (
+              <p aria-live="polite" className="text-sm text-neutral-700">
+                {fill(t.livestock.belowNisab, { min: <Num>{fmt.count(herdMinimum(herd))}</Num> })}
+              </p>
+            ) : "text" in owed ? (
+              <p aria-live="polite" className="text-base font-medium text-navy">
+                {owed.text}
+              </p>
+            ) : (
+              <>
+                <p className="text-xs uppercase tracking-[0.12em] text-neutral-600 rtl:tracking-normal">
+                  {t.livestock.dueHeading}
+                </p>
+                {/* One short line is read out when the animals due change; the fields below are not. */}
+                <p aria-live="polite" className="sr-only">
+                  {format(t.livestock.dueSummary, {
+                    type: typeLabel,
+                    animals: animalsFor(herdResult),
+                  })}
+                </p>
+                {herdResult.animals.map((animal) => renderAnimalDue(herd, animal))}
+              </>
+            )}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
 
   const renderPanel = (key: CategoryKey) => {
     switch (key) {
@@ -578,79 +1090,73 @@ export function ZakatCalculator({
             )}
           </div>
         );
-      case "agriculture": {
-        const irrigationLabelId = `${baseId}-irrigation`;
+      case "agriculture":
         return (
           <div className="space-y-4">
-            {renderAmountInput(
-              "cropsHarvestKg",
-              t.agriculture.harvest,
-              fill(t.agriculture.harvestHelp, { nisabKg: <Num>{fmt.kg(agriNisabKg)}</Num> }),
+            <p className="text-sm text-neutral-700">
+              {fill(t.agriculture.intro, { nisabKg: <Num>{fmt.kg(agriNisabKg)}</Num> })}
+            </p>
+            {config?.cropPricesEtbPerKg ? null : (
+              <p className="text-[13px] leading-snug text-neutral-600">{t.agriculture.priceHelp}</p>
             )}
-            <div className="space-y-2">
-              <p id={irrigationLabelId} className="text-xs text-neutral-500">
-                {t.agriculture.irrigation}
-              </p>
-              <div role="group" aria-labelledby={irrigationLabelId} className="flex flex-wrap gap-2">
-                {renderChoiceChips<IrrigationMode>(
-                  [
-                    { key: "natural", label: fill(t.agriculture.natural, { rate: rateNum(rules.rainFedRate) }) },
-                    { key: "mixed", label: fill(t.agriculture.mixed, { rate: rateNum(rules.mixedRate) }) },
-                    {
-                      key: "artificial",
-                      label: fill(t.agriculture.artificial, { rate: rateNum(rules.irrigatedRate) }),
-                    },
-                  ],
-                  form.irrigationMode,
-                  (irrigationMode) => setForm((prev) => ({ ...prev, irrigationMode })),
-                )}
-              </div>
+            {form.cropItems.map(renderCropLine)}
+            <button
+              type="button"
+              onClick={addCropItem}
+              className={`inline-flex items-center gap-2 rounded-full border border-dashed border-black/20 px-4 py-2 text-xs text-navy transition-colors hover:border-brand hover:text-brand ${FOCUS_RING}`}
+            >
+              <PlusIcon className="h-3.5 w-3.5" aria-hidden="true" />
+              {t.agriculture.addItem}
+            </button>
+          </div>
+        );
+      case "livestock": {
+        const herdLabelId = `${baseId}-herds`;
+        return (
+          <div className="space-y-4">
+            <p id={herdLabelId} className="text-sm text-neutral-700">
+              {t.livestock.choose}
+            </p>
+            <div role="group" aria-labelledby={herdLabelId} className="flex flex-wrap gap-2">
+              {HERDS.map((herd) => {
+                const active = form.herdsAdded.includes(herd);
+                return (
+                  <button
+                    key={herd}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => toggleHerd(herd)}
+                    className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 py-2 text-sm transition-colors ${FOCUS_RING} ${
+                      active
+                        ? "border-brand bg-brand/10 font-medium text-brand"
+                        : "border-dashed border-black/20 text-navy hover:border-brand hover:text-brand"
+                    }`}
+                  >
+                    {active ? (
+                      <CheckIcon className="h-4 w-4" aria-hidden="true" />
+                    ) : (
+                      <PlusIcon className="h-4 w-4" aria-hidden="true" />
+                    )}
+                    {t.livestock.types[herd]}
+                  </button>
+                );
+              })}
             </div>
+            {form.herdsAdded.map(renderHerd)}
+            {form.herdsAdded.length > 0 ? (
+              <label className={checkboxLabelClass}>
+                <input
+                  type="checkbox"
+                  className={checkboxClass}
+                  checked={form.hawlCompleted}
+                  onChange={(e) => setForm((prev) => ({ ...prev, hawlCompleted: e.target.checked }))}
+                />
+                {t.livestock.hawl}
+              </label>
+            ) : null}
           </div>
         );
       }
-      case "livestock":
-        return (
-          <div className="space-y-4">
-            <div role="group" aria-label={t.livestock.typeGroup} className="flex flex-wrap gap-2">
-              {renderChoiceChips<LivestockMode>(
-                [
-                  { key: "sheepGoat", label: t.livestock.types.sheepGoat },
-                  { key: "cattle", label: t.livestock.types.cattle },
-                  { key: "camels", label: t.livestock.types.camels },
-                ],
-                form.livestockMode,
-                (livestockMode) => setForm((prev) => ({ ...prev, livestockMode })),
-              )}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <label className="inline-flex items-center gap-2 rounded-full border border-black/10 px-3 py-1.5 text-xs text-neutral-500">
-                <input
-                  type="checkbox"
-                  className="accent-brand"
-                  checked={form.livestockFreelyGrazing}
-                  onChange={(e) => setForm((prev) => ({ ...prev, livestockFreelyGrazing: e.target.checked }))}
-                />
-                {t.livestock.freelyGrazing}
-              </label>
-              <label className="inline-flex items-center gap-2 rounded-full border border-black/10 px-3 py-1.5 text-xs text-neutral-500">
-                <input
-                  type="checkbox"
-                  className="accent-brand"
-                  checked={form.livestockUsedForWork}
-                  onChange={(e) => setForm((prev) => ({ ...prev, livestockUsedForWork: e.target.checked }))}
-                />
-                {t.livestock.usedForWork}
-              </label>
-            </div>
-            {form.livestockMode === "sheepGoat" &&
-              renderAmountInput("sheepGoatCount", t.livestock.sheepGoatCount, undefined, { wholeNumber: true })}
-            {form.livestockMode === "cattle" &&
-              renderAmountInput("cattleCount", t.livestock.cattleCount, undefined, { wholeNumber: true })}
-            {form.livestockMode === "camels" &&
-              renderAmountInput("camelsCount", t.livestock.camelsCount, undefined, { wholeNumber: true })}
-          </div>
-        );
       case "rikazMinerals":
         return (
           <div className="grid gap-4 md:grid-cols-2">
@@ -685,7 +1191,7 @@ export function ZakatCalculator({
   const breakdownRows: { key: string; label: ReactNode; value: ReactNode; deduction?: boolean }[] = [];
   const wealthRate = rateNum(zakatRate);
   const breakdown = t.result.breakdown;
-  if (has("cash"))
+  if (has("cash") && (result.cashBase > 0 || !result.hasInKind))
     breakdownRows.push({ key: "cash", label: fill(breakdown.cash, { rate: wealthRate }), value: moneyOrDash(shares.cash) });
   if (has("gold"))
     breakdownRows.push({
@@ -718,6 +1224,37 @@ export function ZakatCalculator({
       label: fill(breakdown.minerals, { rate: wealthRate }),
       value: moneyOrDash(result.mineralsDue),
     });
+  const valueOrNoPrice = (value: number | null) => (value === null ? t.result.noPrice : money(value));
+  for (const line of result.crops.filter((crop) => crop.dueKg > 0)) {
+    breakdownRows.push({
+      key: `crop-${line.id}`,
+      label: (
+        <>
+          {fill(t.result.breakdownCrops, { rate: rateNum(line.rate) })} ·{" "}
+          {fill(t.result.cropItem, { amount: <Num>{fmt.kg(line.dueKg)}</Num>, crop: cropLabel(line.crop) })}
+        </>
+      ),
+      value: valueOrNoPrice(line.dueEtb),
+    });
+  }
+  for (const herd of result.herds.filter((item) => item.count > 0 && item.eligible)) {
+    breakdownRows.push({
+      key: `herd-${herd.herd}`,
+      label: (
+        <>
+          {t.result.breakdownLivestock} ·{" "}
+          {herd.owed === null
+            ? format(t.result.herdNone, {
+                type: t.livestock.types[herd.herd],
+                count: fmt.count(herd.zakatable),
+                min: fmt.count(herdMinimum(herd.herd)),
+              })
+            : format(t.result.herdItem, { type: t.livestock.types[herd.herd], animals: animalsFor(herd) })}
+        </>
+      ),
+      value: herd.owed === null ? money(0) : valueOrNoPrice(herd.valueEtb),
+    });
+  }
   if (has("debts"))
     breakdownRows.push({
       key: "liabilities",
@@ -730,9 +1267,16 @@ export function ZakatCalculator({
     });
 
   const addHeadingId = `${baseId}-add-heading`;
+  /** Crops and animals due with no price: they are owed but not in the cash total. */
+  const unpricedText = [
+    ...result.crops
+      .filter((line) => line.dueKg > 0 && line.dueEtb === null)
+      .map((line) => format(t.result.cropItem, { amount: fmt.kg(line.dueKg), crop: cropLabel(line.crop) })),
+    ...result.herds.filter((herd) => herd.owed !== null && herd.valueEtb === null).map((herd) => animalsFor(herd)),
+  ].join(t.livestock.dueSeparator);
 
   return (
-    <section className="relative z-10 w-full overflow-hidden bg-brand">
+    <section className="relative z-10 w-full overflow-clip bg-brand">
       {/* Decorative brand graphic: a CSS background, so it has no image alt to miss. */}
       <div
         aria-hidden="true"
@@ -892,7 +1436,7 @@ export function ZakatCalculator({
                   <p className="font-serif-display mt-2 text-2xl tracking-[-0.5px] text-accent-ink sm:text-3xl rtl:tracking-normal">
                     {t.result.checkAmounts}
                   </p>
-                ) : totalEtbDue === null ? (
+                ) : grandTotalEtb === null ? (
                   // Part of the total weighs against the Nisab, which only the official rates give.
                   <p className="font-serif-display mt-2 text-2xl tracking-[-0.5px] text-navy sm:text-3xl rtl:tracking-normal">
                     {pricingLoading ? t.rates.loading : t.result.needsRates}
@@ -900,30 +1444,31 @@ export function ZakatCalculator({
                 ) : (
                   <p className="font-serif-display mt-2 text-3xl break-words tabular-nums tracking-[-1px] text-navy sm:text-4xl md:text-5xl rtl:tracking-normal">
                     <span className="sr-only">{t.result.total}: </span>
-                    {money(totalEtbDue)}
+                    {money(grandTotalEtb)}
                   </p>
                 )}
               </div>
-              {!hasInputErrors && totalEtbDue === null && !pricingLoading ? (
+              {!hasInputErrors && grandTotalEtb === null && !pricingLoading ? (
                 <div className="mt-3">{retryButton("border-black/15 bg-white text-navy hover:border-brand hover:text-brand")}</div>
               ) : null}
 
-              {/* In-kind dues reported separately from the monetary total */}
+              {/* Crops and animals are in the total at their prices; they may also be given as they are. */}
               {!hasInputErrors && result.hasInKind && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {result.agricultureDue > 0 && (
-                    <span className="rounded-full bg-brand/10 px-3 py-1.5 text-xs font-medium text-brand">
-                      {fill(t.result.crops, { amount: <Num>{fmt.currency(result.agricultureDue)}</Num> })}
-                    </span>
+                <div className="mt-3 space-y-1.5 text-xs leading-relaxed">
+                  {result.inKindUnpriced ? (
+                    <div className="flex items-start gap-2 text-accent-ink">
+                      <TriangleAlertIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      <div className="space-y-1">
+                        <p className="font-medium">
+                          {fill(t.result.unpricedItems, { items: unpricedText })}
+                        </p>
+                        <p>{t.result.inKindUnpriced}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-neutral-600">{t.result.allInCash}</p>
                   )}
-                  {result.livestockOwed && (
-                    <span className="rounded-full bg-brand/10 px-3 py-1.5 text-xs font-medium text-brand">
-                      {format(t.result.animals, {
-                        animals: animalsText(result.livestockOwed),
-                        type: t.livestock.types[form.livestockMode],
-                      })}
-                    </span>
-                  )}
+                  <p className="text-neutral-600">{t.result.inKindChoice}</p>
                 </div>
               )}
               {!hasInputErrors && has("livestock") && !form.hawlCompleted && (
@@ -935,13 +1480,13 @@ export function ZakatCalculator({
                   {breakdownRows.map((row) => (
                     <p key={row.key} className="flex items-center justify-between gap-3">
                       <span>{row.label}</span>
-                      <span className={`text-end ${row.deduction ? "text-accent-ink" : "text-navy"}`}>{row.value}</span>
+                      <span className={`shrink-0 whitespace-nowrap text-end ${row.deduction ? "text-accent-ink" : "text-navy"}`}>{row.value}</span>
                     </p>
                   ))}
                 </div>
               )}
 
-              {!hasInputErrors && result.hasMonetaryCategory && (
+              {!hasInputErrors && result.hasMonetaryCategory && (result.adjustedAnnualBase > 0 || !result.hasInKind) && (
                 <div className="mt-4 space-y-2 border-t border-black/10 pt-3 text-xs text-neutral-600">
                   <p className="flex items-center justify-between gap-3">
                     <span>{t.result.netBase}</span>

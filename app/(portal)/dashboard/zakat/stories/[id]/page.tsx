@@ -15,6 +15,7 @@ import { RequireRole } from "@/components/dashboard/require-role";
 import { AMHARIC_HINT, AMHARIC_INPUT, AMHARIC_TITLE } from "@/components/zakat/content/amharic";
 import type { StoryAdmin } from "@/components/zakat/content/types";
 import { VersionConflictAlert } from "@/components/zakat/content/version-conflict-alert";
+import { coverAltTextChange } from "@/components/zakat/content/cause-rules";
 import { ImageUpload, type MediaRef } from "@/components/zakat/image-upload";
 import { staffRef } from "@/components/zakat/staff-ref";
 import { StoryStatusBadge } from "@/components/zakat/story-status-badge";
@@ -40,6 +41,7 @@ type Form = {
   category: string;
   regionCode: string;
   image: MediaRef[];
+  imageAltText: string;
   consentConfirmed: boolean;
   consentNote: string;
 };
@@ -54,6 +56,7 @@ const EMPTY: Form = {
   category: "",
   regionCode: "",
   image: [],
+  imageAltText: "",
   consentConfirmed: false,
   consentNote: "",
 };
@@ -70,6 +73,7 @@ function toForm(story: StoryAdmin): Form {
     regionCode: story.regionCode ?? "",
     // The admin URL also works for a draft's image.
     image: story.imageMediaId != null ? [{ id: String(story.imageMediaId), url: story.adminImageUrl ?? story.imageUrl }] : [],
+    imageAltText: story.imageAltText ?? "",
     consentConfirmed: story.consentConfirmed,
     consentNote: story.consentNote ?? "",
   };
@@ -164,6 +168,17 @@ function StoryForm({
     }
     setIsSaving(true);
     try {
+      // Alt text belongs to the image (PATCH /admin/media/{id}), so it is saved on the image first, as for causes.
+      const altChange = coverAltTextChange(
+        { id: form.image[0]?.id ?? "", altText: form.imageAltText },
+        { id: initial.image[0]?.id ?? null, altText: initial.imageAltText },
+      );
+      if (altChange) {
+        await apiClient(`/bff/zakat-admin/media/${encodeURIComponent(altChange.mediaId)}`, {
+          method: "PATCH",
+          body: JSON.stringify({ altText: altChange.altText }),
+        });
+      }
       const saved = await apiClient<StoryAdmin>(story ? `${API}/${encodeURIComponent(story.id)}` : API, {
         method: story ? "PUT" : "POST",
         body: JSON.stringify(toBody(form, story?.version)),
@@ -277,6 +292,25 @@ function StoryForm({
             </FormField>
             <FormField label="Image" htmlFor="image" hint="JPEG, PNG or WebP, up to 5 MB" error={fieldErrors.imageMediaId} className="sm:col-span-2">
               <ImageUpload id="image" value={form.image} onChange={(value) => set("image", value)} />
+            </FormField>
+            <FormField
+              label="Image description"
+              htmlFor="imageAltText"
+              hint={
+                form.image.length
+                  ? `What the photo shows, read out by screen readers (${form.imageAltText.length}/250)`
+                  : "Add an image first."
+              }
+              error={fieldErrors.altText ?? fieldErrors.imageAltText}
+              className="sm:col-span-2"
+            >
+              <Input
+                id="imageAltText"
+                maxLength={250}
+                value={form.imageAltText}
+                disabled={form.image.length === 0}
+                onChange={(e) => set("imageAltText", e.target.value)}
+              />
             </FormField>
           </div>
         </Panel>

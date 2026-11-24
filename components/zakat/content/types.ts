@@ -24,6 +24,8 @@ export type CauseAdmin = AdminCause & {
 
 export type StoryAdmin = AdminStory & {
   version: number;
+  /** The cover image's alt text (kept on the media item); older gateways leave it out. */
+  imageAltText?: string | null;
   adminImageUrl: string | null;
   createdByName: string | null;
   titleAm: string | null;

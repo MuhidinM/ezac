@@ -63,6 +63,8 @@ function positiveEntries(value: unknown): Record<string, number> {
 /** A checked copy of the calculator config, or null when anything the site relies on is missing or out of range. */
 export function readCalculatorConfig(data: unknown): CalculatorConfig | null {
   if (!isObj(data)) return null;
+  // Rules without prices (backend request A9): nothing can be valued in birr, so treat it like "no prices yet".
+  if (data.pricesPublished === false) return null;
   const { nisab, wealth, crops, livestock } = data;
 
   if (!isObj(nisab) || (nisab.basis !== "gold" && nisab.basis !== "silver")) return null;
@@ -89,6 +91,14 @@ export function readCalculatorConfig(data: unknown): CalculatorConfig | null {
   if (!sheepGoats || !camels) return null;
 
   const unitPrices = positiveEntries(data.livestockAverageUnitPriceEtb);
+  const duePrices = positiveEntries(data.livestockPricesEtb);
+  // Served either flat or as { asOf, etbPerKg } (backend request A1).
+  const cropPrices = positiveEntries(
+    isObj(data.cropPrices) ? data.cropPrices.etbPerKg : data.cropPricesEtbPerKg,
+  );
+  // Optional rules (A3): a bad value is ignored, not fatal; the fixed figures apply.
+  const mixedRate = isRate(crops.mixedRate) ? crops.mixedRate : undefined;
+  const rikazRate = isObj(data.rikaz) && isRate(data.rikaz.rate) ? data.rikaz.rate : undefined;
 
   return {
     configVersion: isNonNegative(data.configVersion) ? data.configVersion : 0,
@@ -112,8 +122,17 @@ export function readCalculatorConfig(data: unknown): CalculatorConfig | null {
       // Display only. 0 means the service didn't send it; never print it as a day count.
       hawlLunarDays: isPositive(wealth.hawlLunarDays) ? wealth.hawlLunarDays : 0,
     },
-    crops: { nisabKg: crops.nisabKg, rainFedRate: crops.rainFedRate, irrigatedRate: crops.irrigatedRate },
+    crops: {
+      nisabKg: crops.nisabKg,
+      rainFedRate: crops.rainFedRate,
+      irrigatedRate: crops.irrigatedRate,
+      ...(mixedRate !== undefined ? { mixedRate } : {}),
+    },
+    ...(rikazRate !== undefined ? { rikaz: { rate: rikazRate } } : {}),
     livestock: { sheepGoats, cattle: { minimum, tabiPer, musinnahPer }, camels },
     livestockAverageUnitPriceEtb: Object.keys(unitPrices).length > 0 ? unitPrices : undefined,
+    livestockPricesEtb: Object.keys(duePrices).length > 0 ? duePrices : undefined,
+    cropPricesEtbPerKg: Object.keys(cropPrices).length > 0 ? cropPrices : undefined,
+    priceMaxAgeHours: isPositive(data.priceMaxAgeHours) ? data.priceMaxAgeHours : undefined,
   };
 }

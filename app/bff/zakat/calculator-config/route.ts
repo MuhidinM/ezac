@@ -34,7 +34,11 @@ export async function GET() {
     throw error;
   }
 
-  if (data === null) {
+  // Rules without prices (backend request A9) read the same as "no prices yet".
+  const noPrices =
+    data === null ||
+    (typeof data === "object" && (data as { pricesPublished?: unknown }).pricesPublished === false);
+  if (noPrices) {
     return NextResponse.json({ success: false, message: "Official prices aren't available yet." }, { status: 503 });
   }
 
