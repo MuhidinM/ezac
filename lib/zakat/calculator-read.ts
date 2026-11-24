@@ -60,6 +60,8 @@ function positiveEntries(value: unknown): Record<string, number> {
   return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, number] => isPositive(entry[1])));
 }
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 /** A checked copy of the calculator config, or null when anything the site relies on is missing or out of range. */
 export function readCalculatorConfig(data: unknown): CalculatorConfig | null {
   if (!isObj(data)) return null;
@@ -99,6 +101,10 @@ export function readCalculatorConfig(data: unknown): CalculatorConfig | null {
   // Optional rules (A3): a bad value is ignored, not fatal; the fixed figures apply.
   const mixedRate = isRate(crops.mixedRate) ? crops.mixedRate : undefined;
   const rikazRate = isObj(data.rikaz) && isRate(data.rikaz.rate) ? data.rikaz.rate : undefined;
+  // Karats with a price of their own (A6); anything else in the list is ignored.
+  const goldKarats = Array.isArray(data.goldKarats)
+    ? data.goldKarats.filter((karat): karat is number => Number.isInteger(karat) && karat > 0 && karat <= 24)
+    : [];
 
   return {
     configVersion: isNonNegative(data.configVersion) ? data.configVersion : 0,
@@ -134,5 +140,7 @@ export function readCalculatorConfig(data: unknown): CalculatorConfig | null {
     livestockPricesEtb: Object.keys(duePrices).length > 0 ? duePrices : undefined,
     cropPricesEtbPerKg: Object.keys(cropPrices).length > 0 ? cropPrices : undefined,
     priceMaxAgeHours: isPositive(data.priceMaxAgeHours) ? data.priceMaxAgeHours : undefined,
+    goldKarats: goldKarats.length > 0 ? goldKarats : undefined,
+    manualUntil: typeof data.manualUntil === "string" && ISO_DATE.test(data.manualUntil) ? data.manualUntil : undefined,
   };
 }

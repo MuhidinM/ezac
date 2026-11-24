@@ -50,6 +50,10 @@ export type CalculatorConfig = {
   cropPricesEtbPerKg?: Record<string, number>;
   /** How old prices may be before the public page warns (A7); 48 hours otherwise. */
   priceMaxAgeHours?: number;
+  /** The gold karats zakat-engine prices (A6); every karat the site knows otherwise. */
+  goldKarats?: number[];
+  /** Addis Ababa date (YYYY-MM-DD) until which hand-entered prices stay in force (A7). */
+  manualUntil?: string;
 };
 
 /** Used while the config doesn't carry them (backend request A3 asks it to). */

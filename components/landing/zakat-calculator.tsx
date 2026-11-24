@@ -41,11 +41,12 @@ import {
   HERDS,
   INITIAL_STATE,
   KG_PER_UNIT,
-  KARATS,
+  karatChoices,
   calculateZakat,
   cleanAmount,
   emptyCropItem,
   isPriceStale,
+  manualPricesInForce,
   officialAnimalPrice,
   officialCropPrice,
   parseAmount,
@@ -167,6 +168,7 @@ function useFormatters(intlLocale: string) {
       timeStyle: "short",
       timeZone: PRICE_TIME_ZONE,
     });
+    const day = new Intl.DateTimeFormat(intlLocale, { dateStyle: "medium", timeZone: "UTC" });
     return {
       /** ETB amounts and in-kind kilograms, rounded to whole units. */
       currency: (value: number) => whole.format(value),
@@ -176,6 +178,8 @@ function useFormatters(intlLocale: string) {
       pct: (rate: number) => percent.format(rate),
       rate: (value: number) => twoDecimals.format(value),
       dateTime: (value: Date) => dateTime.format(value),
+      /** A calendar date sent as YYYY-MM-DD, shown as that same day. */
+      date: (value: string) => day.format(new Date(`${value}T12:00:00Z`)),
     };
   }, [intlLocale]);
 }
@@ -282,7 +286,12 @@ export function ZakatCalculator({
   const { zakatRate, agriNisabKg, goldNisabGrams, silverNisabGrams } = rules;
   // Fallback figures must never read as the Commission's live rule.
   const usingEstimates = !config && !pricingLoading;
-  const pricesStale = config !== null && openedAtMs !== null && isPriceStale(config.pricesAsOf, openedAtMs, config.priceMaxAgeHours);
+  const manualInForce = config !== null && openedAtMs !== null && manualPricesInForce(config.manualUntil, openedAtMs);
+  const pricesStale =
+    config !== null &&
+    openedAtMs !== null &&
+    !manualInForce &&
+    isPriceStale(config.pricesAsOf, openedAtMs, config.priceMaxAgeHours);
   const pricesAsOf =
     config?.pricesAsOf && !Number.isNaN(Date.parse(config.pricesAsOf)) ? fmt.dateTime(new Date(config.pricesAsOf)) : null;
 
@@ -966,7 +975,9 @@ export function ZakatCalculator({
                     ? format(t.gold.errorExcluded, { error: ratesErrorText(pricingError) })
                     : [
                         pricesAsOf ? format(t.gold.pricesAsOf, { date: pricesAsOf }) : null,
-                        config?.priceSource,
+                        manualInForce && config?.manualUntil
+                          ? format(t.gold.manualUntil, { date: fmt.date(config.manualUntil) })
+                          : config?.priceSource,
                         config?.usdEtbRate ? format(t.gold.usdEtb, { rate: fmt.rate(config.usdEtbRate) }) : null,
                       ]
                         .filter(Boolean)
@@ -1025,7 +1036,7 @@ export function ZakatCalculator({
                         onChange={(e) => updateMetalItem(item.id, "karat", Number(e.target.value) as Karat)}
                         className={`${FIELD_CLASS} border-black/10 ${FOCUS_RING}`}
                       >
-                        {KARATS.map((karat) => (
+                        {karatChoices(config, item.metal, item.karat).map((karat) => (
                           <option key={karat} value={karat}>
                             {format(t.gold.karatOption, { karat })}
                           </option>

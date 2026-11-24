@@ -153,6 +153,7 @@ const calculator: Messages<typeof en> = {
     loading: "ይፋዊ ዋጋዎቹ እየተጫኑ ነው…",
     errorExcluded: "{error} ይፋዊ ዋጋዎቹ እስኪጫኑ ድረስ ወርቅና ብር በድምሩ ውስጥ አልተካተቱም።",
     pricesAsOf: "ዋጋዎቹ የተወሰዱበት ቀን፦ {date}",
+    manualUntil: "በእጅ የገቡ ዋጋዎች፣ እስከ {date} የሚጸኑ",
     usdEtb: "USD/ETB {rate}",
     metalLabel: "ማዕድን ቁ. {number}",
     metals: { gold: "ወርቅ", silver: "ብር" },
