@@ -2,10 +2,13 @@ import "server-only";
 
 import { STATUS_CODES } from "node:http";
 
+import { headers } from "next/headers";
+
 import { getApiBaseUrl } from "@/lib/api/config";
 import { ApiError, parseFieldErrors } from "@/lib/api/errors";
 import { logEvent, oneLine } from "@/lib/api/log";
 import { logGatewayUnreachable } from "@/lib/api/network-error";
+import { visitorIp } from "@/lib/api/visitor-ip";
 
 /**
  * The one way the server talks to the gateway: every BFF route goes through
@@ -85,6 +88,15 @@ function failure(call: Omit<UpstreamCall, "response">, error: unknown, timedOut:
  * Throws ApiError 502 (unreachable) or 504 (timed out), already logged.
  * Upstream HTTP errors are returned as a normal response.
  */
+/** The visitor of the request being served, or null outside a request (or when unknown). */
+async function incomingVisitorIp(): Promise<string | null> {
+  try {
+    return visitorIp(await headers());
+  } catch {
+    return null;
+  }
+}
+
 export async function upstreamFetch(
   path: string,
   init: RequestInit = {},
@@ -100,7 +112,14 @@ export async function upstreamFetch(
   // A fetch cached by Next (next.revalidate) keys on its headers, so a unique
   // id there would make every call a cache miss.
   const cached = !!init.next;
-  if (!cached) headers.set("X-Request-Id", requestId);
+  if (!cached) {
+    headers.set("X-Request-Id", requestId);
+    // The gateway's limits and audit rows need the visitor, not this server.
+    if (!headers.has("X-Forwarded-For")) {
+      const ip = await incomingVisitorIp();
+      if (ip) headers.set("X-Forwarded-For", ip);
+    }
+  }
 
   const controller = new AbortController();
   let timedOut = false;

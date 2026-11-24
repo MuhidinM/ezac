@@ -12,6 +12,14 @@ import {
 
 vi.mock("server-only", () => ({}));
 
+const incoming = vi.hoisted(() => ({ headers: new Headers() as Headers | null }));
+vi.mock("next/headers", () => ({
+  headers: async () => {
+    if (!incoming.headers) throw new Error("outside a request");
+    return incoming.headers;
+  },
+}));
+
 const API_BASE_URL = process.env.API_BASE_URL;
 
 let errorLog: MockInstance<typeof console.error>;
@@ -152,6 +160,39 @@ describe("upstreamFetch", () => {
     expect(new Headers(init.headers).get("X-Request-Id")).toBe("req-7");
     expect(init.cache).toBe("no-store");
     call.settle();
+  });
+
+  it("passes the visitor's address on, as nginx gave it", async () => {
+    const fetchMock = vi.fn(async () => json({ success: true, data: null }));
+    vi.stubGlobal("fetch", fetchMock);
+    incoming.headers = new Headers({ "x-real-ip": "196.188.1.9", "x-forwarded-for": "6.6.6.6, 196.188.1.9" });
+    const call = await upstreamFetch("/api/x", {}, { label: "test" });
+    const [, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
+    expect(new Headers(init.headers).get("X-Forwarded-For")).toBe("196.188.1.9");
+    call.settle();
+  });
+
+  it("sends no visitor address when it is unknown or outside a request", async () => {
+    const fetchMock = vi.fn(async () => json({ success: true, data: null }));
+    vi.stubGlobal("fetch", fetchMock);
+    incoming.headers = new Headers({ "x-forwarded-for": "127.0.0.1" });
+    (await upstreamFetch("/api/x", {}, { label: "test" })).settle();
+    incoming.headers = null;
+    (await upstreamFetch("/api/x", {}, { label: "test" })).settle();
+    for (const [, init] of fetchMock.mock.calls as unknown as [URL, RequestInit][]) {
+      expect(new Headers(init.headers).has("X-Forwarded-For")).toBe(false);
+    }
+    incoming.headers = new Headers();
+  });
+
+  it("keeps an address the route set itself", async () => {
+    const fetchMock = vi.fn(async () => json({ success: true, data: null }));
+    vi.stubGlobal("fetch", fetchMock);
+    incoming.headers = new Headers({ "x-real-ip": "196.188.1.9" });
+    (await upstreamFetch("/api/x", { headers: { "X-Forwarded-For": "196.188.2.2" } }, { label: "test" })).settle();
+    const [, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
+    expect(new Headers(init.headers).get("X-Forwarded-For")).toBe("196.188.2.2");
+    incoming.headers = new Headers();
   });
 
   it("leaves the id out of calls Next caches, so each one isn't a cache miss", async () => {
